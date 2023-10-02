@@ -4,6 +4,7 @@ and will be adapted as needed to be used for a covid model
 """
 import numpy as np
 import jax.numpy as jnp
+from enum import IntEnum
 
 REGIONS = [
     "United States"
@@ -131,12 +132,9 @@ class ModelConfig:
 
     #compartment indexes for readability in code
     NUM_COMPARTMENTS = 6
-    S_IDX = 0
-    E_IDX = 1
-    I_IDX = 2
-    R_IDX = 3
-    W_IDX = 4
-    V_IDX = 5
+    #todo figure out IntEnum
+    idx = IntEnum('idx', ['S', 'E', 'I', 'R', 'W', 'V'], start=0)
+
     
     
     
