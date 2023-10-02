@@ -1,9 +1,0 @@
-// Config file for the model
-{
-    "file_paths":
-    {
-        "hhs": "/data/todo.txt",
-        "NVRSS": "/data/todo2.txt"
-    }
-
-}

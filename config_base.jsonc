@@ -1,0 +1,30 @@
+// Config file for the model
+{
+    "random_seed":12345, //random seed used whenever generating anything random.
+    "threads": 4, //number of threads to use 
+    "file_paths":
+    {
+        "hhs": "/data/todo.txt", //path to hhs covid data source
+        "NVRSS": "/data/todo2.txt", //path to NVRSS lab testing data source
+        "contact_matrix_school": "/data/todo3.txt", //path to contact matrix during school time
+        "contact_matrix_no_school": "/data/todo3.txt" //path to contact matrix during no-school periods
+        
+    },
+    "external_params":{
+        "R0": 1.5, //inital reproductive number
+        "infectious_period": 3.0, //mean days infectious
+        "n_age_groups": 5, //number of age groups
+        "age_break_points": [4, 17, 49, 64], //0-4, 5-17, 18-49, 50-64, 65+
+        "inital_infections": 10
+    },
+    "compartments":{ //compartment indexes for readability in code
+        "num_compartments": 6,
+        "s_idx": 0,
+        "e_idx": 1,
+        "i_idx": 2,
+        "r_idx": 3,
+        "w_idx": 4,
+        "v_idx": 5
+    }
+
+}
