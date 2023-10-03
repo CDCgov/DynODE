@@ -43,7 +43,7 @@ class DataConfig:
         ["18-29 yr", "30-39 yr", "40-49 yr", "50-64 yr"],
         ["65-74 yr", "75-84 yr", "85+"],
     ]
-    
+    POP_SIZE = 1000
     # PROPERTIES OF DATA
     SEASON_FIRST_MONTH = 8
     SEASON_FIRST_WEEK = 8
@@ -90,44 +90,34 @@ class DataConfig:
 class ModelConfig:
     
     # POOLING CONFIGURATION 
-    USE_NO_POOLING = True
-    USE_PARTIAL_POOLING = False
-    USE_SINGLE_STATE = False
-    assert (USE_NO_POOLING + USE_PARTIAL_POOLING + USE_SINGLE_STATE) == 1,"You must select one form of model to run"
 
     # FIXED SEIR PARAMETERS
-    SPLINE_DEGREES_OF_FREEDOM = 3
-    SPLINE_POINTS = np.arange(1.0, 401.0) 
-    MORALITY_RATE = 1 / 75.0 # mu
-    RECOVERY_RATE = 365.0 # gamma
-    EXTERNAL_FORCING = 1e-3 # chi_ref
-    STRAIN_INCUBATION_RATES = np.array([1 / 1.9, 1 / 1.9, 1 / 1.6]) * 365 # alpha_s
-    VACCINE_PARAMETERS = [
-        [17.0796, 0.55319, 5.76992, 0.587439],
-        [22.2553, 0.340217, 6.45388, 0.427256],
-        [23.5317, 0.625464, 4.26573, 0.767935],
-    ] # vac_p
-    INIT_VACCINE_PROPORTIONS = [0.0247099, 0.00548996, 0.0113005] #V_0
+    BIRTH_RATE = 1 / 75.0 # mu #TODO IMPLEMENT DEATHS
+    INFECTIOUS_PERIOD = 3.0 #gamma
+    EXPOSED_TO_INFECTIOUS = 2.0 #sigma
+    VACCINATION_RATE = 1 / 10.0 # vac_p
+    VACCINE_WANING = 1 / 25.0
+    INIT_VACCINE_PROPORTIONS = [0.0247099] #V_0
     VACCINE_SWITCH_POINT = 0.25 #t_1, 
-    HOSPITALIZATION_RATE = (0.01 / 0.5) * (1.44 / 100) # delta_as
-    ENDING_SUSCEPTIBILITY = jnp.full((3, 3), 0.5)
+    HOSPITALIZATION_RATE = (0.01 / 0.5) * (1.44 / 100) # delta_as #TODO change
+    INITIAL_INFECTIONS = 10.0
 
     # INFERABLE PARAMETER PRIORS
-    SUBTYPE_SPECIFIC_R0 = [1.3, 1.6, 1.1] # R0s
-    SUBTYPE_SPECIFIC_INFECTION_RATE = [1.0, 1.0, 1.0]  # chi
+    SUBTYPE_SPECIFIC_R0 = [1.5] # R0s
     RELATIVE_SCHOOL_INFECTIOUSNESS = 2 # sch_scale
     SUBTYPE_AGE_HOSPITALIZATION_RATE = "" # delta_as
-    SPLINE_BASIS_PARAMETER = np.full(365, 1.3) # b
-    INITIAL_SUSCEPTIBLES = np.ones((3, 3)) # initS
-    VACCINE_EFFECTIVENESS = 0.55 #v_eff
-    OVERALL_VACCINE_EFFECIVENESS = 0.60 # v_eff_ovr
-    PROPORTION_VACCINES_EFFECTIVE = 0.35 #f_p
-    FLU_TEST_RATE = 0.5 # ? 
+    VACCINE_EFFECTIVENESS = 0.7 #v_eff
+    NAT_IMMUNE_EFFECTIVENESS = 0.6 #% effectiveness of prior natural immunity in waned state at preventing infection
+    WANING_1_TIME = 20.0 #time in days before a recovered individual moves to first waned compartment
+    W1_PROTECT = 0.7 # protection against infection in first state of waning
+    W2_PROTECT = 0.6 # protection against infection in second state of waning
+    W3_PROTECT = 0.4 # protection against infection in third state of waning
+    W4_PROTECT = 0.15 # protection against infection in fourth state of waning
+    WANED_TO_SUSEPTIBLE = 10 #time in days a person spends in the waned natural immunity state before becoming fully suseptible again
     DELAY = "" # Z_delay
     HOSPITALIZATION_RATE_UNCERTAINTY = 0.5 #sigma_hosp
 
     # DIFFRAX ODE SOLVER OPTIONS
-    STEP_SIZE_FIRST_STEP = 0.05 # dt0
     # OPTION: SUB_SAVE_AT 
 
     #compartment indexes for readability in code
@@ -145,12 +135,9 @@ class ModelConfig:
 
 
 class InferenceConfig:
-
-    SAMPLE_COUNT = 10000.0
-    DIFFERENTIAL_EQ_SOLVER = "TSIT5"
-    MCMC_PRNGKEY = 43
-    MCMC_NUM_WARMUP = 500
-    MCMC_NUM_SAMPLES = 2500
+    MCMC_PRNGKEY = 8675309
+    MCMC_NUM_WARMUP = 1000
+    MCMC_NUM_SAMPLES = 1000
     MCMC_NUM_CHAINS = 4
-    MCMC_PROGRESS_BAR = False
-    MODEL_RAND_SEED = 324
+    MCMC_PROGRESS_BAR = True
+    MODEL_RAND_SEED = 8675309

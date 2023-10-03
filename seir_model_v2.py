@@ -25,68 +25,69 @@ jax.config.update("jax_enable_x64", True)
 #gamma = i-R
 def sir_ode(state, _, parameters):
     # Unpack state
-    s, e, i, r, sv, ev, iv, w = state
-    population = s + e + i + r + sv + ev + iv + w
-    beta, sigma, gamma, contact_matrix, v_eff, nat_eff, wanning_rate, waned_rate, waned_vax, mu, vax_rate = parameters
-    dw_to_s = waned_rate * w
-    dsv_to_s = waned_vax * sv
-    ds_to_e = s * beta / population * contact_matrix.dot(i + iv)
-    ds_to_sv = vax_rate * s
-    dw_to_e = (1 - nat_eff) * w * beta / population * contact_matrix.dot(i + iv)
-    de_to_i = sigma * e
-    di_to_r = gamma * i
-    dsv_to_ev = (1 - v_eff) * sv * beta / population * contact_matrix.dot(i + iv)
-    dev_to_iv = sigma * ev
-    div_to_r = gamma * iv
-    dr_to_w = wanning_rate * r
+    s, e, i, r, w1, w2, w3, w4 = state
+    population = s + e + i + r + w1 + w2 + w3 + w4
+    beta, sigma, gamma, contact_matrix, vax_rate, w1_protect, w2_protect, w3_protect, w4_protect, wanning_rate, mu = parameters
+    ds_to_e = beta * s * contact_matrix.dot(i) / population #exposure
+    dw1_to_e = beta * (1 - w1_protect) * w1 * contact_matrix.dot(i) / population # waning individuals exposure
+    dw2_to_e = beta * (1 - w2_protect) * w2 * contact_matrix.dot(i) / population # waning individuals exposure
+    dw3_to_e = beta * (1 - w3_protect) * w3 * contact_matrix.dot(i) / population # waning individuals exposure
+    dw4_to_e = beta * (1 - w4_protect) * w4 * contact_matrix.dot(i) / population # waning individuals exposure
 
+    ds_to_w1 = s * vax_rate #vaccination of suseptibles
+    #we may want a dw1_to_w1 to represent recent infection getting vaccinated
+    dw2_to_w1 = vax_rate * w2 #vaccination of previous immunity
+    dw3_to_w1 = vax_rate * w3 #vaccination of previous immunity
+    dw4_to_w1 = vax_rate * w4 #vaccination of previous immunity
 
-    ds = waned_rate * w + waned_vax * sv - s * beta / population * contact_matrix.dot(i + iv) - vax_rate * s # natural infected waned persons + vaccinated waned persons - suseptible * lambda * contacts - vaccinated individuals
-    de = s * beta / population * contact_matrix.dot(i + iv) + (1 - nat_eff) * w * beta / population * contact_matrix.dot(i + iv)- sigma * e #suseptible * lambda * contacts + waning_effectiveness * waned * lambda * contacts - exposed becoming infectious
-    di = sigma * e - gamma * i #exposed becoming infectious - individuals recovering
+    #TODO implement easy scaling of number of waning compartments
 
-    dsv = vax_rate * s - waned_vax * sv - (1 - v_eff) * sv * beta / population * contact_matrix.dot(i + iv) #new vaccinated - waned vaccination - (1-v_eff) * suseptible_vax * lambda * contacts
-    dev = (1 - v_eff) * sv * beta / population * contact_matrix.dot(i + iv) - sigma * ev #(1-v_eff) * suseptible_vax * beta * contacts - exposed becoming infectious
-    div = sigma * ev - gamma * iv #exposed becoming infectious - individuals recovering
+    dr_to_w1 = wanning_rate * r #waning
+    dw1_to_w2 = wanning_rate * w1 #waning
+    dw2_to_w3 = wanning_rate * w2 #waning
+    dw3_to_w4 = wanning_rate * w3 #waning
 
-    dr = gamma * i + gamma * iv - wanning_rate * r #recovering vax and non-vax individuals - waning individuals
-    dw = wanning_rate * r - waned_rate * w - (1 - nat_eff) * w * beta / population * contact_matrix.dot(i + iv)#waning individuals - fully waned back to suseptible - waning_effectiveness * waned * lambda * contacts
-   # ds = ds + mu * population  # birth 
-
-    return (ds, de, di, dr, dsv, dev, div, dw)
+    de_to_i = sigma * e #exposure -> infectious
+    di_to_r = gamma * i #infectious -> recovered
+    ds = s - ds_to_e - ds_to_w1
+    de = e - de_to_i + ds_to_e + dw1_to_e + dw2_to_e + dw3_to_e + dw4_to_e 
+    di = i + de_to_i - di_to_r
+    dr = r + di_to_r - dr_to_w1
+    dw1 = w1 + dr_to_w1 + ds_to_w1 + dw2_to_w1 + dw3_to_w1 + dw4_to_w1 - dw1_to_e - dw1_to_w2
+    dw2 = w2 + dw1_to_w2 - dw2_to_e - dw2_to_w3
+    dw3 = w3 + dw2_to_w3 - dw3_to_e - dw3_to_w4
+    dw4 = w4 + dw3_to_w4 - dw4_to_e
+    return (ds, de, di, dr, dw1, dw2, dw3, dw4)
 
 rng = np.random.default_rng(seed=ic.MODEL_RAND_SEED)
-target_population_fractions = np.random.uniform(size = dc.NUM_AGE_GROUPS) #todo change so age distributions initialized non-uniformly
+target_population_fractions = rng.uniform(size = dc.NUM_AGE_GROUPS) #todo change so age distributions initialized non-uniformly
 target_population_fractions = target_population_fractions / sum(target_population_fractions)
-contact_matrix = np.random.rand(dc.NUM_AGE_GROUPS, dc.NUM_AGE_GROUPS)
 population = dc.POP_SIZE * dc.NUM_AGE_GROUPS * target_population_fractions 
 population_fractions = population / sum(population)
 # Normalize contact matrix to have unit spectral radius
+#TODO move to trevors contact matrix shifted into age groups chosen.
+contact_matrix = rng.uniform(size = (dc.NUM_AGE_GROUPS, dc.NUM_AGE_GROUPS))
 contact_matrix = contact_matrix / max(abs(np.linalg.eigvals(contact_matrix)))
 
 # Internal model parameters and state
-inital_suseptible = population
 initial_state = (population - mc.INITIAL_INFECTIONS * population_fractions, #s
                  mc.INITIAL_INFECTIONS * population_fractions, #e
                  population_fractions, #i
                  population_fractions, #r
-                 population_fractions, #sv
-                 population_fractions, #ev
-                 population_fractions, #iv
-                 population_fractions) #w
+                 population_fractions, #w1
+                 population_fractions, #w2
+                 population_fractions, #w3
+                 population_fractions) #w4
 beta = mc.SUBTYPE_SPECIFIC_R0[0] / mc.INFECTIOUS_PERIOD 
 gamma = 1 / mc.INFECTIOUS_PERIOD 
 sigma = 1 / mc.EXPOSED_TO_INFECTIOUS
 wanning_rate = 1 / mc.WANING_1_TIME
-waned_rate = 1 / mc.WANED_TO_SUSEPTIBLE
 
 
-# Solve ODE old solution
 solution = odeint(sir_ode, initial_state, jnp.linspace(0.0, 100.0, 101),
-                  [beta, sigma, gamma, contact_matrix, mc.VACCINE_EFFECTIVENESS, mc.NAT_IMMUNE_EFFECTIVENESS, wanning_rate, waned_rate, mc.VACCINE_WANING, mc.BIRTH_RATE, mc.VACCINATION_RATE])
+                  [beta, sigma, gamma, contact_matrix, mc.VACCINATION_RATE, mc.W1_PROTECT, mc.W2_PROTECT, mc.W3_PROTECT, mc.W4_PROTECT, wanning_rate, mc.BIRTH_RATE])
 incidence = abs(-np.diff(solution[0], axis=0)) #TODO why did i need to add an abs() call here when there wasnt one before.
 # Generate incidence sample
-rng = np.random.default_rng(seed=ic.MODEL_RAND_SEED)
 incidence_sample = rng.poisson(incidence)
 
 
@@ -108,11 +109,11 @@ def model(times, incidence):
     r0 = numpyro.deterministic("r0", 1 + excess_r0)
         
     infectious_period = numpyro.sample("INCUBATION_RATE", dist.Exponential(1.0))
-    vaccine_eff = numpyro.sample("vaccine_eff", dist.Exponential(1.0)) # here for old model
-    nat_immune_eff = numpyro.sample("nat_immune_eff", dist.Exponential(1.0)) #% effectiveness of prior natural immunity in waned state at preventing infection
+    w1_protect = numpyro.sample("w1_protect", dist.Exponential(1.0)) # protection against infection in first state of waning
+    w2_protect = numpyro.sample("w2_protect", dist.Exponential(1.0)) # protection against infection in second state of waning
+    w3_protect = numpyro.sample("w3_protect", dist.Exponential(1.0)) # protection against infection in third state of waning
+    w4_protect = numpyro.sample("w4_protect", dist.Exponential(1.0)) # protection against infection in fourth state of waning
     recovered_to_waning = numpyro.sample("recovered_to_waning", dist.Normal(19.0)) #time in days before a recovered individual moves to first waned compartment
-    waning_to_suseptible = numpyro.sample("waning_to_suseptible", dist.Normal(19.0)) #
-    vaccine_waning = numpyro.sample("vaccine_waning", dist.Normal(24.0))
     birth_rate = mc.BIRTH_RATE
     vax_rate = mc.VACCINATION_RATE
     exposed_to_infectious = mc.EXPOSED_TO_INFECTIOUS
@@ -130,11 +131,11 @@ def model(times, incidence):
     gamma = 1 / infectious_period
     sigma = 1 / exposed_to_infectious
     wanning_rate = 1 / recovered_to_waning
-    waned_vax = 1 / waning_to_suseptible
     mu = birth_rate
 
     solution = diffeqsolve(term, solver, t0, t1, dt0, initial_state,
-                           args=(beta, sigma, gamma, contact_matrix, vaccine_eff, nat_immune_eff, wanning_rate, waned_rate, waned_vax, mu, vax_rate), saveat=saveat)
+                           args=[beta, sigma, gamma, contact_matrix, vax_rate, w1_protect, w2_protect, w3_protect, w4_protect, wanning_rate, mc.BIRTH_RATE], saveat=saveat)    
+
     model_incidence = -jnp.diff(solution.ys[0], axis=0)
 
     # Observed incidence
