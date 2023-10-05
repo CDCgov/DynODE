@@ -10,15 +10,17 @@ from numpyro.distributions.transforms import AffineTransform
 
 from numpyro.infer import MCMC, NUTS, Predictive
 from numpyro.infer.reparam import TransformReparam
-
 from diffrax import diffeqsolve, ODETerm, SaveAt, Tsit5
+
+numpyro.set_host_device_count(4)
+jax.config.update("jax_enable_x64", True)
 from config_base import ModelConfig as mc
 from config_base import DataConfig as dc
 from config_base import InferenceConfig as ic
+import utils
 
 # Use 4 cores
-numpyro.set_host_device_count(4)
-jax.config.update("jax_enable_x64", True)
+
 
 #beta = S-E
 #sigma = E-i
@@ -28,11 +30,12 @@ def sir_ode(state, _, parameters):
     s, e, i, r, w1, w2, w3, w4 = state
     population = s + e + i + r + w1 + w2 + w3 + w4
     beta, sigma, gamma, contact_matrix, vax_rate, w1_protect, w2_protect, w3_protect, w4_protect, wanning_rate, mu = parameters
-    ds_to_e = beta * s * contact_matrix.dot(i) / population #exposure
-    dw1_to_e = beta * (1 - w1_protect) * w1 * contact_matrix.dot(i) / population # waning individuals exposure
-    dw2_to_e = beta * (1 - w2_protect) * w2 * contact_matrix.dot(i) / population # waning individuals exposure
-    dw3_to_e = beta * (1 - w3_protect) * w3 * contact_matrix.dot(i) / population # waning individuals exposure
-    dw4_to_e = beta * (1 - w4_protect) * w4 * contact_matrix.dot(i) / population # waning individuals exposure
+    force_of_infection = beta * contact_matrix.dot(i) / population #careful when adding strains things may get hairy.
+    ds_to_e = force_of_infection * s #exposure
+    dw1_to_e = force_of_infection * (1 - w1_protect) * w1 # waning individuals exposure
+    dw2_to_e = force_of_infection * (1 - w2_protect) * w2 # waning individuals exposure
+    dw3_to_e = force_of_infection * (1 - w3_protect) * w3 # waning individuals exposure
+    dw4_to_e = force_of_infection * (1 - w4_protect) * w4 # waning individuals exposure
 
     ds_to_w1 = s * vax_rate #vaccination of suseptibles
     #we may want a dw1_to_w1 to represent recent infection getting vaccinated
@@ -49,14 +52,14 @@ def sir_ode(state, _, parameters):
 
     de_to_i = sigma * e #exposure -> infectious
     di_to_r = gamma * i #infectious -> recovered
-    ds = s - ds_to_e - ds_to_w1
-    de = e - de_to_i + ds_to_e + dw1_to_e + dw2_to_e + dw3_to_e + dw4_to_e 
-    di = i + de_to_i - di_to_r
-    dr = r + di_to_r - dr_to_w1
-    dw1 = w1 + dr_to_w1 + ds_to_w1 + dw2_to_w1 + dw3_to_w1 + dw4_to_w1 - dw1_to_e - dw1_to_w2
-    dw2 = w2 + dw1_to_w2 - dw2_to_e - dw2_to_w3
-    dw3 = w3 + dw2_to_w3 - dw3_to_e - dw3_to_w4
-    dw4 = w4 + dw3_to_w4 - dw4_to_e
+    ds =  - ds_to_e - ds_to_w1
+    de =  - de_to_i + ds_to_e + dw1_to_e + dw2_to_e + dw3_to_e + dw4_to_e 
+    di =  + de_to_i - di_to_r
+    dr =  + di_to_r - dr_to_w1
+    dw1 =  + dr_to_w1 + ds_to_w1 + dw2_to_w1 + dw3_to_w1 + dw4_to_w1 - dw1_to_e - dw1_to_w2
+    dw2 =  + dw1_to_w2 - dw2_to_e - dw2_to_w3 - dw2_to_w1
+    dw3 =  + dw2_to_w3 - dw3_to_e - dw3_to_w4 - dw3_to_w1 
+    dw4 =  + dw3_to_w4 - dw4_to_e - dw4_to_w1
     return (ds, de, di, dr, dw1, dw2, dw3, dw4)
 
 rng = np.random.default_rng(seed=ic.MODEL_RAND_SEED)
@@ -66,18 +69,33 @@ population = dc.POP_SIZE * dc.NUM_AGE_GROUPS * target_population_fractions
 population_fractions = population / sum(population)
 # Normalize contact matrix to have unit spectral radius
 #TODO move to trevors contact matrix shifted into age groups chosen.
-contact_matrix = rng.uniform(size = (dc.NUM_AGE_GROUPS, dc.NUM_AGE_GROUPS))
-contact_matrix = contact_matrix / max(abs(np.linalg.eigvals(contact_matrix)))
+# contact_matrix = rng.uniform(size = (dc.NUM_AGE_GROUPS, dc.NUM_AGE_GROUPS))
+# contact_matrix = contact_matrix / max(abs(np.linalg.eigvals(contact_matrix)))
+contact_matrices = utils.load_demographic_data()
+contact_matrix = contact_matrices['United States']["oth_CM"]
+eig_data = np.linalg.eig(contact_matrix)
+max_index = np.argmax(eig_data[0])
+initial_infection_distribution = eig_data[1][:,max_index]
+
 
 # Internal model parameters and state
-initial_state = (population - mc.INITIAL_INFECTIONS * population_fractions, #s
-                 mc.INITIAL_INFECTIONS * population_fractions, #e
-                 population_fractions, #i
-                 population_fractions, #r
-                 population_fractions, #w1
-                 population_fractions, #w2
-                 population_fractions, #w3
-                 population_fractions) #w4
+# initial_state = (population - mc.INITIAL_INFECTIONS * population_fractions, #s
+#                  mc.INITIAL_INFECTIONS * population_fractions, #e
+#                  population_fractions, #i
+#                  population_fractions, #r
+#                  population_fractions, #w1
+#                  population_fractions, #w2
+#                  population_fractions, #w3
+#                  population_fractions) #w4
+
+initial_state = (population - mc.INITIAL_INFECTIONS * initial_infection_distribution, #s
+                 mc.INITIAL_INFECTIONS * initial_infection_distribution, #e
+                 0 * population_fractions, #i
+                 0 * population_fractions, #r
+                 0 * population_fractions, #w1
+                 0 * population_fractions, #w2
+                 0 * population_fractions, #w3
+                 0 * population_fractions) #w4
 beta = mc.SUBTYPE_SPECIFIC_R0[0] / mc.INFECTIOUS_PERIOD 
 gamma = 1 / mc.INFECTIOUS_PERIOD 
 sigma = 1 / mc.EXPOSED_TO_INFECTIOUS
@@ -86,6 +104,8 @@ wanning_rate = 1 / mc.WANING_1_TIME
 
 solution = odeint(sir_ode, initial_state, jnp.linspace(0.0, 100.0, 101),
                   [beta, sigma, gamma, contact_matrix, mc.VACCINATION_RATE, mc.W1_PROTECT, mc.W2_PROTECT, mc.W3_PROTECT, mc.W4_PROTECT, wanning_rate, mc.BIRTH_RATE])
+fig, ax = utils.plot_ode_solution(solution, plot_compartments=["s", "e", "i", "r", "w1", "w2", "w3", "w4"], save_path="testing_image_no_vaxs.png")
+
 incidence = abs(-np.diff(solution[0], axis=0)) #TODO why did i need to add an abs() call here when there wasnt one before.
 # Generate incidence sample
 incidence_sample = rng.poisson(incidence)
