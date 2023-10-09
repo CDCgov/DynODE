@@ -37,7 +37,7 @@ class DataConfig:
     MINIMUM_AGE = 1 #why was this 1
     AGE_LIMITS = [4, 17, 49, 64] #TODO CHANGE TO BIN UPPER BOUNDS, BIN TO 85
     NUM_AGE_GROUPS = len(AGE_LIMITS) + 1
-    NUM_SUBTYPES = 3
+    NUM_STRAINS = 3
     AGE_GROUPS = [
         ["0-4 yr", "5-17 yr"],
         ["18-29 yr", "30-39 yr", "40-49 yr", "50-64 yr"],
@@ -103,17 +103,17 @@ class ModelConfig:
     INITIAL_INFECTIONS = 1.0
 
     # INFERABLE PARAMETER PRIORS
-    SUBTYPE_SPECIFIC_R0 = [1.5] # R0s
+    STRAIN_SPECIFIC_R0 = [1.5] # R0s
     #RELATIVE_SCHOOL_INFECTIOUSNESS = 2 # sch_scale
     #SUBTYPE_AGE_HOSPITALIZATION_RATE = "" # delta_as
     #VACCINE_EFFECTIVENESS = 0.7 #v_eff
     #NAT_IMMUNE_EFFECTIVENESS = 0.6 #% effectiveness of prior natural immunity in waned state at preventing infection
-    WANING_1_TIME = 20.0 #time in days before a recovered individual moves to first waned compartment
-    W1_PROTECT = 0.7 # protection against infection in first state of waning
-    W2_PROTECT = 0.6 # protection against infection in second state of waning
-    W3_PROTECT = 0.4 # protection against infection in third state of waning
-    W4_PROTECT = 0.15 # protection against infection in fourth state of waning
-    #WANED_TO_SUSEPTIBLE = 2 #time in days a person spends in the waned natural immunity state before becoming fully suseptible again
+    NUM_WANING_COMPARTMENTS = 4
+    WANING_PROTECTIONS = [0.7, 0.6, 0.4, 0.15] # protection against infection in first state of waning
+    assert NUM_WANING_COMPARTMENTS == len(WANING_PROTECTIONS), "unable to load config, NUM_WANING_COMPARTMENTS must equal to len(WANING_PROTECTIONS)"
+    w_idx = IntEnum("w_idx", ['W' + str(idx) for idx in range(NUM_WANING_COMPARTMENTS)], start=0)
+    WANING_TIME = 20.0 #time in days before a recovered individual moves to first waned compartment
+    #old waning code
     #DELAY = "" # Z_delay
     #HOSPITALIZATION_RATE_UNCERTAINTY = 0.5 #sigma_hosp
 
@@ -121,9 +121,9 @@ class ModelConfig:
     # OPTION: SUB_SAVE_AT 
 
     #compartment indexes for readability in code
-    NUM_COMPARTMENTS = 8
+    NUM_COMPARTMENTS = 5
     #todo figure out IntEnum
-    idx = IntEnum('idx', ['S', 'E', 'I', 'R', 'W1', 'W2', "W3", "W4"], start=0)
+    idx = IntEnum('idx', ['S', 'E', 'I', 'R', "W"], start=0)
 
     
     
