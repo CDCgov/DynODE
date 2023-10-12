@@ -268,18 +268,29 @@ def plot_ode_solution(
     return fig, ax
 
 
-def plot_diffrax_solution(
-    sol, plot_compartments=["s", "e", "i", "r"], sum_across_axis=2, save_path=None
-):
-    get_indexes = [
-        mc.idx.__getitem__(compartment.strip().upper())
-        for compartment in plot_compartments
-    ]
+def plot_diffrax_solution(sol, plot_compartments=["s", "e", "i", "r"], save_path=None):
+    get_indexes = []
+    for compartment in plot_compartments:
+        if "W" in compartment.upper():
+            # waning compartments are held in a different manner, we need two indexes to access them
+            index_slice = [
+                mc.idx.__getitem__("W"),
+                mc.w_idx.__getitem__(compartment.strip().upper()),
+            ]
+            get_indexes.append(index_slice)
+        else:
+            get_indexes.append(mc.idx.__getitem__(compartment.strip().upper()))
 
     fig, ax = plt.subplots(1)
     for compartment, idx in zip(plot_compartments, get_indexes):
-        dimensions_to_sum_over = tuple(range(1, sol[idx].ndim))
-        ax.plot(sol[idx].sum(axis=dimensions_to_sum_over), label=compartment)
+        if "W" in compartment.upper():
+            # if we are plotting a waning compartment, we need to parse 1 extra dimension
+            sol_compartment = np.array(sol[idx[0]])[:, :, :, idx[1]]
+        else:
+            # non-waning compartments dont have this extra dimension
+            sol_compartment = sol[idx]
+        dimensions_to_sum_over = tuple(range(1, sol_compartment.ndim))
+        ax.plot(sol_compartment.sum(axis=dimensions_to_sum_over), label=compartment)
     fig.legend()
     if save_path:
         fig.savefig(save_path)

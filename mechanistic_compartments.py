@@ -196,7 +196,7 @@ class BasicMechanisticModel:
         )  # dont set a save path if we dont want to save
         fig, ax = utils.plot_diffrax_solution(
             solution.ys,
-            plot_compartments=["s", "e", "i", "r"],
+            plot_compartments=["s", "e", "i", "r", "w0", "w1", "w2", "w3"],
             save_path=save_path,
         )
         return solution
