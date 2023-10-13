@@ -7,24 +7,34 @@ This code aims to combine a number of different codebases to forecast different 
 # Quick Start
 
 In order to run this model and get basic results follow these steps:
-1. Todo
-2. Todo
+1. Import your config file, model ode, and `mechanistic_compartments.py`
+2. Build a BasicMechanisticModel class with the builder or from scratch.
+3. use the `.run` command to run without inference, and `.infer()` to use MCMC to fit some parameter values.
+
+Here is an example script of a basic run without inference of parameters, saving the simulation as an image to output/example.png:
+```
+from model_odes.seir_model_v4 import seirw_ode
+from mechanistic_compartments import build_basic_mechanistic_model
+from config.config_base import ModelConfig
+
+solution = build_basic_mechanistic_model(ModelConfig).run(seirw_ode, save_path="output/example.png")
+```
 
 # Data Sources
 
 The model is fed the following data sources:
-1. data source 1 : used in the following way todo
+1. data/demographic-data/contact_matricies : Dinas contact matricies todo
 2. data source 2 : used in the following way todo
 
 
 # Model Structure
 
-Insert graphic of model structure here.
-
+Subject to change, currently seir_model_v4 follows these disease dynamics.
+![](/misc/seir_model_v4_diagram.png)
 
 # Contact Developers
 
 Core developers on this repository are:
-Ariel (Arik) Shurygin
-Thomas Hladish
-Michael Batista
+
+1. Ariel (Arik) Shurygin
+2. Thomas Hladish
