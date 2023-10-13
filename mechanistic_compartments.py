@@ -14,9 +14,10 @@ from diffrax import diffeqsolve, ODETerm, SaveAt, Tsit5
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
-from config_base import ModelConfig as mc
-from config_base import DataConfig as dc
-from config_base import InferenceConfig as ic
+import config.config_base as config_base
+from config.config_base import ModelConfig as mc
+from config.config_base import DataConfig as dc
+from config.config_base import InferenceConfig as ic
 import utils
 
 
@@ -25,20 +26,39 @@ class BasicMechanisticModel:
 
     def __init__(
         self,
+        num_age_groups=mc.NUM_AGE_GROUPS,
+        num_strains=mc.NUM_STRAINS,
+        init_pop_size=mc.POP_SIZE,
+        birth_rate=mc.BIRTH_RATE,
+        infectious_period=mc.INFECTIOUS_PERIOD,
+        exposed_to_infectious=mc.EXPOSED_TO_INFECTIOUS,
+        vaccination_rate=mc.VACCINATION_RATE,
+        initial_infections=mc.INITIAL_INFECTIONS,
         R0_dist=mc.STRAIN_SPECIFIC_R0,
+        num_waning_compartments=mc.NUM_WANING_COMPARTMENTS,
         waning_protect_dist=mc.WANING_PROTECTIONS,
-        init_pop_size=dc.POP_SIZE,
+        waning_time=mc.WANING_TIME,
         target_population_fractions=None,
         contact_matrix=None,
         init_infection_dist=None,
     ):
-        rng = np.random.default_rng(seed=ic.MODEL_RAND_SEED)
+        self.num_age_groups = num_age_groups
+        self.num_strains = num_strains
+        self.init_pop_size = init_pop_size
+        self.birth_rate = birth_rate
+        self.infectious_period = infectious_period
+        self.exposed_to_infectious = exposed_to_infectious
+        self.vaccination_rate = vaccination_rate
+        self.initial_infections = initial_infections
         self.R0_dist = R0_dist
+        self.num_waning_compartments = num_waning_compartments
         self.waning_protect_dist = waning_protect_dist
+        self.waning_time = waning_time
+        rng = np.random.default_rng(seed=ic.MODEL_RAND_SEED)
         # if not given, uniformally generate population fractions.
         if not target_population_fractions:
             target_population_fractions = rng.uniform(
-                size=dc.NUM_AGE_GROUPS
+                size=num_age_groups
             )  # TODO change so age distributions initialized non-uniformly
             target_population_fractions = target_population_fractions / sum(
                 target_population_fractions
@@ -59,19 +79,20 @@ class BasicMechanisticModel:
             init_infection_dist = eig_data[1][:, max_index]
 
         # with inital infection distribution by age group, break down uniformally by number of strains.
+        # TODO non-uniform strain distribution if needed.
         initial_infections_by_strain = (
-            mc.INITIAL_INFECTIONS
+            initial_infections
             * init_infection_dist[:, None]
-            * np.ones(dc.NUM_STRAINS)
-            / dc.NUM_STRAINS
+            * np.ones(num_strains)
+            / num_strains
         )
         self.init_infection_dist = init_infection_dist
         self.initial_state = (
-            self.population - mc.INITIAL_INFECTIONS * self.init_infection_dist,  # s
+            self.population - self.initial_infections * self.init_infection_dist,  # s
             initial_infections_by_strain,  # e
-            np.zeros((dc.NUM_AGE_GROUPS, dc.NUM_STRAINS)),  # i
-            np.zeros((dc.NUM_AGE_GROUPS, dc.NUM_STRAINS)),  # r
-            np.zeros((dc.NUM_AGE_GROUPS, dc.NUM_STRAINS, mc.NUM_WANING_COMPARTMENTS)),
+            np.zeros((num_age_groups, num_strains)),  # i
+            np.zeros((num_age_groups, num_strains)),  # r
+            np.zeros((num_age_groups, num_strains, num_waning_compartments)),
         )  # w
 
     def sample_r0(self):
@@ -107,11 +128,11 @@ class BasicMechanisticModel:
 
         r0 = self.sample_r0()
         waning_protections = self.sample_waning_protections()
-        beta = r0 / mc.INFECTIOUS_PERIOD
-        gamma = 1 / mc.INFECTIOUS_PERIOD
-        sigma = 1 / mc.EXPOSED_TO_INFECTIOUS
-        wanning_rate = 1 / mc.WANING_TIME
-        suseptibility_matrix = np.ones((dc.NUM_STRAINS, dc.NUM_STRAINS))
+        beta = r0 / self.infectious_period
+        gamma = 1 / self.infectious_period
+        sigma = 1 / self.exposed_to_infectious
+        wanning_rate = 1 / self.waning_time
+        suseptibility_matrix = jnp.ones((self.num_strains, self.num_strains))
 
         solution = diffeqsolve(
             term,
@@ -125,11 +146,13 @@ class BasicMechanisticModel:
                 sigma,
                 gamma,
                 self.contact_matrix,
-                mc.VACCINATION_RATE,
+                self.vaccination_rate,
                 waning_protections,
                 wanning_rate,
-                mc.BIRTH_RATE,
+                self.birth_rate,
                 suseptibility_matrix,
+                self.num_strains,
+                self.num_waning_compartments,
             ],
             saveat=saveat,
         )
@@ -164,11 +187,11 @@ class BasicMechanisticModel:
         t0 = 0.0
         dt0 = 0.1
         saveat = SaveAt(ts=jnp.linspace(t0, tf, int(tf) + 1))
-
-        beta = mc.STRAIN_SPECIFIC_R0 / mc.INFECTIOUS_PERIOD
-        gamma = 1 / mc.INFECTIOUS_PERIOD
-        sigma = 1 / mc.EXPOSED_TO_INFECTIOUS
-        wanning_rate = 1 / mc.WANING_TIME
+        suseptibility_matrix = jnp.ones((self.num_strains, self.num_strains))
+        beta = self.R0_dist / self.infectious_period
+        gamma = 1 / self.infectious_period
+        sigma = 1 / self.exposed_to_infectious
+        wanning_rate = 1 / self.waning_time
         solution = diffeqsolve(
             term,
             solver,
@@ -181,12 +204,14 @@ class BasicMechanisticModel:
                 sigma,
                 gamma,
                 self.contact_matrix,
-                mc.VACCINATION_RATE,
-                mc.WANING_PROTECTIONS,
+                self.vaccination_rate,
+                self.waning_protect_dist,
                 wanning_rate,
-                mc.BIRTH_RATE,
+                self.birth_rate,
                 self.population,
-                jnp.ones((dc.NUM_STRAINS, dc.NUM_STRAINS)),
+                suseptibility_matrix,
+                self.num_strains,
+                self.num_waning_compartments,
             ],
             saveat=saveat,
             max_steps=30000,
@@ -200,3 +225,26 @@ class BasicMechanisticModel:
             save_path=save_path,
         )
         return solution
+
+
+def build_basic_mechanistic_model(model_config: config_base.ModelConfig):
+    """
+    A builder function meant to take in a model_config class and build a BasicMechanisticModel() object with defaults from the config.
+    """
+    return BasicMechanisticModel(
+        num_age_groups=model_config.NUM_AGE_GROUPS,
+        num_strains=model_config.NUM_STRAINS,
+        init_pop_size=model_config.POP_SIZE,
+        birth_rate=model_config.BIRTH_RATE,
+        infectious_period=model_config.INFECTIOUS_PERIOD,
+        exposed_to_infectious=model_config.EXPOSED_TO_INFECTIOUS,
+        vaccination_rate=model_config.VACCINATION_RATE,
+        initial_infections=model_config.INITIAL_INFECTIONS,
+        R0_dist=model_config.STRAIN_SPECIFIC_R0,
+        num_waning_compartments=model_config.NUM_WANING_COMPARTMENTS,
+        waning_protect_dist=model_config.WANING_PROTECTIONS,
+        waning_time=model_config.WANING_TIME,
+        target_population_fractions=None,
+        contact_matrix=None,
+        init_infection_dist=None,
+    )

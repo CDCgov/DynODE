@@ -14,9 +14,9 @@ from diffrax import diffeqsolve, ODETerm, SaveAt, Tsit5
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
-from config_base import ModelConfig as mc
-from config_base import DataConfig as dc
-from config_base import InferenceConfig as ic
+from config.config_base import ModelConfig as mc
+from config.config_base import DataConfig as dc
+from config.config_base import InferenceConfig as ic
 import utils
 
 # Use 4 cores
@@ -27,103 +27,56 @@ import utils
 # gamma = i-R
 def sir_ode(state, _, parameters):
     # Unpack state
-    # dims s = (dc.NUM_AGE_GROUPS)
-    # dims e/i/r = (dc.NUM_AGE_GROUPS, dc.NUM_STRAINS)
-    # dims w = (dc.NUM_AGE_GROUPS, dc.NUM_STRAINS, mc.NUM_WANING_COMPARTMENTS)
-    s, e, i, r, w = state
+    s, e, i, r, w1, w2, w3, w4 = state
+    population = s + e + i + r + w1 + w2 + w3 + w4
     (
         beta,
         sigma,
         gamma,
         contact_matrix,
         vax_rate,
-        waning_protections,
+        w1_protect,
+        w2_protect,
+        w3_protect,
+        w4_protect,
         wanning_rate,
         mu,
-        population,
-        susceptibility_matrix,
     ) = parameters
+    force_of_infection = (
+        beta * contact_matrix.dot(i) / population
+    )  # careful when adding strains things may get hairy.
+    ds_to_e = force_of_infection * s  # exposure
+    dw1_to_e = force_of_infection * (1 - w1_protect) * w1  # waning individuals exposure
+    dw2_to_e = force_of_infection * (1 - w2_protect) * w2  # waning individuals exposure
+    dw3_to_e = force_of_infection * (1 - w3_protect) * w3  # waning individuals exposure
+    dw4_to_e = force_of_infection * (1 - w4_protect) * w4  # waning individuals exposure
 
-    # TODO when adding birth and deaths just create it as a compartment
-    # contact_matrix.dot(i) = 5x5.dot(5x3)
-    # TODO make beta 1x3 vector of beta by strain
-    force_of_infection = beta * contact_matrix.dot(i) / population[:, None]
-    # force of infection = 5x3 (dc.NUM_AGE_GROUPS, dc.NUM_STRAINS)
-    ds_to_e = force_of_infection * s[:, None]
-
-    # TODO what do we do about strain here? what strain are vaccinated people placed into
     ds_to_w1 = s * vax_rate  # vaccination of suseptibles
     # we may want a dw1_to_w1 to represent recent infection getting vaccinated
+    dw2_to_w1 = vax_rate * w2  # vaccination of previous immunity
+    dw3_to_w1 = vax_rate * w3  # vaccination of previous immunity
+    dw4_to_w1 = vax_rate * w4  # vaccination of previous immunity
+
+    # TODO implement easy scaling of number of waning compartments
+
+    dr_to_w1 = wanning_rate * r  # waning
+    dw1_to_w2 = wanning_rate * w1  # waning
+    dw2_to_w3 = wanning_rate * w2  # waning
+    dw3_to_w4 = wanning_rate * w3  # waning
 
     de_to_i = sigma * e  # exposure -> infectious
     di_to_r = gamma * i  # infectious -> recovered
-    dr_to_w = wanning_rate * r
-    # guaranteed to wane into first waning compartment remaining in their strains.
-
-    dw = np.zeros(w.shape)
-    dw_to_e_arr = np.zeros(
-        (dc.NUM_AGE_GROUPS, dc.NUM_STRAINS, mc.NUM_WANING_COMPARTMENTS)
+    ds = -ds_to_e - ds_to_w1
+    de = -de_to_i + ds_to_e + dw1_to_e + dw2_to_e + dw3_to_e + dw4_to_e
+    di = +de_to_i - di_to_r
+    dr = +di_to_r - dr_to_w1
+    dw1 = (
+        +dr_to_w1 + ds_to_w1 + dw2_to_w1 + dw3_to_w1 + dw4_to_w1 - dw1_to_e - dw1_to_w2
     )
-    for strain_source_idx in range(dc.NUM_STRAINS):
-        force_of_infection_strain = force_of_infection[:, strain_source_idx]
-        for strain_target_idx in range(dc.NUM_STRAINS):
-            # strain 1 will attempt to infect those previously infected with strain 2.
-            ws_by_age = w[:, strain_target_idx, :]
-            # (dc.NUM_AGE_GROUPS, mc.NUM_WANING_COMPARTMENTS)
-            partial_susceptibility = susceptibility_matrix[
-                strain_source_idx, strain_target_idx
-            ]
-            #            (dc.NUM_AGE_GROUPS) * (dc.NUM_AGE_GROUPS, mc.NUM_WANING_COMPARTMENTS).dot((1 - mc.NUM_WANING_COMPARTMENTS))
-            ws_exposed = force_of_infection_strain * ws_by_age.dot(
-                (1 - waning_protections) * partial_susceptibility
-            )  # waning individuals exposure
-            dw[:, strain_target_idx, :] -= ws_exposed
-            de[:, strain_source_idx] += ws_exposed
-            dw_to_e_arr[:, strain_source_idx] += ws_exposed
-            # TODO check this, moving from waning type2 -> exposed type1
-    # only operations that have no competition element may be done below
-    for w_idx in mc.w_idx:  # loop through the waning comparments:
-        w_waned = (
-            0
-            if w_idx == mc.NUM_WANING_COMPARTMENTS - 1
-            else wanning_rate * w[:, :, w_idx]
-        )
-        # last compartment doesnt wane
-        r_to_w = dr_to_w if w_idx == 0 else 0
-        # only top waning compartment receives people from "r"
-        w_vax = 0
-        if w_idx == 0:
-            # other waned compartments can get vaccinated into first waned compartment
-            w_vax = sum(
-                [
-                    vax_rate * w[:, :, w_idx_loop]
-                    for w_idx_loop in mc.w_idx
-                    if w_idx_loop != 0
-                ]
-            )
-            w_vax += (
-                ds_to_w1  # suseptibles also get vaccinated, TODO is this shape right?
-            )
-        else:  # vaccination takes away from non-first compartments.
-            w_vax = -vax_rate * w[:, :, w_idx]
-    ds = (
-        np.zeros(s.shape) - np.sum(ds_to_e, axis=1) - ds_to_w1
-    )  # sum ds_to_e since s does not split by subtype
-    de = (
-        np.zeros(e.shape) - de_to_i + ds_to_e + sum(dw_to_e_arr, axis=2)
-    )  # sum here since all waning compartments go to e.
-    di = np.zeros(i.shape) + de_to_i - di_to_r
-    dr = np.zeros(r.shape) + di_to_r - dr_to_w
-
-    # ds =  - ds_to_e - ds_to_w1
-    # de =  - de_to_i + ds_to_e + sum(dw_to_e_arr)
-    # di =  + de_to_i - di_to_r
-    # dr =  + di_to_r - dr_to_w1
-    # dw1 =  + dr_to_w1 + ds_to_w1 + dw2_to_w1 + dw3_to_w1 + dw4_to_w1 - dw1_to_e - dw1_to_w2 #TODO how to fix these?
-    # dw2 =  + dw1_to_w2 - dw2_to_e - dw2_to_w3 - dw2_to_w1
-    # dw3 =  + dw2_to_w3 - dw3_to_e - dw3_to_w4 - dw3_to_w1
-    # dw4 =  + dw3_to_w4 - dw4_to_e - dw4_to_w1
-    return (ds, de, di, dr, dw)
+    dw2 = +dw1_to_w2 - dw2_to_e - dw2_to_w3 - dw2_to_w1
+    dw3 = +dw2_to_w3 - dw3_to_e - dw3_to_w4 - dw3_to_w1
+    dw4 = +dw3_to_w4 - dw4_to_e - dw4_to_w1
+    return (ds, de, di, dr, dw1, dw2, dw3, dw4)
 
 
 rng = np.random.default_rng(seed=ic.MODEL_RAND_SEED)
@@ -144,12 +97,6 @@ contact_matrix = contact_matrices["United States"]["oth_CM"]
 eig_data = np.linalg.eig(contact_matrix)
 max_index = np.argmax(eig_data[0])
 initial_infection_distribution = eig_data[1][:, max_index]
-initial_infections_by_strain = (
-    mc.INITIAL_INFECTIONS
-    * initial_infection_distribution[:, None]
-    * np.ones(dc.NUM_STRAINS)
-    / dc.NUM_STRAINS
-)
 
 
 # Internal model parameters and state
@@ -164,15 +111,18 @@ initial_infections_by_strain = (
 
 initial_state = (
     population - mc.INITIAL_INFECTIONS * initial_infection_distribution,  # s
-    initial_infections_by_strain,  # e
-    np.zeros((dc.NUM_AGE_GROUPS, dc.NUM_STRAINS)),  # i
-    np.zeros((dc.NUM_AGE_GROUPS, dc.NUM_STRAINS)),  # r
-    np.zeros((dc.NUM_AGE_GROUPS, dc.NUM_STRAINS, mc.NUM_WANING_COMPARTMENTS)),
-)  # w
-beta = mc.STRAIN_SPECIFIC_R0[0] / mc.INFECTIOUS_PERIOD
+    mc.INITIAL_INFECTIONS * initial_infection_distribution,  # e
+    0 * population_fractions,  # i
+    0 * population_fractions,  # r
+    0 * population_fractions,  # w1
+    0 * population_fractions,  # w2
+    0 * population_fractions,  # w3
+    0 * population_fractions,
+)  # w4
+beta = mc.SUBTYPE_SPECIFIC_R0[0] / mc.INFECTIOUS_PERIOD
 gamma = 1 / mc.INFECTIOUS_PERIOD
 sigma = 1 / mc.EXPOSED_TO_INFECTIOUS
-wanning_rate = 1 / mc.WANING_TIME
+wanning_rate = 1 / mc.WANING_1_TIME
 
 
 solution = odeint(
@@ -185,11 +135,12 @@ solution = odeint(
         gamma,
         contact_matrix,
         mc.VACCINATION_RATE,
-        mc.WANING_PROTECTIONS,
+        mc.W1_PROTECT,
+        mc.W2_PROTECT,
+        mc.W3_PROTECT,
+        mc.W4_PROTECT,
         wanning_rate,
         mc.BIRTH_RATE,
-        population,
-        np.ones((dc.NUM_STRAINS, dc.NUM_STRAINS)),
     ],
 )
 fig, ax = utils.plot_ode_solution(
@@ -278,7 +229,6 @@ def model(times, incidence):
             w4_protect,
             wanning_rate,
             mc.BIRTH_RATE,
-            np.ones((dc.NUM_STRAINS, dc.NUM_STRAINS)),
         ],
         saveat=saveat,
     )

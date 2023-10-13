@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
-import config_base as cf
-from config_base import DataConfig as dc
-from config_base import ModelConfig as mc
+import config.config_base as cf
+from config.config_base import DataConfig as dc
+from config.config_base import ModelConfig as mc
 import pandas as pd
 import numpy as np
 import os, glob

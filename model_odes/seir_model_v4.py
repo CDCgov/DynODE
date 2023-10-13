@@ -1,6 +1,6 @@
 import numpy as np
-from config_base import ModelConfig as mc
-from config_base import DataConfig as dc
+from config.config_base import ModelConfig as mc
+from config.config_base import DataConfig as dc
 import jax.numpy as jnp
 import jax
 
@@ -43,6 +43,8 @@ def seirw_ode(state, t, parameters):
         mu,
         population,
         susceptibility_matrix,
+        num_strains,
+        num_waning_compartments,
     ) = parameters
     # TODO when adding birth and deaths just create it as a compartment
     force_of_infection = beta * contact_matrix.dot(i) / population[:, None]
@@ -58,9 +60,9 @@ def seirw_ode(state, t, parameters):
     dw = jnp.zeros(w.shape)
     de = jnp.zeros(e.shape)
     # competition between strains for waned individuals + reinfection by same strain
-    for strain_source_idx in range(dc.NUM_STRAINS):
+    for strain_source_idx in range(num_strains):
         force_of_infection_strain = force_of_infection[:, strain_source_idx]
-        for strain_target_idx in range(dc.NUM_STRAINS):
+        for strain_target_idx in range(num_strains):
             # strain_source_idx will attempt to infect those previously infected with strain_target_idx.
             ws_by_age = w[:, strain_target_idx, :]
             partial_susceptibility = susceptibility_matrix[
@@ -83,9 +85,7 @@ def seirw_ode(state, t, parameters):
         s_to_w = ds_to_w if w_idx == 0 else 0  # TODO fix this shape to (age, strain)
         # waning from waning compartment to waning compartment, last compartment does not wane
         w_waned = (
-            0
-            if w_idx == mc.NUM_WANING_COMPARTMENTS - 1
-            else wanning_rate * w[:, :, w_idx]
+            0 if w_idx == num_waning_compartments - 1 else wanning_rate * w[:, :, w_idx]
         )
         # persons gained from waned compartments above + vaccination in the case of top compartment
         w_gained = (

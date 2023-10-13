@@ -38,7 +38,6 @@ class DataConfig:
         ["18-29 yr", "30-39 yr", "40-49 yr", "50-64 yr"],
         ["65-74 yr", "75-84 yr", "85+"],
     ]
-    POP_SIZE = 20000
     # PROPERTIES OF DATA
     SEASON_FIRST_MONTH = 8
     SEASON_FIRST_WEEK = 8
@@ -83,37 +82,44 @@ class DataConfig:
 
 
 class ModelConfig:
-    # POOLING CONFIGURATION
-
+    # the model age bins / strains must match the data being read in
+    NUM_AGE_GROUPS = DataConfig.NUM_AGE_GROUPS
+    NUM_STRAINS = DataConfig.NUM_STRAINS
     # FIXED SEIR PARAMETERS
-    BIRTH_RATE = 1 / 75.0  # mu #TODO IMPLEMENT DEATHS
+    POP_SIZE = 20000
+    assert POP_SIZE > 0, "population size must be a non-zero value"
 
+    BIRTH_RATE = 1 / 75.0  # mu #TODO IMPLEMENT DEATHS
     assert BIRTH_RATE >= 0, "BIRTH_RATE can not be negative"
+
     INFECTIOUS_PERIOD = 5.0  # gamma
     assert INFECTIOUS_PERIOD >= 0, "INFECTIOUS_PERIOD can not be negative"
+
     EXPOSED_TO_INFECTIOUS = 2.0  # sigma
     assert EXPOSED_TO_INFECTIOUS >= 0, "EXPOSED_TO_INFECTIOUS can not be negative"
+
     VACCINATION_RATE = 0  # 1 / 50.0 # vac_p
     assert VACCINATION_RATE >= 0, "EXPOSED_TO_INFECTIOUS can not be negative"
+
     INITIAL_INFECTIONS = 1.0
     assert INITIAL_INFECTIONS >= 0, "INITIAL_INFECTIONS can not be negative"
 
-    # INFERABLE PARAMETER PRIORS
-    STRAIN_SPECIFIC_R0 = jnp.array([1.5, 1.5, 1.5])  # R0s
+    STRAIN_SPECIFIC_R0 = jnp.array([1.0, 1.0, 1.0])  # R0s
     assert len(STRAIN_SPECIFIC_R0) > 0, "Must specify at least 1 strain R0"
+
     NUM_WANING_COMPARTMENTS = 4
     # protection against infection in each stage of waning
     WANING_PROTECTIONS = jnp.array([0.7, 0.6, 0.4, 0.15])
     assert NUM_WANING_COMPARTMENTS == len(
         WANING_PROTECTIONS
     ), "unable to load config, NUM_WANING_COMPARTMENTS must equal to len(WANING_PROTECTIONS)"
+
+    WANING_TIME = 20.0  # time in days before a recovered individual moves to first waned compartment
+    NUM_COMPARTMENTS = 5
+    # compartment indexes ENUM for readability in code
     w_idx = IntEnum(
         "w_idx", ["W" + str(idx) for idx in range(NUM_WANING_COMPARTMENTS)], start=0
     )
-    WANING_TIME = 20.0  # time in days before a recovered individual moves to first waned compartment
-    # compartment indexes for readability in code
-    NUM_COMPARTMENTS = 5
-    # todo figure out IntEnum
     idx = IntEnum("idx", ["S", "E", "I", "R", "W"], start=0)
 
 
