@@ -89,8 +89,8 @@ class BasicMechanisticModel:
         self.init_infection_dist = init_infection_dist
         self.initial_state = (
             self.population - self.initial_infections * self.init_infection_dist,  # s
-            initial_infections_by_strain,  # e
-            np.zeros((num_age_groups, num_strains)),  # i
+            np.zeros((num_age_groups, num_strains)),  # e
+            initial_infections_by_strain,  # i
             np.zeros((num_age_groups, num_strains)),  # r
             np.zeros((num_age_groups, num_strains, num_waning_compartments)),
         )  # w
@@ -195,7 +195,7 @@ class BasicMechanisticModel:
         return solution
 
 
-def build_basic_mechanistic_model(model_config: config_base.ModelConfig):
+def build_basic_mechanistic_model(model_config):
     """
     A builder function meant to take in a model_config class and build a BasicMechanisticModel() object with defaults from the config.
     """

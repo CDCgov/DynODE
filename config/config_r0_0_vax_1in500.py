@@ -104,11 +104,8 @@ class ModelConfig:
     INITIAL_INFECTIONS = 1.0
     assert INITIAL_INFECTIONS >= 0, "INITIAL_INFECTIONS can not be negative"
 
-    STRAIN_SPECIFIC_R0 = jnp.array([1.5, 1.5, 1.5])  # R0s
+    STRAIN_SPECIFIC_R0 = jnp.array([0.0, 0.0, 0.0])  # R0s
     assert len(STRAIN_SPECIFIC_R0) > 0, "Must specify at least 1 strain R0"
-    assert (
-        len(STRAIN_SPECIFIC_R0) == NUM_STRAINS
-    ), "Number of R0s must match number of strains"
 
     NUM_WANING_COMPARTMENTS = 4
     # protection against infection in each stage of waning

@@ -79,33 +79,35 @@ def seirw_ode(state, t, parameters):
 
     # lets measure our waned rates
     for w_idx in mc.w_idx:
-        # waning from recovered into first waning compartment
-        r_to_w = dr_to_w if w_idx == 0 else 0
-        # vaccination from suseptible into first waning compartment
-        s_to_w = ds_to_w if w_idx == 0 else 0  # TODO fix this shape to (age, strain)
         # waning from waning compartment to waning compartment, last compartment does not wane
         w_waned = (
             0 if w_idx == num_waning_compartments - 1 else wanning_rate * w[:, :, w_idx]
         )
-        # persons gained from waned compartments above + vaccination in the case of top compartment
-        w_gained = (
-            sum(
+        # waned individuals being vaccinated, no w1 -> w1 vaccination of top compartment
+        w_vaxed = 0 if w_idx == 0 else vax_rate * w[:, :, w_idx]
+        # persons gained from waning of compartments above
+        # vaccination from all below compartments in the case of top compartment (to even out w_vaxed)
+        if w_idx == 0:
+            w_gained = sum(
                 [
                     vax_rate * w[:, :, w_idx_loop]
                     for w_idx_loop in mc.w_idx
                     if w_idx_loop != 0
                     # we may want a dw1_to_w1 to represent recent infection getting vaccinated
+                    # change w_vaxed in this case too
                 ]
             )
-            if w_idx == 0
-            else wanning_rate * w[:, :, w_idx - 1]
-        )
+        else:
+            w_gained = wanning_rate * w[:, :, w_idx - 1]
+
         dw = dw.at[:, :, w_idx].add(-w_waned)
         dw = dw.at[:, :, w_idx].add(w_gained)
+        dw = dw.at[:, :, w_idx].add(-w_vaxed)
         if w_idx == 0:
-            # we only add from recovered and suseptible compartments for the top compartment
-            dw = dw.at[:, :, w_idx].add(r_to_w)
-            dw = dw.at[:, 0, w_idx].add(s_to_w)  # TODO fix this 0 hard code
+            # waning from recovered into first waning compartment
+            dw = dw.at[:, :, w_idx].add(dr_to_w)
+            # vaccination from suseptible into first waning compartment, first strain only
+            dw = dw.at[:, 0, w_idx].add(ds_to_w)  # TODO fix this 0 hard code
         # last compartment doesnt wane
         # only top waning compartment receives people from "r"
 
@@ -114,5 +116,5 @@ def seirw_ode(state, t, parameters):
     de = jnp.add(de, -de_to_i + ds_to_e)
 
     di = jnp.add(jnp.zeros(i.shape), jnp.add(de_to_i, -di_to_r))
-    dr = jnp.add(jnp.zeros(i.shape), jnp.add(di_to_r, -dr_to_w))
+    dr = jnp.add(jnp.zeros(r.shape), jnp.add(di_to_r, -dr_to_w))
     return (ds, de, di, dr, dw)
