@@ -5,6 +5,50 @@ from config.config_base import ModelConfig as mc
 import pandas as pd
 import numpy as np
 import os, glob
+import numpyro
+import numpyro.distributions as dist
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# SAMPLING FUNCTIONS
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+def sample_r0(R0_means):
+    """sample r0 for each strain according to an exponential distribution
+    with rate equal to inverse of strain specific r0 in config file
+
+    Parameters
+    ----------
+    R0_means: list(int)
+        list of mean R0 for each pathogen strain, from which exponential distribution will center around.
+        len(R0_means) = # of strains in your model."""
+    r0s = []
+    for i, sample_mean in enumerate(R0_means):
+        excess_r0 = numpyro.sample(
+            "excess_r0_" + str(i), dist.Exponential(1 / sample_mean)
+        )
+        r0 = numpyro.deterministic("r0_" + str(i), 1 + excess_r0)
+        r0s.append(r0)
+    return r0s
+
+
+def sample_waning_protections(waning_protect_means):
+    """Sample a waning rate for each of the waning comparments according to an exponential distribution
+    with rate equal to 1 / waning_protect_means
+
+    Parameters
+    ----------
+    waning_protect_means: list(int)
+        list of mean waning protection for each waning compartment
+        len(waning_protect_means) = # of waning compartments in your model.
+    """
+    waning_rates = []
+    for i, sample_mean in enumerate(waning_protect_means):
+        waning_protection = numpyro.sample(
+            "waning_protection_" + str(i), dist.Exponential(1 / sample_mean)
+        )
+        waning_rates.append(waning_protection)
+    return waning_rates
+
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # CONTACT MATRIX CODE

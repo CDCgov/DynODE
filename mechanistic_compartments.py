@@ -95,28 +95,35 @@ class BasicMechanisticModel:
             np.zeros((num_age_groups, num_strains, num_waning_compartments)),
         )  # w
 
-    def sample_r0(self):
-        """sample r0 for each strain according to an exponential distribution
-        with rate equal to strain specific r0 in config file"""
-        r0s = []
-        for i, sample_mean in enumerate(self.R0_dist):
-            excess_r0 = numpyro.sample(
-                "excess_r0_" + str(i), dist.Exponential(sample_mean)
+    def get_args(self, sample=False):
+        if sample:
+            beta = utils.sample_r0(self.R0_dist) / self.infectious_period
+            waning_protections = utils.sample_waning_protections(
+                self.waning_protect_dist
             )
-            r0 = numpyro.deterministic("r0_" + str(i), 1 + excess_r0)
-            r0s.append(r0)
-        return r0s
+        else:  # if we arent sampling we use values from config in self
+            beta = self.R0_dist / self.infectious_period
+            waning_protections = self.waning_protect_dist
 
-    def sample_waning_protections(self):
-        """Sample a waning rate for each of the waning comparments according to an exponential distribution
-        with rate equal to config file rates."""
-        waning_rates = []
-        for i, sample_mean in enumerate(self.waning_protect_dist):
-            excess_r0 = numpyro.sample(
-                "waning_rates_" + str(i), dist.Exponential(sample_mean)
-            )
-            waning_rate = numpyro.deterministic("waning_rates_" + str(i), 1 + excess_r0)
-            waning_rates.append(waning_rate)
+        gamma = 1 / self.infectious_period
+        sigma = 1 / self.exposed_to_infectious
+        wanning_rate = 1 / self.waning_time
+        suseptibility_matrix = jnp.ones((self.num_strains, self.num_strains))
+        args = [
+            beta,
+            sigma,
+            gamma,
+            self.contact_matrix,
+            self.vaccination_rate,
+            waning_protections,
+            wanning_rate,
+            self.birth_rate,
+            self.population,
+            suseptibility_matrix,
+            self.num_strains,
+            self.num_waning_compartments,
+        ]
+        return args
 
     def incidence(self, model, incidence):
         term = ODETerm(lambda t, state, parameters: model(state, t, parameters))
@@ -125,15 +132,6 @@ class BasicMechanisticModel:
         t1 = 100.0
         dt0 = 0.1
         saveat = SaveAt(ts=jnp.linspace(t0, t1, 101))
-
-        r0 = self.sample_r0()
-        waning_protections = self.sample_waning_protections()
-        beta = r0 / self.infectious_period
-        gamma = 1 / self.infectious_period
-        sigma = 1 / self.exposed_to_infectious
-        wanning_rate = 1 / self.waning_time
-        suseptibility_matrix = jnp.ones((self.num_strains, self.num_strains))
-
         solution = diffeqsolve(
             term,
             solver,
@@ -141,19 +139,7 @@ class BasicMechanisticModel:
             t1,
             dt0,
             self.initial_state,
-            args=[
-                beta,
-                sigma,
-                gamma,
-                self.contact_matrix,
-                self.vaccination_rate,
-                waning_protections,
-                wanning_rate,
-                self.birth_rate,
-                suseptibility_matrix,
-                self.num_strains,
-                self.num_waning_compartments,
-            ],
+            args=self.get_args(sample=True),
             saveat=saveat,
         )
 
@@ -187,11 +173,6 @@ class BasicMechanisticModel:
         t0 = 0.0
         dt0 = 0.1
         saveat = SaveAt(ts=jnp.linspace(t0, tf, int(tf) + 1))
-        suseptibility_matrix = jnp.ones((self.num_strains, self.num_strains))
-        beta = self.R0_dist / self.infectious_period
-        gamma = 1 / self.infectious_period
-        sigma = 1 / self.exposed_to_infectious
-        wanning_rate = 1 / self.waning_time
         solution = diffeqsolve(
             term,
             solver,
@@ -199,20 +180,7 @@ class BasicMechanisticModel:
             tf,
             dt0,
             self.initial_state,
-            args=[
-                beta,
-                sigma,
-                gamma,
-                self.contact_matrix,
-                self.vaccination_rate,
-                self.waning_protect_dist,
-                wanning_rate,
-                self.birth_rate,
-                self.population,
-                suseptibility_matrix,
-                self.num_strains,
-                self.num_waning_compartments,
-            ],
+            args=self.get_args(sample=False),
             saveat=saveat,
             max_steps=30000,
         )
