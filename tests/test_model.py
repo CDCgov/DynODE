@@ -33,9 +33,7 @@ no_vaccination_models = [
 
 
 # TESTS BELOW
-
-
-def test_output_shapes_correct():
+def test_output_shapes():
     """tests that the ode-model outputs the correct compartment shapes according to the config file it was run in."""
     for test_model in all_models:
         state = test_model.initial_state
