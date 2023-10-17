@@ -38,6 +38,9 @@ class BasicMechanisticModel:
         num_waning_compartments=mc.NUM_WANING_COMPARTMENTS,
         waning_protect_dist=mc.WANING_PROTECTIONS,
         waning_time=mc.WANING_TIME,
+        num_compartments=mc.NUM_COMPARTMENTS,
+        w_idx=mc.w_idx,
+        idx=mc.idx,
         target_population_fractions=None,
         contact_matrix=None,
         init_infection_dist=None,
@@ -54,6 +57,9 @@ class BasicMechanisticModel:
         self.num_waning_compartments = num_waning_compartments
         self.waning_protect_dist = waning_protect_dist
         self.waning_time = waning_time
+        self.num_compartments = num_compartments
+        self.w_idx = w_idx
+        self.idx = idx
         rng = np.random.default_rng(seed=ic.MODEL_RAND_SEED)
         # if not given, uniformally generate population fractions.
         if not target_population_fractions:
@@ -108,8 +114,10 @@ class BasicMechanisticModel:
         gamma = 1 / self.infectious_period
         sigma = 1 / self.exposed_to_infectious
         wanning_rate = 1 / self.waning_time
-        suseptibility_matrix = jnp.ones((self.num_strains, self.num_strains))
-        args = [
+        suseptibility_matrix = jnp.ones(
+            (self.num_strains, self.num_strains)
+        )  # TODO use priors here
+        args = [  # TODO convert to dictionary if diffeqsolve() allows for args to be a dict.
             beta,
             sigma,
             gamma,
@@ -212,6 +220,9 @@ def build_basic_mechanistic_model(model_config):
         num_waning_compartments=model_config.NUM_WANING_COMPARTMENTS,
         waning_protect_dist=model_config.WANING_PROTECTIONS,
         waning_time=model_config.WANING_TIME,
+        num_compartments=model_config.NUM_COMPARTMENTS,
+        w_idx=model_config.w_idx,
+        idx=model_config.idx,
         target_population_fractions=None,
         contact_matrix=None,
         init_infection_dist=None,
