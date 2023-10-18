@@ -110,14 +110,26 @@ class ModelConfig:
         len(STRAIN_SPECIFIC_R0) == NUM_STRAINS
     ), "Number of R0s must match number of strains"
 
-    NUM_WANING_COMPARTMENTS = 6
+    NUM_WANING_COMPARTMENTS = 18
+    WANING_TIME = 22.5  # time in days before a recovered individual moves to first waned compartment
+    WANING_TIME_MONTHS = WANING_TIME / 30.0
+
     # protection against infection in each stage of waning, sampled from Toms supplments paper.
-    WANING_PROTECTIONS = jnp.array([0.88, 0.84, 0.77, 0.70, 0.61, 0.51])
+    WANING_PROTECTIONS = jnp.array(
+        [
+            1 / (1 + np.e ** (-(2.46 - (0.2 * t))))
+            for t in np.linspace(
+                WANING_TIME_MONTHS,
+                WANING_TIME_MONTHS * NUM_WANING_COMPARTMENTS,
+                NUM_WANING_COMPARTMENTS,
+            )
+        ]
+    )
+    # WANING_PROTECTIONS = jnp.array([0.88, 0.84, 0.77, 0.70, 0.61, 0.51])
     assert NUM_WANING_COMPARTMENTS == len(
         WANING_PROTECTIONS
     ), "unable to load config, NUM_WANING_COMPARTMENTS must equal to len(WANING_PROTECTIONS)"
 
-    WANING_TIME = 60.0  # time in days before a recovered individual moves to first waned compartment
     NUM_COMPARTMENTS = 5
     # compartment indexes ENUM for readability in code
     w_idx = IntEnum(
