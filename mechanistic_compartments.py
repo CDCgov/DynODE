@@ -20,6 +20,9 @@ from config.config_base import DataConfig as dc
 from config.config_base import InferenceConfig as ic
 import utils
 
+# plotting libraries
+import matplotlib.pyplot as plt
+
 
 class BasicMechanisticModel:
     "Implementation of a basic Mechanistic model for scenario analysis"
@@ -61,7 +64,7 @@ class BasicMechanisticModel:
         self.w_idx = w_idx
         self.idx = idx
         rng = np.random.default_rng(seed=ic.MODEL_RAND_SEED)
-        # if not given, uniformally generate population fractions.
+        # if not given, generate population fractions based on observed census data
         if not target_population_fractions:
             target_population_fractions = utils.load_age_demographics()["United States"]
 
@@ -191,12 +194,62 @@ class BasicMechanisticModel:
         save_path = (
             save_path if save else None
         )  # dont set a save path if we dont want to save
-        fig, ax = utils.plot_diffrax_solution(
-            solution.ys,
+        fig, ax = self.plot_diffrax_solution(
+            solution,
             plot_compartments=["s", "e", "i", "r", "w0", "w1", "w2", "w3"],
             save_path=save_path,
         )
         return solution
+
+    def plot_diffrax_solution(
+        self,
+        sol,
+        plot_compartments=["s", "e", "i", "r"],
+        save_path=None,
+    ):
+        """
+        plots a run from diffeqsolve() with compartments `plot_compartments` returning figure and axis.
+        If `save_path` is not None will save figure to that path attached with meta data in `meta_data`.
+
+        Parameters
+        ----------
+        sol : difrax.Solution
+            object containing ODE run
+        plot_compartment : list(str)
+            compartment titles as defined by the config file used to initialize self
+        save_path : str
+            if `save_path = None` do not save figure to output directory. Otherwise save to relative path `save_path`
+            attaching meta data of the self object.
+        """
+        sol = sol.ys
+        get_indexes = []
+        for compartment in plot_compartments:
+            if "W" in compartment.upper():
+                # waning compartments are held in a different manner, we need two indexes to access them
+                index_slice = [
+                    self.idx.__getitem__("W"),
+                    self.w_idx.__getitem__(compartment.strip().upper()),
+                ]
+                get_indexes.append(index_slice)
+            else:
+                get_indexes.append(self.idx.__getitem__(compartment.strip().upper()))
+
+        fig, ax = plt.subplots(1)
+        for compartment, idx in zip(plot_compartments, get_indexes):
+            if "W" in compartment.upper():  # then idx=(idx.W, w_idx.W1/2/....)
+                # if we are plotting a waning compartment, we need to parse 1 extra dimension
+                sol_compartment = np.array(sol[idx[0]])[:, :, :, idx[1]]
+            else:
+                # non-waning compartments dont have this extra dimension
+                sol_compartment = sol[idx]
+            dimensions_to_sum_over = tuple(range(1, sol_compartment.ndim))
+            ax.plot(sol_compartment.sum(axis=dimensions_to_sum_over), label=compartment)
+        fig.legend()
+        if save_path:
+            fig.savefig(save_path)
+            with open(save_path + "_meta.txt", "x") as meta:
+                meta.write(str(self.__dict__))
+        return fig, ax
 
 
 def build_basic_mechanistic_model(model_config):
