@@ -51,6 +51,63 @@ def sample_waning_protections(waning_protect_means):
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# AGE DEMOGRAPHICS CODE
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+def load_age_demographics(
+    path=dc.MIXING_PATH + "population_rescaled_age_distributions/",
+    regions=cf.REGIONS,
+    age_limits=dc.AGE_LIMITS,
+):
+    """Returns normalized proportions of each agebin as defined by age_limits for the regions given.
+    Does this by searching for age demographics data in path."""
+    assert os.path.exists(
+        path
+    ), f"The path to population-rescaled age distributions does not exist as it should"
+
+    demographic_data = dict([(r, "") for r in cf.REGIONS])
+    # Create contact matrices
+    for r in regions:
+        try:
+            # e.g., if territory is "North Carolina", pass it as "North_Carolina"
+            if len(r.split()) > 1:
+                region = "_".join(r.split())
+            else:
+                region = r
+            if region != "United_States":
+                region_data_file = (
+                    "United_States_subnational_" + region + "_age_distribution_85.csv"
+                )
+            else:
+                region_data_file = "United_States_country_level_age_distribution_85.csv"
+
+            age_distributions = np.loadtxt(
+                path + region_data_file, delimiter=",", dtype=np.float64, skiprows=0
+            )
+            binned_ages = np.array([])
+            age_bin_pop = 0
+            current_age = 0
+            if 84 not in age_limits:
+                age_limits = age_limits + [84]
+            while current_age < 85:
+                age_bin_pop += age_distributions[current_age][1]  # get the population
+                # add total population of that bin to the array, reset
+                if current_age in age_limits:
+                    binned_ages = np.append(binned_ages, age_bin_pop)
+                    age_bin_pop = 0
+                current_age += 1  # go to next year.
+            # normalize array to proportions after all bins constructed.
+            binned_ages = binned_ages / sum(binned_ages)
+            demographic_data[r] = binned_ages
+        except Exception as e:
+            print(
+                f"Something went wrong with {region} and produced the following error:\n\t{e}"
+            )
+    return demographic_data
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # CONTACT MATRIX CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 

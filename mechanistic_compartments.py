@@ -63,12 +63,8 @@ class BasicMechanisticModel:
         rng = np.random.default_rng(seed=ic.MODEL_RAND_SEED)
         # if not given, uniformally generate population fractions.
         if not target_population_fractions:
-            target_population_fractions = rng.uniform(
-                size=num_age_groups
-            )  # TODO change so age distributions initialized non-uniformly
-            target_population_fractions = target_population_fractions / sum(
-                target_population_fractions
-            )
+            target_population_fractions = utils.load_age_demographics()["United States"]
+
         self.target_population_fractions = target_population_fractions
         self.population = init_pop_size * self.target_population_fractions
 
