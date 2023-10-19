@@ -2,3 +2,4 @@ __pycache__/
 .vscode/
 testing.py
 output/
+testing.ipynb

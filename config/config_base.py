@@ -92,10 +92,12 @@ class ModelConfig:
     BIRTH_RATE = 1 / 75.0  # mu #TODO IMPLEMENT DEATHS
     assert BIRTH_RATE >= 0, "BIRTH_RATE can not be negative"
 
-    INFECTIOUS_PERIOD = 5.0  # gamma
+    # informed by source 5 (see bottom of file)
+    INFECTIOUS_PERIOD = 7.0  # gamma
     assert INFECTIOUS_PERIOD >= 0, "INFECTIOUS_PERIOD can not be negative"
 
-    EXPOSED_TO_INFECTIOUS = 2.0  # sigma
+    # informed by mean of Binom(0.53, gamma(3.1, 1.6)) + 1, sources 4 and 5 (see bottom of file)
+    EXPOSED_TO_INFECTIOUS = 3.6  # sigma
     assert EXPOSED_TO_INFECTIOUS >= 0, "EXPOSED_TO_INFECTIOUS can not be negative"
 
     VACCINATION_RATE = 1 / 500.0  # vac_p
@@ -113,11 +115,12 @@ class ModelConfig:
     NUM_WANING_COMPARTMENTS = 18
     WANING_TIME = 22.5  # time in days before a recovered individual moves to first waned compartment
     WANING_TIME_MONTHS = WANING_TIME / 30.0
+    INITIAL_PROTECTION = 0.52  # source 17
 
-    # protection against infection in each stage of waning, sampled from Toms supplments paper.
+    # protection against infection in each stage of waning, influenced by source 20
     WANING_PROTECTIONS = jnp.array(
         [
-            1 / (1 + np.e ** (-(2.46 - (0.2 * t))))
+            INITIAL_PROTECTION / (1 + np.e ** (-(2.46 - (0.2 * t))))
             for t in np.linspace(
                 WANING_TIME_MONTHS,
                 WANING_TIME_MONTHS * NUM_WANING_COMPARTMENTS,
@@ -150,3 +153,18 @@ class InferenceConfig:
     MCMC_NUM_CHAINS = 4
     MCMC_PROGRESS_BAR = True
     MODEL_RAND_SEED = 8675309
+
+
+"""
+SOURCES:
+
+4) L. C. Tindale, et al., eLife 9, e57149 (2020). Publisher: eLife Sciences Publications, Ltd.
+
+5) National Centre for Infectious Disease, Academy of Medicine, Singapore, Position Statement from the National Centre for Infectious Diseases and the Chapter of Infectious Disease
+Physicians, Academy of Medicine, Singapore: Period of Infectivity to Inform Strategies for
+De-isolation for COVID-19 Patients. (2020).
+
+17)  D. S. Khoury, et al., Nature Medicine 27, 1205 (2021).
+
+20)  S. Y. Tartof, et al., The Lancet 398, 1407 (2021).
+"""
