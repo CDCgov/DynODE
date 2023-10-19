@@ -29,9 +29,10 @@ class DataConfig:
     SAVE_PATH = "../assets/figures/"
 
     # CONTACT MATRICES & DEMOGRAPHY
-    MINIMUM_AGE = 1  # why was this 1
-    AGE_LIMITS = [4, 17, 49, 64]  # TODO CHANGE TO BIN UPPER BOUNDS, BIN TO 85
-    NUM_AGE_GROUPS = len(AGE_LIMITS) + 1
+    MINIMUM_AGE = 0  # why was this 1
+    # values are exclusive in upper bound. so [0,18) means 0-17, 18+
+    AGE_LIMITS = [MINIMUM_AGE, 18, 50, 65]
+    NUM_AGE_GROUPS = len(AGE_LIMITS)
     NUM_STRAINS = 3
     AGE_GROUPS = [
         ["0-4 yr", "5-17 yr"],
@@ -115,12 +116,11 @@ class ModelConfig:
     NUM_WANING_COMPARTMENTS = 18
     WANING_TIME = 22.5  # time in days before a recovered individual moves to first waned compartment
     WANING_TIME_MONTHS = WANING_TIME / 30.0
-    INITIAL_PROTECTION = 0.52  # source 17
 
     # protection against infection in each stage of waning, influenced by source 20
     WANING_PROTECTIONS = jnp.array(
         [
-            INITIAL_PROTECTION / (1 + np.e ** (-(2.46 - (0.2 * t))))
+            0.52 / (1 + np.e ** (-(2.46 - (0.2 * t))))  # init_protection=0.52 source 17
             for t in np.linspace(
                 WANING_TIME_MONTHS,
                 WANING_TIME_MONTHS * NUM_WANING_COMPARTMENTS,
@@ -157,6 +157,7 @@ class InferenceConfig:
 
 """
 SOURCES:
+Contact Matrices sourced from: https://github.com/mobs-lab/mixing-patterns
 
 4) L. C. Tindale, et al., eLife 9, e57149 (2020). Publisher: eLife Sciences Publications, Ltd.
 

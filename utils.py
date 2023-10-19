@@ -7,6 +7,7 @@ import numpy as np
 import os, glob
 import numpyro
 import numpyro.distributions as dist
+import datetime
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -51,7 +52,7 @@ def sample_waning_protections(waning_protect_means):
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# AGE DEMOGRAPHICS CODE
+# DEMOGRAPHICS CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
@@ -87,9 +88,10 @@ def load_age_demographics(
             )
             binned_ages = np.array([])
             age_bin_pop = 0
-            current_age = 0
+            current_age = age_limits[0]
             if 84 not in age_limits:
                 age_limits = age_limits + [84]
+            age_limits = age_limits[1:]
             while current_age < 85:
                 age_bin_pop += age_distributions[current_age][1]  # get the population
                 # add total population of that bin to the array, reset
@@ -105,6 +107,110 @@ def load_age_demographics(
                 f"Something went wrong with {region} and produced the following error:\n\t{e}"
             )
     return demographic_data
+
+
+def load_serology_demographics(path, age_limits, waning_time):
+    serology = pd.read_csv(path)
+    # filter down to USA and pick a date after omicron surge to load serology from.
+    serology = serology[serology["Site"] == "US"]
+    dates_of_interest = [
+        "Feb 1 - Feb 21, 2021",
+        "Feb 15 -  Mar 7, 2021",
+        "Mar 1 - Mar 21, 2021",
+        "Mar 15 -  Apr 4, 2021",
+        "Mar 29 - Apr 18, 2021",
+        "Apr 12 -  May 2, 2021",
+        "Apr 26 - May 16, 2021",
+        "May 10 - May 30, 2021",
+        "May 24 - Jun 13, 2021",
+        "Jun 7 - Jun 27, 2021",
+        "Jun 21 - Jul 11, 2021",
+        "Sep 6 -  Oct 3, 2021",
+        "Oct 4 - Oct 31, 2021",
+        "Nov 1 - Nov 28, 2021",
+        "Nov 29 - Dec 26, 2021",
+        "Dec 27, 2021 - Jan 29, 2022",
+        "Jan 27 - Feb 26, 2022",
+    ]
+    serology = serology[
+        [
+            date in dates_of_interest
+            for date in serology["Date Range of Specimen Collection"]
+        ]
+    ]
+    columns_of_interest = [
+        "Date Range of Specimen Collection",
+        "Rate (%) [Anti-N, 0-17 Years Prevalence]",
+        "Rate (%) [Anti-N, 18-49 Years Prevalence, Rounds 1-30 only]",
+        "Rate (%) [Anti-N, 50-64 Years Prevalence, Rounds 1-30 only]",
+        "Rate (%) [Anti-N, 65+ Years Prevalence, Rounds 1-30 only]",
+    ]
+    # anti_n_columns = [col for col in serology.columns if "Rate (%) [Anti-N" in col]
+
+    serology = serology[columns_of_interest]
+    serology_age_limits = [17, 49, 64]  # serology data only comes in these age bins
+    # we will use the absolute change in % serology prevalence to initalize wane compartments
+    serology["0_17_diff"] = serology["Rate (%) [Anti-N, 0-17 Years Prevalence]"].diff()
+    serology["18_49_diff"] = serology[
+        "Rate (%) [Anti-N, 18-49 Years Prevalence, Rounds 1-30 only]"
+    ].diff()
+    serology["50_64_diff"] = serology[
+        "Rate (%) [Anti-N, 50-64 Years Prevalence, Rounds 1-30 only]"
+    ].diff()
+    serology["65_diff"] = serology[
+        "Rate (%) [Anti-N, 65+ Years Prevalence, Rounds 1-30 only]"
+    ].diff()
+    # lets create datetime objects out of collection range
+    years = [x.split(",")[-1] for x in serology["Date Range of Specimen Collection"]]
+    serology["collection_start"] = pd.to_datetime(
+        [
+            # edge case Date = Dec 27, 2021 - Jan 29, 2022, need years
+            date.split("-")[0].strip() + "," + year
+            if len(date.split(",")) == 2
+            else date.split("-")[0].strip()
+            for date, year in zip(serology["Date Range of Specimen Collection"], years)
+        ],
+        format="%b %d, %Y",
+    )
+
+    serology["collection_end"] = pd.to_datetime(
+        [
+            x.split("-")[1].strip()
+            for x in serology["Date Range of Specimen Collection"]
+        ],
+        format="%b %d, %Y",
+    )
+    # now we go back `waning_time` days at a time and use our diff columns to populate recoved/waning
+    # initalization_date is the date our chosen serology begins, based on post-omicron peak.
+    initalization_date = datetime.date(2022, 2, 26)
+    recovered_date = initalization_date - datetime.timedelta(days=waning_time)
+    select = serology[
+        (serology["collection_start"] <= recovered_date)
+        & (serology["collection_end"] >= recovered_date)
+    ]
+    assert len(select) > 0, "serology data does not exist for this waning date" + str(
+        recovered_date
+    )
+    # sometimes serology collections overlap by a couple days, we pick the earlier of the two in this case
+    select = select.iloc[0]
+    age_to_diff_dict = {}
+    # age_to_diff_dict will be used to average age bins when our datas age bins collide with serology datas
+    # for example 0-4 age bin will fit inside 0-17,
+    # but what about hypothetical 10-20 age bin? This needs to be weighted average of 0-17 and 18-49 age bins
+    for age in range(85):
+        if age <= serology_age_limits[0]:
+            age_to_diff_dict[age] = select["0_17_diff"]
+        elif age <= serology_age_limits[1]:
+            age_to_diff_dict[age] = select["18_49_diff"]
+        elif age <= serology_age_limits[2]:
+            age_to_diff_dict[age] = select["50_64_diff"]
+        else:
+            age_to_diff_dict[age] = select["65_diff"]
+
+
+#    for waning_compartment in
+
+# if age bins dont match up, we need work around that.
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -231,26 +337,18 @@ def create_age_grouped_CM(
     # Check if the dc.MINIMUM_AGE is an int
     assert type(dc.MINIMUM_AGE) == int, "Please make sure the minimum age is an int"
     # Check to see if the age limits specified are ordered properly
-    assert (
-        dc.MINIMUM_AGE < dc.AGE_LIMITS[0] < dc.AGE_LIMITS[-1] < 84
-    ), "The entered age limits are not compatible"
+    assert dc.AGE_LIMITS[-1] < 84, "The entered age limits are not compatible"
     # Check if the upper bound of the age limits is greater than the lower bound
     assert (
         dc.AGE_LIMITS[0] < dc.AGE_LIMITS[1] + 1
     ), "The bounds for the age limits are not proper"
-    # Check if there are only two age limits
-    # Output and baseline age groups in the contact matrices, respectively
-    n, m = dc.NUM_AGE_GROUPS, setting_CM.shape[0]
     # Create new age groups from the age limits, e.g. if [18,66], <18,18-64,65+
     age_groups = []
-    for i in range(1, n + 1):
-        if i == 1:
-            age_groups.append(list(range(dc.MINIMUM_AGE, dc.AGE_LIMITS[0])))
-        elif i == n:
-            age_groups.append(list(range(dc.AGE_LIMITS[n - 2], m)))
-        else:
-            age_groups.append(list(range(dc.AGE_LIMITS[i - 2], dc.AGE_LIMITS[i - 1])))
-    # Create the empty contact matrix for the new age groups
+    for age_idx in range(1, len(dc.AGE_LIMITS)):
+        age_groups.append(
+            list(range(dc.AGE_LIMITS[age_idx - 1], dc.AGE_LIMITS[age_idx]))
+        )
+    age_groups.append(list(range(dc.AGE_LIMITS[-1], 85)))
     grouped_CM = np.empty(
         (dc.NUM_AGE_GROUPS, dc.NUM_AGE_GROUPS), dtype=setting_CM.dtype
     )
@@ -300,7 +398,6 @@ def load_demographic_data() -> (
     demographic_data = dict([(r, "") for r in cf.REGIONS])
     # Create contact matrices
     for r in cf.REGIONS:
-        print(f"\t...for {r}")
         try:
             # e.g., if territory is "North Carolina", pass it as "North_Carolina"
             if len(r.split()) > 1:
@@ -328,7 +425,7 @@ def load_demographic_data() -> (
             N_age = N_age_sch
             # Rescale contact matrices by leading eigenvalue
             oth_CM = oth_CM / rho(oth_CM)
-            sch_CM = sch_CM / rho(oth_CM)
+            sch_CM = sch_CM / rho(sch_CM)
             # Transform Other cm with the new age limits [NB: to transpose?]
             region_demographic_data_dict = {
                 "sch_CM": sch_CM.T,

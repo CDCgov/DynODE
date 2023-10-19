@@ -47,6 +47,7 @@ class BasicMechanisticModel:
         target_population_fractions=None,
         contact_matrix=None,
         init_infection_dist=None,
+        waning_distribution=None,
     ):
         self.num_age_groups = num_age_groups
         self.num_strains = num_strains
@@ -77,11 +78,18 @@ class BasicMechanisticModel:
             contact_matrix = contact_matricies["United States"]["oth_CM"]
         self.contact_matrix = contact_matrix
 
+        # if not waning_distribution:
+        #     path = "data\serological-data\Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
+        #     waning_distribution = utils.load_serology_demographics(path,
+        #                                                            self.num_age_groups,
+        #                                                            self.waning_time)
+
         # if not given an inital infection distribution, use max eig value vector
         if not init_infection_dist:
             eig_data = np.linalg.eig(contact_matrix)
             max_index = np.argmax(eig_data[0])
-            init_infection_dist = eig_data[1][:, max_index]
+            init_infection_dist = abs(eig_data[1][:, max_index])
+            init_infection_dist = init_infection_dist / sum(init_infection_dist)
 
         # with inital infection distribution by age group, break down uniformally by number of strains.
         # TODO non-uniform strain distribution if needed.
