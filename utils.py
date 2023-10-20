@@ -56,6 +56,16 @@ def sample_waning_protections(waning_protect_means):
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
+def generate_yearly_age_bins_from_limits(age_limits):
+    age_groups = []
+    for age_idx in range(1, len(age_limits)):
+        age_groups.append(
+            list(range(dc.AGE_LIMITS[age_idx - 1], dc.AGE_LIMITS[age_idx]))
+        )
+    age_groups.append(list(range(dc.AGE_LIMITS[-1], 85)))
+    return age_groups
+
+
 def load_age_demographics(
     path=dc.MIXING_PATH + "population_rescaled_age_distributions/",
     regions=cf.REGIONS,
@@ -109,11 +119,18 @@ def load_age_demographics(
     return demographic_data
 
 
-def load_serology_demographics(path, age_limits, waning_time):
+def load_serology_demographics(
+    path, age_limits, waning_time, waning_compartments, num_strains
+):
     serology = pd.read_csv(path)
     # filter down to USA and pick a date after omicron surge to load serology from.
     serology = serology[serology["Site"] == "US"]
     dates_of_interest = [
+        "Sep 20 -  Oct 8, 2020",
+        "Oct 5 - Oct 22, 2020",
+        "Oct 25 - Nov 15, 2020",
+        "Nov 9 - Nov 29, 2020",
+        "Nov 23 - Dec 12, 2020",
         "Feb 1 - Feb 21, 2021",
         "Feb 15 -  Mar 7, 2021",
         "Mar 1 - Mar 21, 2021",
@@ -148,6 +165,12 @@ def load_serology_demographics(path, age_limits, waning_time):
     # anti_n_columns = [col for col in serology.columns if "Rate (%) [Anti-N" in col]
 
     serology = serology[columns_of_interest]
+    # enforce monotonicity to combat sero-reversion in early pandemic serology assays
+    for diff_column in columns_of_interest[1:]:
+        for idx in range(1, len(serology[diff_column])):
+            serology[diff_column].iloc[idx] = max(
+                serology[diff_column].iloc[idx - 1], serology[diff_column].iloc[idx]
+            )
     serology_age_limits = [17, 49, 64]  # serology data only comes in these age bins
     # we will use the absolute change in % serology prevalence to initalize wane compartments
     serology["0_17_diff"] = serology["Rate (%) [Anti-N, 0-17 Years Prevalence]"].diff()
@@ -180,6 +203,9 @@ def load_serology_demographics(path, age_limits, waning_time):
         ],
         format="%b %d, %Y",
     )
+
+    serology["collection_start"] = serology["collection_start"].dt.date
+    serology["collection_end"] = serology["collection_end"].dt.date
     # now we go back `waning_time` days at a time and use our diff columns to populate recoved/waning
     # initalization_date is the date our chosen serology begins, based on post-omicron peak.
     initalization_date = datetime.date(2022, 2, 26)
@@ -197,15 +223,42 @@ def load_serology_demographics(path, age_limits, waning_time):
     # age_to_diff_dict will be used to average age bins when our datas age bins collide with serology datas
     # for example 0-4 age bin will fit inside 0-17,
     # but what about hypothetical 10-20 age bin? This needs to be weighted average of 0-17 and 18-49 age bins
-    for age in range(85):
-        if age <= serology_age_limits[0]:
-            age_to_diff_dict[age] = select["0_17_diff"]
-        elif age <= serology_age_limits[1]:
-            age_to_diff_dict[age] = select["18_49_diff"]
-        elif age <= serology_age_limits[2]:
-            age_to_diff_dict[age] = select["50_64_diff"]
-        else:
-            age_to_diff_dict[age] = select["65_diff"]
+
+    age_groups = generate_yearly_age_bins_from_limits(age_limits)
+
+    waning_init_distribution = np.zeros(
+        (len(age_limits), num_strains, waning_compartments)
+    )
+
+    for waning_index in range(0, waning_compartments):
+        # shift by 2 because 1 waning time back is recovered compartment, 2 is first waning compartment
+        waning_compartment_date = initalization_date - (
+            datetime.timedelta(days=21) * (waning_index + 2)
+        )
+        select = serology[serology["collection_start"] <= waning_compartment_date]
+        assert (
+            len(select) > 0
+        ), "serology data does not exist for this waning date" + str(recovered_date)
+        # sometimes serology collections overlap by a couple days, we pick the earlier of the two in this case
+        select = select.iloc[-1]
+
+        for age in range(85):
+            if age <= serology_age_limits[0]:
+                age_to_diff_dict[age] = select["0_17_diff"]
+            elif age <= serology_age_limits[1]:
+                age_to_diff_dict[age] = select["18_49_diff"]
+            elif age <= serology_age_limits[2]:
+                age_to_diff_dict[age] = select["50_64_diff"]
+            else:
+                age_to_diff_dict[age] = select["65_diff"]
+        for age_group_idx, age_group in enumerate(age_groups):
+            serology_weighted = [age_to_diff_dict[age] for age in age_group]
+            serology_weighted = np.average(serology_weighted)
+            # this is where we would uniformly spread out waning if we wanted to
+            waning_init_distribution[age_group_idx, 0, waning_index] = serology_weighted
+
+    print(waning_init_distribution)
+    return waning_init_distribution
 
 
 #    for waning_compartment in
@@ -302,8 +355,8 @@ def make_two_settings_matrices(
     for setting in interaction_settings:
         if setting == "school":
             sch_CM = settings_data_dict[setting]
-        else:
-            oth_CM += settings_data_dict[setting]
+        # else:
+        oth_CM += settings_data_dict[setting]
     return (sch_CM, oth_CM, region_data)
 
 
@@ -343,12 +396,7 @@ def create_age_grouped_CM(
         dc.AGE_LIMITS[0] < dc.AGE_LIMITS[1] + 1
     ), "The bounds for the age limits are not proper"
     # Create new age groups from the age limits, e.g. if [18,66], <18,18-64,65+
-    age_groups = []
-    for age_idx in range(1, len(dc.AGE_LIMITS)):
-        age_groups.append(
-            list(range(dc.AGE_LIMITS[age_idx - 1], dc.AGE_LIMITS[age_idx]))
-        )
-    age_groups.append(list(range(dc.AGE_LIMITS[-1], 85)))
+    age_groups = generate_yearly_age_bins_from_limits(dc.AGE_LIMITS)
     grouped_CM = np.empty(
         (dc.NUM_AGE_GROUPS, dc.NUM_AGE_GROUPS), dtype=setting_CM.dtype
     )

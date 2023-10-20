@@ -31,6 +31,7 @@ class BasicMechanisticModel:
         self,
         num_age_groups=mc.NUM_AGE_GROUPS,
         num_strains=mc.NUM_STRAINS,
+        age_limits=mc.AGE_LIMITS,
         init_pop_size=mc.POP_SIZE,
         birth_rate=mc.BIRTH_RATE,
         infectious_period=mc.INFECTIOUS_PERIOD,
@@ -51,6 +52,7 @@ class BasicMechanisticModel:
     ):
         self.num_age_groups = num_age_groups
         self.num_strains = num_strains
+        self.age_limits = age_limits
         self.init_pop_size = init_pop_size
         self.birth_rate = birth_rate
         self.infectious_period = infectious_period
@@ -78,11 +80,15 @@ class BasicMechanisticModel:
             contact_matrix = contact_matricies["United States"]["oth_CM"]
         self.contact_matrix = contact_matrix
 
-        # if not waning_distribution:
-        #     path = "data\serological-data\Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
-        #     waning_distribution = utils.load_serology_demographics(path,
-        #                                                            self.num_age_groups,
-        #                                                            self.waning_time)
+        if not waning_distribution:
+            path = "data/serological-data/Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
+            waning_distribution = utils.load_serology_demographics(
+                path,
+                self.age_limits,
+                self.waning_time,
+                self.num_waning_compartments,
+                self.num_strains,
+            )
 
         # if not given an inital infection distribution, use max eig value vector
         if not init_infection_dist:
@@ -267,6 +273,7 @@ def build_basic_mechanistic_model(model_config):
     return BasicMechanisticModel(
         num_age_groups=model_config.NUM_AGE_GROUPS,
         num_strains=model_config.NUM_STRAINS,
+        age_limits=model_config.AGE_LIMITS,
         init_pop_size=model_config.POP_SIZE,
         birth_rate=model_config.BIRTH_RATE,
         infectious_period=model_config.INFECTIOUS_PERIOD,

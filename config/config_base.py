@@ -10,9 +10,6 @@ REGIONS = ["United States"]
 SEASONS = sorted(["22-23"])
 FORECAST_TARGET_DATE = "2022-11-21"  # ISO format
 FORECAST_HORIZON = 4
-# OPTION: FIT_FROM_DATE =
-# OPTION: FIT_UNTIL_DATE =
-# OPTION: PRINT_TIMING
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -86,6 +83,7 @@ class ModelConfig:
     # the model age bins / strains must match the data being read in
     NUM_AGE_GROUPS = DataConfig.NUM_AGE_GROUPS
     NUM_STRAINS = DataConfig.NUM_STRAINS
+    AGE_LIMITS = DataConfig.AGE_LIMITS
     # FIXED SEIR PARAMETERS
     POP_SIZE = 20000
     assert POP_SIZE > 0, "population size must be a non-zero value"
