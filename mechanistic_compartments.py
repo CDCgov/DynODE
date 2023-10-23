@@ -45,6 +45,7 @@ class BasicMechanisticModel:
         num_compartments=mc.NUM_COMPARTMENTS,
         w_idx=mc.w_idx,
         idx=mc.idx,
+        axis_idx=mc.axis_idx,
         target_population_fractions=None,
         contact_matrix=None,
         init_infection_dist=None,
@@ -66,6 +67,7 @@ class BasicMechanisticModel:
         self.num_compartments = num_compartments
         self.w_idx = w_idx
         self.idx = idx
+        self.axis_idx = axis_idx
         rng = np.random.default_rng(seed=ic.MODEL_RAND_SEED)
         # if not given, generate population fractions based on observed census data
         if not target_population_fractions:
@@ -81,9 +83,14 @@ class BasicMechanisticModel:
         self.contact_matrix = contact_matrix
 
         if not waning_distribution:
-            path = "data/serological-data/Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
-            waning_distribution = utils.load_serology_demographics(
-                path,
+            sero_path = "data/serological-data/Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
+            pop_path = "data/demographic-data/population_rescaled_age_distributions/"
+            (
+                self.recovered_distribution,
+                self.waning_distribution,
+            ) = utils.load_serology_demographics(
+                sero_path,
+                pop_path,
                 self.age_limits,
                 self.waning_time,
                 self.num_waning_compartments,
@@ -127,8 +134,9 @@ class BasicMechanisticModel:
         gamma = 1 / self.infectious_period
         sigma = 1 / self.exposed_to_infectious
         wanning_rate = 1 / self.waning_time
-        suseptibility_matrix = jnp.ones(
-            (self.num_strains, self.num_strains)
+        # default to no cross immunity, setting diagnal to 0
+        suseptibility_matrix = jnp.ones((self.num_strains, self.num_strains)) * (
+            1 - jnp.diag(jnp.array([1] * self.num_strains))
         )  # TODO use priors here
         args = [  # TODO convert to dictionary if diffeqsolve() allows for args to be a dict.
             beta,
@@ -184,7 +192,14 @@ class BasicMechanisticModel:
         )
         mcmc.print_summary()
 
-    def run(self, model, tf=100.0, save=True, save_path="model_run.png"):
+    def run(
+        self,
+        model,
+        tf=100.0,
+        save=True,
+        save_path="model_run.png",
+        plot_compartments=["s", "e", "i", "r", "w0", "w1", "w2", "w3"],
+    ):
         """
         runs the mechanistic model using beta, gamma, sigma, and waning rate based on config file values.
         Does not sample waning protections or R0 by strain.
@@ -210,7 +225,7 @@ class BasicMechanisticModel:
         )  # dont set a save path if we dont want to save
         fig, ax = self.plot_diffrax_solution(
             solution,
-            plot_compartments=["s", "e", "i", "r", "w0", "w1", "w2", "w3"],
+            plot_compartments=plot_compartments,
             save_path=save_path,
         )
         return solution
@@ -287,6 +302,7 @@ def build_basic_mechanistic_model(model_config):
         num_compartments=model_config.NUM_COMPARTMENTS,
         w_idx=model_config.w_idx,
         idx=model_config.idx,
+        axis_idx=model_config.axis_idx,
         target_population_fractions=None,
         contact_matrix=None,
         init_infection_dist=None,

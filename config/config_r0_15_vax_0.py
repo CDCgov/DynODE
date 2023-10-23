@@ -139,6 +139,7 @@ class ModelConfig:
         "w_idx", ["W" + str(idx) for idx in range(NUM_WANING_COMPARTMENTS)], start=0
     )
     idx = IntEnum("idx", ["S", "E", "I", "R", "W"], start=0)
+    axis_idx = IntEnum("idx", ["age", "strain", "wane"], start=0)
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
