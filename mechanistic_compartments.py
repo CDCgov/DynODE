@@ -103,6 +103,7 @@ class BasicMechanisticModel:
             max_index = np.argmax(eig_data[0])
             init_infection_dist = abs(eig_data[1][:, max_index])
             init_infection_dist = init_infection_dist / sum(init_infection_dist)
+        self.init_infection_dist = init_infection_dist
 
         # with inital infection distribution by age group, break down uniformally by number of strains.
         # TODO non-uniform strain distribution if needed.
@@ -112,7 +113,8 @@ class BasicMechanisticModel:
             * np.ones(num_strains)
             / num_strains
         )
-        self.init_infection_dist = init_infection_dist
+        self.initial_infections_by_strain = initial_infections_by_strain
+
         self.initial_state = (
             self.population - self.initial_infections * self.init_infection_dist,  # s
             np.zeros((num_age_groups, num_strains)),  # e

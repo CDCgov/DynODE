@@ -121,7 +121,7 @@ def load_age_demographics(
     return demographic_data
 
 
-def prep_serology_data(path):
+def prep_serology_data(path, waning_time):
     """
     reads serology data from path, filters to only USA site,
     filters Date Ranges from Sep 2020 - Feb 2022,
@@ -149,30 +149,7 @@ def prep_serology_data(path):
     serology = pd.read_csv(path)
     # filter down to USA and pick a date after omicron surge to load serology from.
     serology = serology[serology["Site"] == "US"]
-    dates_of_interest = [
-        "Sep 20 -  Oct 8, 2020",
-        "Oct 5 - Oct 22, 2020",
-        "Oct 25 - Nov 15, 2020",
-        "Nov 9 - Nov 29, 2020",
-        "Nov 23 - Dec 12, 2020",
-        "Feb 1 - Feb 21, 2021",
-        "Feb 15 -  Mar 7, 2021",
-        "Mar 1 - Mar 21, 2021",
-        "Mar 15 -  Apr 4, 2021",
-        "Mar 29 - Apr 18, 2021",
-        "Apr 12 -  May 2, 2021",
-        "Apr 26 - May 16, 2021",
-        "May 10 - May 30, 2021",
-        "May 24 - Jun 13, 2021",
-        "Jun 7 - Jun 27, 2021",
-        "Jun 21 - Jul 11, 2021",
-        "Sep 6 -  Oct 3, 2021",
-        "Oct 4 - Oct 31, 2021",
-        "Nov 1 - Nov 28, 2021",
-        "Nov 29 - Dec 26, 2021",
-        "Dec 27, 2021 - Jan 29, 2022",
-        "Jan 27 - Feb 26, 2022",
-    ]
+    dates_of_interest = pd.read_csv("data/dates_of_interest.csv")["date_name"].values
     # pick date ranges from the dates of interest list
     serology = serology[
         [
@@ -195,19 +172,10 @@ def prep_serology_data(path):
     for diff_column in columns_of_interest[1:]:
         for idx in range(1, len(serology[diff_column])):
             serology[diff_column].iloc[idx] = max(
-                serology[diff_column].iloc[idx - 1], serology[diff_column].iloc[idx]
+                serology[diff_column].iloc[idx - 1],
+                serology[diff_column].iloc[idx],
             )
-    # we will use the absolute change in % serology prevalence to initalize wane compartments
-    serology["0_17_diff"] = serology["Rate (%) [Anti-N, 0-17 Years Prevalence]"].diff()
-    serology["18_49_diff"] = serology[
-        "Rate (%) [Anti-N, 18-49 Years Prevalence, Rounds 1-30 only]"
-    ].diff()
-    serology["50_64_diff"] = serology[
-        "Rate (%) [Anti-N, 50-64 Years Prevalence, Rounds 1-30 only]"
-    ].diff()
-    serology["65_diff"] = serology[
-        "Rate (%) [Anti-N, 65+ Years Prevalence, Rounds 1-30 only]"
-    ].diff()
+        serology[diff_column] = serology[diff_column] / 100.0
     # lets create datetime objects out of collection range
     years = [x.split(",")[-1] for x in serology["Date Range of Specimen Collection"]]
     serology["collection_start"] = pd.to_datetime(
@@ -232,10 +200,36 @@ def prep_serology_data(path):
     # transform from datetime to date obj
     serology["collection_start"] = serology["collection_start"].dt.date
     serology["collection_end"] = serology["collection_end"].dt.date
+    # pick the date between collection start and end as the point estimate for date of collection
     serology["collection_date"] = [
         start + ((end - start) / 2)
         for start, end in zip(serology["collection_start"], serology["collection_end"])
     ]
+    # after we interpolate down to daily precision, rebin into waning compartments
+    serology.index = pd.to_datetime(serology["collection_date"])
+    serology = serology[columns_of_interest[1:]]  # filter to only int cols
+    # TODO possible reimplementation of variable waning compartment bin width
+    # will probably need to return to [::-x] slicing with a variable x or something.
+    serology = (
+        serology.resample("1d")  # downsample to daily freq
+        .interpolate()  # linear interpolate between days
+        .resample(
+            str(waning_time) + "d", origin="end"
+        )  # resample to waning compart width
+        .max()
+    )
+    # we will use the absolute change in % serology prevalence to initalize wane compartments
+    serology["0_17_diff"] = serology["Rate (%) [Anti-N, 0-17 Years Prevalence]"].diff()
+    serology["18_49_diff"] = serology[
+        "Rate (%) [Anti-N, 18-49 Years Prevalence, Rounds 1-30 only]"
+    ].diff()
+    serology["50_64_diff"] = serology[
+        "Rate (%) [Anti-N, 50-64 Years Prevalence, Rounds 1-30 only]"
+    ].diff()
+    serology["65_diff"] = serology[
+        "Rate (%) [Anti-N, 65+ Years Prevalence, Rounds 1-30 only]"
+    ].diff()
+
     return serology
 
 
@@ -264,10 +258,11 @@ def load_serology_demographics(
           The 3 strains account for omicron, delta, and alpha waves. And are timed accordingly.
           if num_strains < 3, will collapse earlier strains into one another.
     """
-    initalization_date = datetime.date(2022, 2, 26)
-    omicron_date = datetime.date(2021, 10, 17)  # as omicron took off
-    delta_date = datetime.date(2021, 6, 3)  # as the delta wave took off.
-    serology = prep_serology_data(sero_path)
+    # TODO we now have daily precision via linear interpolation,
+    # implement waning compartments with two strains filled in
+    initalization_date = datetime.date(2022, 2, 11)
+    serology = prep_serology_data(sero_path, waning_time)
+    # serology = serology.resample(str(waning_time) + "d")
     # we will need population data for weighted averages
     age_distributions = np.loadtxt(
         age_path + "United_States_country_level_age_distribution_85.csv",
@@ -277,14 +272,26 @@ def load_serology_demographics(
     )
     # serology data only comes in these age bins, inclusive
     serology_age_limits = [17, 49, 64]
+    # number of strains alloted for in the serological data, for covid this is omicron, delta, and alpha
+    num_historical_strains = 3
+    # breakpoints for each historical strain, oldest first, alpha - delta, delta - omicron
+    omicron_date = datetime.date(2021, 11, 19)  # as omicron took off
+    delta_date = datetime.date(2021, 6, 25)  # as the delta wave took off.
+    historical_time_breakpoints = [delta_date, omicron_date]
+    assert (
+        num_historical_strains <= num_strains
+    ), "you are attempting to find sero data for more historical strains than total strains alloted to the model"
 
+    assert (
+        num_historical_strains == len(historical_time_breakpoints) + 1
+    ), "set breakpoints for each of the historical strains you want to initalize with sero data"
     # age_to_diff_dict will be used to average age bins when our datas age bins collide with serology datas
     # for example 0-4 age bin will fit inside 0-17,
     # but what about hypothetical 10-20 age bin? This needs to be weighted average of 0-17 and 18-49 age bins
-    age_to_diff_dict = {}
+    age_to_sero_dict = {}
     age_groups = generate_yearly_age_bins_from_limits(age_limits)
 
-    # return this after filling it with the number of waned individuals
+    # return these after filling it with the %s of waned/recovered individuals
     waning_init_distribution = np.zeros(
         (len(age_limits), num_strains, num_waning_compartments)
     )
@@ -294,37 +301,57 @@ def load_serology_demographics(
         # now we go back `waning_time` days at a time and use our diff columns to populate recoved/waning
         # initalization_date is the date our chosen serology begins, based on post-omicron peak.
         waning_compartment_date = initalization_date - (
-            datetime.timedelta(days=waning_time) * (waning_index + 1)
+            datetime.timedelta(days=waning_time) * (waning_index)
         )
-        select = serology[serology["collection_date"] <= waning_compartment_date]
+        select = serology.loc[waning_compartment_date:waning_compartment_date]
         assert (
             len(select) > 0
         ), "serology data does not exist for this waning date " + str(
             waning_compartment_date
         )
         # depending how far back we are looking, we may be filling waning information for past strains
-        strain_select = 0  # initalize as omicron variant
-        # delta variant need at least 2 strains to represent these
-        if waning_compartment_date < omicron_date and num_strains > 1:
-            strain_select += 1
-        # alpha variant, need at least 3 strains to represent these
-        if waning_compartment_date < delta_date and num_strains > 2:
-            strain_select += 1
-        # sometimes serology collections overlap by a couple days, we pick the earlier of the two in this case
-        select = select.iloc[-1]
-        # fill our age_to_diff_dict so each age maps to its sero change we just selected
+        # omicron = strain 2, delta = 1, alpha = 0 for example
+        strain_select = num_historical_strains - 1  # initalize as most recent strain
+        for historical_breakpoint in historical_time_breakpoints:
+            # TODO check this make sure we arent off by one here with <= vs <
+            if waning_compartment_date <= historical_breakpoint:
+                strain_select -= 1
+        # select the only row as a series
+        select = select.iloc[0]
+        # fill our age_to_sero_dict so each age maps to its sero change we just selected
         for age in range(85):
             if age <= serology_age_limits[0]:
-                age_to_diff_dict[age] = select["0_17_diff"]
+                age_to_sero_dict[age] = (
+                    select["0_17_diff"]
+                    if waning_index < num_waning_compartments
+                    else select["Rate (%) [Anti-N, 0-17 Years Prevalence]"]
+                )
             elif age <= serology_age_limits[1]:
-                age_to_diff_dict[age] = select["18_49_diff"]
+                age_to_sero_dict[age] = (
+                    select["18_49_diff"]
+                    if waning_index < num_waning_compartments
+                    else select[
+                        "Rate (%) [Anti-N, 18-49 Years Prevalence, Rounds 1-30 only]"
+                    ]
+                )
             elif age <= serology_age_limits[2]:
-                age_to_diff_dict[age] = select["50_64_diff"]
+                age_to_sero_dict[age] = (
+                    select["50_64_diff"]
+                    if waning_index < num_waning_compartments
+                    else select[
+                        "Rate (%) [Anti-N, 50-64 Years Prevalence, Rounds 1-30 only]"
+                    ]
+                )
             else:
-                age_to_diff_dict[age] = select["65_diff"]
-
+                age_to_sero_dict[age] = (
+                    select["65_diff"]
+                    if waning_index < num_waning_compartments
+                    else select[
+                        "Rate (%) [Anti-N, 65+ Years Prevalence, Rounds 1-30 only]"
+                    ]
+                )
         for age_group_idx, age_group in enumerate(age_groups):
-            serology_age_group = [age_to_diff_dict[age] for age in age_group]
+            serology_age_group = [age_to_sero_dict[age] for age in age_group]
             population_age_group = [age_distributions[age][1] for age in age_group]
             serology_weighted = np.average(
                 serology_age_group, weights=population_age_group
