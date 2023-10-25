@@ -1,5 +1,6 @@
 #####
 # Exclude many data and output file types by default
+/sandbox
 
 # Data
 *.csv
@@ -38,6 +39,8 @@
 # Allowlist
 # !your_data_file.csv
 # !your_data_directory/
+!data/
+!data/dates_of_interest.csv
 
 
 #####
