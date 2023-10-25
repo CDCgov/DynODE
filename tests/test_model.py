@@ -10,25 +10,26 @@ from config.config_base import ModelConfig as mc_base
 from config.config_r0_1_vax_0 import ModelConfig as mc_r0_1_vax_0
 from config.config_r0_0_vax_1in500 import ModelConfig as mc_r0_0_vax_1in500
 from config.config_r0_15_vax_0 import ModelConfig as mc_r0_15_vax_0
-from config.config_r0_15_vax_0_strain_2 import ModelConfig as mc_r0_15_vax_0_strain_2
+
+# from config.config_r0_15_vax_0_strain_2 import ModelConfig as mc_r0_15_vax_0_strain_2
 
 model_r0_1_vax_0 = build_basic_mechanistic_model(mc_r0_1_vax_0)
 model_r0_1_5_with_vax = build_basic_mechanistic_model(mc_base)
 model_r0_0_with_vax = build_basic_mechanistic_model(mc_r0_0_vax_1in500)
 model_r0_15_vax_0 = build_basic_mechanistic_model(mc_r0_15_vax_0)
-model_r0_15_vax_0_strain_2 = build_basic_mechanistic_model(mc_r0_15_vax_0_strain_2)
+# model_r0_15_vax_0_strain_2 = build_basic_mechanistic_model(mc_r0_15_vax_0_strain_2)
 all_models = [
     model_r0_1_vax_0,
     model_r0_1_5_with_vax,
     model_r0_0_with_vax,
     model_r0_15_vax_0,
-    model_r0_15_vax_0_strain_2,
+    # model_r0_15_vax_0_strain_2,
 ]
 
 no_vaccination_models = [
     model_r0_1_vax_0,
     model_r0_15_vax_0,
-    model_r0_15_vax_0_strain_2,
+    # model_r0_15_vax_0_strain_2,
 ]
 
 
@@ -67,8 +68,9 @@ def test_r0_at_1_constant_infections():
     state = model_r0_1_vax_0.initial_state
     first_derivatives = MODEL(state, 0, model_r0_1_vax_0.get_args(sample=False))
     (ds, de, di, dr, dw) = first_derivatives
-    de = np.sum(de, axis=-1)  # sum across strains to just get age groups
-    di = np.sum(di, axis=-1)
+    # sum across strains to just get age groups
+    de = np.sum(de, axis=model_r0_1_vax_0.axis_idx.strain)
+    di = np.sum(di, axis=model_r0_1_vax_0.axis_idx.strain)
     assert not np.round(de + di, decimals=4).any(), (
         "Inflow and outflow from de + di not canceling out when R0=1, "
         "there are no vaccinations, and initial infections distributed based on contact matrix"

@@ -49,7 +49,8 @@ class BasicMechanisticModel:
         target_population_fractions=None,
         contact_matrix=None,
         init_infection_dist=None,
-        waning_distribution=None,
+        init_waning_dist=None,
+        init_recovered_dist=None,
     ):
         self.num_age_groups = num_age_groups
         self.num_strains = num_strains
@@ -82,12 +83,13 @@ class BasicMechanisticModel:
             contact_matrix = contact_matricies["United States"]["oth_CM"]
         self.contact_matrix = contact_matrix
 
-        if not waning_distribution:
+        # TODO does it make sense to set one and not the other if provided one ?
+        if not init_waning_dist or not init_recovered_dist:
             sero_path = "data/serological-data/Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
             pop_path = "data/demographic-data/population_rescaled_age_distributions/"
             (
-                self.recovered_distribution,
-                self.waning_distribution,
+                self.init_recovered_dist,
+                self.init_waning_dist,
             ) = utils.load_serology_demographics(
                 sero_path,
                 pop_path,
@@ -114,13 +116,24 @@ class BasicMechanisticModel:
             / num_strains
         )
         self.initial_infections_by_strain = initial_infections_by_strain
-
+        init_recovered_strain_summed = np.sum(
+            self.init_recovered_dist, axis=self.axis_idx.strain
+        )
+        init_waning_strain_compartment_summed = np.sum(
+            self.init_waning_dist, axis=(self.axis_idx.strain, self.axis_idx.wane)
+        )
+        inital_suseptible = (
+            self.population
+            - (self.initial_infections * self.init_infection_dist)
+            - (self.population * init_recovered_strain_summed)
+            - (self.population * init_waning_strain_compartment_summed)
+        )
         self.initial_state = (
-            self.population - self.initial_infections * self.init_infection_dist,  # s
+            inital_suseptible,  # s
             np.zeros((num_age_groups, num_strains)),  # e
             initial_infections_by_strain,  # i
-            np.zeros((num_age_groups, num_strains)),  # r
-            np.zeros((num_age_groups, num_strains, num_waning_compartments)),
+            (self.population * self.init_recovered_dist.transpose()).transpose(),  # r
+            (self.population * self.init_waning_dist.transpose()).transpose(),
         )  # w
 
     def get_args(self, sample=False):

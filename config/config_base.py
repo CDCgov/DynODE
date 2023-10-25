@@ -112,7 +112,7 @@ class ModelConfig:
     ), "Number of R0s must match number of strains"
 
     NUM_WANING_COMPARTMENTS = 18
-    WANING_TIME = 22.5  # time in days before a recovered individual moves to first waned compartment
+    WANING_TIME = 21  # time in days before a recovered individual moves to first waned compartment
     WANING_TIME_MONTHS = WANING_TIME / 30.0
 
     # protection against infection in each stage of waning, influenced by source 20

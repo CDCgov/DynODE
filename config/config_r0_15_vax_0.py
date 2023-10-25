@@ -10,9 +10,6 @@ REGIONS = ["United States"]
 SEASONS = sorted(["22-23"])
 FORECAST_TARGET_DATE = "2022-11-21"  # ISO format
 FORECAST_HORIZON = 4
-# OPTION: FIT_FROM_DATE =
-# OPTION: FIT_UNTIL_DATE =
-# OPTION: PRINT_TIMING
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -30,6 +27,7 @@ class DataConfig:
 
     # CONTACT MATRICES & DEMOGRAPHY
     MINIMUM_AGE = 0  # why was this 1
+    # values are exclusive in upper bound. so [0,18) means 0-17, 18+
     AGE_LIMITS = [MINIMUM_AGE, 18, 50, 65]
     NUM_AGE_GROUPS = len(AGE_LIMITS)
     NUM_STRAINS = 3
@@ -101,7 +99,7 @@ class ModelConfig:
     EXPOSED_TO_INFECTIOUS = 3.6  # sigma
     assert EXPOSED_TO_INFECTIOUS >= 0, "EXPOSED_TO_INFECTIOUS can not be negative"
 
-    VACCINATION_RATE = 0  # vac_p
+    VACCINATION_RATE = 0.0  # vac_p
     assert VACCINATION_RATE >= 0, "EXPOSED_TO_INFECTIOUS can not be negative"
 
     INITIAL_INFECTIONS = 1.0
@@ -114,7 +112,7 @@ class ModelConfig:
     ), "Number of R0s must match number of strains"
 
     NUM_WANING_COMPARTMENTS = 18
-    WANING_TIME = 21  # time in WHOLE days before a recovered individual moves to first waned compartment
+    WANING_TIME = 21  # time in days before a recovered individual moves to first waned compartment
     WANING_TIME_MONTHS = WANING_TIME / 30.0
 
     # protection against infection in each stage of waning, influenced by source 20
@@ -154,3 +152,19 @@ class InferenceConfig:
     MCMC_NUM_CHAINS = 4
     MCMC_PROGRESS_BAR = True
     MODEL_RAND_SEED = 8675309
+
+
+"""
+SOURCES:
+Contact Matrices sourced from: https://github.com/mobs-lab/mixing-patterns
+
+4) L. C. Tindale, et al., eLife 9, e57149 (2020). Publisher: eLife Sciences Publications, Ltd.
+
+5) National Centre for Infectious Disease, Academy of Medicine, Singapore, Position Statement from the National Centre for Infectious Diseases and the Chapter of Infectious Disease
+Physicians, Academy of Medicine, Singapore: Period of Infectivity to Inform Strategies for
+De-isolation for COVID-19 Patients. (2020).
+
+17)  D. S. Khoury, et al., Nature Medicine 27, 1205 (2021).
+
+20)  S. Y. Tartof, et al., The Lancet 398, 1407 (2021).
+"""
