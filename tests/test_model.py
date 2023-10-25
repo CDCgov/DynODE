@@ -67,8 +67,9 @@ def test_r0_at_1_constant_infections():
     state = model_r0_1_vax_0.initial_state
     first_derivatives = MODEL(state, 0, model_r0_1_vax_0.get_args(sample=False))
     (ds, de, di, dr, dw) = first_derivatives
-    de = np.sum(de, axis=-1)  # sum across strains to just get age groups
-    di = np.sum(di, axis=-1)
+    # sum across strains to just get age groups
+    de = np.sum(de, axis=model_r0_1_vax_0.axis_idx.strain)
+    di = np.sum(di, axis=model_r0_1_vax_0.axis_idx.strain)
     assert not np.round(de + di, decimals=4).any(), (
         "Inflow and outflow from de + di not canceling out when R0=1, "
         "there are no vaccinations, and initial infections distributed based on contact matrix"

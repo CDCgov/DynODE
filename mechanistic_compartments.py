@@ -31,6 +31,7 @@ class BasicMechanisticModel:
         self,
         num_age_groups=mc.NUM_AGE_GROUPS,
         num_strains=mc.NUM_STRAINS,
+        age_limits=mc.AGE_LIMITS,
         init_pop_size=mc.POP_SIZE,
         birth_rate=mc.BIRTH_RATE,
         infectious_period=mc.INFECTIOUS_PERIOD,
@@ -44,12 +45,16 @@ class BasicMechanisticModel:
         num_compartments=mc.NUM_COMPARTMENTS,
         w_idx=mc.w_idx,
         idx=mc.idx,
+        axis_idx=mc.axis_idx,
         target_population_fractions=None,
         contact_matrix=None,
         init_infection_dist=None,
+        init_waning_dist=None,
+        init_recovered_dist=None,
     ):
         self.num_age_groups = num_age_groups
         self.num_strains = num_strains
+        self.age_limits = age_limits
         self.init_pop_size = init_pop_size
         self.birth_rate = birth_rate
         self.infectious_period = infectious_period
@@ -63,6 +68,7 @@ class BasicMechanisticModel:
         self.num_compartments = num_compartments
         self.w_idx = w_idx
         self.idx = idx
+        self.axis_idx = axis_idx
         rng = np.random.default_rng(seed=ic.MODEL_RAND_SEED)
         # if not given, generate population fractions based on observed census data
         if not target_population_fractions:
@@ -77,11 +83,29 @@ class BasicMechanisticModel:
             contact_matrix = contact_matricies["United States"]["oth_CM"]
         self.contact_matrix = contact_matrix
 
+        # TODO does it make sense to set one and not the other if provided one ?
+        if not init_waning_dist or not init_recovered_dist:
+            sero_path = "data/serological-data/Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
+            pop_path = "data/demographic-data/population_rescaled_age_distributions/"
+            (
+                self.init_recovered_dist,
+                self.init_waning_dist,
+            ) = utils.load_serology_demographics(
+                sero_path,
+                pop_path,
+                self.age_limits,
+                self.waning_time,
+                self.num_waning_compartments,
+                self.num_strains,
+            )
+
         # if not given an inital infection distribution, use max eig value vector
         if not init_infection_dist:
             eig_data = np.linalg.eig(contact_matrix)
             max_index = np.argmax(eig_data[0])
-            init_infection_dist = eig_data[1][:, max_index]
+            init_infection_dist = abs(eig_data[1][:, max_index])
+            init_infection_dist = init_infection_dist / sum(init_infection_dist)
+        self.init_infection_dist = init_infection_dist
 
         # with inital infection distribution by age group, break down uniformally by number of strains.
         # TODO non-uniform strain distribution if needed.
@@ -91,13 +115,25 @@ class BasicMechanisticModel:
             * np.ones(num_strains)
             / num_strains
         )
-        self.init_infection_dist = init_infection_dist
+        self.initial_infections_by_strain = initial_infections_by_strain
+        init_recovered_strain_summed = np.sum(
+            self.init_recovered_dist, axis=self.axis_idx.strain
+        )
+        init_waning_strain_compartment_summed = np.sum(
+            self.init_waning_dist, axis=(self.axis_idx.strain, self.axis_idx.wane)
+        )
+        inital_suseptible = (
+            self.population
+            - (self.initial_infections * self.init_infection_dist)
+            - (self.population * init_recovered_strain_summed)
+            - (self.population * init_waning_strain_compartment_summed)
+        )
         self.initial_state = (
-            self.population - self.initial_infections * self.init_infection_dist,  # s
+            inital_suseptible,  # s
             np.zeros((num_age_groups, num_strains)),  # e
             initial_infections_by_strain,  # i
-            np.zeros((num_age_groups, num_strains)),  # r
-            np.zeros((num_age_groups, num_strains, num_waning_compartments)),
+            (self.population * self.init_recovered_dist.transpose()).transpose(),  # r
+            (self.population * self.init_waning_dist.transpose()).transpose(),
         )  # w
 
     def get_args(self, sample=False):
@@ -113,8 +149,9 @@ class BasicMechanisticModel:
         gamma = 1 / self.infectious_period
         sigma = 1 / self.exposed_to_infectious
         wanning_rate = 1 / self.waning_time
-        suseptibility_matrix = jnp.ones(
-            (self.num_strains, self.num_strains)
+        # default to no cross immunity, setting diagnal to 0
+        suseptibility_matrix = jnp.ones((self.num_strains, self.num_strains)) * (
+            1 - jnp.diag(jnp.array([1] * self.num_strains))
         )  # TODO use priors here
         args = [  # TODO convert to dictionary if diffeqsolve() allows for args to be a dict.
             beta,
@@ -170,7 +207,14 @@ class BasicMechanisticModel:
         )
         mcmc.print_summary()
 
-    def run(self, model, tf=100.0, save=True, save_path="model_run.png"):
+    def run(
+        self,
+        model,
+        tf=100.0,
+        save=True,
+        save_path="model_run.png",
+        plot_compartments=["s", "e", "i", "r", "w0", "w1", "w2", "w3"],
+    ):
         """
         runs the mechanistic model using beta, gamma, sigma, and waning rate based on config file values.
         Does not sample waning protections or R0 by strain.
@@ -196,7 +240,7 @@ class BasicMechanisticModel:
         )  # dont set a save path if we dont want to save
         fig, ax = self.plot_diffrax_solution(
             solution,
-            plot_compartments=["s", "e", "i", "r", "w0", "w1", "w2", "w3"],
+            plot_compartments=plot_compartments,
             save_path=save_path,
         )
         return solution
@@ -259,6 +303,7 @@ def build_basic_mechanistic_model(model_config):
     return BasicMechanisticModel(
         num_age_groups=model_config.NUM_AGE_GROUPS,
         num_strains=model_config.NUM_STRAINS,
+        age_limits=model_config.AGE_LIMITS,
         init_pop_size=model_config.POP_SIZE,
         birth_rate=model_config.BIRTH_RATE,
         infectious_period=model_config.INFECTIOUS_PERIOD,
@@ -272,6 +317,7 @@ def build_basic_mechanistic_model(model_config):
         num_compartments=model_config.NUM_COMPARTMENTS,
         w_idx=model_config.w_idx,
         idx=model_config.idx,
+        axis_idx=model_config.axis_idx,
         target_population_fractions=None,
         contact_matrix=None,
         init_infection_dist=None,

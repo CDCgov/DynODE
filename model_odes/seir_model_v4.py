@@ -69,7 +69,7 @@ def seirw_ode(state, t, parameters):
                 strain_source_idx, strain_target_idx
             ]
             effective_ws_by_age = ws_by_age * (
-                (1 - waning_protections) * partial_susceptibility
+                1 - (waning_protections * (1 - partial_susceptibility))
             )
             ws_exposed = force_of_infection_strain[:, None] * effective_ws_by_age
             # element wise subtraction of exposed w_s from strain_target dw
