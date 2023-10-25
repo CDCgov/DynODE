@@ -1,10 +1,11 @@
 """
-Lots of this config is sourced from Trevor's config in cdcent/cfa-mechanistic-python 
+Lots of this config is sourced from Trevor's config in cdcent/cfa-mechanistic-python
 and will be adapted as needed to be used for a covid model
 """
-import numpy as np
-import jax.numpy as jnp
 from enum import IntEnum
+
+import jax.numpy as jnp
+import numpy as np
 
 REGIONS = ["United States"]
 SEASONS = sorted(["22-23"])
@@ -30,7 +31,7 @@ class DataConfig:
     # values are exclusive in upper bound. so [0,18) means 0-17, 18+
     AGE_LIMITS = [MINIMUM_AGE, 18, 50, 65]
     NUM_AGE_GROUPS = len(AGE_LIMITS)
-    NUM_STRAINS = 3
+    NUM_STRAINS = 2
     AGE_GROUPS = [
         ["0-4 yr", "5-17 yr"],
         ["18-29 yr", "30-39 yr", "40-49 yr", "50-64 yr"],
@@ -97,7 +98,9 @@ class ModelConfig:
 
     # informed by mean of Binom(0.53, gamma(3.1, 1.6)) + 1, sources 4 and 5 (see bottom of file)
     EXPOSED_TO_INFECTIOUS = 3.6  # sigma
-    assert EXPOSED_TO_INFECTIOUS >= 0, "EXPOSED_TO_INFECTIOUS can not be negative"
+    assert (
+        EXPOSED_TO_INFECTIOUS >= 0
+    ), "EXPOSED_TO_INFECTIOUS can not be negative"
 
     VACCINATION_RATE = 0.0  # vac_p
     assert VACCINATION_RATE >= 0, "EXPOSED_TO_INFECTIOUS can not be negative"
@@ -105,7 +108,7 @@ class ModelConfig:
     INITIAL_INFECTIONS = 1.0
     assert INITIAL_INFECTIONS >= 0, "INITIAL_INFECTIONS can not be negative"
 
-    STRAIN_SPECIFIC_R0 = jnp.array([1.0, 1.0, 1.0])  # R0s
+    STRAIN_SPECIFIC_R0 = jnp.array([1.5, 1.5])  # R0s
     assert len(STRAIN_SPECIFIC_R0) > 0, "Must specify at least 1 strain R0"
     assert (
         len(STRAIN_SPECIFIC_R0) == NUM_STRAINS
@@ -118,7 +121,10 @@ class ModelConfig:
     # protection against infection in each stage of waning, influenced by source 20
     WANING_PROTECTIONS = jnp.array(
         [
-            0.52 / (1 + np.e ** (-(2.46 - (0.2 * t))))  # init_protection=0.52 source 17
+            0.52
+            / (
+                1 + np.e ** (-(2.46 - (0.2 * t)))
+            )  # init_protection=0.52 source 17
             for t in np.linspace(
                 WANING_TIME_MONTHS,
                 WANING_TIME_MONTHS * NUM_WANING_COMPARTMENTS,
@@ -134,7 +140,9 @@ class ModelConfig:
     NUM_COMPARTMENTS = 5
     # compartment indexes ENUM for readability in code
     w_idx = IntEnum(
-        "w_idx", ["W" + str(idx) for idx in range(NUM_WANING_COMPARTMENTS)], start=0
+        "w_idx",
+        ["W" + str(idx) for idx in range(NUM_WANING_COMPARTMENTS)],
+        start=0,
     )
     idx = IntEnum("idx", ["S", "E", "I", "R", "W"], start=0)
     axis_idx = IntEnum("idx", ["age", "strain", "wane"], start=0)
