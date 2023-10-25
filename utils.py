@@ -273,11 +273,18 @@ def load_serology_demographics(
     # serology data only comes in these age bins, inclusive
     serology_age_limits = [17, 49, 64]
     # number of strains alloted for in the serological data, for covid this is omicron, delta, and alpha
-    num_historical_strains = 3
+    num_historical_strains = 3 if num_strains >= 3 else num_strains
     # breakpoints for each historical strain, oldest first, alpha - delta, delta - omicron
     omicron_date = datetime.date(2021, 11, 19)  # as omicron took off
     delta_date = datetime.date(2021, 6, 25)  # as the delta wave took off.
     historical_time_breakpoints = [delta_date, omicron_date]
+    # small modifications needed so this does not break 2 and 1 strain models
+    if num_historical_strains == 1:
+        # no breakpoints when only 1 historical strain
+        historical_time_breakpoints = []
+    elif num_historical_strains == 2:
+        # if we are only looking at 2 historical strains, only take most recent breakpoint
+        historical_time_breakpoints = [historical_time_breakpoints[-1]]
     assert (
         num_historical_strains <= num_strains
     ), "you are attempting to find sero data for more historical strains than total strains alloted to the model"
