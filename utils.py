@@ -538,7 +538,7 @@ def create_age_grouped_CM(
     assert 0 <= minimum_age < 84, "Please correct the value of the minimum age"
     # Check if the dc.MINIMUM_AGE is an int
     assert isinstance(
-        type(minimum_age), int
+        minimum_age, int
     ), "Please make sure the minimum age is an int"
     # Check to see if the age limits specified are ordered properly
     assert age_limits[-1] < 84, "The entered age limits are not compatible"
@@ -615,7 +615,7 @@ def load_demographic_data(
                 region = r
             # Get base school and other contact matrices (for all 85 ages) and
             # the populations of each of these ages
-            sch_CM_all, oth_CM_all, region_data = make_two_settings_matrices(
+            sch_CM_all, avg_CM_all, region_data = make_two_settings_matrices(
                 path_to_population_data,
                 path_to_settings_data,
                 region,
@@ -628,10 +628,10 @@ def load_demographic_data(
                 minimum_age,
                 age_limits,
             )
-            # Create the age-grouped other setting contact
-            oth_CM, N_age_oth = create_age_grouped_CM(
+            # Create the age-grouped other an average setting contact (average being all settings combined, including school)
+            avg_CM, N_age_oth = create_age_grouped_CM(
                 region_data,
-                oth_CM_all,
+                avg_CM_all,
                 num_age_groups,
                 minimum_age,
                 age_limits,
@@ -639,12 +639,12 @@ def load_demographic_data(
             # Save one of the two N_ages (they are the same) in a new N_age var
             N_age = N_age_sch
             # Rescale contact matrices by leading eigenvalue
-            oth_CM = oth_CM / rho(oth_CM)
+            avg_CM = avg_CM / rho(avg_CM)
             sch_CM = sch_CM / rho(sch_CM)
             # Transform Other cm with the new age limits [NB: to transpose?]
             region_demographic_data_dict = {
                 "sch_CM": sch_CM.T,
-                "oth_CM": oth_CM.T,
+                "avg_CM": avg_CM.T,
                 "N_age": np.array(N_age),
                 "N": np.array(np.sum(N_age)),
             }
@@ -653,4 +653,5 @@ def load_demographic_data(
             print(
                 f"Something went wrong with {region} and produced the following error:\n\t{e}"
             )
+            raise e
     return demographic_data
