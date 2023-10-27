@@ -16,6 +16,7 @@ class ConfigBase:
     """
 
     def __init__(self) -> None:
+        self.SCENARIO_NAME = "Base Scenario"
         self.REGIONS = ["United States"]
         self.DEMOGRAPHIC_DATA = "data/demographic-data/"
         self.SEROLOGICAL_DATA = "data/serological-data/"
@@ -102,6 +103,12 @@ class ConfigBase:
         assert self.NUM_WANING_COMPARTMENTS == len(
             self.WANING_PROTECTIONS
         ), "unable to load config, NUM_WANING_COMPARTMENTS must equal to len(WANING_PROTECTIONS)"
+        assert (
+            len(self.REGIONS) == 1
+        ), "Currently model can only run on one Region at a time"
+
+    def __str__(self):
+        return str(self.__dict__)
 
 
 """

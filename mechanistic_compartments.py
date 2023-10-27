@@ -13,15 +13,19 @@ from config.config_base import ConfigBase as config
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
-# plotting libraries
 
 
 class BasicMechanisticModel:
     "Implementation of a basic Mechanistic model for scenario analysis"
 
     def __init__(self, **kwargs):
+        """
+        Initalize a basic abstract mechanistic model for covid19 case prediction.
+        Should not be constructed directly, use build_basic_mechanistic_model()
+        """
         # grab all parameters passed from config
         self.__dict__.update(kwargs)
+
         # if not given, generate population fractions based on observed census data
         if not self.TARGET_POPULATION_FRACTIONS:
             populations_path = (
@@ -35,6 +39,7 @@ class BasicMechanisticModel:
         self.POPULATION = self.POP_SIZE * self.TARGET_POPULATION_FRACTIONS
 
         # if not given, load contact matrices via Dina's mixing data.
+        # load an average contact matrix of all settings combined
         if not self.CONTACT_MATRIX:
             self.CONTACT_MATRIX = utils.load_demographic_data(
                 self.DEMOGRAPHIC_DATA,
@@ -42,9 +47,10 @@ class BasicMechanisticModel:
                 self.NUM_AGE_GROUPS,
                 self.MINIMUM_AGE,
                 self.AGE_LIMITS,
-            )["United States"]["oth_CM"]
+            )["United States"]["avg_CM"]
 
         # TODO does it make sense to set one and not the other if provided one ?
+        # if not given, load inital waning and recovered distributions from serological data
         if not self.INIT_WANING_DIST or not self.INIT_RECOVERED_DIST:
             sero_path = (
                 self.SEROLOGICAL_DATA
@@ -65,8 +71,18 @@ class BasicMechanisticModel:
                 self.NUM_WANING_COMPARTMENTS,
                 self.NUM_STRAINS,
             )
+        # because our suseptible population is not strain stratified,
+        # we need to sum these inital recovered/waning distributions by their axis so shapes line up
+        init_recovered_strain_summed = np.sum(
+            self.INIT_RECOVERED_DIST, axis=self.AXIS_IDX.strain
+        )
+        init_waning_strain_compartment_summed = np.sum(
+            self.INIT_WANING_DIST,
+            axis=(self.AXIS_IDX.strain, self.AXIS_IDX.wane),
+        )
 
-        # if not given an inital infection distribution, use max eig value vector
+        # if not given an inital infection distribution, use max eig value vector of contact matrix
+        # this has been shown to mirror similar
         if not self.INIT_INFECTION_DIST:
             eig_data = np.linalg.eig(self.CONTACT_MATRIX)
             max_index = np.argmax(eig_data[0])
@@ -83,13 +99,7 @@ class BasicMechanisticModel:
             * np.ones(self.NUM_STRAINS)
             / self.NUM_STRAINS
         )
-        init_recovered_strain_summed = np.sum(
-            self.INIT_RECOVERED_DIST, axis=self.AXIS_IDX.strain
-        )
-        init_waning_strain_compartment_summed = np.sum(
-            self.INIT_WANING_DIST,
-            axis=(self.AXIS_IDX.strain, self.AXIS_IDX.wane),
-        )
+
         inital_suseptible = (
             self.POPULATION
             - (self.INITIAL_INFECTIONS * self.INIT_INFECTION_DIST)
@@ -103,10 +113,18 @@ class BasicMechanisticModel:
             (
                 self.POPULATION * self.INIT_RECOVERED_DIST.transpose()
             ).transpose(),  # r
-            (self.POPULATION * self.INIT_WANING_DIST.transpose()).transpose(),
-        )  # w
+            (
+                self.POPULATION * self.INIT_WANING_DIST.transpose()
+            ).transpose(),  # w
+        )
 
     def get_args(self, sample=False):
+        """
+        A function that returns model args in the correct order as expected by the ODETerm function f(t, y(t), args)dt
+        https://docs.kidger.site/diffrax/api/terms/#diffrax.ODETerm
+
+        for example functions f() in charge of disease dynamics see the model_odes folder.
+        """
         if sample:
             beta = (
                 utils.sample_r0(self.STRAIN_SPECIFIC_R0)
@@ -128,20 +146,20 @@ class BasicMechanisticModel:
         ) * (
             1 - jnp.diag(jnp.array([1] * self.NUM_STRAINS))
         )  # TODO use priors here
-        args = [  # TODO convert to dictionary if diffeqsolve() allows for args to be a dict.
-            beta,
-            sigma,
-            gamma,
-            self.CONTACT_MATRIX,
-            self.VACCINATION_RATE,
-            waning_protections,
-            wanning_rate,
-            self.BIRTH_RATE,
-            self.POPULATION,
-            suseptibility_matrix,
-            self.NUM_STRAINS,
-            self.NUM_WANING_COMPARTMENTS,
-        ]
+        args = {
+            "beta": beta,
+            "sigma": sigma,
+            "gamma": gamma,
+            "contact_matrix": self.CONTACT_MATRIX,
+            "vax_rate": self.VACCINATION_RATE,
+            "waning_protections": waning_protections,
+            "wanning_rate": wanning_rate,
+            "mu": self.BIRTH_RATE,
+            "population": self.POPULATION,
+            "susceptibility_matrix": suseptibility_matrix,
+            "num_strains": self.NUM_STRAINS,
+            "num_waning_compartments": self.NUM_WANING_COMPARTMENTS,
+        }
         return args
 
     def incidence(self, model, incidence):

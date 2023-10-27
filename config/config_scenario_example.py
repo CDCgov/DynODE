@@ -17,3 +17,7 @@ class ConfigScenario(ConfigBase):
         self.STRAIN_SPECIFIC_R0 = jnp.array([1.5, 1.5])
         self.VACCINATION_RATE = 0
         self.UNIQUE_PARAM_TO_THIS_SCENARIO = "Example"
+
+    def assert_valid_values(self):
+        super().assert_valid_values()
+        assert self.UNIQUE_PARAM_TO_THIS_SCENARIO, "new param checks!"
