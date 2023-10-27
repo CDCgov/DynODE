@@ -1,6 +1,7 @@
 #####
 # Exclude many data and output file types by default
 /sandbox
+/code_fragments_deprecated
 
 # Data
 *.csv
