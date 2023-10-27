@@ -23,6 +23,7 @@ class ConfigBase:
         self.SAVE_PATH = "../output/"
         # CONTACT MATRICES & DEMOGRAPHY
         self.MINIMUM_AGE = 0  # why was this 1
+        # age limits for each age bin in the model, begining with minimum age
         # values are exclusive in upper bound. so [0,18) means 0-17, 18+
         self.AGE_LIMITS = [self.MINIMUM_AGE, 18, 50, 65]
         self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
@@ -55,7 +56,7 @@ class ConfigBase:
             ]
         )
         # setting the following to None will get the model to initalize them from demographic/serological data
-        self.TARGET_POPULATION_FRACTIONS = None
+        self.INITIAL_POPULATION_FRACTIONS = None
         self.CONTACT_MATRIX = None
         self.INIT_INFECTION_DIST = None
         self.INIT_WANING_DIST = None

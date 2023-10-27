@@ -27,50 +27,20 @@ class BasicMechanisticModel:
         self.__dict__.update(kwargs)
 
         # if not given, generate population fractions based on observed census data
-        if not self.TARGET_POPULATION_FRACTIONS:
-            populations_path = (
-                self.DEMOGRAPHIC_DATA
-                + "population_rescaled_age_distributions/"
-            )
-            self.TARGET_POPULATION_FRACTIONS = utils.load_age_demographics(
-                populations_path, self.REGIONS, self.AGE_LIMITS
-            )["United States"]
+        if not self.INITIAL_POPULATION_FRACTIONS:
+            self.load_inital_population_fractions()
 
-        self.POPULATION = self.POP_SIZE * self.TARGET_POPULATION_FRACTIONS
+        self.POPULATION = self.POP_SIZE * self.INITIAL_POPULATION_FRACTIONS
 
-        # if not given, load contact matrices via Dina's mixing data.
+        # if not given, load contact matrices via mixing data.
         # load an average contact matrix of all settings combined
         if not self.CONTACT_MATRIX:
-            self.CONTACT_MATRIX = utils.load_demographic_data(
-                self.DEMOGRAPHIC_DATA,
-                self.REGIONS,
-                self.NUM_AGE_GROUPS,
-                self.MINIMUM_AGE,
-                self.AGE_LIMITS,
-            )["United States"]["avg_CM"]
+            self.load_contact_matrix()
 
         # TODO does it make sense to set one and not the other if provided one ?
         # if not given, load inital waning and recovered distributions from serological data
         if not self.INIT_WANING_DIST or not self.INIT_RECOVERED_DIST:
-            sero_path = (
-                self.SEROLOGICAL_DATA
-                + "Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
-            )
-            pop_path = (
-                self.DEMOGRAPHIC_DATA
-                + "population_rescaled_age_distributions/"
-            )
-            (
-                self.INIT_RECOVERED_DIST,
-                self.INIT_WANING_DIST,
-            ) = utils.load_serology_demographics(
-                sero_path,
-                pop_path,
-                self.AGE_LIMITS,
-                self.WANING_TIME,
-                self.NUM_WANING_COMPARTMENTS,
-                self.NUM_STRAINS,
-            )
+            self.load_waning_and_recovered_distributions()
         # because our suseptible population is not strain stratified,
         # we need to sum these inital recovered/waning distributions by their axis so shapes line up
         init_recovered_strain_summed = np.sum(
@@ -84,15 +54,10 @@ class BasicMechanisticModel:
         # if not given an inital infection distribution, use max eig value vector of contact matrix
         # this has been shown to mirror similar
         if not self.INIT_INFECTION_DIST:
-            eig_data = np.linalg.eig(self.CONTACT_MATRIX)
-            max_index = np.argmax(eig_data[0])
-            self.INIT_INFECTION_DIST = abs(eig_data[1][:, max_index])
-            self.INIT_INFECTION_DIST = self.INIT_INFECTION_DIST / sum(
-                self.INIT_INFECTION_DIST
-            )
+            self.load_init_infection_and_exposed_dist()
 
         # with inital infection distribution by age group, break down uniformally by number of strains.
-        # TODO non-uniform strain distribution if needed.
+        # TODO non-uniform strain distribution within load_init_infection_and_exposed_dist().
         self.INITIAL_INFECTIONS_BY_STRAIN = (
             self.INITIAL_INFECTIONS
             * self.INIT_INFECTION_DIST[:, None]
@@ -106,16 +71,20 @@ class BasicMechanisticModel:
             - (self.POPULATION * init_recovered_strain_summed)
             - (self.POPULATION * init_waning_strain_compartment_summed)
         )
+        inital_recovered = (
+            self.POPULATION * self.INIT_RECOVERED_DIST.transpose()
+        ).transpose()
+        inital_waning = (
+            self.POPULATION * self.INIT_WANING_DIST.transpose()
+        ).transpose()
+
+        # TODO change initial E to exposure dist once load_init_infection_and_exposed_dist() finished
         self.INITIAL_STATE = (
             inital_suseptible,  # s
             np.zeros((self.NUM_AGE_GROUPS, self.NUM_STRAINS)),  # e
             self.INITIAL_INFECTIONS_BY_STRAIN,  # i
-            (
-                self.POPULATION * self.INIT_RECOVERED_DIST.transpose()
-            ).transpose(),  # r
-            (
-                self.POPULATION * self.INIT_WANING_DIST.transpose()
-            ).transpose(),  # w
+            inital_recovered,  # r
+            inital_waning,  # w
         )
 
     def get_args(self, sample=False):
@@ -141,11 +110,10 @@ class BasicMechanisticModel:
         sigma = 1 / self.EXPOSED_TO_INFECTIOUS
         wanning_rate = 1 / self.WANING_TIME
         # default to no cross immunity, setting diagnal to 0
+        # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
         suseptibility_matrix = jnp.ones(
             (self.NUM_STRAINS, self.NUM_STRAINS)
-        ) * (
-            1 - jnp.diag(jnp.array([1] * self.NUM_STRAINS))
-        )  # TODO use priors here
+        ) * (1 - jnp.diag(jnp.array([1] * self.NUM_STRAINS)))
         args = {
             "beta": beta,
             "sigma": sigma,
@@ -298,6 +266,70 @@ class BasicMechanisticModel:
             with open(save_path + "_meta.txt", "x") as meta:
                 meta.write(str(self.__dict__))
         return fig, ax
+
+    def load_waning_and_recovered_distributions(self):
+        """
+        a wrapper function which loads serologically informed covid recovered and waning distributions into self.
+        Omicron strain will always be 3 if self.NUM_STRAINS >= 3, otherwise it will be the largest index.
+        older strains like delta and alpha will be at lower indexes than omicron, 1, and 0 respectively.
+        delta and alpha may be combined if self.NUM_STRAINS < 3.
+        """
+        sero_path = (
+            self.SEROLOGICAL_DATA
+            + "Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
+        )
+        pop_path = (
+            self.DEMOGRAPHIC_DATA + "population_rescaled_age_distributions/"
+        )
+        (
+            self.INIT_RECOVERED_DIST,
+            self.INIT_WANING_DIST,
+        ) = utils.load_serology_demographics(
+            sero_path,
+            pop_path,
+            self.AGE_LIMITS,
+            self.WANING_TIME,
+            self.NUM_WANING_COMPARTMENTS,
+            self.NUM_STRAINS,
+        )
+
+    def load_inital_population_fractions(self):
+        """
+        a wrapper function which loads age demographics for the US and sets the inital population fraction by age bin.
+        """
+        populations_path = (
+            self.DEMOGRAPHIC_DATA + "population_rescaled_age_distributions/"
+        )
+        self.INITIAL_POPULATION_FRACTIONS = utils.load_age_demographics(
+            populations_path, self.REGIONS, self.AGE_LIMITS
+        )["United States"]
+
+    def load_contact_matrix(self):
+        """
+        a wrapper function that loads a contact matrix for the USA based on mixing paterns data found here:
+        https://github.com/mobs-lab/mixing-patterns
+        """
+        self.CONTACT_MATRIX = utils.load_demographic_data(
+            self.DEMOGRAPHIC_DATA,
+            self.REGIONS,
+            self.NUM_AGE_GROUPS,
+            self.MINIMUM_AGE,
+            self.AGE_LIMITS,
+        )["United States"]["avg_CM"]
+
+    def load_init_infection_and_exposed_dist(self):
+        """
+        initalizes the inital infection and exposed distribution across age bins.
+        """
+        # TODO initialize infections using omicron strain,
+        # distributed between E and I based on the ratio of gamma and sigma,
+        # and distributed by age based on the seroprevalence by age.
+        eig_data = np.linalg.eig(self.CONTACT_MATRIX)
+        max_index = np.argmax(eig_data[0])
+        self.INIT_INFECTION_DIST = abs(eig_data[1][:, max_index])
+        self.INIT_INFECTION_DIST = self.INIT_INFECTION_DIST / sum(
+            self.INIT_INFECTION_DIST
+        )
 
 
 def build_basic_mechanistic_model(config: config):

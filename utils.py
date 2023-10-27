@@ -72,7 +72,26 @@ def load_age_demographics(
     age_limits,
 ):
     """Returns normalized proportions of each agebin as defined by age_limits for the regions given.
-    Does this by searching for age demographics data in path."""
+    Does this by searching for age demographics data in path.
+
+
+    Parameters
+    ----------
+    path: str
+        path to the demographic-data folder, either relative or absolute.
+    regions: list(str)
+        list of FIPS regions to create normalized proportions for
+    age_limits: list(int)
+        age limits for each age bin in the model, begining with minimum age
+        values are exclusive in upper bound. so [0, 18, 50] means 0-17, 18-49, 50+
+        max age is enforced at 84 inclusive. All persons older than 84 in population numbers are counted as 84 years old
+
+    Returns
+    ----------
+    demographic_data : dict
+        a dictionary maping FIPS code region supplied in `regions` to an array of length `len(age_limits)` representing
+        the __relative__ population proportion of each bin, summing to 1.
+    """
     assert os.path.exists(
         path
     ), "The path to population-rescaled age distributions does not exist as it should"
@@ -110,9 +129,8 @@ def load_age_demographics(
                 age_limits = age_limits + [84]
             age_limits = age_limits[1:]
             while current_age < 85:
-                age_bin_pop += age_distributions[current_age][
-                    1
-                ]  # get the population
+                # get the population for the current age
+                age_bin_pop += age_distributions[current_age][1]
                 # add total population of that bin to the array, reset
                 if current_age in age_limits:
                     binned_ages = np.append(binned_ages, age_bin_pop)
@@ -259,7 +277,7 @@ def load_serology_demographics(
     num_strains,
 ):
     """
-    initalizes and returns the recovered and waning compartments for a model based on serological data.
+    initalizes and returns the recovered and waning compartments for a model based on __covid__ serological data.
 
     Parameters
     ----------
@@ -279,12 +297,19 @@ def load_serology_demographics(
           Note: people will be distributed across 3 strains if num_strains >= 3
           The 3 strains account for omicron, delta, and alpha waves. And are timed accordingly.
           if num_strains < 3, will collapse earlier strains into one another.
+
+    Returns
+    ----------
+    recovered_init_distribution: np.array
+        the proportions of the total population for each age bin defined as recovered, or within 1 `waning_time` of infection.
+        has a shape of (len(`age_limits`), `num_strains`)
+
+    waning_init_distribution
+        the proportions of the total population for each age bin defined as waning, or within x `waning_time`s of infection. where x is the waning compartment
+        has a shape of (len(`age_limits`), `num_strains`, `num_waning_compartments`)
     """
-    # TODO we now have daily precision via linear interpolation,
-    # implement waning compartments with two strains filled in
     initalization_date = datetime.date(2022, 2, 11)
     serology = prep_serology_data(sero_path, waning_time)
-    # serology = serology.resample(str(waning_time) + "d")
     # we will need population data for weighted averages
     age_distributions = np.loadtxt(
         age_path + "United_States_country_level_age_distribution_85.csv",
@@ -292,9 +317,10 @@ def load_serology_demographics(
         dtype=np.float64,
         skiprows=0,
     )
-    # serology data only comes in these age bins, inclusive
-    serology_age_limits = [17, 49, 64]
+    # serology data only comes in these age bins, exclusive, min age 0
+    serology_age_limits = [18, 50, 65]
     # number of strains alloted for in the serological data, for covid this is omicron, delta, and alpha
+    # if model only allows for 2 or 1 strain we need to collapse delta and alpha waves together
     num_historical_strains = 3 if num_strains >= 3 else num_strains
     # breakpoints for each historical strain, oldest first, alpha - delta, delta - omicron
     omicron_date = datetime.date(2021, 11, 19)  # as omicron took off
@@ -315,21 +341,20 @@ def load_serology_demographics(
         num_historical_strains == len(historical_time_breakpoints) + 1
     ), "set breakpoints for each of the historical strains you want to initalize with sero data"
     # age_to_diff_dict will be used to average age bins when our datas age bins collide with serology datas
-    # for example 0-4 age bin will fit inside 0-17,
-    # but what about hypothetical 10-20 age bin? This needs to be weighted average of 0-17 and 18-49 age bins
+    # for example hypothetical 10-20 age bin, needs to be weighted average of 0-17 and 18-49 age bins based on population
     age_to_sero_dict = {}
     age_groups = generate_yearly_age_bins_from_limits(age_limits)
 
-    # return these after filling it with the %s of waned/recovered individuals
+    # return these after filling it with the proprtion of waned/recovered individuals of total population
     waning_init_distribution = np.zeros(
         (len(age_limits), num_strains, num_waning_compartments)
     )
     recovered_init_distribution = np.zeros(
         shape=(len(age_limits), num_strains)
     )
-    # for each waning index fill in its age x strain matrix based on weighted sero data for that age bin
+    # for each waning index fill in its (age x strain) matrix based on weighted sero data for that age bin
     for waning_index in range(0, num_waning_compartments + 1):
-        # now we go back `waning_time` days at a time and use our diff columns to populate recoved/waning
+        # go back `waning_time` days at a time and use our diff columns to populate recoved/waning
         # initalization_date is the date our chosen serology begins, based on post-omicron peak.
         waning_compartment_date = initalization_date - (
             datetime.timedelta(days=waning_time) * (waning_index)
@@ -346,20 +371,21 @@ def load_serology_demographics(
             num_historical_strains - 1
         )  # initalize as most recent strain
         for historical_breakpoint in historical_time_breakpoints:
-            # TODO check this make sure we arent off by one here with <= vs <
-            if waning_compartment_date <= historical_breakpoint:
+            if waning_compartment_date < historical_breakpoint:
                 strain_select -= 1
         # select the only row as a series
         select = select.iloc[0]
         # fill our age_to_sero_dict so each age maps to its sero change we just selected
+        # if we are in the last waning compartment, use sero-prevalence at that date instead
+        # effectively combining all persons with previous infection on or before that date together
         for age in range(85):
-            if age <= serology_age_limits[0]:
+            if age < serology_age_limits[0]:
                 age_to_sero_dict[age] = (
                     select["0_17_diff"]
                     if waning_index < num_waning_compartments
                     else select["Rate (%) [Anti-N, 0-17 Years Prevalence]"]
                 )
-            elif age <= serology_age_limits[1]:
+            elif age < serology_age_limits[1]:
                 age_to_sero_dict[age] = (
                     select["18_49_diff"]
                     if waning_index < num_waning_compartments
@@ -367,7 +393,7 @@ def load_serology_demographics(
                         "Rate (%) [Anti-N, 18-49 Years Prevalence, Rounds 1-30 only]"
                     ]
                 )
-            elif age <= serology_age_limits[2]:
+            elif age < serology_age_limits[2]:
                 age_to_sero_dict[age] = (
                     select["50_64_diff"]
                     if waning_index < num_waning_compartments
@@ -394,7 +420,7 @@ def load_serology_demographics(
             # this is where we would uniformly spread out waning if we wanted to
             if (
                 waning_index == 0
-            ):  # waning_index=0 -> add to recovered compartment
+            ):  # waning_index=0, add to recovered compartment
                 recovered_init_distribution[
                     age_group_idx, strain_select
                 ] = serology_weighted
@@ -577,7 +603,8 @@ def load_demographic_data(
     age_limits,
 ) -> dict[str, dict[str, list[np.ndarray, np.float64, list[float]]]]:
     """
-    Loads demography data for the specified FIPS regions
+    Loads demography data for the specified FIPS regions, contact mixing data sourced from:
+    https://github.com/mobs-lab/mixing-patterns
 
     Returns
     -------
