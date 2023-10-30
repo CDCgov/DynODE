@@ -1,11 +1,8 @@
-import numpy as np
-from config.config_base import ModelConfig as mc
-from config.config_base import DataConfig as dc
 import jax.numpy as jnp
-import jax
+import numpy as np
 
 
-def seirw_ode(state, t, parameters):
+def seirw_ode(state, _, parameters):
     """
     A basic SEIRW ODE model to be used in solvers such as odeint or diffeqsolve
 
@@ -32,20 +29,17 @@ def seirw_ode(state, t, parameters):
     # dims e/i/r = (dc.NUM_AGE_GROUPS, dc.NUM_STRAINS)
     # dims w = (dc.NUM_AGE_GROUPS, dc.NUM_STRAINS, mc.NUM_WANING_COMPARTMENTS)
     s, e, i, r, w = state
-    (
-        beta,
-        sigma,
-        gamma,
-        contact_matrix,
-        vax_rate,
-        waning_protections,
-        wanning_rate,
-        mu,
-        population,
-        susceptibility_matrix,
-        num_strains,
-        num_waning_compartments,
-    ) = parameters
+    beta = parameters["beta"]
+    sigma = parameters["sigma"]
+    gamma = parameters["gamma"]
+    contact_matrix = parameters["contact_matrix"]
+    vax_rate = parameters["vax_rate"]
+    waning_protections = parameters["waning_protections"]
+    wanning_rate = parameters["wanning_rate"]
+    population = parameters["population"]
+    susceptibility_matrix = parameters["susceptibility_matrix"]
+    num_strains = parameters["num_strains"]
+    num_waning_compartments = parameters["num_waning_compartments"]
     # TODO when adding birth and deaths just create it as a compartment
     force_of_infection = beta * contact_matrix.dot(i) / population[:, None]
     ds_to_e = force_of_infection * s[:, None]
@@ -71,27 +65,32 @@ def seirw_ode(state, t, parameters):
             effective_ws_by_age = ws_by_age * (
                 1 - (waning_protections * (1 - partial_susceptibility))
             )
-            ws_exposed = force_of_infection_strain[:, None] * effective_ws_by_age
+            ws_exposed = (
+                force_of_infection_strain[:, None] * effective_ws_by_age
+            )
             # element wise subtraction of exposed w_s from strain_target dw
             dw = dw.at[:, strain_target_idx, :].add(-ws_exposed)
             # element wise addition of exposed w_s into de
             de = de.at[:, strain_source_idx].add(np.sum(ws_exposed, axis=1))
 
     # lets measure our waned rates
-    for w_idx in mc.w_idx:
+    for w_idx in range(w.shape[-1]):
         # waning from waning compartment to waning compartment, last compartment does not wane
         w_waned = (
-            0 if w_idx == num_waning_compartments - 1 else wanning_rate * w[:, :, w_idx]
+            0
+            if w_idx == num_waning_compartments - 1
+            else wanning_rate * w[:, :, w_idx]
         )
         # waned individuals being vaccinated, no w1 -> w1 vaccination of top compartment
         w_vaxed = 0 if w_idx == 0 else vax_rate * w[:, :, w_idx]
         # persons gained from waning of compartments above
         # vaccination from all below compartments in the case of top compartment (to even out w_vaxed)
+        w_gained = 0
         if w_idx == 0:
             w_gained = sum(
                 [
                     vax_rate * w[:, :, w_idx_loop]
-                    for w_idx_loop in mc.w_idx
+                    for w_idx_loop in range(w.shape[-1])
                     if w_idx_loop != 0
                     # we may want a dw1_to_w1 to represent recent infection getting vaccinated
                     # change w_vaxed in this case too
@@ -112,7 +111,9 @@ def seirw_ode(state, t, parameters):
         # only top waning compartment receives people from "r"
 
     # sum ds_to_e since s does not split by subtype
-    ds = jnp.add(jnp.zeros(s.shape), jnp.add(-jnp.sum(ds_to_e, axis=1), -ds_to_w))
+    ds = jnp.add(
+        jnp.zeros(s.shape), jnp.add(-jnp.sum(ds_to_e, axis=1), -ds_to_w)
+    )
     de = jnp.add(de, -de_to_i + ds_to_e)
 
     di = jnp.add(jnp.zeros(i.shape), jnp.add(de_to_i, -di_to_r))

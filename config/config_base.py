@@ -1,157 +1,139 @@
-"""
-Lots of this config is sourced from Trevor's config in cdcent/cfa-mechanistic-python 
-and will be adapted as needed to be used for a covid model
-"""
-import numpy as np
-import jax.numpy as jnp
 from enum import IntEnum
 
-REGIONS = ["United States"]
-SEASONS = sorted(["22-23"])
-FORECAST_TARGET_DATE = "2022-11-21"  # ISO format
-FORECAST_HORIZON = 4
+import jax.numpy as jnp
+
+base_parameters = {}
 
 
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# DATA LOADING
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+class ConfigBase:
+    """
+    This is the base config file, it will define a basic, runnable, set of reasonable parameters on which a model can be fit and run.
+    Models that wish to test particular scenarios, modifying R0 or any other parameters, can inherit the values from config_base (this)
+    and then override the needed parameters to test their scenario. These config_scenario object files can also introduce new parameters similarly.
 
+    FAQ: why isnt this config file in YAML or JSON?
+         Because these config files define complex curves (such as waning curves) that depend on the values of other parameters
+         Neither YAML nor JSON supports both dynamic expressions and calculations, thus we mirror their datastructures via classes.
+         This gives us the same benefit of inheritance, meaning less code duplication across config files.
+    """
 
-class DataConfig:
-    # RELATIVE PATHS
-    NREVSS_PATH = "../data/nrevss-data/"
-    HHS_PROTECT_PATH = "../data/hhs-data/"
-    MIXING_PATH = "data/demographic-data/"
-    FLUSION_PATH = "../data/flusion-data/"
-    SAVE_PATH = "../assets/figures/"
+    def __init__(self, **kwargs) -> None:
+        # fill in default parameters, may be later overriden by kwargs
+        self.SCENARIO_NAME = "Base Scenario"
+        self.REGIONS = ["United States"]
+        self.DEMOGRAPHIC_DATA = "data/demographic-data/"
+        self.SEROLOGICAL_DATA = "data/serological-data/"
+        self.SAVE_PATH = "../output/"
+        # CONTACT MATRICES & DEMOGRAPHY
+        self.MINIMUM_AGE = 0  # why was this 1
+        # age limits for each age bin in the model, begining with minimum age
+        # values are exclusive in upper bound. so [0,18) means 0-17, 18+
+        self.AGE_LIMITS = [self.MINIMUM_AGE, 18, 50, 65]
+        self.NUM_STRAINS = 3
+        # FIXED SEIR PARAMETERS
+        self.POP_SIZE = 20000
+        self.BIRTH_RATE = 1 / 75.0  # mu #TODO IMPLEMENT DEATHS
+        # informed by source 5 (see bottom of file)
+        self.INFECTIOUS_PERIOD = 7.0  # gamma
+        # informed by mean of Binom(0.53, gamma(3.1, 1.6)) + 1, sources 4 and 5 (see bottom of file)
+        self.EXPOSED_TO_INFECTIOUS = 3.6  # sigma
+        self.VACCINATION_RATE = 1 / 500.0  # vac_p
+        self.INITIAL_INFECTIONS = 1.0
+        self.STRAIN_SPECIFIC_R0 = jnp.array([1.5, 1.5, 1.5])  # R0s
+        self.NUM_WANING_COMPARTMENTS = 18
+        self.WANING_TIME = 21  # time in WHOLE days before a recovered individual moves to first waned compartment
+        self.INITAL_PROTECTION = (
+            0.52  # %likelihood of re-infection given just recovered source 17
+        )
+        # protection against infection in each stage of waning, influenced by source 20
+        # setting the following to None will get the model to initalize them from demographic/serological data
+        self.INITIAL_POPULATION_FRACTIONS = None
+        self.CONTACT_MATRIX = None
+        self.INIT_INFECTION_DIST = None
+        self.INIT_EXPOSED_DIST = None
+        self.INIT_WANING_DIST = None
+        self.INIT_RECOVERED_DIST = None
+        self.NUM_COMPARTMENTS = 5
+        # indexes ENUM for readability in code
+        self.IDX = IntEnum("idx", ["S", "E", "I", "R", "W"], start=0)
+        self.AXIS_IDX = IntEnum("idx", ["age", "strain", "wane"], start=0)
+        # setting default rng keys
+        self.MCMC_PRNGKEY = 8675309
+        self.MCMC_NUM_WARMUP = 1000
+        self.MCMC_NUM_SAMPLES = 1000
+        self.MCMC_NUM_CHAINS = 4
+        self.MCMC_PROGRESS_BAR = True
+        self.MODEL_RAND_SEED = 8675309
 
-    # CONTACT MATRICES & DEMOGRAPHY
-    MINIMUM_AGE = 0  # why was this 1
-    # values are exclusive in upper bound. so [0,18) means 0-17, 18+
-    AGE_LIMITS = [MINIMUM_AGE, 18, 50, 65]
-    NUM_AGE_GROUPS = len(AGE_LIMITS)
-    NUM_STRAINS = 3
-    AGE_GROUPS = [
-        ["0-4 yr", "5-17 yr"],
-        ["18-29 yr", "30-39 yr", "40-49 yr", "50-64 yr"],
-        ["65-74 yr", "75-84 yr", "85+"],
-    ]
-    # PROPERTIES OF DATA
-    SEASON_FIRST_MONTH = 8
-    SEASON_FIRST_WEEK = 8
-    SEASON_FIRST_DAY = 1
-    MAX_DAYS_AHEAD = 112  # 365 # 365 is default
-    # OPTION: SEASON_LAST_MONTH
-    # OPTION: SEASON_LAST_WEEK
-    # OPTION: SEASON_LAST_DAY
+        # now update all parameters from kwargs, overriding the defaults if they are explicitly set
+        self.__dict__.update(kwargs)
+        # some config params rely on other config params which may have just changed!
+        # set those config params below now that everything is updated to a possible scenario.
+        self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
+        self.W_IDX = IntEnum(
+            "w_idx",
+            ["W" + str(idx) for idx in range(self.NUM_WANING_COMPARTMENTS)],
+            start=0,
+        )
+        self.WANING_TIME_MONTHS = self.WANING_TIME / 30.0
+        self.init_waning_protections_if_not_set()
+        # Check that no values are incongruent with one another
+        ConfigBase.assert_valid_values(self)
 
-    # FURTHER DATA SPECIFICATIONS
-    FIT_JUNE_AND_JULY = True
-    NORMALIZE_FLUSION = True
-    USE_NREVSS_CLINICAL_LAB = True
-    USE_NREVSS_PUBLIC_HEALTH = True
-    USE_FLUSION = True
-    USE_HHS = True
-    USE_CONTACT_MATRICES = True
-
-    # INFORMATION LEVELS
-    VERBOSE_OUTPUT = False
-    # OPTION: USE_NRVESS_CLINICAL_LAB
-    # OPTION: USE_NRVESS_PUBLIC_HEALTH
-    # OPTION: VIS_NRVESS_PUBLIC_HEALTH
-    # OPTION: VIS_NRVESS_CLINICAL_LAB
-    # OPTION: VIS_HHS_PROTECT
-    # OPTION: VIS_FLUSION
-    # OPTION: VIS_MIXING_MATRICES
-    # OPTION: VIS_POPULATION_PROPORTIONS
-    # OPTION: VIS_POPULATION
-    # OPTION: SAVE_VIS_NRVESS_PUBLIC_HEALTH
-    # OPTION: SAVE_VIS_NRVESS_CLINICAL_LAB
-    # OPTION: SAVE_VIS_HHS_PROTECT
-    # OPTION: SAVE_VIS_FLUSION
-    # OPTION: SAVE_VIS_MIXING_MATRICES
-    # OPTION: SAVE_VIS_POPULATION_PROPORTIONS
-    # OPTION: SAVE_VIS_POPULATION
-
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# MODEL TYPE
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-
-class ModelConfig:
-    # the model age bins / strains must match the data being read in
-    NUM_AGE_GROUPS = DataConfig.NUM_AGE_GROUPS
-    NUM_STRAINS = DataConfig.NUM_STRAINS
-    AGE_LIMITS = DataConfig.AGE_LIMITS
-    # FIXED SEIR PARAMETERS
-    POP_SIZE = 20000
-    assert POP_SIZE > 0, "population size must be a non-zero value"
-
-    BIRTH_RATE = 1 / 75.0  # mu #TODO IMPLEMENT DEATHS
-    assert BIRTH_RATE >= 0, "BIRTH_RATE can not be negative"
-
-    # informed by source 5 (see bottom of file)
-    INFECTIOUS_PERIOD = 7.0  # gamma
-    assert INFECTIOUS_PERIOD >= 0, "INFECTIOUS_PERIOD can not be negative"
-
-    # informed by mean of Binom(0.53, gamma(3.1, 1.6)) + 1, sources 4 and 5 (see bottom of file)
-    EXPOSED_TO_INFECTIOUS = 3.6  # sigma
-    assert EXPOSED_TO_INFECTIOUS >= 0, "EXPOSED_TO_INFECTIOUS can not be negative"
-
-    VACCINATION_RATE = 1 / 500.0  # vac_p
-    assert VACCINATION_RATE >= 0, "EXPOSED_TO_INFECTIOUS can not be negative"
-
-    INITIAL_INFECTIONS = 1.0
-    assert INITIAL_INFECTIONS >= 0, "INITIAL_INFECTIONS can not be negative"
-
-    STRAIN_SPECIFIC_R0 = jnp.array([1.5, 1.5, 1.5])  # R0s
-    assert len(STRAIN_SPECIFIC_R0) > 0, "Must specify at least 1 strain R0"
-    assert (
-        len(STRAIN_SPECIFIC_R0) == NUM_STRAINS
-    ), "Number of R0s must match number of strains"
-
-    NUM_WANING_COMPARTMENTS = 18
-    WANING_TIME = 21  # time in days before a recovered individual moves to first waned compartment
-    WANING_TIME_MONTHS = WANING_TIME / 30.0
-
-    # protection against infection in each stage of waning, influenced by source 20
-    WANING_PROTECTIONS = jnp.array(
-        [
-            0.52 / (1 + np.e ** (-(2.46 - (0.2 * t))))  # init_protection=0.52 source 17
-            for t in np.linspace(
-                WANING_TIME_MONTHS,
-                WANING_TIME_MONTHS * NUM_WANING_COMPARTMENTS,
-                NUM_WANING_COMPARTMENTS,
+    def init_waning_protections_if_not_set(self):
+        """
+        Checks if the waning protections curve is initalized by some scenario,
+        defaults to a waning protections curve as described by TODO
+        """
+        self.WANING_PROTECTIONS = (
+            jnp.array(
+                [
+                    self.INITAL_PROTECTION
+                    / (1 + jnp.e ** (-(2.46 - (0.2 * t))))
+                    for t in jnp.linspace(
+                        self.WANING_TIME_MONTHS,
+                        self.WANING_TIME_MONTHS * self.NUM_WANING_COMPARTMENTS,
+                        self.NUM_WANING_COMPARTMENTS,
+                    )
+                ]
             )
-        ]
-    )
-    # WANING_PROTECTIONS = jnp.array([0.88, 0.84, 0.77, 0.70, 0.61, 0.51])
-    assert NUM_WANING_COMPARTMENTS == len(
-        WANING_PROTECTIONS
-    ), "unable to load config, NUM_WANING_COMPARTMENTS must equal to len(WANING_PROTECTIONS)"
+            if "WANING_PROTECTIONS" not in self.__dict__.keys()
+            else self.WANING_PROTECTIONS
+        )
 
-    NUM_COMPARTMENTS = 5
-    # compartment indexes ENUM for readability in code
-    w_idx = IntEnum(
-        "w_idx", ["W" + str(idx) for idx in range(NUM_WANING_COMPARTMENTS)], start=0
-    )
-    idx = IntEnum("idx", ["S", "E", "I", "R", "W"], start=0)
-    axis_idx = IntEnum("idx", ["age", "strain", "wane"], start=0)
+    def assert_valid_values(self):
+        assert self.POP_SIZE > 0, "population size must be a non-zero value"
+        assert self.BIRTH_RATE >= 0, "BIRTH_RATE can not be negative"
+        assert (
+            self.INFECTIOUS_PERIOD >= 0
+        ), "INFECTIOUS_PERIOD can not be negative"
+        assert (
+            self.EXPOSED_TO_INFECTIOUS >= 0
+        ), "EXPOSED_TO_INFECTIOUS can not be negative"
+        assert (
+            self.VACCINATION_RATE >= 0
+        ), "EXPOSED_TO_INFECTIOUS can not be negative"
+        assert (
+            self.INITIAL_INFECTIONS >= 0
+        ), "INITIAL_INFECTIONS can not be negative"
+        assert (
+            len(self.STRAIN_SPECIFIC_R0) > 0
+        ), "Must specify at least 1 strain R0"
+        assert (
+            len(self.STRAIN_SPECIFIC_R0) == self.NUM_STRAINS
+        ), "Number of R0s must match number of strains"
+        assert self.NUM_WANING_COMPARTMENTS == len(
+            self.WANING_PROTECTIONS
+        ), "unable to load config, NUM_WANING_COMPARTMENTS must equal to len(WANING_PROTECTIONS)"
+        assert self.NUM_AGE_GROUPS == len(
+            self.AGE_LIMITS
+        ), "Number of age bins must match the NUM_AGE_GROUPS variable"
+        assert (
+            len(self.REGIONS) == 1
+        ), "Currently model can only run on one Region at a time"
 
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# INFERENCE
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-
-class InferenceConfig:
-    MCMC_PRNGKEY = 8675309
-    MCMC_NUM_WARMUP = 1000
-    MCMC_NUM_SAMPLES = 1000
-    MCMC_NUM_CHAINS = 4
-    MCMC_PROGRESS_BAR = True
-    MODEL_RAND_SEED = 8675309
+    def __str__(self):
+        return str(self.__dict__)
 
 
 """

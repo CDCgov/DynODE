@@ -1,176 +1,169 @@
-from jax.experimental.ode import odeint
-import jax.numpy as jnp
-import numpy as np
-from jax.random import PRNGKey
 import jax.config
-
+import jax.numpy as jnp
+import matplotlib.pyplot as plt
+import numpy as np
 import numpyro
 import numpyro.distributions as dist
-from numpyro.distributions.transforms import AffineTransform
+from diffrax import ODETerm, SaveAt, Tsit5, diffeqsolve
+from jax.random import PRNGKey
+from numpyro.infer import MCMC, NUTS
 
-from numpyro.infer import MCMC, NUTS, Predictive
-from numpyro.infer.reparam import TransformReparam
-from diffrax import diffeqsolve, ODETerm, SaveAt, Tsit5
+import utils
+from config.config_base import ConfigBase as config
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
-import config.config_base as config_base
-from config.config_base import ModelConfig as mc
-from config.config_base import DataConfig as dc
-from config.config_base import InferenceConfig as ic
-import utils
-
-# plotting libraries
-import matplotlib.pyplot as plt
 
 
 class BasicMechanisticModel:
-    "Implementation of a basic Mechanistic model for scenario analysis"
+    """Implementation of a basic Mechanistic model for scenario analysis,
+    built by the build_basic_mechanistic_model() builder from a config file.
+    for a basic runable scenario use config.config_base.py in the following way.
 
-    def __init__(
-        self,
-        num_age_groups=mc.NUM_AGE_GROUPS,
-        num_strains=mc.NUM_STRAINS,
-        age_limits=mc.AGE_LIMITS,
-        init_pop_size=mc.POP_SIZE,
-        birth_rate=mc.BIRTH_RATE,
-        infectious_period=mc.INFECTIOUS_PERIOD,
-        exposed_to_infectious=mc.EXPOSED_TO_INFECTIOUS,
-        vaccination_rate=mc.VACCINATION_RATE,
-        initial_infections=mc.INITIAL_INFECTIONS,
-        R0_dist=mc.STRAIN_SPECIFIC_R0,
-        num_waning_compartments=mc.NUM_WANING_COMPARTMENTS,
-        waning_protect_dist=mc.WANING_PROTECTIONS,
-        waning_time=mc.WANING_TIME,
-        num_compartments=mc.NUM_COMPARTMENTS,
-        w_idx=mc.w_idx,
-        idx=mc.idx,
-        axis_idx=mc.axis_idx,
-        target_population_fractions=None,
-        contact_matrix=None,
-        init_infection_dist=None,
-        init_waning_dist=None,
-        init_recovered_dist=None,
-    ):
-        self.num_age_groups = num_age_groups
-        self.num_strains = num_strains
-        self.age_limits = age_limits
-        self.init_pop_size = init_pop_size
-        self.birth_rate = birth_rate
-        self.infectious_period = infectious_period
-        self.exposed_to_infectious = exposed_to_infectious
-        self.vaccination_rate = vaccination_rate
-        self.initial_infections = initial_infections
-        self.R0_dist = R0_dist
-        self.num_waning_compartments = num_waning_compartments
-        self.waning_protect_dist = waning_protect_dist
-        self.waning_time = waning_time
-        self.num_compartments = num_compartments
-        self.w_idx = w_idx
-        self.idx = idx
-        self.axis_idx = axis_idx
-        rng = np.random.default_rng(seed=ic.MODEL_RAND_SEED)
+    from config.config_base import ConfigBase
+    from mechanistic_compartments import build_basic_mechanistic_model
+    `model = build_basic_mechanistic_model(ConfigBase())`
+    """
+
+    def __init__(self, **kwargs):
+        """
+        Initalize a basic abstract mechanistic model for covid19 case prediction.
+        Should not be constructed directly, use build_basic_mechanistic_model() with a config file
+        """
+        # if users call __init__ instead of the builder function, kwargs will be empty, causing errors.
+        assert (
+            len(kwargs) > 0
+        ), "Do not initalize this object without the helper function build_basic_mechanistic_model() and a config file."
+
+        # grab all parameters passed from config
+        self.__dict__.update(kwargs)
+
         # if not given, generate population fractions based on observed census data
-        if not target_population_fractions:
-            target_population_fractions = utils.load_age_demographics()["United States"]
+        if not self.INITIAL_POPULATION_FRACTIONS:
+            self.load_inital_population_fractions()
 
-        self.target_population_fractions = target_population_fractions
-        self.population = init_pop_size * self.target_population_fractions
+        self.POPULATION = self.POP_SIZE * self.INITIAL_POPULATION_FRACTIONS
 
-        # if not given, load contact matrices via Dina's mixing data.
-        if not contact_matrix:
-            contact_matricies = utils.load_demographic_data()
-            contact_matrix = contact_matricies["United States"]["oth_CM"]
-        self.contact_matrix = contact_matrix
+        # if not given, load contact matrices via mixing data.
+        if not self.CONTACT_MATRIX:
+            self.load_contact_matrix()
 
         # TODO does it make sense to set one and not the other if provided one ?
-        if not init_waning_dist or not init_recovered_dist:
-            sero_path = "data/serological-data/Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
-            pop_path = "data/demographic-data/population_rescaled_age_distributions/"
-            (
-                self.init_recovered_dist,
-                self.init_waning_dist,
-            ) = utils.load_serology_demographics(
-                sero_path,
-                pop_path,
-                self.age_limits,
-                self.waning_time,
-                self.num_waning_compartments,
-                self.num_strains,
-            )
+        # if not given, load inital waning and recovered distributions from serological data
+        if not self.INIT_WANING_DIST or not self.INIT_RECOVERED_DIST:
+            self.load_waning_and_recovered_distributions()
 
-        # if not given an inital infection distribution, use max eig value vector
-        if not init_infection_dist:
-            eig_data = np.linalg.eig(contact_matrix)
-            max_index = np.argmax(eig_data[0])
-            init_infection_dist = abs(eig_data[1][:, max_index])
-            init_infection_dist = init_infection_dist / sum(init_infection_dist)
-        self.init_infection_dist = init_infection_dist
-
-        # with inital infection distribution by age group, break down uniformally by number of strains.
-        # TODO non-uniform strain distribution if needed.
-        initial_infections_by_strain = (
-            initial_infections
-            * init_infection_dist[:, None]
-            * np.ones(num_strains)
-            / num_strains
-        )
-        self.initial_infections_by_strain = initial_infections_by_strain
+        # because our suseptible population is not strain stratified,
+        # we need to sum these inital recovered/waning distributions by their axis so shapes line up
         init_recovered_strain_summed = np.sum(
-            self.init_recovered_dist, axis=self.axis_idx.strain
+            self.INIT_RECOVERED_DIST, axis=self.AXIS_IDX.strain
         )
         init_waning_strain_compartment_summed = np.sum(
-            self.init_waning_dist, axis=(self.axis_idx.strain, self.axis_idx.wane)
+            self.INIT_WANING_DIST,
+            axis=(self.AXIS_IDX.strain, self.AXIS_IDX.wane),
         )
+
+        # if not given an inital infection distribution, use max eig value vector of contact matrix
+        # disperse inital infections across infected and exposed based on sigma / gamma ratio.
+        if not self.INIT_INFECTION_DIST and not self.INIT_EXPOSED_DIST:
+            self.load_init_infection_and_exposed_dist()
+
+        # with inital infection distribution by age group, break down uniformally by number of strains.
+        # TODO non-uniform strain distribution within load_init_infection_and_exposed_dist().
+        self.INITIAL_INFECTIONS_BY_STRAIN = (
+            self.INITIAL_INFECTIONS
+            * self.INIT_INFECTION_DIST[:, None]
+            * np.ones(self.NUM_STRAINS)
+            / self.NUM_STRAINS
+        )
+
+        # suseptibles = Total population - infected - recovered - waning
         inital_suseptible = (
-            self.population
-            - (self.initial_infections * self.init_infection_dist)
-            - (self.population * init_recovered_strain_summed)
-            - (self.population * init_waning_strain_compartment_summed)
+            self.POPULATION
+            - (self.INITIAL_INFECTIONS * self.INIT_INFECTION_DIST)
+            - (self.POPULATION * init_recovered_strain_summed)
+            - (self.POPULATION * init_waning_strain_compartment_summed)
         )
-        self.initial_state = (
+        inital_recovered = (
+            self.POPULATION * self.INIT_RECOVERED_DIST.transpose()
+        ).transpose()
+        inital_waning = (
+            self.POPULATION * self.INIT_WANING_DIST.transpose()
+        ).transpose()
+
+        # TODO change initial E to exposure dist once load_init_infection_and_exposed_dist() finished
+        self.INITIAL_STATE = (
             inital_suseptible,  # s
-            np.zeros((num_age_groups, num_strains)),  # e
-            initial_infections_by_strain,  # i
-            (self.population * self.init_recovered_dist.transpose()).transpose(),  # r
-            (self.population * self.init_waning_dist.transpose()).transpose(),
-        )  # w
+            np.zeros((self.NUM_AGE_GROUPS, self.NUM_STRAINS)),  # e
+            self.INITIAL_INFECTIONS_BY_STRAIN,  # i
+            inital_recovered,  # r
+            inital_waning,  # w
+        )
 
     def get_args(self, sample=False):
+        """
+        A function that returns model args in the correct order as expected by the ODETerm function f(t, y(t), args)dt
+        https://docs.kidger.site/diffrax/api/terms/#diffrax.ODETerm
+
+        for example functions f() in charge of disease dynamics see the model_odes folder.
+        """
         if sample:
-            beta = utils.sample_r0(self.R0_dist) / self.infectious_period
+            beta = (
+                utils.sample_r0(self.STRAIN_SPECIFIC_R0)
+                / self.infectious_period
+            )
             waning_protections = utils.sample_waning_protections(
-                self.waning_protect_dist
+                self.WANING_PROTECTIONS
             )
         else:  # if we arent sampling we use values from config in self
-            beta = self.R0_dist / self.infectious_period
-            waning_protections = self.waning_protect_dist
+            beta = self.STRAIN_SPECIFIC_R0 / self.INFECTIOUS_PERIOD
+            waning_protections = self.WANING_PROTECTIONS
 
-        gamma = 1 / self.infectious_period
-        sigma = 1 / self.exposed_to_infectious
-        wanning_rate = 1 / self.waning_time
+        gamma = 1 / self.INFECTIOUS_PERIOD
+        sigma = 1 / self.EXPOSED_TO_INFECTIOUS
+        wanning_rate = 1 / self.WANING_TIME
         # default to no cross immunity, setting diagnal to 0
-        suseptibility_matrix = jnp.ones((self.num_strains, self.num_strains)) * (
-            1 - jnp.diag(jnp.array([1] * self.num_strains))
-        )  # TODO use priors here
-        args = [  # TODO convert to dictionary if diffeqsolve() allows for args to be a dict.
-            beta,
-            sigma,
-            gamma,
-            self.contact_matrix,
-            self.vaccination_rate,
-            waning_protections,
-            wanning_rate,
-            self.birth_rate,
-            self.population,
-            suseptibility_matrix,
-            self.num_strains,
-            self.num_waning_compartments,
-        ]
+        # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
+        suseptibility_matrix = jnp.ones(
+            (self.NUM_STRAINS, self.NUM_STRAINS)
+        ) * (1 - jnp.diag(jnp.array([1] * self.NUM_STRAINS)))
+        # if your model expects added parameters, add them here
+        args = {
+            "beta": beta,
+            "sigma": sigma,
+            "gamma": gamma,
+            "contact_matrix": self.CONTACT_MATRIX,
+            "vax_rate": self.VACCINATION_RATE,
+            "waning_protections": waning_protections,
+            "wanning_rate": wanning_rate,
+            "mu": self.BIRTH_RATE,
+            "population": self.POPULATION,
+            "susceptibility_matrix": suseptibility_matrix,
+            "num_strains": self.NUM_STRAINS,
+            "num_waning_compartments": self.NUM_WANING_COMPARTMENTS,
+        }
         return args
 
     def incidence(self, model, incidence):
-        term = ODETerm(lambda t, state, parameters: model(state, t, parameters))
+        """
+        Takes a model and some ground truth incidence,
+        returning the liklihood of observing the incidence according to the model
+
+        Parameters
+        ----------
+        model: function()
+            a standard ODE style function which takes in state, time, and parameters in that order.
+            for example functions see the model_odes folder.
+        incidence: list(int)
+            observed incidence of each compartment to compare against.
+
+        Returns
+        ----------
+        None
+        """
+        term = ODETerm(
+            lambda t, state, parameters: model(state, t, parameters)
+        )
         solver = Tsit5()
         t0 = 0.0
         t1 = 100.0
@@ -190,18 +183,32 @@ class BasicMechanisticModel:
         model_incidence = -jnp.diff(solution.ys[0], axis=0)
 
         # Observed incidence
-        numpyro.sample("incidence", dist.Poisson(model_incidence), obs=incidence)
+        numpyro.sample(
+            "incidence", dist.Poisson(model_incidence), obs=incidence
+        )
 
     def infer(self, model, incidence):
+        """
+        Runs inference given some observed incidence and a model of transmission dynamics.
+        Uses MCMC and NUTS for parameter tuning of the model returns estimated parameter values given incidence.
+
+        Parameters
+        ----------
+        model: function()
+            a standard ODE style function which takes in state, time, and parameters in that order.
+            for example functions see the model_odes folder.
+        incidence: list(int)
+            observed incidence of each compartment to compare against.
+        """
         mcmc = MCMC(
             NUTS(model, dense_mass=True),
-            num_warmup=ic.MCMC_NUM_WARMUP,
-            num_samples=ic.MCMC_NUM_SAMPLES,
-            num_chains=ic.MCMC_NUM_CHAINS,
-            progress_bar=ic.MCMC_PROGRESS_BAR,
+            num_warmup=self.MCMC_NUM_WARMUP,
+            num_samples=self.MCMC_NUM_SAMPLES,
+            num_chains=self.MCMC_NUM_CHAINS,
+            progress_bar=self.MCMC_PROGRESS_BAR,
         )
         mcmc.run(
-            PRNGKey(ic.MCMC_PRNGKEY),
+            PRNGKey(self.MCMC_PRNGKEY),
             times=np.linspace(0.0, 100.0, 101),
             incidence=incidence,
         )
@@ -211,15 +218,39 @@ class BasicMechanisticModel:
         self,
         model,
         tf=100.0,
+        show=True,
         save=True,
         save_path="model_run.png",
         plot_compartments=["s", "e", "i", "r", "w0", "w1", "w2", "w3"],
     ):
         """
-        runs the mechanistic model using beta, gamma, sigma, and waning rate based on config file values.
-        Does not sample waning protections or R0 by strain.
+        Takes parameters from self and applies them to some disease dynamics modeled in `model`
+        from `t0=0` to `tf`. Optionally saving compartment plots from `plot_compartments` to `save_path` if `save=True`
+
+        Parameters
+        ----------
+        model: function()
+            a standard ODE style function which takes in state, time, and parameters in that order.
+            for example functions see the model_odes folder.
+        tf: int
+            stopping time point (with default configuration this is days)
+        show: boolean
+            whether or not to show an image via matplotlib.pyplot.show()
+        save: boolean
+            whether or not to save an image and its metadata to `save_path`
+        save_path: str
+            relative or absolute path where to save an image and its metadata if `save=True`
+        plot_compartments: list(str)
+            a list of compartments to plot in the image, strings may be upper or lower case and must match
+            strings specified in self.IDX or self.W_IDX.
+
+        Returns
+        ----------
+        Diffrax.Solution object as described by https://docs.kidger.site/diffrax/api/solution/
         """
-        term = ODETerm(lambda t, state, parameters: model(state, t, parameters))
+        term = ODETerm(
+            lambda t, state, parameters: model(state, t, parameters)
+        )
         solver = Tsit5()
         t0 = 0.0
         dt0 = 0.1
@@ -230,7 +261,7 @@ class BasicMechanisticModel:
             t0,
             tf,
             dt0,
-            self.initial_state,
+            self.INITIAL_STATE,
             args=self.get_args(sample=False),
             saveat=saveat,
             max_steps=30000,
@@ -242,14 +273,14 @@ class BasicMechanisticModel:
             solution,
             plot_compartments=plot_compartments,
             save_path=save_path,
+            show=show,
         )
+        if show:
+            plt.show(fig)
         return solution
 
     def plot_diffrax_solution(
-        self,
-        sol,
-        plot_compartments=["s", "e", "i", "r"],
-        save_path=None,
+        self, sol, plot_compartments=["s", "e", "i", "r"], save_path=None
     ):
         """
         plots a run from diffeqsolve() with compartments `plot_compartments` returning figure and axis.
@@ -258,7 +289,7 @@ class BasicMechanisticModel:
         Parameters
         ----------
         sol : difrax.Solution
-            object containing ODE run
+            object containing ODE run as described by https://docs.kidger.site/diffrax/api/solution/
         plot_compartment : list(str)
             compartment titles as defined by the config file used to initialize self
         save_path : str
@@ -271,12 +302,14 @@ class BasicMechanisticModel:
             if "W" in compartment.upper():
                 # waning compartments are held in a different manner, we need two indexes to access them
                 index_slice = [
-                    self.idx.__getitem__("W"),
-                    self.w_idx.__getitem__(compartment.strip().upper()),
+                    self.IDX.__getitem__("W"),
+                    self.W_IDX.__getitem__(compartment.strip().upper()),
                 ]
                 get_indexes.append(index_slice)
             else:
-                get_indexes.append(self.idx.__getitem__(compartment.strip().upper()))
+                get_indexes.append(
+                    self.IDX.__getitem__(compartment.strip().upper())
+                )
 
         fig, ax = plt.subplots(1)
         for compartment, idx in zip(plot_compartments, get_indexes):
@@ -287,7 +320,10 @@ class BasicMechanisticModel:
                 # non-waning compartments dont have this extra dimension
                 sol_compartment = sol[idx]
             dimensions_to_sum_over = tuple(range(1, sol_compartment.ndim))
-            ax.plot(sol_compartment.sum(axis=dimensions_to_sum_over), label=compartment)
+            ax.plot(
+                sol_compartment.sum(axis=dimensions_to_sum_over),
+                label=compartment,
+            )
         fig.legend()
         if save_path:
             fig.savefig(save_path)
@@ -295,30 +331,73 @@ class BasicMechanisticModel:
                 meta.write(str(self.__dict__))
         return fig, ax
 
+    def load_waning_and_recovered_distributions(self):
+        """
+        a wrapper function which loads serologically informed covid recovered and waning distributions into self.
+        Omicron strain will always be 3 if self.NUM_STRAINS >= 3, otherwise it will be the largest index.
+        older strains like delta and alpha will be at lower indexes than omicron, 1, and 0 respectively.
+        delta and alpha may be combined if self.NUM_STRAINS < 3.
+        """
+        sero_path = (
+            self.SEROLOGICAL_DATA
+            + "Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
+        )
+        pop_path = (
+            self.DEMOGRAPHIC_DATA + "population_rescaled_age_distributions/"
+        )
+        (
+            self.INIT_RECOVERED_DIST,
+            self.INIT_WANING_DIST,
+        ) = utils.load_serology_demographics(
+            sero_path,
+            pop_path,
+            self.AGE_LIMITS,
+            self.WANING_TIME,
+            self.NUM_WANING_COMPARTMENTS,
+            self.NUM_STRAINS,
+        )
 
-def build_basic_mechanistic_model(model_config):
+    def load_inital_population_fractions(self):
+        """
+        a wrapper function which loads age demographics for the US and sets the inital population fraction by age bin.
+        """
+        populations_path = (
+            self.DEMOGRAPHIC_DATA + "population_rescaled_age_distributions/"
+        )
+        self.INITIAL_POPULATION_FRACTIONS = utils.load_age_demographics(
+            populations_path, self.REGIONS, self.AGE_LIMITS
+        )["United States"]
+
+    def load_contact_matrix(self):
+        """
+        a wrapper function that loads a contact matrix for the USA based on mixing paterns data found here:
+        https://github.com/mobs-lab/mixing-patterns
+        """
+        self.CONTACT_MATRIX = utils.load_demographic_data(
+            self.DEMOGRAPHIC_DATA,
+            self.REGIONS,
+            self.NUM_AGE_GROUPS,
+            self.MINIMUM_AGE,
+            self.AGE_LIMITS,
+        )["United States"]["avg_CM"]
+
+    def load_init_infection_and_exposed_dist(self):
+        """
+        initalizes the inital infection and exposed distribution across age bins.
+        """
+        # TODO initialize infections using omicron strain,
+        # distributed between E and I based on the ratio of gamma and sigma,
+        # and distributed by age based on the seroprevalence by age.
+        eig_data = np.linalg.eig(self.CONTACT_MATRIX)
+        max_index = np.argmax(eig_data[0])
+        self.INIT_INFECTION_DIST = abs(eig_data[1][:, max_index])
+        self.INIT_INFECTION_DIST = self.INIT_INFECTION_DIST / sum(
+            self.INIT_INFECTION_DIST
+        )
+
+
+def build_basic_mechanistic_model(config: config):
     """
-    A builder function meant to take in a model_config class and build a BasicMechanisticModel() object with defaults from the config.
+    A builder function meant to take in a Config class and build a BasicMechanisticModel() object with values from the config.
     """
-    return BasicMechanisticModel(
-        num_age_groups=model_config.NUM_AGE_GROUPS,
-        num_strains=model_config.NUM_STRAINS,
-        age_limits=model_config.AGE_LIMITS,
-        init_pop_size=model_config.POP_SIZE,
-        birth_rate=model_config.BIRTH_RATE,
-        infectious_period=model_config.INFECTIOUS_PERIOD,
-        exposed_to_infectious=model_config.EXPOSED_TO_INFECTIOUS,
-        vaccination_rate=model_config.VACCINATION_RATE,
-        initial_infections=model_config.INITIAL_INFECTIONS,
-        R0_dist=model_config.STRAIN_SPECIFIC_R0,
-        num_waning_compartments=model_config.NUM_WANING_COMPARTMENTS,
-        waning_protect_dist=model_config.WANING_PROTECTIONS,
-        waning_time=model_config.WANING_TIME,
-        num_compartments=model_config.NUM_COMPARTMENTS,
-        w_idx=model_config.w_idx,
-        idx=model_config.idx,
-        axis_idx=model_config.axis_idx,
-        target_population_fractions=None,
-        contact_matrix=None,
-        init_infection_dist=None,
-    )
+    return BasicMechanisticModel(**config.__dict__)

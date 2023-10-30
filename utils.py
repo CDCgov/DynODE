@@ -1,15 +1,13 @@
-import matplotlib.pyplot as plt
-import config.config_base as cf
-from config.config_base import DataConfig as dc
-from config.config_base import ModelConfig as mc
+import datetime
+import glob
+import os
+
+import numpy as np
+import numpyro
+import numpyro.distributions as dist
 import pandas as pd
 
 pd.options.mode.chained_assignment = None
-import numpy as np
-import os, glob
-import numpyro
-import numpyro.distributions as dist
-import datetime
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -59,27 +57,56 @@ def sample_waning_protections(waning_protect_means):
 
 
 def generate_yearly_age_bins_from_limits(age_limits):
+    """
+    given age limits, generates age bins with each year contained in that bin up to 85 years old exclusvive
+    for example given age_limits = [0, 5, 10, 15 ... 80]
+    returns [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14]... [80, 81, 82, 83, 84]]
+    Parameters
+    ----------
+    age_limits: list(int):
+        beginning with minimum age inclusive, boundary of each age bin exclusive. Not including last age bin.
+        do not include implicit 85 in age_limits, this function appends that bin automatically.
+    """
     age_groups = []
     for age_idx in range(1, len(age_limits)):
         age_groups.append(
-            list(range(dc.AGE_LIMITS[age_idx - 1], dc.AGE_LIMITS[age_idx]))
+            list(range(age_limits[age_idx - 1], age_limits[age_idx]))
         )
-    age_groups.append(list(range(dc.AGE_LIMITS[-1], 85)))
+    age_groups.append(list(range(age_limits[-1], 85)))
     return age_groups
 
 
 def load_age_demographics(
-    path=dc.MIXING_PATH + "population_rescaled_age_distributions/",
-    regions=cf.REGIONS,
-    age_limits=dc.AGE_LIMITS,
+    path,
+    regions,
+    age_limits,
 ):
     """Returns normalized proportions of each agebin as defined by age_limits for the regions given.
-    Does this by searching for age demographics data in path."""
+    Does this by searching for age demographics data in path.
+
+
+    Parameters
+    ----------
+    path: str
+        path to the demographic-data folder, either relative or absolute.
+    regions: list(str)
+        list of FIPS regions to create normalized proportions for
+    age_limits: list(int)
+        age limits for each age bin in the model, begining with minimum age
+        values are exclusive in upper bound. so [0, 18, 50] means 0-17, 18-49, 50+
+        max age is enforced at 84 inclusive. All persons older than 84 in population numbers are counted as 84 years old
+
+    Returns
+    ----------
+    demographic_data : dict
+        a dictionary maping FIPS code region supplied in `regions` to an array of length `len(age_limits)` representing
+        the __relative__ population proportion of each bin, summing to 1.
+    """
     assert os.path.exists(
         path
-    ), f"The path to population-rescaled age distributions does not exist as it should"
+    ), "The path to population-rescaled age distributions does not exist as it should"
 
-    demographic_data = dict([(r, "") for r in cf.REGIONS])
+    demographic_data = dict([(r, "") for r in regions])
     # Create contact matrices
     for r in regions:
         try:
@@ -90,13 +117,20 @@ def load_age_demographics(
                 region = r
             if region != "United_States":
                 region_data_file = (
-                    "United_States_subnational_" + region + "_age_distribution_85.csv"
+                    "United_States_subnational_"
+                    + region
+                    + "_age_distribution_85.csv"
                 )
             else:
-                region_data_file = "United_States_country_level_age_distribution_85.csv"
+                region_data_file = (
+                    "United_States_country_level_age_distribution_85.csv"
+                )
 
             age_distributions = np.loadtxt(
-                path + region_data_file, delimiter=",", dtype=np.float64, skiprows=0
+                path + region_data_file,
+                delimiter=",",
+                dtype=np.float64,
+                skiprows=0,
             )
             binned_ages = np.array([])
             age_bin_pop = 0
@@ -105,7 +139,8 @@ def load_age_demographics(
                 age_limits = age_limits + [84]
             age_limits = age_limits[1:]
             while current_age < 85:
-                age_bin_pop += age_distributions[current_age][1]  # get the population
+                # get the population for the current age
+                age_bin_pop += age_distributions[current_age][1]
                 # add total population of that bin to the array, reset
                 if current_age in age_limits:
                     binned_ages = np.append(binned_ages, age_bin_pop)
@@ -149,7 +184,9 @@ def prep_serology_data(path, waning_time):
     serology = pd.read_csv(path)
     # filter down to USA and pick a date after omicron surge to load serology from.
     serology = serology[serology["Site"] == "US"]
-    dates_of_interest = pd.read_csv("data/dates_of_interest.csv")["date_name"].values
+    dates_of_interest = pd.read_csv("data/dates_of_interest.csv")[
+        "date_name"
+    ].values
     # pick date ranges from the dates of interest list
     serology = serology[
         [
@@ -177,14 +214,18 @@ def prep_serology_data(path, waning_time):
             )
         serology[diff_column] = serology[diff_column] / 100.0
     # lets create datetime objects out of collection range
-    years = [x.split(",")[-1] for x in serology["Date Range of Specimen Collection"]]
+    years = [
+        x.split(",")[-1] for x in serology["Date Range of Specimen Collection"]
+    ]
     serology["collection_start"] = pd.to_datetime(
         [
             # edge case Date = Dec 27, 2021 - Jan 29, 2022 need years
             date.split("-")[0].strip() + "," + year
             if len(date.split(",")) == 2
             else date.split("-")[0].strip()
-            for date, year in zip(serology["Date Range of Specimen Collection"], years)
+            for date, year in zip(
+                serology["Date Range of Specimen Collection"], years
+            )
         ],
         format="%b %d, %Y",
     )
@@ -203,7 +244,9 @@ def prep_serology_data(path, waning_time):
     # pick the date between collection start and end as the point estimate for date of collection
     serology["collection_date"] = [
         start + ((end - start) / 2)
-        for start, end in zip(serology["collection_start"], serology["collection_end"])
+        for start, end in zip(
+            serology["collection_start"], serology["collection_end"]
+        )
     ]
     # after we interpolate down to daily precision, rebin into waning compartments
     serology.index = pd.to_datetime(serology["collection_date"])
@@ -219,7 +262,9 @@ def prep_serology_data(path, waning_time):
         .max()
     )
     # we will use the absolute change in % serology prevalence to initalize wane compartments
-    serology["0_17_diff"] = serology["Rate (%) [Anti-N, 0-17 Years Prevalence]"].diff()
+    serology["0_17_diff"] = serology[
+        "Rate (%) [Anti-N, 0-17 Years Prevalence]"
+    ].diff()
     serology["18_49_diff"] = serology[
         "Rate (%) [Anti-N, 18-49 Years Prevalence, Rounds 1-30 only]"
     ].diff()
@@ -234,10 +279,15 @@ def prep_serology_data(path, waning_time):
 
 
 def load_serology_demographics(
-    sero_path, age_path, age_limits, waning_time, num_waning_compartments, num_strains
+    sero_path,
+    age_path,
+    age_limits,
+    waning_time,
+    num_waning_compartments,
+    num_strains,
 ):
     """
-    initalizes and returns the recovered and waning compartments for a model based on serological data.
+    initalizes and returns the recovered and waning compartments for a model based on __covid__ serological data.
 
     Parameters
     ----------
@@ -257,12 +307,19 @@ def load_serology_demographics(
           Note: people will be distributed across 3 strains if num_strains >= 3
           The 3 strains account for omicron, delta, and alpha waves. And are timed accordingly.
           if num_strains < 3, will collapse earlier strains into one another.
+
+    Returns
+    ----------
+    recovered_init_distribution: np.array
+        the proportions of the total population for each age bin defined as recovered, or within 1 `waning_time` of infection.
+        has a shape of (len(`age_limits`), `num_strains`)
+
+    waning_init_distribution
+        the proportions of the total population for each age bin defined as waning, or within x `waning_time`s of infection. where x is the waning compartment
+        has a shape of (len(`age_limits`), `num_strains`, `num_waning_compartments`)
     """
-    # TODO we now have daily precision via linear interpolation,
-    # implement waning compartments with two strains filled in
     initalization_date = datetime.date(2022, 2, 11)
     serology = prep_serology_data(sero_path, waning_time)
-    # serology = serology.resample(str(waning_time) + "d")
     # we will need population data for weighted averages
     age_distributions = np.loadtxt(
         age_path + "United_States_country_level_age_distribution_85.csv",
@@ -270,9 +327,10 @@ def load_serology_demographics(
         dtype=np.float64,
         skiprows=0,
     )
-    # serology data only comes in these age bins, inclusive
-    serology_age_limits = [17, 49, 64]
+    # serology data only comes in these age bins, exclusive, min age 0
+    serology_age_limits = [18, 50, 65]
     # number of strains alloted for in the serological data, for covid this is omicron, delta, and alpha
+    # if model only allows for 2 or 1 strain we need to collapse delta and alpha waves together
     num_historical_strains = 3 if num_strains >= 3 else num_strains
     # breakpoints for each historical strain, oldest first, alpha - delta, delta - omicron
     omicron_date = datetime.date(2021, 11, 19)  # as omicron took off
@@ -293,19 +351,20 @@ def load_serology_demographics(
         num_historical_strains == len(historical_time_breakpoints) + 1
     ), "set breakpoints for each of the historical strains you want to initalize with sero data"
     # age_to_diff_dict will be used to average age bins when our datas age bins collide with serology datas
-    # for example 0-4 age bin will fit inside 0-17,
-    # but what about hypothetical 10-20 age bin? This needs to be weighted average of 0-17 and 18-49 age bins
+    # for example hypothetical 10-20 age bin, needs to be weighted average of 0-17 and 18-49 age bins based on population
     age_to_sero_dict = {}
     age_groups = generate_yearly_age_bins_from_limits(age_limits)
 
-    # return these after filling it with the %s of waned/recovered individuals
+    # return these after filling it with the proprtion of waned/recovered individuals of total population
     waning_init_distribution = np.zeros(
         (len(age_limits), num_strains, num_waning_compartments)
     )
-    recovered_init_distribution = np.zeros(shape=(len(age_limits), num_strains))
-    # for each waning index fill in its age x strain matrix based on weighted sero data for that age bin
+    recovered_init_distribution = np.zeros(
+        shape=(len(age_limits), num_strains)
+    )
+    # for each waning index fill in its (age x strain) matrix based on weighted sero data for that age bin
     for waning_index in range(0, num_waning_compartments + 1):
-        # now we go back `waning_time` days at a time and use our diff columns to populate recoved/waning
+        # go back `waning_time` days at a time and use our diff columns to populate recoved/waning
         # initalization_date is the date our chosen serology begins, based on post-omicron peak.
         waning_compartment_date = initalization_date - (
             datetime.timedelta(days=waning_time) * (waning_index)
@@ -318,22 +377,25 @@ def load_serology_demographics(
         )
         # depending how far back we are looking, we may be filling waning information for past strains
         # omicron = strain 2, delta = 1, alpha = 0 for example
-        strain_select = num_historical_strains - 1  # initalize as most recent strain
+        strain_select = (
+            num_historical_strains - 1
+        )  # initalize as most recent strain
         for historical_breakpoint in historical_time_breakpoints:
-            # TODO check this make sure we arent off by one here with <= vs <
-            if waning_compartment_date <= historical_breakpoint:
+            if waning_compartment_date < historical_breakpoint:
                 strain_select -= 1
         # select the only row as a series
         select = select.iloc[0]
         # fill our age_to_sero_dict so each age maps to its sero change we just selected
+        # if we are in the last waning compartment, use sero-prevalence at that date instead
+        # effectively combining all persons with previous infection on or before that date together
         for age in range(85):
-            if age <= serology_age_limits[0]:
+            if age < serology_age_limits[0]:
                 age_to_sero_dict[age] = (
                     select["0_17_diff"]
                     if waning_index < num_waning_compartments
                     else select["Rate (%) [Anti-N, 0-17 Years Prevalence]"]
                 )
-            elif age <= serology_age_limits[1]:
+            elif age < serology_age_limits[1]:
                 age_to_sero_dict[age] = (
                     select["18_49_diff"]
                     if waning_index < num_waning_compartments
@@ -341,7 +403,7 @@ def load_serology_demographics(
                         "Rate (%) [Anti-N, 18-49 Years Prevalence, Rounds 1-30 only]"
                     ]
                 )
-            elif age <= serology_age_limits[2]:
+            elif age < serology_age_limits[2]:
                 age_to_sero_dict[age] = (
                     select["50_64_diff"]
                     if waning_index < num_waning_compartments
@@ -359,12 +421,16 @@ def load_serology_demographics(
                 )
         for age_group_idx, age_group in enumerate(age_groups):
             serology_age_group = [age_to_sero_dict[age] for age in age_group]
-            population_age_group = [age_distributions[age][1] for age in age_group]
+            population_age_group = [
+                age_distributions[age][1] for age in age_group
+            ]
             serology_weighted = np.average(
                 serology_age_group, weights=population_age_group
             )
             # this is where we would uniformly spread out waning if we wanted to
-            if waning_index == 0:  # waning_index=0 -> add to recovered compartment
+            if (
+                waning_index == 0
+            ):  # waning_index=0, add to recovered compartment
                 recovered_init_distribution[
                     age_group_idx, strain_select
                 ] = serology_weighted
@@ -429,19 +495,25 @@ def make_two_settings_matrices(
             [
                 (
                     elt.split("_")[setting_index],
-                    np.loadtxt(elt, delimiter=",", dtype=np.float64, skiprows=0),
+                    np.loadtxt(
+                        elt, delimiter=",", dtype=np.float64, skiprows=0
+                    ),
                 )
                 for elt in all_settings_data_files
                 if region in elt
             ]
         )
     else:
-        region_data_file = "United_States_country_level_age_distribution_85.csv"
+        region_data_file = (
+            "United_States_country_level_age_distribution_85.csv"
+        )
         settings_data_dict = dict(
             [
                 (
                     elt.split("_")[setting_index],
-                    np.loadtxt(elt, delimiter=",", dtype=np.float64, skiprows=0),
+                    np.loadtxt(
+                        elt, delimiter=",", dtype=np.float64, skiprows=0
+                    ),
                 )
                 for elt in all_settings_data_files
                 if ("country" in elt) and ("_F_" in elt)
@@ -473,6 +545,9 @@ def make_two_settings_matrices(
 def create_age_grouped_CM(
     region_data: pd.DataFrame,
     setting_CM: np.ndarray,
+    num_age_groups: int,
+    minimum_age: int,
+    age_limits,
 ) -> tuple[np.ndarray, list[float]]:
     """
     Parameters
@@ -496,27 +571,33 @@ def create_age_grouped_CM(
         setting_CM.shape[0] == setting_CM.shape[1]
     ), "Baseline contact matrix is not square."
     # Check if the dc.MINIMUM_AGE is proper
-    assert 0 <= dc.MINIMUM_AGE < 84, "Please correct the value of the minimum age"
+    assert 0 <= minimum_age < 84, "Please correct the value of the minimum age"
     # Check if the dc.MINIMUM_AGE is an int
-    assert type(dc.MINIMUM_AGE) == int, "Please make sure the minimum age is an int"
+    assert isinstance(
+        minimum_age, int
+    ), "Please make sure the minimum age is an int"
     # Check to see if the age limits specified are ordered properly
-    assert dc.AGE_LIMITS[-1] < 84, "The entered age limits are not compatible"
+    assert age_limits[-1] < 84, "The entered age limits are not compatible"
     # Check if the upper bound of the age limits is greater than the lower bound
     assert (
-        dc.AGE_LIMITS[0] < dc.AGE_LIMITS[1] + 1
+        age_limits[0] < age_limits[1] + 1
     ), "The bounds for the age limits are not proper"
     # Create new age groups from the age limits, e.g. if [18,66], <18,18-64,65+
-    age_groups = generate_yearly_age_bins_from_limits(dc.AGE_LIMITS)
+    age_groups = generate_yearly_age_bins_from_limits(age_limits)
     grouped_CM = np.empty(
-        (dc.NUM_AGE_GROUPS, dc.NUM_AGE_GROUPS), dtype=setting_CM.dtype
+        (num_age_groups, num_age_groups), dtype=setting_CM.dtype
     )
     # Get the population data to be used for proportions in the
-    pop_proportions = region_data["Population"].div(region_data["Population"].sum())
+    pop_proportions = region_data["Population"].div(
+        region_data["Population"].sum()
+    )
     # Fill in the age-grouped contact matrix
     for i, grp_out in enumerate(age_groups):
         for j, grp_in in enumerate(age_groups):
             cm_slice = setting_CM[np.ix_(grp_out, grp_in)]
-            pop_prop_slice = pop_proportions[grp_out] / np.sum(pop_proportions[grp_out])
+            pop_prop_slice = pop_proportions[grp_out] / np.sum(
+                pop_proportions[grp_out]
+            )
             pop_prop_slice = np.reshape(pop_prop_slice.to_numpy(), (-1, 1))
             grouped_CM[i, j] = np.sum(pop_prop_slice * cm_slice)
     # Population proportions in each age group
@@ -524,11 +605,16 @@ def create_age_grouped_CM(
     return (grouped_CM, N_age)
 
 
-def load_demographic_data() -> (
-    dict[str, dict[str, list[np.ndarray, np.float64, list[float]]]]
-):
+def load_demographic_data(
+    demographics_path,
+    regions,
+    num_age_groups,
+    minimum_age,
+    age_limits,
+) -> dict[str, dict[str, list[np.ndarray, np.float64, list[float]]]]:
     """
-    Loads demography data for the specified FIPS regions
+    Loads demography data for the specified FIPS regions, contact mixing data sourced from:
+    https://github.com/mobs-lab/mixing-patterns
 
     Returns
     -------
@@ -540,22 +626,24 @@ def load_demographic_data() -> (
     """
     print("Loading demography data...")
     # Get the paths to the 3 files we need
-    path_to_settings_data = dc.MIXING_PATH + "contact_matrices"
-    path_to_population_data = dc.MIXING_PATH + "population_rescaled_age_distributions"
+    path_to_settings_data = demographics_path + "contact_matrices"
+    path_to_population_data = (
+        demographics_path + "population_rescaled_age_distributions"
+    )
     # Check if the paths to the files exists
     assert os.path.exists(
-        dc.MIXING_PATH
-    ), f"The base path {dc.MIXING_PATH} does not exist as it should"
+        demographics_path
+    ), f"The base path {demographics_path} does not exist as it should"
     assert os.path.exists(
         path_to_settings_data
-    ), f"The path to the contact matrices does not exist as it should"
+    ), "The path to the contact matrices does not exist as it should"
     assert os.path.exists(
         path_to_population_data
-    ), f"The path to population-rescaled age distributions does not exist as it should"
+    ), "The path to population-rescaled age distributions does not exist as it should"
     # Create an empty dictionary for the demographic data
-    demographic_data = dict([(r, "") for r in cf.REGIONS])
+    demographic_data = dict([(r, "") for r in regions])
     # Create contact matrices
-    for r in cf.REGIONS:
+    for r in regions:
         try:
             # e.g., if territory is "North Carolina", pass it as "North_Carolina"
             if len(r.split()) > 1:
@@ -564,7 +652,7 @@ def load_demographic_data() -> (
                 region = r
             # Get base school and other contact matrices (for all 85 ages) and
             # the populations of each of these ages
-            sch_CM_all, oth_CM_all, region_data = make_two_settings_matrices(
+            sch_CM_all, avg_CM_all, region_data = make_two_settings_matrices(
                 path_to_population_data,
                 path_to_settings_data,
                 region,
@@ -573,21 +661,27 @@ def load_demographic_data() -> (
             sch_CM, N_age_sch = create_age_grouped_CM(
                 region_data,
                 sch_CM_all,
+                num_age_groups,
+                minimum_age,
+                age_limits,
             )
-            # Create the age-grouped other setting contact
-            oth_CM, N_age_oth = create_age_grouped_CM(
+            # Create the age-grouped other an average setting contact (average being all settings combined, including school)
+            avg_CM, N_age_oth = create_age_grouped_CM(
                 region_data,
-                oth_CM_all,
+                avg_CM_all,
+                num_age_groups,
+                minimum_age,
+                age_limits,
             )
             # Save one of the two N_ages (they are the same) in a new N_age var
             N_age = N_age_sch
             # Rescale contact matrices by leading eigenvalue
-            oth_CM = oth_CM / rho(oth_CM)
+            avg_CM = avg_CM / rho(avg_CM)
             sch_CM = sch_CM / rho(sch_CM)
             # Transform Other cm with the new age limits [NB: to transpose?]
             region_demographic_data_dict = {
                 "sch_CM": sch_CM.T,
-                "oth_CM": oth_CM.T,
+                "avg_CM": avg_CM.T,
                 "N_age": np.array(N_age),
                 "N": np.array(np.sum(N_age)),
             }
@@ -596,32 +690,5 @@ def load_demographic_data() -> (
             print(
                 f"Something went wrong with {region} and produced the following error:\n\t{e}"
             )
+            raise e
     return demographic_data
-
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# PLOTTING CODE
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-
-def plot_ode_solution(
-    sol, plot_compartments=["s", "i", "r"], sum_across_axis=2, save_path=None
-):
-    """
-    Code to plot an ODE solution generated by odesolve(), DEPRECATED as we have moved to diffrax
-    """
-    sol = np.array(sol)
-    get_indexes = [
-        mc.idx.__getitem__(compartment.strip().upper())
-        for compartment in plot_compartments
-    ]
-    if sum_across_axis:
-        sol = sol.sum(axis=sum_across_axis)  # used to sum across age groups
-
-    fig, ax = plt.subplots(1)
-    for compartment, idx in zip(plot_compartments, get_indexes):
-        ax.plot(sol[idx], label=compartment)
-    fig.legend()
-    if save_path:
-        fig.savefig(save_path)
-    return fig, ax
