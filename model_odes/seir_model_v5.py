@@ -2,7 +2,7 @@ import jax.numpy as jnp
 import numpy as np
 
 
-def seirw_ode(state, t, parameters):
+def seirw_ode(state, _, parameters):
     """
     A basic SEIRW ODE model to be used in solvers such as odeint or diffeqsolve
 

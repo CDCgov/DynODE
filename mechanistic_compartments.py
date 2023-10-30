@@ -33,7 +33,6 @@ class BasicMechanisticModel:
         self.POPULATION = self.POP_SIZE * self.INITIAL_POPULATION_FRACTIONS
 
         # if not given, load contact matrices via mixing data.
-        # load an average contact matrix of all settings combined
         if not self.CONTACT_MATRIX:
             self.load_contact_matrix()
 
@@ -41,6 +40,7 @@ class BasicMechanisticModel:
         # if not given, load inital waning and recovered distributions from serological data
         if not self.INIT_WANING_DIST or not self.INIT_RECOVERED_DIST:
             self.load_waning_and_recovered_distributions()
+
         # because our suseptible population is not strain stratified,
         # we need to sum these inital recovered/waning distributions by their axis so shapes line up
         init_recovered_strain_summed = np.sum(
@@ -53,7 +53,7 @@ class BasicMechanisticModel:
 
         # if not given an inital infection distribution, use max eig value vector of contact matrix
         # this has been shown to mirror similar
-        if not self.INIT_INFECTION_DIST:
+        if not self.INIT_INFECTION_DIST and not self.INIT_EXPOSED_DIST:
             self.load_init_infection_and_exposed_dist()
 
         # with inital infection distribution by age group, break down uniformally by number of strains.

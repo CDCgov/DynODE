@@ -2,6 +2,8 @@ from enum import IntEnum
 
 import jax.numpy as jnp
 
+base_parameters = {}
+
 
 class ConfigBase:
     """
@@ -15,7 +17,8 @@ class ConfigBase:
          This gives us the same benefit of inheritance, meaning less code duplication across config files.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
+        # fill in default parameters, may be later overriden by kwargs
         self.SCENARIO_NAME = "Base Scenario"
         self.REGIONS = ["United States"]
         self.DEMOGRAPHIC_DATA = "data/demographic-data/"
@@ -26,7 +29,6 @@ class ConfigBase:
         # age limits for each age bin in the model, begining with minimum age
         # values are exclusive in upper bound. so [0,18) means 0-17, 18+
         self.AGE_LIMITS = [self.MINIMUM_AGE, 18, 50, 65]
-        self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
         self.NUM_STRAINS = 3
         # FIXED SEIR PARAMETERS
         self.POP_SIZE = 20000
@@ -35,50 +37,69 @@ class ConfigBase:
         self.INFECTIOUS_PERIOD = 7.0  # gamma
         # informed by mean of Binom(0.53, gamma(3.1, 1.6)) + 1, sources 4 and 5 (see bottom of file)
         self.EXPOSED_TO_INFECTIOUS = 3.6  # sigma
-        self.VACCINATION_RATE = 0  # 1 / 500.0  # vac_p
+        self.VACCINATION_RATE = 1 / 500.0  # vac_p
         self.INITIAL_INFECTIONS = 1.0
         self.STRAIN_SPECIFIC_R0 = jnp.array([1.5, 1.5, 1.5])  # R0s
         self.NUM_WANING_COMPARTMENTS = 18
         self.WANING_TIME = 21  # time in WHOLE days before a recovered individual moves to first waned compartment
-        self.WANING_TIME_MONTHS = self.WANING_TIME / 30.0
         self.INITAL_PROTECTION = (
             0.52  # %likelihood of re-infection given just recovered source 17
         )
         # protection against infection in each stage of waning, influenced by source 20
-        self.WANING_PROTECTIONS = jnp.array(
-            [
-                self.INITAL_PROTECTION / (1 + jnp.e ** (-(2.46 - (0.2 * t))))
-                for t in jnp.linspace(
-                    self.WANING_TIME_MONTHS,
-                    self.WANING_TIME_MONTHS * self.NUM_WANING_COMPARTMENTS,
-                    self.NUM_WANING_COMPARTMENTS,
-                )
-            ]
-        )
         # setting the following to None will get the model to initalize them from demographic/serological data
         self.INITIAL_POPULATION_FRACTIONS = None
         self.CONTACT_MATRIX = None
         self.INIT_INFECTION_DIST = None
+        self.INIT_EXPOSED_DIST = None
         self.INIT_WANING_DIST = None
         self.INIT_RECOVERED_DIST = None
-
         self.NUM_COMPARTMENTS = 5
         # indexes ENUM for readability in code
-        self.W_IDX = IntEnum(
-            "w_idx",
-            ["W" + str(idx) for idx in range(self.NUM_WANING_COMPARTMENTS)],
-            start=0,
-        )
         self.IDX = IntEnum("idx", ["S", "E", "I", "R", "W"], start=0)
         self.AXIS_IDX = IntEnum("idx", ["age", "strain", "wane"], start=0)
+        # setting default rng keys
         self.MCMC_PRNGKEY = 8675309
         self.MCMC_NUM_WARMUP = 1000
         self.MCMC_NUM_SAMPLES = 1000
         self.MCMC_NUM_CHAINS = 4
         self.MCMC_PROGRESS_BAR = True
         self.MODEL_RAND_SEED = 8675309
+
+        # now update all parameters from kwargs, overriding the defaults if they are explicitly set
+        self.__dict__.update(kwargs)
+        # some config params rely on other config params which may have just changed!
+        # set those config params below now that everything is updated to a possible scenario.
+        self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
+        self.W_IDX = IntEnum(
+            "w_idx",
+            ["W" + str(idx) for idx in range(self.NUM_WANING_COMPARTMENTS)],
+            start=0,
+        )
+        self.WANING_TIME_MONTHS = self.WANING_TIME / 30.0
+        self.init_waning_protections_if_not_set()
         # Check that no values are incongruent with one another
-        self.assert_valid_values()
+        ConfigBase.assert_valid_values(self)
+
+    def init_waning_protections_if_not_set(self):
+        """
+        Checks if the waning protections curve is initalized by some scenario,
+        defaults to a waning protections curve as described by TODO
+        """
+        self.WANING_PROTECTIONS = (
+            jnp.array(
+                [
+                    self.INITAL_PROTECTION
+                    / (1 + jnp.e ** (-(2.46 - (0.2 * t))))
+                    for t in jnp.linspace(
+                        self.WANING_TIME_MONTHS,
+                        self.WANING_TIME_MONTHS * self.NUM_WANING_COMPARTMENTS,
+                        self.NUM_WANING_COMPARTMENTS,
+                    )
+                ]
+            )
+            if "WANING_PROTECTIONS" not in self.__dict__.keys()
+            else self.WANING_PROTECTIONS
+        )
 
     def assert_valid_values(self):
         assert self.POP_SIZE > 0, "population size must be a non-zero value"
@@ -104,6 +125,9 @@ class ConfigBase:
         assert self.NUM_WANING_COMPARTMENTS == len(
             self.WANING_PROTECTIONS
         ), "unable to load config, NUM_WANING_COMPARTMENTS must equal to len(WANING_PROTECTIONS)"
+        assert self.NUM_AGE_GROUPS == len(
+            self.AGE_LIMITS
+        ), "Number of age bins must match the NUM_AGE_GROUPS variable"
         assert (
             len(self.REGIONS) == 1
         ), "Currently model can only run on one Region at a time"
