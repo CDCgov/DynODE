@@ -16,13 +16,25 @@ jax.config.update("jax_enable_x64", True)
 
 
 class BasicMechanisticModel:
-    "Implementation of a basic Mechanistic model for scenario analysis"
+    """Implementation of a basic Mechanistic model for scenario analysis,
+    built by the build_basic_mechanistic_model() builder from a config file.
+    for a basic runable scenario use config.config_base.py in the following way.
+
+    from config.config_base import ConfigBase
+    from mechanistic_compartments import build_basic_mechanistic_model
+    `model = build_basic_mechanistic_model(ConfigBase())`
+    """
 
     def __init__(self, **kwargs):
         """
         Initalize a basic abstract mechanistic model for covid19 case prediction.
-        Should not be constructed directly, use build_basic_mechanistic_model()
+        Should not be constructed directly, use build_basic_mechanistic_model() with a config file
         """
+        # if users call __init__ instead of the builder function, kwargs will be empty, causing errors.
+        assert (
+            len(kwargs) > 0
+        ), "Do not initalize this object without the helper function build_basic_mechanistic_model() and a config file."
+
         # grab all parameters passed from config
         self.__dict__.update(kwargs)
 
@@ -52,7 +64,7 @@ class BasicMechanisticModel:
         )
 
         # if not given an inital infection distribution, use max eig value vector of contact matrix
-        # this has been shown to mirror similar
+        # disperse inital infections across infected and exposed based on sigma / gamma ratio.
         if not self.INIT_INFECTION_DIST and not self.INIT_EXPOSED_DIST:
             self.load_init_infection_and_exposed_dist()
 
@@ -65,6 +77,7 @@ class BasicMechanisticModel:
             / self.NUM_STRAINS
         )
 
+        # suseptibles = Total population - infected - recovered - waning
         inital_suseptible = (
             self.POPULATION
             - (self.INITIAL_INFECTIONS * self.INIT_INFECTION_DIST)
@@ -114,6 +127,7 @@ class BasicMechanisticModel:
         suseptibility_matrix = jnp.ones(
             (self.NUM_STRAINS, self.NUM_STRAINS)
         ) * (1 - jnp.diag(jnp.array([1] * self.NUM_STRAINS)))
+        # if your model expects added parameters, add them here
         args = {
             "beta": beta,
             "sigma": sigma,
@@ -131,6 +145,22 @@ class BasicMechanisticModel:
         return args
 
     def incidence(self, model, incidence):
+        """
+        Takes a model and some ground truth incidence,
+        returning the liklihood of observing the incidence according to the model
+
+        Parameters
+        ----------
+        model: function()
+            a standard ODE style function which takes in state, time, and parameters in that order.
+            for example functions see the model_odes folder.
+        incidence: list(int)
+            observed incidence of each compartment to compare against.
+
+        Returns
+        ----------
+        None
+        """
         term = ODETerm(
             lambda t, state, parameters: model(state, t, parameters)
         )
@@ -158,6 +188,18 @@ class BasicMechanisticModel:
         )
 
     def infer(self, model, incidence):
+        """
+        Runs inference given some observed incidence and a model of transmission dynamics.
+        Uses MCMC and NUTS for parameter tuning of the model returns estimated parameter values given incidence.
+
+        Parameters
+        ----------
+        model: function()
+            a standard ODE style function which takes in state, time, and parameters in that order.
+            for example functions see the model_odes folder.
+        incidence: list(int)
+            observed incidence of each compartment to compare against.
+        """
         mcmc = MCMC(
             NUTS(model, dense_mass=True),
             num_warmup=self.MCMC_NUM_WARMUP,
@@ -176,13 +218,35 @@ class BasicMechanisticModel:
         self,
         model,
         tf=100.0,
+        show=True,
         save=True,
         save_path="model_run.png",
         plot_compartments=["s", "e", "i", "r", "w0", "w1", "w2", "w3"],
     ):
         """
-        runs the mechanistic model using beta, gamma, sigma, and waning rate based on config file values.
-        Does not sample waning protections or R0 by strain.
+        Takes parameters from self and applies them to some disease dynamics modeled in `model`
+        from `t0=0` to `tf`. Optionally saving compartment plots from `plot_compartments` to `save_path` if `save=True`
+
+        Parameters
+        ----------
+        model: function()
+            a standard ODE style function which takes in state, time, and parameters in that order.
+            for example functions see the model_odes folder.
+        tf: int
+            stopping time point (with default configuration this is days)
+        show: boolean
+            whether or not to show an image via matplotlib.pyplot.show()
+        save: boolean
+            whether or not to save an image and its metadata to `save_path`
+        save_path: str
+            relative or absolute path where to save an image and its metadata if `save=True`
+        plot_compartments: list(str)
+            a list of compartments to plot in the image, strings may be upper or lower case and must match
+            strings specified in self.IDX or self.W_IDX.
+
+        Returns
+        ----------
+        Diffrax.Solution object as described by https://docs.kidger.site/diffrax/api/solution/
         """
         term = ODETerm(
             lambda t, state, parameters: model(state, t, parameters)
@@ -209,14 +273,14 @@ class BasicMechanisticModel:
             solution,
             plot_compartments=plot_compartments,
             save_path=save_path,
+            show=show,
         )
+        if show:
+            plt.show(fig)
         return solution
 
     def plot_diffrax_solution(
-        self,
-        sol,
-        plot_compartments=["s", "e", "i", "r"],
-        save_path=None,
+        self, sol, plot_compartments=["s", "e", "i", "r"], save_path=None
     ):
         """
         plots a run from diffeqsolve() with compartments `plot_compartments` returning figure and axis.
@@ -225,7 +289,7 @@ class BasicMechanisticModel:
         Parameters
         ----------
         sol : difrax.Solution
-            object containing ODE run
+            object containing ODE run as described by https://docs.kidger.site/diffrax/api/solution/
         plot_compartment : list(str)
             compartment titles as defined by the config file used to initialize self
         save_path : str

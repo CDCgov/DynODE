@@ -57,6 +57,16 @@ def sample_waning_protections(waning_protect_means):
 
 
 def generate_yearly_age_bins_from_limits(age_limits):
+    """
+    given age limits, generates age bins with each year contained in that bin up to 85 years old exclusvive
+    for example given age_limits = [0, 5, 10, 15 ... 80]
+    returns [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14]... [80, 81, 82, 83, 84]]
+    Parameters
+    ----------
+    age_limits: list(int):
+        beginning with minimum age inclusive, boundary of each age bin exclusive. Not including last age bin.
+        do not include implicit 85 in age_limits, this function appends that bin automatically.
+    """
     age_groups = []
     for age_idx in range(1, len(age_limits)):
         age_groups.append(
