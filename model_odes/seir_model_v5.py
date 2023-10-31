@@ -106,6 +106,7 @@ def seirw_ode(state, _, parameters):
             # waning from recovered into first waning compartment
             dw = dw.at[:, :, w_idx].add(dr_to_w)
             # vaccination from suseptible into first waning compartment, first strain only
+            # TODO vaccination in alpha strain currently. move to omicron?
             dw = dw.at[:, 0, w_idx].add(ds_to_w)  # TODO fix this 0 hard code
         # last compartment doesnt wane
         # only top waning compartment receives people from "r"

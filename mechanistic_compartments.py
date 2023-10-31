@@ -64,40 +64,38 @@ class BasicMechanisticModel:
         )
 
         # if not given an inital infection distribution, use max eig value vector of contact matrix
-        # disperse inital infections across infected and exposed based on sigma / gamma ratio.
-        if not self.INIT_INFECTION_DIST and not self.INIT_EXPOSED_DIST:
-            self.load_init_infection_and_exposed_dist()
-
-        # with inital infection distribution by age group, break down uniformally by number of strains.
-        # TODO non-uniform strain distribution within load_init_infection_and_exposed_dist().
-        self.INITIAL_INFECTIONS_BY_STRAIN = (
-            self.INITIAL_INFECTIONS
-            * self.INIT_INFECTION_DIST[:, None]
-            * np.ones(self.NUM_STRAINS)
-            / self.NUM_STRAINS
-        )
+        # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
+        if not self.INIT_INFECTED_DIST and not self.INIT_EXPOSED_DIST:
+            self.load_init_infection_infected_and_exposed_dist()
 
         # suseptibles = Total population - infected - recovered - waning
-        inital_suseptible = (
+        inital_suseptible_count = (
             self.POPULATION
             - (self.INITIAL_INFECTIONS * self.INIT_INFECTION_DIST)
             - (self.POPULATION * init_recovered_strain_summed)
             - (self.POPULATION * init_waning_strain_compartment_summed)
         )
-        inital_recovered = (
+        inital_recovered_count = (
             self.POPULATION * self.INIT_RECOVERED_DIST.transpose()
         ).transpose()
-        inital_waning = (
+        inital_waning_count = (
             self.POPULATION * self.INIT_WANING_DIST.transpose()
         ).transpose()
 
+        initial_infectious_count = (
+            self.INITIAL_INFECTIONS * self.INIT_INFECTED_DIST
+        )
+        initial_exposed_count = (
+            self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
+        )
+
         # TODO change initial E to exposure dist once load_init_infection_and_exposed_dist() finished
         self.INITIAL_STATE = (
-            inital_suseptible,  # s
-            np.zeros((self.NUM_AGE_GROUPS, self.NUM_STRAINS)),  # e
-            self.INITIAL_INFECTIONS_BY_STRAIN,  # i
-            inital_recovered,  # r
-            inital_waning,  # w
+            inital_suseptible_count,  # s
+            initial_exposed_count,  # e
+            initial_infectious_count,  # i
+            inital_recovered_count,  # r
+            inital_waning_count,  # w
         )
 
     def get_args(self, sample=False):
@@ -273,10 +271,9 @@ class BasicMechanisticModel:
             solution,
             plot_compartments=plot_compartments,
             save_path=save_path,
-            show=show,
         )
         if show:
-            plt.show(fig)
+            plt.show()
         return solution
 
     def plot_diffrax_solution(
@@ -348,7 +345,7 @@ class BasicMechanisticModel:
         (
             self.INIT_RECOVERED_DIST,
             self.INIT_WANING_DIST,
-        ) = utils.load_serology_demographics(
+        ) = utils.past_infection_dist_from_serology_demographics(
             sero_path,
             pop_path,
             self.AGE_LIMITS,
@@ -381,18 +378,65 @@ class BasicMechanisticModel:
             self.AGE_LIMITS,
         )["United States"]["avg_CM"]
 
-    def load_init_infection_and_exposed_dist(self):
+    def load_init_infection_infected_and_exposed_dist(self):
         """
-        initalizes the inital infection and exposed distribution across age bins.
+        loads the inital infection distribution by age, then separates infections into an
+        infected and exposed distribution, all infections assumed to be omicron.
+        utilizes the ratio between gamma and sigma to determine what proportion of inital infections belong in the
+        exposed (soon to be infectious), and the already infectious compartments.
+
+        infections are stratified across age bins based on proportion of each age bin
+        in individuals who have recent sero-converted before model initalization date.
+        Equivalent to using proportion of each age bin in self.INIT_RECOVERED_DIST
+
+        given that `INIT_INFECTION_DIST` = `INIT_EXPOSED_DIST` + `INIT_INFECTED_DIST`
+        MODIFIES
+        ----------
+        self.INIT_INFECTION_DIST: jnp.array(int)
+            populates values using seroprevalence to produce a distribution of how infections are
+            stratified by age bin. INIT_INFECTION_DIST.shape = (self.NUM_AGE_GROUPS,)
+
+        self.INIT_EXPOSED_DIST: jnp.array(int)
+            proportion of INIT_INFECTION_DIST that falls into exposed compartment, formatted into the omicron strain.
+            INIT_EXPOSED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
+
+        self.INIT_INFECTED_DIST: jnp.array(int)
+            proportion of INIT_INFECTION_DIST that falls into infected compartment, formatted into the omicron strain.
+            INIT_INFECTED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
         """
-        # TODO initialize infections using omicron strain,
-        # distributed between E and I based on the ratio of gamma and sigma,
-        # and distributed by age based on the seroprevalence by age.
-        eig_data = np.linalg.eig(self.CONTACT_MATRIX)
-        max_index = np.argmax(eig_data[0])
-        self.INIT_INFECTION_DIST = abs(eig_data[1][:, max_index])
+        # TODO initialize infections by age based on the seroprevalence by age.
+        # since we are assuming similar dynamics in short time frames
+        # we expect to see similar proportions of each age bin in new infections as recovered
+        self.INIT_INFECTION_DIST = self.INIT_RECOVERED_DIST[
+            :, self.STRAIN_IDX.omicron
+        ]
+        # old method was to use contact matrix max eigan value. produce diff values and ranking
+        # [0.30490018 0.28493648 0.23049002 0.17967332] sero method 4 age bins
+        # [0.27707683 0.45785665 0.1815728  0.08349373] contact matrix method, 4 bins
+        # eig_data = np.linalg.eig(self.CONTACT_MATRIX)
+        # max_index = np.argmax(eig_data[0])
+        # self.INIT_INFECTION_DIST = abs(eig_data[1][:, max_index])
+        # infections does not equal INFECTED.
+        # infected is a compartment, infections means successful passing of virus
         self.INIT_INFECTION_DIST = self.INIT_INFECTION_DIST / sum(
             self.INIT_INFECTION_DIST
+        )
+        # ratio of gamma / sigma defines our infected to exposed ratio at any given time
+        exposed_to_infected_ratio = (
+            self.EXPOSED_TO_INFECTIOUS / self.INFECTIOUS_PERIOD
+        )
+        self.INIT_EXPOSED_DIST = (
+            exposed_to_infected_ratio * self.INIT_INFECTION_DIST
+        )
+        self.INIT_EXPOSED_DIST = self.INIT_EXPOSED_DIST[:, None] * np.array(
+            [0] * self.STRAIN_IDX.omicron + [1]
+        )
+        self.INIT_INFECTED_DIST = (
+            1 - exposed_to_infected_ratio
+        ) * self.INIT_INFECTION_DIST
+
+        self.INIT_INFECTED_DIST = self.INIT_INFECTED_DIST[:, None] * np.array(
+            [0] * self.STRAIN_IDX.omicron + [1]
         )
 
 

@@ -53,6 +53,7 @@ class ConfigBase:
         self.INIT_EXPOSED_DIST = None
         self.INIT_WANING_DIST = None
         self.INIT_RECOVERED_DIST = None
+        self.INIT_INFECTED_DIST = None
         self.NUM_COMPARTMENTS = 5
         # indexes ENUM for readability in code
         self.IDX = IntEnum("idx", ["S", "E", "I", "R", "W"], start=0)
@@ -70,9 +71,17 @@ class ConfigBase:
         # some config params rely on other config params which may have just changed!
         # set those config params below now that everything is updated to a possible scenario.
         self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
+        # enum for marking waning indexes, improving readability
         self.W_IDX = IntEnum(
             "w_idx",
             ["W" + str(idx) for idx in range(self.NUM_WANING_COMPARTMENTS)],
+            start=0,
+        )
+        # in each compartment that is strain stratified we use strain indexes to improve readability.
+        # omicron will always be index=2 if num_strains >= 3. In a two strain model we must combine alpha and delta together.
+        self.STRAIN_IDX = IntEnum(
+            "strain_idx",
+            ["alpha", "delta", "omicron"][3 - self.NUM_STRAINS :],
             start=0,
         )
         self.WANING_TIME_MONTHS = self.WANING_TIME / 30.0
