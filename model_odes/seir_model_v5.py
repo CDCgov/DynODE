@@ -35,7 +35,7 @@ def seirw_ode(state, _, parameters):
     contact_matrix = parameters["contact_matrix"]
     vax_rate = parameters["vax_rate"]
     waning_protections = parameters["waning_protections"]
-    wanning_rate = parameters["wanning_rate"]
+    waning_rate = parameters["waning_rate"]
     population = parameters["population"]
     susceptibility_matrix = parameters["susceptibility_matrix"]
     num_strains = parameters["num_strains"]
@@ -48,7 +48,7 @@ def seirw_ode(state, _, parameters):
 
     de_to_i = sigma * e  # exposure -> infectious
     di_to_r = gamma * i  # infectious -> recovered
-    dr_to_w = wanning_rate * r
+    dr_to_w = waning_rate * r
     # guaranteed to wane into first waning compartment remaining in their strains.
 
     dw = jnp.zeros(w.shape)
@@ -79,7 +79,7 @@ def seirw_ode(state, _, parameters):
         w_waned = (
             0
             if w_idx == num_waning_compartments - 1
-            else wanning_rate * w[:, :, w_idx]
+            else waning_rate * w[:, :, w_idx]
         )
         # waned individuals being vaccinated, no w1 -> w1 vaccination of top compartment
         w_vaxed = 0 if w_idx == 0 else vax_rate * w[:, :, w_idx]
@@ -97,7 +97,7 @@ def seirw_ode(state, _, parameters):
                 ]
             )
         else:
-            w_gained = wanning_rate * w[:, :, w_idx - 1]
+            w_gained = waning_rate * w[:, :, w_idx - 1]
 
         dw = dw.at[:, :, w_idx].add(-w_waned)
         dw = dw.at[:, :, w_idx].add(w_gained)

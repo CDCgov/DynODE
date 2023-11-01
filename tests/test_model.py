@@ -57,7 +57,9 @@ def test_output_shapes():
 
 def test_r0_at_1_constant_infections():
     """tests to make sure E + I derivative flows cancel out when
-    R0 = 1, there are no vaccinations, and initial infections distributed based on contact matrix
+    R0 = 1, there are no vaccinations, and initial infections distributed based on contact matrix.
+
+    TODO This test now fails because we initalize with non-uniform infections
     """
     model_r0_1_vax_0 = build_basic_mechanistic_model(config_r0_1_vax_0())
     state = model_r0_1_vax_0.INITIAL_STATE
@@ -93,7 +95,9 @@ def test_constant_population():
 
 
 def test_no_exposed_r0_0():
-    """tests that models with an r0 of 0 have no exposures, regardless of initial infections"""
+    """tests that models with an r0 of 0 have no exposures, regardless of initial infections
+    TODO this test now fails because we initalize with exposed persons in the INITIAL_STATE.
+    """
     model_r0_0_with_vax = build_basic_mechanistic_model(config_r0_0())
     state = model_r0_0_with_vax.INITIAL_STATE
     first_derivatives = MODEL(
@@ -108,6 +112,8 @@ def test_strains_equal():
     """tests that all models with equal r0s across strains and no vaccination
     have equal flows of people to each strain.
     Vaccination is excluded as persons are vaccinated for a particular strain
+
+    TODO this test now fails because we initalize with all infected in the omicron strain, not uniform anymore
     """
     for test_model in no_vax_models:
         state = test_model.INITIAL_STATE

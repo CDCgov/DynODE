@@ -88,8 +88,6 @@ class BasicMechanisticModel:
         initial_exposed_count = (
             self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
         )
-
-        # TODO change initial E to exposure dist once load_init_infection_and_exposed_dist() finished
         self.INITIAL_STATE = (
             inital_suseptible_count,  # s
             initial_exposed_count,  # e
@@ -119,7 +117,7 @@ class BasicMechanisticModel:
 
         gamma = 1 / self.INFECTIOUS_PERIOD
         sigma = 1 / self.EXPOSED_TO_INFECTIOUS
-        wanning_rate = 1 / self.WANING_TIME
+        waning_rate = 1 / self.WANING_TIME
         # default to no cross immunity, setting diagnal to 0
         # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
         suseptibility_matrix = jnp.ones(
@@ -133,7 +131,7 @@ class BasicMechanisticModel:
             "contact_matrix": self.CONTACT_MATRIX,
             "vax_rate": self.VACCINATION_RATE,
             "waning_protections": waning_protections,
-            "wanning_rate": wanning_rate,
+            "waning_rate": waning_rate,
             "mu": self.BIRTH_RATE,
             "population": self.POPULATION,
             "susceptibility_matrix": suseptibility_matrix,
