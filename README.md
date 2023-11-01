@@ -18,7 +18,7 @@ In order to run this model and get basic results follow these steps:
 2. Build a BasicMechanisticModel class with the builder or from scratch.
 3. use the `.run` command to run without inference, and `.infer()` to use MCMC to fit some parameter values.
 
-Here is an example script of a basic run without inference of parameters, saving the simulation as an image to output/example.png:
+Here is an example script of a basic run of 100 days without inference of parameters, saving the simulation as an image to output/example.png:
 ```
 from model_odes.seir_model_v5 import seirw_ode
 from mechanistic_compartments import build_basic_mechanistic_model
