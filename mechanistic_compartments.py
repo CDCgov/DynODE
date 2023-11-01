@@ -1,9 +1,12 @@
+import os
+
 import jax.config
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
+import pandas as pd
 from diffrax import ODETerm, SaveAt, Tsit5, diffeqsolve
 from jax.random import PRNGKey
 from numpyro.infer import MCMC, NUTS
@@ -337,6 +340,16 @@ class BasicMechanisticModel:
             self.SEROLOGICAL_DATA
             + "Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
         )
+        # pre-commit does not like pushing the sero data to the repo, so many on first run wont have it.
+        if not os.path.exists(sero_path):
+            # download the data from CDC website
+            print(
+                "seems like you are missing the serology data, lets download it from data.cdc.gov and place here here: "
+                + sero_path
+            )
+            download_link = "https://data.cdc.gov/api/views/d2tw-32xv/rows.csv"
+            sero_data = pd.read_csv(download_link)
+            sero_data.to_csv(sero_path, index=False)
         pop_path = (
             self.DEMOGRAPHIC_DATA + "population_rescaled_age_distributions/"
         )

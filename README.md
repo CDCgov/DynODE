@@ -20,18 +20,18 @@ In order to run this model and get basic results follow these steps:
 
 Here is an example script of a basic run without inference of parameters, saving the simulation as an image to output/example.png:
 ```
-from model_odes.seir_model_v4 import seirw_ode
+from model_odes.seir_model_v5 import seirw_ode
 from mechanistic_compartments import build_basic_mechanistic_model
-from config.config_base import ModelConfig
+from config.config_base import ConfigBase
 
-solution = build_basic_mechanistic_model(ModelConfig).run(seirw_ode, save_path="output/example.png")
+solution = build_basic_mechanistic_model(ConfigBase()).run(seirw_ode, save_path="output/example.png")
 ```
 
 ## Data Sources
 
 The model is fed the following data sources:
 1. data/demographic-data/contact_matricies : Dinas contact matricies todo
-2. data source 2 : used in the following way todo
+2. data/serological-data/* : serology data sourced from: [data.cdc.gov](https://data.cdc.gov/Laboratory-Surveillance/Nationwide-Commercial-Laboratory-Seroprevalence-Su/d2tw-32xv)
 
 ## Project Admin
 
