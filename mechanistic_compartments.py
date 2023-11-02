@@ -327,8 +327,7 @@ class BasicMechanisticModel:
         fig.legend()
         if save_path:
             fig.savefig(save_path)
-            # saving self, including all data used to generate figure, to JSON file
-            with open(save_path + "_meta.json", "x") as meta:
+            with open(save_path + "_meta.txt", "w") as meta:
                 self.to_json(meta)
         return fig, ax
 
@@ -352,6 +351,7 @@ class BasicMechanisticModel:
             )
             download_link = "https://data.cdc.gov/api/views/d2tw-32xv/rows.csv"
             sero_data = pd.read_csv(download_link)
+            os.makedirs(self.SEROLOGICAL_DATA, exist_ok=True)
             sero_data.to_csv(sero_path, index=False)
         pop_path = (
             self.DEMOGRAPHIC_DATA + "population_rescaled_age_distributions/"
