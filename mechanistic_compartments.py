@@ -220,6 +220,7 @@ class BasicMechanisticModel:
         show=True,
         save=True,
         save_path="model_run.png",
+        overwrite=True,
         plot_compartments=["s", "e", "i", "r", "w0", "w1", "w2", "w3"],
     ):
         """
@@ -272,6 +273,7 @@ class BasicMechanisticModel:
             solution,
             plot_compartments=plot_compartments,
             save_path=save_path,
+            overwrite=overwrite
         )
         if show:
             plt.show()
@@ -349,6 +351,7 @@ class BasicMechanisticModel:
             )
             download_link = "https://data.cdc.gov/api/views/d2tw-32xv/rows.csv"
             sero_data = pd.read_csv(download_link)
+            os.makedirs(self.SEROLOGICAL_DATA, exist_ok=True)
             sero_data.to_csv(sero_path, index=False)
         pop_path = (
             self.DEMOGRAPHIC_DATA + "population_rescaled_age_distributions/"
