@@ -1,4 +1,6 @@
+import json
 import os
+from enum import EnumMeta
 
 import jax.config
 import jax.numpy as jnp
@@ -326,7 +328,7 @@ class BasicMechanisticModel:
         if save_path:
             fig.savefig(save_path)
             with open(save_path + "_meta.txt", "w") as meta:
-                meta.write(str(self.__dict__))
+                self.to_json(meta)
         return fig, ax
 
     def load_waning_and_recovered_distributions(self):
@@ -450,6 +452,29 @@ class BasicMechanisticModel:
         self.INIT_INFECTED_DIST = self.INIT_INFECTED_DIST[:, None] * np.array(
             [0] * self.STRAIN_IDX.omicron + [1]
         )
+
+    def to_json(self, file):
+        """
+        a simple method which takes self.__dict__ and dumps it into `file`.
+        this method effectively deals with nested numpy and jax arrays
+        which are normally not JSON serializable and cause errors.
+        PARAMETERS
+        ----------
+        file: TextIOWrapper
+            a file object that can be written to, usually the result of a call like open("file.txt") as f
+        """
+
+        class CustomEncoder(json.JSONEncoder):
+            def default(self, obj):
+                if isinstance(obj, np.ndarray) or isinstance(obj, jnp.ndarray):
+                    return obj.tolist()
+                if isinstance(obj, EnumMeta):
+                    return {
+                        str(e): idx for e, idx in zip(obj, range(len(obj)))
+                    }
+                return json.JSONEncoder.default(self, obj)
+
+        return json.dump(self.__dict__, file, indent=4, cls=CustomEncoder)
 
 
 def build_basic_mechanistic_model(config: config):

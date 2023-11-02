@@ -1,3 +1,4 @@
+import os
 from enum import IntEnum
 
 import jax.numpy as jnp
@@ -23,13 +24,12 @@ class ConfigBase:
         self.REGIONS = ["United States"]
         self.DEMOGRAPHIC_DATA = "data/demographic-data/"
         self.SEROLOGICAL_DATA = "data/serological-data/"
-        self.SAVE_PATH = "../output/"
+        self.SAVE_PATH = "output/"
         # CONTACT MATRICES & DEMOGRAPHY
         self.MINIMUM_AGE = 0  # why was this 1
         # age limits for each age bin in the model, begining with minimum age
         # values are exclusive in upper bound. so [0,18) means 0-17, 18+
         self.AGE_LIMITS = [self.MINIMUM_AGE, 18, 50, 65]
-        self.NUM_STRAINS = 3
         # FIXED SEIR PARAMETERS
         self.POP_SIZE = 20000
         self.BIRTH_RATE = 1 / 75.0  # mu #TODO IMPLEMENT DEATHS
@@ -71,6 +71,7 @@ class ConfigBase:
         # some config params rely on other config params which may have just changed!
         # set those config params below now that everything is updated to a possible scenario.
         self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
+        self.NUM_STRAINS = len(self.STRAIN_SPECIFIC_R0)
         # enum for marking waning indexes, improving readability
         self.W_IDX = IntEnum(
             "w_idx",
@@ -111,7 +112,126 @@ class ConfigBase:
         )
 
     def assert_valid_values(self):
+        assert os.path.exists(self.SAVE_PATH), (
+            "%s is not a valid path" % self.SAVE_PATH
+        )
+        assert os.path.exists(self.DEMOGRAPHIC_DATA), (
+            "%s is not a valid path" % self.DEMOGRAPHIC_DATA
+        )
+        assert os.path.exists(self.SEROLOGICAL_DATA), (
+            "%s is not a valid path" % self.SEROLOGICAL_DATA
+        )
+        assert self.MINIMUM_AGE >= 0, "no negative minimum ages, lowest is 0"
+        assert (
+            self.AGE_LIMITS[0] == self.MINIMUM_AGE
+        ), "first age in AGE_LIMITS must be self.MINIMUM_AGE"
+        assert all(
+            [
+                self.AGE_LIMITS[idx] > self.AGE_LIMITS[idx - 1]
+                for idx in range(1, len(self.AGE_LIMITS))
+            ]
+        ), "AGE_LIMITS must be strictly increasing"
+        assert (
+            self.AGE_LIMITS[-1] < 85
+        ), "age limits can not exceed 84 years of age, the last age bin is implied and does not need to be included"
         assert self.POP_SIZE > 0, "population size must be a non-zero value"
+        assert (
+            self.INITIAL_INFECTIONS <= self.POP_SIZE
+        ), "cant have more initial infections than total population size"
+
+        # if user has supplied custom values for distributions instead of using prebuilt ones, sanity check them here
+        if self.INITIAL_POPULATION_FRACTIONS:
+            assert self.INITIAL_POPULATION_FRACTIONS.shape == (
+                self.NUM_AGE_GROUPS,
+            ), (
+                "INITIAL_POPULATION_FRACTIONS must be of shape %s, received %s"
+                % (
+                    str((self.NUM_AGE_GROUPS,)),
+                    str(self.INITIAL_POPULATION_FRACTIONS.shape),
+                )
+            )
+            assert (
+                sum(self.INITIAL_POPULATION_FRACTIONS) == 1.0
+            ), "population fractions must sum to 1"
+
+        if self.INIT_INFECTION_DIST:
+            assert self.INIT_INFECTION_DIST.shape == (
+                self.NUM_AGE_GROUPS,
+            ), "INIT_INFECTION_DIST must be of shape %s, received %s" % (
+                str((self.NUM_AGE_GROUPS,)),
+                str(self.INIT_INFECTION_DIST.shape),
+            )
+
+        if self.CONTACT_MATRIX:
+            assert self.CONTACT_MATRIX.shape == (
+                self.NUM_AGE_GROUPS,
+                self.NUM_AGE_GROUPS,
+            ), "CONTACT_MATRIX must be of shape %s, received %s" % (
+                str(
+                    (
+                        self.NUM_AGE_GROUPS,
+                        self.NUM_AGE_GROUPS,
+                    )
+                ),
+                str(self.CONTACT_MATRIX.shape),
+            )
+        if self.INIT_INFECTED_DIST:
+            assert self.INIT_INFECTED_DIST.shape == (
+                self.NUM_AGE_GROUPS,
+                self.NUM_STRAINS,
+            ), "INIT_INFECTED_DIST must be of shape %s, received %s" % (
+                str(
+                    (
+                        self.NUM_AGE_GROUPS,
+                        self.NUM_STRAINS,
+                    )
+                ),
+                str(self.INIT_INFECTED_DIST.shape),
+            )
+
+        if self.INIT_EXPOSED_DIST:
+            assert self.INIT_EXPOSED_DIST.shape == (
+                self.NUM_AGE_GROUPS,
+                self.NUM_STRAINS,
+            ), "INIT_EXPOSED_DIST must be of shape %s, received %s" % (
+                str(
+                    (
+                        self.NUM_AGE_GROUPS,
+                        self.NUM_STRAINS,
+                    )
+                ),
+                str(self.INIT_EXPOSED_DIST.shape),
+            )
+
+        if self.INIT_WANING_DIST:
+            assert self.INIT_WANING_DIST.shape == (
+                self.NUM_AGE_GROUPS,
+                self.NUM_STRAINS,
+                self.NUM_WANING_COMPARTMENTS,
+            ), "INIT_WANING_DIST must be of shape %s, received %s" % (
+                str(
+                    (
+                        self.NUM_AGE_GROUPS,
+                        self.NUM_STRAINS,
+                        self.NUM_WANING_COMPARTMENTS,
+                    )
+                ),
+                str(self.INIT_WANING_DIST.shape),
+            )
+        if self.INIT_RECOVERED_DIST:
+            assert self.INIT_RECOVERED_DIST.shape == (
+                self.NUM_AGE_GROUPS,
+                self.NUM_STRAINS,
+            ), "INIT_RECOVERED_DIST must be of shape %s, received %s" % (
+                str(
+                    (
+                        self.NUM_AGE_GROUPS,
+                        self.NUM_STRAINS,
+                    )
+                ),
+                str(self.INIT_RECOVERED_DIST.shape),
+            )
+
         assert self.BIRTH_RATE >= 0, "BIRTH_RATE can not be negative"
         assert (
             self.INFECTIOUS_PERIOD >= 0
@@ -129,8 +249,21 @@ class ConfigBase:
             len(self.STRAIN_SPECIFIC_R0) > 0
         ), "Must specify at least 1 strain R0"
         assert (
+            self.WANING_TIME >= 1
+        ), "Can not have waning time less than 1 day, time is in days if you meant to put months"
+        assert isinstance(
+            self.WANING_TIME, int
+        ), "WANING_TIME must be of type int, no fractional days"
+        assert (
+            self.INITAL_PROTECTION <= 1 and self.INITAL_PROTECTION >= 0
+        ), "INITIAL_PROTECTION must be between 0 and 1 inclusive"
+        assert self.NUM_STRAINS >= 1, "No such thing as a 0 strain model"
+        assert (
             len(self.STRAIN_SPECIFIC_R0) == self.NUM_STRAINS
         ), "Number of R0s must match number of strains"
+        assert (
+            self.NUM_WANING_COMPARTMENTS >= 0
+        ), "cant have negative number of waning compartments"
         assert self.NUM_WANING_COMPARTMENTS == len(
             self.WANING_PROTECTIONS
         ), "unable to load config, NUM_WANING_COMPARTMENTS must equal to len(WANING_PROTECTIONS)"
