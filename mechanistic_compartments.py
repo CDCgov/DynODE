@@ -424,9 +424,6 @@ class BasicMechanisticModel:
         self.INIT_INFECTION_DIST = self.INIT_RECOVERED_DIST[
             :, self.STRAIN_IDX.omicron
         ]
-        # old method was to use contact matrix max eigan value. produce diff values and ranking
-        # [0.30490018 0.28493648 0.23049002 0.17967332] sero method 4 age bins
-        # [0.27707683 0.45785665 0.1815728  0.08349373] contact matrix method, 4 bins
         # eig_data = np.linalg.eig(self.CONTACT_MATRIX)
         # max_index = np.argmax(eig_data[0])
         # self.INIT_INFECTION_DIST = abs(eig_data[1][:, max_index])
@@ -435,6 +432,10 @@ class BasicMechanisticModel:
         self.INIT_INFECTION_DIST = self.INIT_INFECTION_DIST / sum(
             self.INIT_INFECTION_DIST
         )
+        # old method was to use contact matrix max eigan value. produce diff values and ranking
+        # [0.30490018 0.28493648 0.23049002 0.17967332] sero method 4 age bins
+        # [0.27707683 0.45785665 0.1815728  0.08349373] contact matrix method, 4 bins
+
         # ratio of gamma / sigma defines our infected to exposed ratio at any given time
         exposed_to_infected_ratio = (
             self.EXPOSED_TO_INFECTIOUS / self.INFECTIOUS_PERIOD
@@ -442,6 +443,7 @@ class BasicMechanisticModel:
         self.INIT_EXPOSED_DIST = (
             exposed_to_infected_ratio * self.INIT_INFECTION_DIST
         )
+        # INIT_EXPOSED_DIST is not strain stratified, put infected into the omicron strain via indicator vec
         self.INIT_EXPOSED_DIST = self.INIT_EXPOSED_DIST[:, None] * np.array(
             [0] * self.STRAIN_IDX.omicron + [1]
         )
@@ -449,6 +451,7 @@ class BasicMechanisticModel:
             1 - exposed_to_infected_ratio
         ) * self.INIT_INFECTION_DIST
 
+        # INIT_INFECTED_DIST is not strain stratified, put infected into the omicron strain via indicator vec
         self.INIT_INFECTED_DIST = self.INIT_INFECTED_DIST[:, None] * np.array(
             [0] * self.STRAIN_IDX.omicron + [1]
         )
