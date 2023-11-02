@@ -220,7 +220,6 @@ class BasicMechanisticModel:
         show=True,
         save=True,
         save_path="model_run.png",
-        overwrite=True,
         plot_compartments=["s", "e", "i", "r", "w0", "w1", "w2", "w3"],
     ):
         """
@@ -273,7 +272,6 @@ class BasicMechanisticModel:
             solution,
             plot_compartments=plot_compartments,
             save_path=save_path,
-            overwrite=overwrite
         )
         if show:
             plt.show()
@@ -327,7 +325,7 @@ class BasicMechanisticModel:
         fig.legend()
         if save_path:
             fig.savefig(save_path)
-            with open(save_path + "_meta.txt", "x") as meta:
+            with open(save_path + "_meta.txt", "w") as meta:
                 meta.write(str(self.__dict__))
         return fig, ax
 
