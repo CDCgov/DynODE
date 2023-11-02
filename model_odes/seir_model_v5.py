@@ -2,6 +2,12 @@ import jax.numpy as jnp
 import numpy as np
 
 
+class Parameters(object):
+    """ A dummy container that converts a dictionary into attributes. """
+    def __init__(self, dict: dict):
+        self.__dict__ = dict
+
+
 def seirw_ode(state, _, parameters):
     """
     A basic SEIRW ODE model to be used in solvers such as odeint or diffeqsolve
@@ -15,9 +21,8 @@ def seirw_ode(state, _, parameters):
     _ : None
     Formally used to denote current time of the model, is not currently used in this function
 
-    parameters : array-like pytree
-    a tuple or any array-like object capable of unpacking, holding the values of any parameters
-    needed by the SEIRW model.
+    parameters : a dictionary
+    a dictionary holding the values of parameters needed by the SEIRW model.
 
     Returns:
     a tuple containing the rates of change of all compartments given in the `state` parameter.
@@ -29,41 +34,32 @@ def seirw_ode(state, _, parameters):
     # dims e/i/r = (dc.NUM_AGE_GROUPS, dc.NUM_STRAINS)
     # dims w = (dc.NUM_AGE_GROUPS, dc.NUM_STRAINS, mc.NUM_WANING_COMPARTMENTS)
     s, e, i, r, w = state
-    beta = parameters["beta"]
-    sigma = parameters["sigma"]
-    gamma = parameters["gamma"]
-    contact_matrix = parameters["contact_matrix"]
-    vax_rate = parameters["vax_rate"]
-    waning_protections = parameters["waning_protections"]
-    waning_rate = parameters["waning_rate"]
-    population = parameters["population"]
-    susceptibility_matrix = parameters["susceptibility_matrix"]
-    num_strains = parameters["num_strains"]
-    num_waning_compartments = parameters["num_waning_compartments"]
+    p = Parameters(parameters)
+
     # TODO when adding birth and deaths just create it as a compartment
-    force_of_infection = beta * contact_matrix.dot(i) / population[:, None]
+    force_of_infection = p.beta * p.contact_matrix.dot(i) / p.population[:, None]
     ds_to_e = force_of_infection * s[:, None]
 
-    ds_to_w = s * vax_rate  # vaccination of suseptibles
+    ds_to_w = s * p.vax_rate  # vaccination of suseptibles
 
-    de_to_i = sigma * e  # exposure -> infectious
-    di_to_r = gamma * i  # infectious -> recovered
-    dr_to_w = waning_rate * r
+    de_to_i = p.sigma * e  # exposure -> infectious
+    di_to_r = p.gamma * i  # infectious -> recovered
+    dr_to_w = p.waning_rate * r
     # guaranteed to wane into first waning compartment remaining in their strains.
 
     dw = jnp.zeros(w.shape)
     de = jnp.zeros(e.shape)
     # competition between strains for waned individuals + reinfection by same strain
-    for strain_source_idx in range(num_strains):
+    for strain_source_idx in range(p.num_strains):
         force_of_infection_strain = force_of_infection[:, strain_source_idx]
-        for strain_target_idx in range(num_strains):
+        for strain_target_idx in range(p.num_strains):
             # strain_source_idx will attempt to infect those previously infected with strain_target_idx.
             ws_by_age = w[:, strain_target_idx, :]
-            partial_susceptibility = susceptibility_matrix[
+            partial_susceptibility = p.susceptibility_matrix[
                 strain_source_idx, strain_target_idx
             ]
             effective_ws_by_age = ws_by_age * (
-                1 - (waning_protections * (1 - partial_susceptibility))
+                1 - (p.waning_protections * (1 - partial_susceptibility))
             )
             ws_exposed = (
                 force_of_infection_strain[:, None] * effective_ws_by_age
@@ -78,18 +74,18 @@ def seirw_ode(state, _, parameters):
         # waning from waning compartment to waning compartment, last compartment does not wane
         w_waned = (
             0
-            if w_idx == num_waning_compartments - 1
-            else waning_rate * w[:, :, w_idx]
+            if w_idx == p.num_waning_compartments - 1
+            else p.waning_rate * w[:, :, w_idx]
         )
         # waned individuals being vaccinated, no w1 -> w1 vaccination of top compartment
-        w_vaxed = 0 if w_idx == 0 else vax_rate * w[:, :, w_idx]
+        w_vaxed = 0 if w_idx == 0 else p.vax_rate * w[:, :, w_idx]
         # persons gained from waning of compartments above
         # vaccination from all below compartments in the case of top compartment (to even out w_vaxed)
         w_gained = 0
         if w_idx == 0:
             w_gained = sum(
                 [
-                    vax_rate * w[:, :, w_idx_loop]
+                    p.vax_rate * w[:, :, w_idx_loop]
                     for w_idx_loop in range(w.shape[-1])
                     if w_idx_loop != 0
                     # we may want a dw1_to_w1 to represent recent infection getting vaccinated
@@ -97,7 +93,7 @@ def seirw_ode(state, _, parameters):
                 ]
             )
         else:
-            w_gained = waning_rate * w[:, :, w_idx - 1]
+            w_gained = p.waning_rate * w[:, :, w_idx - 1]
 
         dw = dw.at[:, :, w_idx].add(-w_waned)
         dw = dw.at[:, :, w_idx].add(w_gained)
