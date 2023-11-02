@@ -71,6 +71,10 @@ class ConfigBase:
         # some config params rely on other config params which may have just changed!
         # set those config params below now that everything is updated to a possible scenario.
         self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
+        self.AGE_GROUP_STRS = [
+            str(self.AGE_LIMITS[i - 1]) + "-" + str(self.AGE_LIMITS[i] - 1)
+            for i in range(1, len(self.AGE_LIMITS))
+        ] + [str(self.AGE_LIMITS[-1]) + "+"]
         self.NUM_STRAINS = len(self.STRAIN_SPECIFIC_R0)
         # enum for marking waning indexes, improving readability
         self.W_IDX = IntEnum(
