@@ -41,7 +41,9 @@ def _seirw_ode(state, _, parameters):
     p = Parameters(parameters)
 
     # TODO when adding birth and deaths just create it as a compartment
-    force_of_infection = p.beta * p.contact_matrix.dot(i) / p.population[:, None]
+    force_of_infection = (
+        p.beta * p.contact_matrix.dot(i) / p.population[:, None]
+    )
     ds_to_e = force_of_infection * s[:, None]
 
     ds_to_w = s * p.vax_rate  # vaccination of suseptibles
@@ -65,7 +67,9 @@ def _seirw_ode(state, _, parameters):
             effective_ws_by_age = ws_by_age * (
                 1 - (p.waning_protections * (1 - partial_susceptibility))
             )
-            ws_exposed = force_of_infection_strain[:, None] * effective_ws_by_age
+            ws_exposed = (
+                force_of_infection_strain[:, None] * effective_ws_by_age
+            )
             # element wise subtraction of exposed w_s from strain_target dw
             dw = dw.at[:, strain_target_idx, :].add(-ws_exposed)
             # element wise addition of exposed w_s into de
@@ -111,7 +115,9 @@ def _seirw_ode(state, _, parameters):
         # only top waning compartment receives people from "r"
 
     # sum ds_to_e since s does not split by subtype
-    ds = jnp.add(jnp.zeros(s.shape), jnp.add(-jnp.sum(ds_to_e, axis=1), -ds_to_w))
+    ds = jnp.add(
+        jnp.zeros(s.shape), jnp.add(-jnp.sum(ds_to_e, axis=1), -ds_to_w)
+    )
     de = jnp.add(de, -de_to_i + ds_to_e)
     di = jnp.add(jnp.zeros(i.shape), jnp.add(de_to_i, -di_to_r))
     dr = jnp.add(jnp.zeros(r.shape), jnp.add(di_to_r, -dr_to_w))
