@@ -7,7 +7,6 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import numpyro
-import numpyro.distributions as dist
 import pandas as pd
 from diffrax import ODETerm, SaveAt, Tsit5, diffeqsolve
 from jax.random import PRNGKey

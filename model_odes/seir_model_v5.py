@@ -122,7 +122,8 @@ def _seirw_ode(state, _, parameters):
     di = jnp.add(jnp.zeros(i.shape), jnp.add(de_to_i, -di_to_r))
     dr = jnp.add(jnp.zeros(r.shape), jnp.add(di_to_r, -dr_to_w))
 
-    dw_to_e = jnp.sum(dw_to_e, axis=2)
+    ds_to_e = jnp.sum(ds_to_e, axis=1) # across strains
+    dw_to_e = jnp.sum(dw_to_e, axis=[1, 2]) # across strains & w compartments
     incidence = ds_to_e + dw_to_e
     return [(ds, de, di, dr, dw), incidence]
 
