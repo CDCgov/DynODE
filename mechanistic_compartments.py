@@ -7,7 +7,6 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import numpyro
-import numpyro.distributions as dist
 import pandas as pd
 from diffrax import ODETerm, SaveAt, Tsit5, diffeqsolve
 from jax.random import PRNGKey
@@ -101,6 +100,8 @@ class BasicMechanisticModel:
             inital_waning_count,  # w
         )
 
+        self.solution = None
+
     def get_args(self, sample=False):
         """
         A function that returns model args in the correct order as expected by the ODETerm function f(t, y(t), args)dt
@@ -145,48 +146,48 @@ class BasicMechanisticModel:
         }
         return args
 
-    def incidence(self, model, incidence):
+    def incidence(self, model):
         """
-        Takes a model and some ground truth incidence,
-        returning the liklihood of observing the incidence according to the model
+        Approximate the ODE model incidence (new exposure) per time step,
+        based on diffeqsolve solution obtained after self.run.
 
         Parameters
         ----------
         model: function()
-            a standard ODE style function which takes in state, time, and parameters in that order.
-            for example functions see the model_odes folder.
-        incidence: list(int)
-            observed incidence of each compartment to compare against.
+            an ODE style function which takes in state, time, and parameters in that order,
+            and return a list of two: tuple of changes in compartment and array of incidences.
 
         Returns
         ----------
-        None
+        List of arrays of incidence (one per time step).
         """
-        term = ODETerm(
-            lambda t, state, parameters: model(state, t, parameters)
-        )
-        solver = Tsit5()
-        t0 = 0.0
-        t1 = 100.0
-        dt0 = 0.1
-        saveat = SaveAt(ts=jnp.linspace(t0, t1, 101))
-        solution = diffeqsolve(
-            term,
-            solver,
-            t0,
-            t1,
-            dt0,
-            self.initial_state,
-            args=self.get_args(sample=True),
-            saveat=saveat,
-        )
+        if not self.solution:
+            raise ValueError(
+                "Solution not found in the BasicMechanisticModel object, run() the ode solver first."
+            )
 
-        model_incidence = -jnp.diff(solution.ys[0], axis=0)
+        incidence = []
+        sol = self.solution.ys
+        total_steps = len(self.solution.ts)
+
+        for i in range(total_steps - 1):  # incidence always one less
+            st = (
+                sol[0][i, :],
+                sol[1][i, :, :],
+                sol[2][i, :, :],
+                sol[3][i, :, :],
+                sol[4][i, :, :, :],
+            )
+
+            out = model(st, 0, self.get_args())
+            incidence.append(out[1])
+
+        return incidence
 
         # Observed incidence
-        numpyro.sample(
-            "incidence", dist.Poisson(model_incidence), obs=incidence
-        )
+        # numpyro.sample(
+        #     "incidence", dist.Poisson(model_incidence), obs=incidence
+        # )
 
     def infer(self, model, incidence):
         """
@@ -267,6 +268,7 @@ class BasicMechanisticModel:
             saveat=saveat,
             max_steps=30000,
         )
+        self.solution = solution
         save_path = (
             save_path if save else None
         )  # dont set a save path if we dont want to save
