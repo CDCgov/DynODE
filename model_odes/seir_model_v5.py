@@ -3,7 +3,8 @@ import numpy as np
 
 
 class Parameters(object):
-    """ A dummy container that converts a dictionary into attributes. """
+    """A dummy container that converts a dictionary into attributes."""
+
     def __init__(self, dict: dict):
         self.__dict__ = dict
 
@@ -37,7 +38,9 @@ def seirw_ode(state, _, parameters):
     p = Parameters(parameters)
 
     # TODO when adding birth and deaths just create it as a compartment
-    force_of_infection = p.beta * p.contact_matrix.dot(i) / p.population[:, None]
+    force_of_infection = (
+        p.beta * p.contact_matrix.dot(i) / p.population[:, None]
+    )
     ds_to_e = force_of_infection * s[:, None]
 
     ds_to_w = s * p.vax_rate  # vaccination of suseptibles
