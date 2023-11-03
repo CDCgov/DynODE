@@ -87,12 +87,8 @@ class BasicMechanisticModel:
             self.POPULATION * self.INIT_WANING_DIST.transpose()
         ).transpose()
 
-        initial_infectious_count = (
-            self.INITIAL_INFECTIONS * self.INIT_INFECTED_DIST
-        )
-        initial_exposed_count = (
-            self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
-        )
+        initial_infectious_count = self.INITIAL_INFECTIONS * self.INIT_INFECTED_DIST
+        initial_exposed_count = self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
         self.INITIAL_STATE = (
             inital_suseptible_count,  # s
             initial_exposed_count,  # e
@@ -100,6 +96,8 @@ class BasicMechanisticModel:
             inital_recovered_count,  # r
             inital_waning_count,  # w
         )
+
+        self.solution = None
 
     def get_args(self, sample=False):
         """
@@ -109,10 +107,7 @@ class BasicMechanisticModel:
         for example functions f() in charge of disease dynamics see the model_odes folder.
         """
         if sample:
-            beta = (
-                utils.sample_r0(self.STRAIN_SPECIFIC_R0)
-                / self.infectious_period
-            )
+            beta = utils.sample_r0(self.STRAIN_SPECIFIC_R0) / self.infectious_period
             waning_protections = utils.sample_waning_protections(
                 self.WANING_PROTECTIONS
             )
@@ -125,9 +120,9 @@ class BasicMechanisticModel:
         waning_rate = 1 / self.WANING_TIME
         # default to no cross immunity, setting diagnal to 0
         # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
-        suseptibility_matrix = jnp.ones(
-            (self.NUM_STRAINS, self.NUM_STRAINS)
-        ) * (1 - jnp.diag(jnp.array([1] * self.NUM_STRAINS)))
+        suseptibility_matrix = jnp.ones((self.NUM_STRAINS, self.NUM_STRAINS)) * (
+            1 - jnp.diag(jnp.array([1] * self.NUM_STRAINS))
+        )
         # if your model expects added parameters, add them here
         args = {
             "beta": beta,
@@ -145,48 +140,48 @@ class BasicMechanisticModel:
         }
         return args
 
-    def incidence(self, model, incidence):
+    def incidence(self, model):
         """
-        Takes a model and some ground truth incidence,
-        returning the liklihood of observing the incidence according to the model
+        Approximate the ODE model incidence (new exposure) per time step,
+        based on diffeqsolve solution obtained after self.run.
 
         Parameters
         ----------
         model: function()
-            a standard ODE style function which takes in state, time, and parameters in that order.
-            for example functions see the model_odes folder.
-        incidence: list(int)
-            observed incidence of each compartment to compare against.
+            an ODE style function which takes in state, time, and parameters in that order,
+            and return a list of two: tuple of changes in compartment and array of incidences.
 
         Returns
         ----------
-        None
+        List of arrays of incidence (one per time step).
         """
-        term = ODETerm(
-            lambda t, state, parameters: model(state, t, parameters)
-        )
-        solver = Tsit5()
-        t0 = 0.0
-        t1 = 100.0
-        dt0 = 0.1
-        saveat = SaveAt(ts=jnp.linspace(t0, t1, 101))
-        solution = diffeqsolve(
-            term,
-            solver,
-            t0,
-            t1,
-            dt0,
-            self.initial_state,
-            args=self.get_args(sample=True),
-            saveat=saveat,
-        )
+        if not self.solution:
+            raise ValueError(
+                "Solution not found in the BasicMechanisticModel object, run() the ode solver first."
+            )
 
-        model_incidence = -jnp.diff(solution.ys[0], axis=0)
+        incidence = []
+        sol = self.solution.ys
+        total_steps = len(self.solution.ts)
+
+        for i in range(total_steps - 1):  # incidence always one less
+            st = (
+                sol[0][i, :],
+                sol[1][i, :, :],
+                sol[2][i, :, :],
+                sol[3][i, :, :],
+                sol[4][i, :, :, :],
+            )
+
+            out = model(st, 0, self.get_args())
+            incidence.append(out[1])
+
+        return incidence
 
         # Observed incidence
-        numpyro.sample(
-            "incidence", dist.Poisson(model_incidence), obs=incidence
-        )
+        # numpyro.sample(
+        #     "incidence", dist.Poisson(model_incidence), obs=incidence
+        # )
 
     def infer(self, model, incidence):
         """
@@ -249,9 +244,7 @@ class BasicMechanisticModel:
         ----------
         Diffrax.Solution object as described by https://docs.kidger.site/diffrax/api/solution/
         """
-        term = ODETerm(
-            lambda t, state, parameters: model(state, t, parameters)
-        )
+        term = ODETerm(lambda t, state, parameters: model(state, t, parameters))
         solver = Tsit5()
         t0 = 0.0
         dt0 = 0.1
@@ -267,6 +260,7 @@ class BasicMechanisticModel:
             saveat=saveat,
             max_steps=30000,
         )
+        self.solution = solution
         save_path = (
             save_path if save else None
         )  # dont set a save path if we dont want to save
@@ -307,9 +301,7 @@ class BasicMechanisticModel:
                 ]
                 get_indexes.append(index_slice)
             else:
-                get_indexes.append(
-                    self.IDX.__getitem__(compartment.strip().upper())
-                )
+                get_indexes.append(self.IDX.__getitem__(compartment.strip().upper()))
 
         fig, ax = plt.subplots(1)
         for compartment, idx in zip(plot_compartments, get_indexes):
@@ -353,9 +345,7 @@ class BasicMechanisticModel:
             sero_data = pd.read_csv(download_link)
             os.makedirs(self.SEROLOGICAL_DATA, exist_ok=True)
             sero_data.to_csv(sero_path, index=False)
-        pop_path = (
-            self.DEMOGRAPHIC_DATA + "population_rescaled_age_distributions/"
-        )
+        pop_path = self.DEMOGRAPHIC_DATA + "population_rescaled_age_distributions/"
         (
             self.INIT_RECOVERED_DIST,
             self.INIT_WANING_DIST,
@@ -421,9 +411,7 @@ class BasicMechanisticModel:
         # TODO initialize infections by age based on the seroprevalence by age.
         # since we are assuming similar dynamics in short time frames
         # we expect to see similar proportions of each age bin in new infections as recovered
-        self.INIT_INFECTION_DIST = self.INIT_RECOVERED_DIST[
-            :, self.STRAIN_IDX.omicron
-        ]
+        self.INIT_INFECTION_DIST = self.INIT_RECOVERED_DIST[:, self.STRAIN_IDX.omicron]
         # eig_data = np.linalg.eig(self.CONTACT_MATRIX)
         # max_index = np.argmax(eig_data[0])
         # self.INIT_INFECTION_DIST = abs(eig_data[1][:, max_index])
@@ -437,12 +425,8 @@ class BasicMechanisticModel:
         # [0.27707683 0.45785665 0.1815728  0.08349373] contact matrix method, 4 bins
 
         # ratio of gamma / sigma defines our infected to exposed ratio at any given time
-        exposed_to_infected_ratio = (
-            self.EXPOSED_TO_INFECTIOUS / self.INFECTIOUS_PERIOD
-        )
-        self.INIT_EXPOSED_DIST = (
-            exposed_to_infected_ratio * self.INIT_INFECTION_DIST
-        )
+        exposed_to_infected_ratio = self.EXPOSED_TO_INFECTIOUS / self.INFECTIOUS_PERIOD
+        self.INIT_EXPOSED_DIST = exposed_to_infected_ratio * self.INIT_INFECTION_DIST
         # INIT_EXPOSED_DIST is not strain stratified, put infected into the omicron strain via indicator vec
         self.INIT_EXPOSED_DIST = self.INIT_EXPOSED_DIST[:, None] * np.array(
             [0] * self.STRAIN_IDX.omicron + [1]
@@ -472,9 +456,7 @@ class BasicMechanisticModel:
                 if isinstance(obj, np.ndarray) or isinstance(obj, jnp.ndarray):
                     return obj.tolist()
                 if isinstance(obj, EnumMeta):
-                    return {
-                        str(e): idx for e, idx in zip(obj, range(len(obj)))
-                    }
+                    return {str(e): idx for e, idx in zip(obj, range(len(obj)))}
                 return json.JSONEncoder.default(self, obj)
 
         return json.dump(self.__dict__, file, indent=4, cls=CustomEncoder)

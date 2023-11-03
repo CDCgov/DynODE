@@ -3,14 +3,16 @@ import numpy as np
 
 
 class Parameters(object):
-    """ A dummy container that converts a dictionary into attributes. """
+    """A dummy container that converts a dictionary into attributes."""
+
     def __init__(self, dict: dict):
         self.__dict__ = dict
 
 
-def seirw_ode(state, _, parameters):
+def _seirw_ode(state, _, parameters):
     """
-    A basic SEIRW ODE model to be used in solvers such as odeint or diffeqsolve
+    A basic SEIRW ODE model to be used in a wrapper which is then feed into solvers such as odeint
+    or diffeqsolve.
 
     Parameters:
     ----------
@@ -25,8 +27,10 @@ def seirw_ode(state, _, parameters):
     a dictionary holding the values of parameters needed by the SEIRW model.
 
     Returns:
-    a tuple containing the rates of change of all compartments given in the `state` parameter.
+    a list consists of two elements:
+    1. a tuple containing the rates of change of all compartments given in the `state` parameter.
     each element in the return tuple will match the dimensions of the parallel element in `state`.
+    2. an array of incidence (e.g., ds_to_i + dw_to_i)
 
     """
     # Unpack state
@@ -61,13 +65,12 @@ def seirw_ode(state, _, parameters):
             effective_ws_by_age = ws_by_age * (
                 1 - (p.waning_protections * (1 - partial_susceptibility))
             )
-            ws_exposed = (
-                force_of_infection_strain[:, None] * effective_ws_by_age
-            )
+            ws_exposed = force_of_infection_strain[:, None] * effective_ws_by_age
             # element wise subtraction of exposed w_s from strain_target dw
             dw = dw.at[:, strain_target_idx, :].add(-ws_exposed)
             # element wise addition of exposed w_s into de
             de = de.at[:, strain_source_idx].add(np.sum(ws_exposed, axis=1))
+    dw_to_e = -dw
 
     # lets measure our waned rates
     for w_idx in range(w.shape[-1]):
@@ -108,11 +111,17 @@ def seirw_ode(state, _, parameters):
         # only top waning compartment receives people from "r"
 
     # sum ds_to_e since s does not split by subtype
-    ds = jnp.add(
-        jnp.zeros(s.shape), jnp.add(-jnp.sum(ds_to_e, axis=1), -ds_to_w)
-    )
+    ds = jnp.add(jnp.zeros(s.shape), jnp.add(-jnp.sum(ds_to_e, axis=1), -ds_to_w))
     de = jnp.add(de, -de_to_i + ds_to_e)
-
     di = jnp.add(jnp.zeros(i.shape), jnp.add(de_to_i, -di_to_r))
     dr = jnp.add(jnp.zeros(r.shape), jnp.add(di_to_r, -dr_to_w))
-    return (ds, de, di, dr, dw)
+
+    dw_to_e = jnp.sum(dw_to_e, axis=2)
+    incidence = ds_to_e + dw_to_e
+    return [(ds, de, di, dr, dw), incidence]
+
+
+def seirw_ode(state, _, parameters):
+    """Wrapper to feed _seirw_ode model to solvers."""
+    out = _seirw_ode(state, _, parameters)
+    return out[0]
