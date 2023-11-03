@@ -2,7 +2,7 @@
 
 ## Overview
 
-This repository is for the design and implementation of a Scenarios forecasting model, build by the Scenarios team within CFA-Predict.
+This repository is for the design and implementation of a Scenarios forecasting model, built by the Scenarios team within CFA-Predict.
 
 This code aims to combine a number of different codebases to forecast different covid scenarios in a Compartmental Mechanistic ODE model with multiple competing covid variants.
 
@@ -27,6 +27,22 @@ from config.config_base import ConfigBase
 solution = build_basic_mechanistic_model(ConfigBase()).run(seirw_ode, save_path="output/example.png")
 ```
 
+To create your own scenario, and modify parameters such as strain R0 and vaccination rate follow these steps:
+1. Create a copy of config/config_scenario_template.py and name it whatever you would like.
+2. Change `self.SCENARIO_NAME` to describe your new scenario
+3. Modify or add any parameters you wish to differ from config/config_base.py
+    1. if you wish to add parameters rather than just change them, you will need to pass that parameter to your model, through the `mechanistic_compartments.get_args()` function
+4. Pass those parameter changes to the base constructor so it may initalize the rest to default values.
+5. Run almost the same script as above, replacing your ConfigBase import with ConfigScenario.
+
+```
+from model_odes.seir_model_v5 import seirw_ode
+from mechanistic_compartments import build_basic_mechanistic_model
+from config.config_scenario_example import ConfigScenario
+
+solution = build_basic_mechanistic_model(ConfigScenario()).run(seirw_ode, save_path="output/example_scenario.png")
+```
+
 ## Data Sources
 
 The model is fed the following data sources:
@@ -36,6 +52,7 @@ The model is fed the following data sources:
 ## Project Admin
 
 Ariel Shurygin, M.S Data Sci, uva5@cdc.gov, CDC/IOD/ORR/CFA
+
 Thomas Hladish, PhD, utx5@cdc.gov, CDC/IOD/ORR/CFA
 
 ## General Disclaimer
