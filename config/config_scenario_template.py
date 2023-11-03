@@ -15,8 +15,10 @@ class ConfigScenario(ConfigBase):
         # set scenario parameters here
         self.EXAMPLE_SCENARIO_PARAM = jnp.array([0])
         # pass all modified scenario params to the base constructor to set the others.
+        # DO NOT CHANGE THE FOLLOWING TWO LINES
         super().__init__(**self.__dict__)
         self.assert_valid_values()
+        # Do not add any scenario parameters below, may create inconsistent state
 
     def assert_valid_values(self):
         super().assert_valid_values()

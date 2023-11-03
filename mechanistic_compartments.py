@@ -327,7 +327,78 @@ class BasicMechanisticModel:
         fig.legend()
         if save_path:
             fig.savefig(save_path)
-            with open(save_path + "_meta.txt", "w") as meta:
+            with open(save_path + "_meta.json", "w") as meta:
+                self.to_json(meta)
+        return fig, ax
+
+    def plot_initial_serology(self, save_path=None, show=True):
+        """
+        plots a stacked bar chart representation of the initial immune compartments of the model.
+
+        Parameters
+        ----------
+        save_path: str/None
+            the save path to which to save the figure, None implies figure will not be saved.
+        show: boolean
+            Whether or not to show the figure using plt.show() defaults to True.
+
+        Returns
+        -----------
+        fig: matplotlib.figure.Figure
+            Matplotlib Figure containing the generated plot
+        ax: matplotlib.axes._axes.Axes
+            Matplotlib axes containing data on the generated plot.
+        """
+        # get all recovered dists, sum across strains
+        recovered_strain_sum = np.sum(
+            self.INIT_RECOVERED_DIST, axis=self.AXIS_IDX.strain
+        )
+        # get all waned dists, sum across strains
+        waned_strain_sum = np.sum(
+            self.INIT_WANING_DIST, axis=self.AXIS_IDX.strain
+        ).transpose()
+        # combine them together into one matrix, multiply by pop counts
+        immune_compartments = np.vstack(
+            (recovered_strain_sum, waned_strain_sum)
+        )
+        immune_compartments_populations = self.POPULATION * immune_compartments
+        # reverse for plot readability since we read left to right
+        immune_compartments_populations = immune_compartments_populations[::-1]
+        x_axis = ["R"] + ["W" + str(int(idx)) for idx in self.W_IDX]
+        x_axis = x_axis[::-1]
+        age_to_immunity_slice = {}
+        # for each age group, plot its number of persons in each immune compartment
+        # stack the bars on top of one another by summing the previous age groups underneath
+        fig, ax = plt.subplots(1)
+        for idx, age_group in enumerate(self.AGE_GROUP_STRS):
+            age_to_immunity_slice[age_group] = immune_compartments_populations[
+                :, idx
+            ]
+            ax.bar(
+                x_axis,
+                age_to_immunity_slice[age_group],
+                label=age_group,
+                bottom=sum(
+                    [
+                        age_to_immunity_slice[x]
+                        for x in self.AGE_GROUP_STRS[0:idx]
+                    ]
+                ),
+            )
+        props = {"rotation": 25, "size": 7}
+        plt.setp(ax.get_xticklabels(), **props)
+        ax.legend()
+        ax.set_title(
+            "Initial Population Immunity level by %s day intervals"
+            % str(self.WANING_TIME)
+        )
+        ax.set_xlabel("Immune Compartment")
+        ax.set_ylabel("Population Count, all strains")
+        if show:
+            fig.show()
+        if save_path:
+            fig.savefig(save_path)
+            with open(save_path + "_meta.json", "w") as meta:
                 self.to_json(meta)
         return fig, ax
 
