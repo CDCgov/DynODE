@@ -98,6 +98,7 @@ class BasicMechanisticModel:
             initial_infectious_count,  # i
             inital_recovered_count,  # r
             inital_waning_count,  # w
+            jnp.zeros(initial_exposed_count.shape),  # c
         )
 
         self.solution = None
@@ -220,6 +221,7 @@ class BasicMechanisticModel:
         self,
         model,
         tf=100.0,
+        plot=True,
         show=True,
         save=True,
         save_path="model_run.png",
@@ -272,13 +274,16 @@ class BasicMechanisticModel:
         save_path = (
             save_path if save else None
         )  # dont set a save path if we dont want to save
-        fig, ax = self.plot_diffrax_solution(
-            solution,
-            plot_compartments=plot_compartments,
-            save_path=save_path,
-        )
-        if show:
-            plt.show()
+
+        if plot:
+            fig, ax = self.plot_diffrax_solution(
+                solution,
+                plot_compartments=plot_compartments,
+                save_path=save_path,
+            )
+            if show:
+                plt.show()
+
         return solution
 
     def plot_diffrax_solution(
