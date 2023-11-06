@@ -92,7 +92,7 @@ class ConfigBase:
         self.WANING_TIME_MONTHS = self.WANING_TIME / 30.0
         self.init_waning_protections_if_not_set()
         # Check that no values are incongruent with one another
-        ConfigBase.assert_valid_values(self)
+        self.assert_valid_values()
 
     def init_waning_protections_if_not_set(self):
         """
@@ -116,6 +116,15 @@ class ConfigBase:
         )
 
     def assert_valid_values(self):
+        """
+        a function designed to be called after all parameters are initalized, does a series of reasonable checks
+        to ensure values are within expected ranges and no parameters directly contradict eachother.
+
+        Raises
+        ----------
+        Assert Error:
+            if user supplies invalid parameters, short description will be provided as to why the parameter is wrong.
+        """
         assert os.path.exists(self.SAVE_PATH), (
             "%s is not a valid path" % self.SAVE_PATH
         )

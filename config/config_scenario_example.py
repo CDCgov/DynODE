@@ -22,7 +22,6 @@ class ConfigScenario(ConfigBase):
         self.UNIQUE_PARAM_TO_THIS_SCENARIO = "Example"
         # pass all modified scenario params to the base constructor to set the others.
         super().__init__(**self.__dict__)
-        self.assert_valid_values()
 
     def assert_valid_values(self):
         super().assert_valid_values()

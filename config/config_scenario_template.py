@@ -17,9 +17,17 @@ class ConfigScenario(ConfigBase):
         # pass all modified scenario params to the base constructor to set the others.
         # DO NOT CHANGE THE FOLLOWING TWO LINES
         super().__init__(**self.__dict__)
-        self.assert_valid_values()
         # Do not add any scenario parameters below, may create inconsistent state
 
     def assert_valid_values(self):
+        """
+        a function designed to be called after all parameters are initalized, does a series of reasonable checks
+        to ensure values are within expected ranges and no parameters directly contradict eachother.
+
+        Raises
+        ----------
+        Assert Error:
+            if user supplies invalid parameters, short description will be provided as to why the parameter is wrong.
+        """
         super().assert_valid_values()
         assert True, "any new parameters should be tested here"
