@@ -54,7 +54,7 @@ class BasicMechanisticModel:
 
         # TODO does it make sense to set one and not the other if provided one ?
         # if not given, load inital waning and recovered distributions from serological data
-        if not self.INIT_WANING_DIST or not self.INIT_RECOVERED_DIST:
+        if self.INIT_WANING_DIST is None or self.INIT_RECOVERED_DIST is None:
             self.load_waning_and_recovered_distributions()
 
         # because our suseptible population is not strain stratified,
@@ -69,7 +69,7 @@ class BasicMechanisticModel:
 
         # if not given an inital infection distribution, use max eig value vector of contact matrix
         # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
-        if not self.INIT_INFECTED_DIST and not self.INIT_EXPOSED_DIST:
+        if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
             self.load_init_infection_infected_and_exposed_dist()
 
         # suseptibles = Total population - infected - recovered - waning
