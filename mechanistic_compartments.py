@@ -508,8 +508,7 @@ class BasicMechanisticModel:
             proportion of INIT_INFECTION_DIST that falls into infected compartment, formatted into the omicron strain.
             INIT_INFECTED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
         """
-        # TODO initialize infections by age based on the seroprevalence by age.
-        # since we are assuming similar dynamics in short time frames
+        # TODO, double check, since we are assuming similar dynamics in short time frames
         # we expect to see similar proportions of each age bin in new infections as recovered
         self.INIT_INFECTION_DIST = self.INIT_RECOVERED_DIST[
             :, self.STRAIN_IDX.omicron

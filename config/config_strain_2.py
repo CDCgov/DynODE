@@ -17,7 +17,6 @@ class ConfigScenario(ConfigBase):
         self.NUM_STRAINS = 2
         # pass all modified scenario params to the base constructor to set the others.
         super().__init__(**self.__dict__)
-        self.assert_valid_values()
 
     def assert_valid_values(self):
         super().assert_valid_values()

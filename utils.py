@@ -251,7 +251,7 @@ def prep_serology_data(path, waning_time):
     # after we interpolate down to daily precision, rebin into waning compartments
     serology.index = pd.to_datetime(serology["collection_date"])
     serology = serology[columns_of_interest[1:]]  # filter to only int cols
-    # TODO possible reimplementation of variable waning compartment bin width
+    # possible reimplementation of variable waning compartment bin width
     # will probably need to return to [::-x] slicing with a variable x or something.
     serology = (
         serology.resample("1d")  # downsample to daily freq
