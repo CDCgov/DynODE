@@ -1,7 +1,10 @@
 #####
 # Exclude many data and output file types by default
-/sandbox
-/code_fragments_deprecated
+/sandbox/*
+/code_fragments_deprecated/*
+/output/*
+testing.ipynb
+testing.py
 
 # Data
 *.csv
@@ -12,6 +15,7 @@
 *.xls
 *.xlsx
 *.txt
+*.json
 
 # Documents
 *.doc
@@ -42,7 +46,10 @@
 # !your_data_directory/
 !data/
 !data/dates_of_interest.csv
-
+!output/example_output_1000_days.png
+!output/example_output_1000_days.png_meta.json
+!output/base_model_initial_immune_distribution.png
+!output/base_model_initial_immune_distribution.png_meta.json
 
 #####
 # Python

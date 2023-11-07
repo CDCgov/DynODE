@@ -54,7 +54,7 @@ class BasicMechanisticModel:
 
         # TODO does it make sense to set one and not the other if provided one ?
         # if not given, load inital waning and recovered distributions from serological data
-        if not self.INIT_WANING_DIST or not self.INIT_RECOVERED_DIST:
+        if self.INIT_WANING_DIST is None or self.INIT_RECOVERED_DIST is None:
             self.load_waning_and_recovered_distributions()
 
         # because our suseptible population is not strain stratified,
@@ -69,7 +69,7 @@ class BasicMechanisticModel:
 
         # if not given an inital infection distribution, use max eig value vector of contact matrix
         # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
-        if not self.INIT_INFECTED_DIST and not self.INIT_EXPOSED_DIST:
+        if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
             self.load_init_infection_infected_and_exposed_dist()
 
         # suseptibles = Total population - infected - recovered - waning
@@ -306,7 +306,13 @@ class BasicMechanisticModel:
         sol = sol.ys
         get_indexes = []
         for compartment in plot_compartments:
-            if "W" in compartment.upper():
+            # if W with no index is passed, sum all W compartments together.
+            if "W" == compartment.upper():
+                get_indexes.append(
+                    self.IDX.__getitem__(compartment.strip().upper())
+                )
+            # if W1/2/3/4 is supplied, we want that specific waning compartment
+            elif "W" in compartment.upper():
                 # waning compartments are held in a different manner, we need two indexes to access them
                 index_slice = [
                     self.IDX.__getitem__("W"),
@@ -320,18 +326,31 @@ class BasicMechanisticModel:
 
         fig, ax = plt.subplots(1)
         for compartment, idx in zip(plot_compartments, get_indexes):
-            if "W" in compartment.upper():  # then idx=(idx.W, w_idx.W1/2/....)
+            # if user selects all W compartments, we must sum across the waning axis.
+            if "W" == compartment.upper():
+                # the waning index + 1 because first index is for time in the solution
+                sol_compartment = np.sum(
+                    np.array(sol[idx]), axis=self.AXIS_IDX.wane + 1
+                )
+            # if W1/W2/W3... idx=(idx.W, w_idx.W1/2/....), select specific waning compartment
+            elif "W" in compartment.upper():
                 # if we are plotting a waning compartment, we need to parse 1 extra dimension
                 sol_compartment = np.array(sol[idx[0]])[:, :, :, idx[1]]
             else:
                 # non-waning compartments dont have this extra dimension
                 sol_compartment = sol[idx]
+            # summing over age groups + strains, 0th dim is timestep
             dimensions_to_sum_over = tuple(range(1, sol_compartment.ndim))
             ax.plot(
                 sol_compartment.sum(axis=dimensions_to_sum_over),
                 label=compartment,
             )
         fig.legend()
+        ax.set_title(
+            "Population count by compartment across all ages and strains"
+        )
+        ax.set_xlabel("Days since scenario start")
+        ax.set_ylabel("Population Count")
         if save_path:
             fig.savefig(save_path)
             with open(save_path + "_meta.json", "w") as meta:
@@ -496,8 +515,7 @@ class BasicMechanisticModel:
             proportion of INIT_INFECTION_DIST that falls into infected compartment, formatted into the omicron strain.
             INIT_INFECTED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
         """
-        # TODO initialize infections by age based on the seroprevalence by age.
-        # since we are assuming similar dynamics in short time frames
+        # TODO, double check, since we are assuming similar dynamics in short time frames
         # we expect to see similar proportions of each age bin in new infections as recovered
         self.INIT_INFECTION_DIST = self.INIT_RECOVERED_DIST[
             :, self.STRAIN_IDX.omicron
