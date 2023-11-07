@@ -3,12 +3,13 @@ import jax.config
 import jax.numpy as jnp
 import numpy as np
 import numpyro
-from inference import infer_model
-from model_odes.seir_model_v5 import seirw_ode2  # , seirw_ode
-from mechanistic_compartments import build_basic_mechanistic_model
-from config.config_base import ConfigBase
-from numpyro.infer import NUTS, MCMC
 from jax.random import PRNGKey
+from numpyro.infer import MCMC, NUTS
+
+from config.config_base import ConfigBase
+from inference import infer_model
+from mechanistic_compartments import build_basic_mechanistic_model
+from model_odes.seir_model_v5 import seirw_ode2  # , seirw_ode
 
 # Use 4 cores
 numpyro.set_host_device_count(4)

@@ -1,12 +1,6 @@
 import numpy as np
 
 from config.config_base import ConfigBase as config_base
-from config.config_r0_0 import ConfigScenario as config_r0_0
-from config.config_r0_1_vax_0 import ConfigScenario as config_r0_1_vax_0
-from config.config_r0_15_vax_0_strain_2 import (
-    ConfigScenario as config_r0_15_vax_0_strain_2,
-)
-from config.config_strain_2 import ConfigScenario as config_strain_2
 from mechanistic_compartments import build_basic_mechanistic_model
 
 # IMPORT MODEL YOU WISH TO TEST AND SET IT HERE

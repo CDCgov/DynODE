@@ -1,15 +1,13 @@
 # %%
+import timeit
+
 import jax.config
 import jax.numpy as jnp
-import numpy as np
 import numpyro
-from inference import infer_model
-from model_odes.seir_model_v5 import seirw_ode, seirw_ode2
-from mechanistic_compartments import build_basic_mechanistic_model
+
 from config.config_base import ConfigBase
-import timeit
-from numpyro.infer import NUTS, MCMC
-from jax.random import PRNGKey
+from mechanistic_compartments import build_basic_mechanistic_model
+from model_odes.seir_model_v5 import seirw_ode, seirw_ode2
 
 # Use 4 cores
 numpyro.set_host_device_count(4)
@@ -29,9 +27,9 @@ def func2():
 
 
 num_runs = 20
-duration1 = timeit.Timer(func2).timeit(number=num_runs)
+duration1 = timeit.Timer(func1).timeit(number=num_runs)
 avg_duration1 = duration1 / num_runs
-duration2 = timeit.Timer(func1).timeit(number=num_runs)
+duration2 = timeit.Timer(func2).timeit(number=num_runs)
 avg_duration2 = duration2 / num_runs
 
 print(f"func1: On average it took {avg_duration1} seconds")
