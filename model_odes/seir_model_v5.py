@@ -191,13 +191,18 @@ def seirw_ode2(state, _, parameters):
 
     dw_to_e = de
 
-    # lets measure our waned rates
+    # lets measure our waned + vax rates
+    # last w group doesn't wane
     waning_array = jnp.zeros(w.shape) + p.waning_rate
     waning_array = waning_array.at[:, :, w.shape[2] - 1].set(0)
+    w_waned = waning_array * w
+
+    # first w group doesn't vax
     vaxed_array = jnp.zeros(w.shape) + p.vax_rate
     vaxed_array = vaxed_array.at[:, :, 0].set(0)
-    w_waned = waning_array * w
     w_vaxed = vaxed_array * w
+
+    # first w group gain from everywhere, others only from neighbour
     w_gained = jnp.zeros(w.shape)
     w_gained = w_gained.at[:, :, 0].add(jnp.sum(w_vaxed, axis=2))
     w_gained = w_gained.at[:, :, 1 : w.shape[2]].add(
