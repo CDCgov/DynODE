@@ -262,7 +262,7 @@ def prep_serology_data(path, waning_time):
         # )  # resample to waning compart width
         # .max()
     )
-    # we will use the absolute change in % serology prevalence to initalize wane compartments
+    # we will use the absolute change in % serology prevalence to initialize wane compartments
     serology["0_17_diff"] = serology[
         "Rate (%) [Anti-N, 0-17 Years Prevalence]"
     ].diff()
@@ -286,26 +286,26 @@ def past_infection_dist_from_serology_demographics(
     waning_times,
     num_waning_compartments,
     num_strains,
-    initalization_date=datetime.date(2022, 2, 12),
+    initialization_date=datetime.date(2022, 2, 12),
 ):
     """
-    initalizes and returns the recovered and waning compartments for a model based on __covid__ serological data.
+    initializes and returns the recovered and waning compartments for a model based on __covid__ serological data.
 
     Parameters
     ----------
     sero_path: str
-          relative or absolute path to serological data from which to initalize compartments
+          relative or absolute path to serological data from which to initialize compartments
     age_path: str
           relateive or absolute path to demographic data folder for age distributions
     age_limits: list(int)
-          The age limits of your model that you wish to initalize compartments of.
+          The age limits of your model that you wish to initialize compartments of.
           Example: for bins of 0-17, 18-49, 50-64, 65+ age_limits = [0, 18, 50, 65]
     waning_time: int
           Time in days it takes for a person to wane to the next level of protection
     num_waning_compartments: int
-          number of waning compartments in your model that you wish to initalize.
+          number of waning compartments in your model that you wish to initialize.
     num_strains: int
-          number of strains in your model that you wish to initalize.
+          number of strains in your model that you wish to initialize.
           Note: people will be distributed across 3 strains if num_strains >= 3
           The 3 strains account for omicron, delta, and alpha waves. And are timed accordingly.
           if num_strains < 3, will collapse earlier strains into one another.
@@ -350,7 +350,7 @@ def past_infection_dist_from_serology_demographics(
 
     assert (
         num_historical_strains == len(historical_time_breakpoints) + 1
-    ), "set breakpoints for each of the historical strains you want to initalize with sero data"
+    ), "set breakpoints for each of the historical strains you want to initialize with sero data"
     # age_to_diff_dict will be used to average age bins when our datas age bins collide with serology datas
     # for example hypothetical 10-20 age bin, needs to be weighted average of 0-17 and 18-49 age bins based on population
     age_to_sero_dict = {}
@@ -363,14 +363,14 @@ def past_infection_dist_from_serology_demographics(
     recovered_init_distribution = np.zeros(
         shape=(len(age_limits), num_strains)
     )
-    # begin at the initalization date, move back from there
-    prev_waning_compartment_date = initalization_date
+    # begin at the initialization date, move back from there
+    prev_waning_compartment_date = initialization_date
     # for each waning index fill in its (age x strain) matrix based on weighted sero data for that age bin
     for waning_index, waning_time in zip(
         range(0, num_waning_compartments + 1), waning_times
     ):
         # go back `waning_time` days at a time and use our diff columns to populate recoved/waning
-        # initalization_date is the date our chosen serology begins, based on post-omicron peak.
+        # initialization_date is the date our chosen serology begins, based on post-omicron peak.
         waning_compartment_date = prev_waning_compartment_date - (
             datetime.timedelta(days=waning_time)
         )
@@ -387,7 +387,7 @@ def past_infection_dist_from_serology_demographics(
         # omicron = strain 2, delta = 1, alpha = 0 for example
         strain_select = (
             num_historical_strains - 1
-        )  # initalize as most recent strain
+        )  # initialize as most recent strain
         for historical_breakpoint in historical_time_breakpoints:
             if waning_compartment_date < historical_breakpoint:
                 strain_select -= 1
