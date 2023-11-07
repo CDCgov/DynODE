@@ -31,20 +31,20 @@ class BasicMechanisticModel:
 
     def __init__(self, **kwargs):
         """
-        Initalize a basic abstract mechanistic model for covid19 case prediction.
+        initialize a basic abstract mechanistic model for covid19 case prediction.
         Should not be constructed directly, use build_basic_mechanistic_model() with a config file
         """
         # if users call __init__ instead of the builder function, kwargs will be empty, causing errors.
         assert (
             len(kwargs) > 0
-        ), "Do not initalize this object without the helper function build_basic_mechanistic_model() and a config file."
+        ), "Do not initialize this object without the helper function build_basic_mechanistic_model() and a config file."
 
         # grab all parameters passed from config
         self.__dict__.update(kwargs)
 
         # if not given, generate population fractions based on observed census data
         if not self.INITIAL_POPULATION_FRACTIONS:
-            self.load_inital_population_fractions()
+            self.load_initial_population_fractions()
 
         self.POPULATION = self.POP_SIZE * self.INITIAL_POPULATION_FRACTIONS
 
@@ -53,12 +53,12 @@ class BasicMechanisticModel:
             self.load_contact_matrix()
 
         # TODO does it make sense to set one and not the other if provided one ?
-        # if not given, load inital waning and recovered distributions from serological data
+        # if not given, load initial waning and recovered distributions from serological data
         if self.INIT_WANING_DIST is None or self.INIT_RECOVERED_DIST is None:
             self.load_waning_and_recovered_distributions()
 
         # because our suseptible population is not strain stratified,
-        # we need to sum these inital recovered/waning distributions by their axis so shapes line up
+        # we need to sum these initial recovered/waning distributions by their axis so shapes line up
         init_recovered_strain_summed = np.sum(
             self.INIT_RECOVERED_DIST, axis=self.AXIS_IDX.strain
         )
@@ -67,22 +67,22 @@ class BasicMechanisticModel:
             axis=(self.AXIS_IDX.strain, self.AXIS_IDX.wane),
         )
 
-        # if not given an inital infection distribution, use max eig value vector of contact matrix
-        # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
+        # if not given an initial infection distribution, use max eig value vector of contact matrix
+        # disperse initial infections across infected and exposed compartments based on gamma / sigma ratio.
         if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
             self.load_init_infection_infected_and_exposed_dist()
 
         # suseptibles = Total population - infected - recovered - waning
-        inital_suseptible_count = (
+        initial_suseptible_count = (
             self.POPULATION
             - (self.INITIAL_INFECTIONS * self.INIT_INFECTION_DIST)
             - (self.POPULATION * init_recovered_strain_summed)
             - (self.POPULATION * init_waning_strain_compartment_summed)
         )
-        inital_recovered_count = (
+        initial_recovered_count = (
             self.POPULATION * self.INIT_RECOVERED_DIST.transpose()
         ).transpose()
-        inital_waning_count = (
+        initial_waning_count = (
             self.POPULATION * self.INIT_WANING_DIST.transpose()
         ).transpose()
 
@@ -93,11 +93,11 @@ class BasicMechanisticModel:
             self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
         )
         self.INITIAL_STATE = (
-            inital_suseptible_count,  # s
+            initial_suseptible_count,  # s
             initial_exposed_count,  # e
             initial_infectious_count,  # i
-            inital_recovered_count,  # r
-            inital_waning_count,  # w
+            initial_recovered_count,  # r
+            initial_waning_count,  # w
         )
 
         self.solution = None
@@ -123,7 +123,7 @@ class BasicMechanisticModel:
 
         gamma = 1 / self.INFECTIOUS_PERIOD
         sigma = 1 / self.EXPOSED_TO_INFECTIOUS
-        waning_rate = 1 / self.WANING_TIME
+        waning_rates = [1 / wane_time for wane_time in self.WANING_TIMES]
         # default to no cross immunity, setting diagnal to 0
         # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
         suseptibility_matrix = jnp.ones(
@@ -137,7 +137,7 @@ class BasicMechanisticModel:
             "contact_matrix": self.CONTACT_MATRIX,
             "vax_rate": self.VACCINATION_RATE,
             "waning_protections": waning_protections,
-            "waning_rate": waning_rate,
+            "waning_rates": waning_rates,
             "mu": self.BIRTH_RATE,
             "population": self.POPULATION,
             "susceptibility_matrix": suseptibility_matrix,
@@ -455,14 +455,14 @@ class BasicMechanisticModel:
             sero_path,
             pop_path,
             self.AGE_LIMITS,
-            self.WANING_TIME,
+            self.WANING_TIMES,
             self.NUM_WANING_COMPARTMENTS,
             self.NUM_STRAINS,
         )
 
-    def load_inital_population_fractions(self):
+    def load_initial_population_fractions(self):
         """
-        a wrapper function which loads age demographics for the US and sets the inital population fraction by age bin.
+        a wrapper function which loads age demographics for the US and sets the initial population fraction by age bin.
         """
         populations_path = (
             self.DEMOGRAPHIC_DATA + "population_rescaled_age_distributions/"
@@ -486,13 +486,13 @@ class BasicMechanisticModel:
 
     def load_init_infection_infected_and_exposed_dist(self):
         """
-        loads the inital infection distribution by age, then separates infections into an
+        loads the initial infection distribution by age, then separates infections into an
         infected and exposed distribution, all infections assumed to be omicron.
-        utilizes the ratio between gamma and sigma to determine what proportion of inital infections belong in the
+        utilizes the ratio between gamma and sigma to determine what proportion of initial infections belong in the
         exposed (soon to be infectious), and the already infectious compartments.
 
         infections are stratified across age bins based on proportion of each age bin
-        in individuals who have recent sero-converted before model initalization date.
+        in individuals who have recent sero-converted before model initialization date.
         Equivalent to using proportion of each age bin in self.INIT_RECOVERED_DIST
 
         given that `INIT_INFECTION_DIST` = `INIT_EXPOSED_DIST` + `INIT_INFECTED_DIST`

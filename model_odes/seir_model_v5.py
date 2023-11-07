@@ -50,7 +50,7 @@ def _seirw_ode(state, _, parameters):
 
     de_to_i = p.sigma * e  # exposure -> infectious
     di_to_r = p.gamma * i  # infectious -> recovered
-    dr_to_w = p.waning_rate * r
+    dr_to_w = p.waning_rates[0] * r
     # guaranteed to wane into first waning compartment remaining in their strains.
 
     dw = jnp.zeros(w.shape)
@@ -78,11 +78,12 @@ def _seirw_ode(state, _, parameters):
 
     # lets measure our waned rates
     for w_idx in range(w.shape[-1]):
-        # waning from waning compartment to waning compartment, last compartment does not wane
+        # waning from waning compartment to next waning compartment, last compartment does not wane
+        # p.waning_rates[1:] is an array excluding the R->W0 waning rate, since that is handled explicitly above
         w_waned = (
             0
             if w_idx == p.num_waning_compartments - 1
-            else p.waning_rate * w[:, :, w_idx]
+            else p.waning_rates[1:][w_idx] * w[:, :, w_idx]
         )
         # waned individuals being vaccinated, no w1 -> w1 vaccination of top compartment
         w_vaxed = 0 if w_idx == 0 else p.vax_rate * w[:, :, w_idx]
@@ -100,7 +101,9 @@ def _seirw_ode(state, _, parameters):
                 ]
             )
         else:
-            w_gained = p.waning_rate * w[:, :, w_idx - 1]
+            # p.waning_rates[1:] is an array excluding the R->W0 waning rate, since that is handled explicitly above
+            # gained individuals based on the waning rate and population of previous compartment
+            w_gained = p.waning_rates[1:][w_idx - 1] * w[:, :, w_idx - 1]
 
         dw = dw.at[:, :, w_idx].add(-w_waned)
         dw = dw.at[:, :, w_idx].add(w_gained)
@@ -122,8 +125,8 @@ def _seirw_ode(state, _, parameters):
     di = jnp.add(jnp.zeros(i.shape), jnp.add(de_to_i, -di_to_r))
     dr = jnp.add(jnp.zeros(r.shape), jnp.add(di_to_r, -dr_to_w))
 
-    ds_to_e = jnp.sum(ds_to_e, axis=1) # across strains
-    dw_to_e = jnp.sum(dw_to_e, axis=[1, 2]) # across strains & w compartments
+    ds_to_e = jnp.sum(ds_to_e, axis=1)  # across strains
+    dw_to_e = jnp.sum(dw_to_e, axis=[1, 2])  # across strains & w compartments
     incidence = ds_to_e + dw_to_e
     return [(ds, de, di, dr, dw), incidence]
 
