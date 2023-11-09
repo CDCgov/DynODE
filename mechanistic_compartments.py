@@ -109,16 +109,14 @@ class BasicMechanisticModel:
         https://docs.kidger.site/diffrax/api/terms/#diffrax.ODETerm
 
         for example functions f() in charge of disease dynamics see the model_odes folder.
-        if sample=True, omicron strain beta and waning protections are automatically sampled.
+        if sample=True, and no sample_dist_dict supplied, omicron strain beta and waning protections are automatically sampled.
         Parameters
         ----------
         sample: boolean
                 whether or not to sample key parameters, used when model is being run in MCMC and parameters are being infered
-        sample_dist_dict: dict(str:numpyro.sample)
+        sample_dist_dict: dict(str:numpyro.distribution)
                           a dictionary of parameters to sample, if empty, defaults will be sampled and rest are left at values specified in config.
-                          example dictionary to sample infectious_period, note the necessity to set seed BEFORE sampling:
-                          with numpyro.handlers.seed(rng_seed=mechanistic_model.MODEL_RAND_SEED):
-                            mechanistic_model.get_args(sample=True, sample_dist_dict={"infectious_period": numpyro.sample("infectious_period", numpyro.distributions.Exponential(1.0))}))
+                          follows format "parameter_name":numpyro.Distributions.dist(). DO NOT pass numpyro.sample() objects to the dictionary.
         """
         args = {
             "contact_matrix": self.CONTACT_MATRIX,
@@ -130,41 +128,29 @@ class BasicMechanisticModel:
             "waning_protections": self.WANING_PROTECTIONS,
         }
         if sample:
-            # with numpyro.handlers.seed(rng_seed=self.MODEL_RAND_SEED):
+            # if user provides parameters and distributions they wish to sample, sample those
             if sample_dist_dict:
-                args = dict(args, **sample_dist_dict)
+                for key, dist in sample_dist_dict.items():
+                    args[key] = numpyro.sample(key, dist)
+            # otherwise, by default just sample the omicron excess r0
             else:
                 default_sample_dict = {}
                 r0_omicron = utils.sample_r0()
                 strain_specific_r0 = list(self.STRAIN_SPECIFIC_R0)
                 strain_specific_r0[self.STRAIN_IDX.omicron] = r0_omicron
                 default_sample_dict["r0"] = jnp.asarray(strain_specific_r0)
-                default_sample_dict[
-                    "waning_protections"
-                ] = utils.sample_waning_protections(self.WANING_PROTECTIONS)
-                # args accepts the sample_dist_dict merged with default samples.
-                # any collisions in keys, sample_dist_dict takes precedence, user values always accepted.
                 args = dict(args, **default_sample_dict)
 
-        else:  # if we arent sampling we use values from config in self
-            args["beta"] = self.STRAIN_SPECIFIC_R0 / self.INFECTIOUS_PERIOD
-            args["waning_protections"] = self.WANING_PROTECTIONS
-
-        # lets quickly update any values that depend on parameters which may or may not be sampled.
-        if "infectious_period" in args and "r0" in args:
-            beta = numpyro.deterministic(
-                "beta", args["r0"] / args["infectious_period"]
-            )
-        elif "infectious_period" in args:
-            beta = numpyro.deterministic(
-                "beta", self.STRAIN_SPECIFIC_R0 / args["infectious_period"]
-            )
-        elif "r0" in args:
-            beta = numpyro.deterministic(
-                "beta", args["r0"] / self.INFECTIOUS_PERIOD
-            )
+        # lets quickly update any values that depend on other parameters which may or may not be sampled.
+        # set defaults if they are not in args aka not sampled.
+        r0 = args.get("r0", self.STRAIN_SPECIFIC_R0)
+        infectious_period = args.get(
+            "infectious_period", self.INFECTIOUS_PERIOD
+        )
+        if "infectious_period" in args or "r0" in args:
+            beta = numpyro.deterministic("beta", r0 / infectious_period)
         else:
-            beta = self.STRAIN_SPECIFIC_R0 / self.INFECTIOUS_PERIOD
+            beta = r0 / infectious_period
         gamma = (
             1 / self.INFECTIOUS_PERIOD
             if "infectious_period" not in args
@@ -202,24 +188,32 @@ class BasicMechanisticModel:
         incidence,
         model,
         sample_dist_dict={},
-        tf=1000,
     ):
         """
         Approximate the ODE model incidence (new exposure) per time step,
-        based on diffeqsolve solution obtained after self.run.
+        based on diffeqsolve solution obtained after self.run and sampled values of parameters.
 
         Parameters
         ----------
+        incidence: list(int)
+                    observed incidence of each compartment to compare against.
+
         model: function()
             an ODE style function which takes in state, time, and parameters in that order,
             and return a list of two: tuple of changes in compartment and array of incidences.
 
+        sample_dist_dict: dict(str:numpyro.distribution)
+                          a dictionary of parameters to sample, if empty, defaults will be sampled and rest are left at values specified in config.
+                          follows format "parameter_name":numpyro.Distributions.dist(). DO NOT pass numpyro.sample() objects to the dictionary.
         Returns
         ----------
         List of arrays of incidence (one per time step).
         """
         solution = self.run(
-            model, sample=True, sample_dist_dict=sample_dist_dict, tf=tf
+            model,
+            sample=True,
+            sample_dist_dict=sample_dist_dict,
+            tf=len(incidence),
         )
         # add 1 to strain idx because we are straified by time in the solution object
         model_incidence = jnp.sum(
@@ -233,7 +227,7 @@ class BasicMechanisticModel:
             obs=incidence,
         )
 
-    def infer(self, model, incidence, sample_dist_dict, timesteps=1000.0):
+    def infer(self, model, incidence, sample_dist_dict={}, timesteps=1000.0):
         """
         Runs inference given some observed incidence and a model of transmission dynamics.
         Uses MCMC and NUTS for parameter tuning of the model returns estimated parameter values given incidence.
@@ -259,7 +253,6 @@ class BasicMechanisticModel:
             incidence=incidence,
             sample_dist_dict=sample_dist_dict,
             model=model,
-            tf=timesteps,
         )
         mcmc.print_summary()
 
@@ -273,7 +266,7 @@ class BasicMechanisticModel:
         sample=False,
         sample_dist_dict={},
         save_path="model_run.png",
-        plot_compartments=["s", "e", "i", "r", "w0", "w1", "w2", "w3"],
+        plot_compartments=["S", "E", "I", "R", "W", "C"],
     ):
         """
         Takes parameters from self and applies them to some disease dynamics modeled in `model`
@@ -340,7 +333,10 @@ class BasicMechanisticModel:
         return solution
 
     def plot_diffrax_solution(
-        self, sol, plot_compartments=["s", "e", "i", "r"], save_path=None
+        self,
+        sol,
+        plot_compartments=["s", "e", "i", "r", "w", "c"],
+        save_path=None,
     ):
         """
         plots a run from diffeqsolve() with compartments `plot_compartments` returning figure and axis.
