@@ -13,23 +13,19 @@ pd.options.mode.chained_assignment = None
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # SAMPLING FUNCTIONS
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-def sample_r0(R0_means):
-    """sample r0 for each strain according to an exponential distribution
-    with rate equal to inverse of strain specific r0 in config file
+def sample_r0():
+    """sample r0 for each a single strain according to an exponential distribution with rate 1.0
 
-    Parameters
+    Returns
     ----------
-    R0_means: list(int)
-        list of mean R0 for each pathogen strain, from which exponential distribution will center around.
-        len(R0_means) = # of strains in your model."""
-    r0s = []
-    for i, sample_mean in enumerate(R0_means):
-        excess_r0 = numpyro.sample(
-            "excess_r0_" + str(i), dist.Exponential(1 / sample_mean)
-        )
-        r0 = numpyro.deterministic("r0_" + str(i), 1 + excess_r0)
-        r0s.append(r0)
-    return r0s
+    numpro.sample object with name `r0` containing a deterministic object 1+exp(1.0)
+    """
+
+    excess_r0 = numpyro.sample(
+        "excess_r0", numpyro.distributions.Exponential(1.0)
+    )
+    r0 = numpyro.deterministic("r0", 1 + excess_r0)
+    return r0
 
 
 def sample_waning_protections(waning_protect_means):

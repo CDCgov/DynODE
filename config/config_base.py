@@ -56,7 +56,7 @@ class ConfigBase:
         self.INIT_INFECTED_DIST = None
         self.NUM_COMPARTMENTS = 5
         # indexes ENUM for readability in code
-        self.IDX = IntEnum("idx", ["S", "E", "I", "R", "W"], start=0)
+        self.IDX = IntEnum("idx", ["S", "E", "I", "R", "W", "C"], start=0)
         self.AXIS_IDX = IntEnum("idx", ["age", "strain", "wane"], start=0)
         # setting default rng keys
         self.MCMC_PRNGKEY = 8675309

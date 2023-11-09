@@ -103,51 +103,107 @@ class BasicMechanisticModel:
 
         self.solution = None
 
-    def get_args(self, sample=False):
+    def get_args(self, sample=False, sample_dist_dict={}):
         """
-        A function that returns model args in the correct order as expected by the ODETerm function f(t, y(t), args)dt
+        A function that returns model args as a dictionary as expected by the ODETerm function f(t, y(t), args)dt
         https://docs.kidger.site/diffrax/api/terms/#diffrax.ODETerm
 
         for example functions f() in charge of disease dynamics see the model_odes folder.
+        if sample=True, omicron strain beta and waning protections are automatically sampled.
+        Parameters
+        ----------
+        sample: boolean
+                whether or not to sample key parameters, used when model is being run in MCMC and parameters are being infered
+        sample_dist_dict: dict(str:numpyro.sample)
+                          a dictionary of parameters to sample, if empty, defaults will be sampled and rest are left at values specified in config.
+                          example dictionary to sample infectious_period, note the necessity to set seed BEFORE sampling:
+                          with numpyro.handlers.seed(rng_seed=mechanistic_model.MODEL_RAND_SEED):
+                            mechanistic_model.get_args(sample=True, sample_dist_dict={"infectious_period": numpyro.sample("infectious_period", numpyro.distributions.Exponential(1.0))}))
         """
+        args = {
+            "contact_matrix": self.CONTACT_MATRIX,
+            "vax_rate": self.VACCINATION_RATE,
+            "mu": self.BIRTH_RATE,
+            "population": self.POPULATION,
+            "num_strains": self.NUM_STRAINS,
+            "num_waning_compartments": self.NUM_WANING_COMPARTMENTS,
+            "waning_protections": self.WANING_PROTECTIONS,
+        }
         if sample:
-            beta = (
-                utils.sample_r0(self.STRAIN_SPECIFIC_R0)
-                / self.infectious_period
-            )
-            waning_protections = utils.sample_waning_protections(
-                self.WANING_PROTECTIONS
-            )
-        else:  # if we arent sampling we use values from config in self
-            beta = self.STRAIN_SPECIFIC_R0 / self.INFECTIOUS_PERIOD
-            waning_protections = self.WANING_PROTECTIONS
+            # with numpyro.handlers.seed(rng_seed=self.MODEL_RAND_SEED):
+            if sample_dist_dict:
+                args = dict(args, **sample_dist_dict)
+            else:
+                default_sample_dict = {}
+                r0_omicron = utils.sample_r0()
+                strain_specific_r0 = list(self.STRAIN_SPECIFIC_R0)
+                strain_specific_r0[self.STRAIN_IDX.omicron] = r0_omicron
+                default_sample_dict["r0"] = jnp.asarray(strain_specific_r0)
+                default_sample_dict[
+                    "waning_protections"
+                ] = utils.sample_waning_protections(self.WANING_PROTECTIONS)
+                # args accepts the sample_dist_dict merged with default samples.
+                # any collisions in keys, sample_dist_dict takes precedence, user values always accepted.
+                args = dict(args, **default_sample_dict)
 
-        gamma = 1 / self.INFECTIOUS_PERIOD
-        sigma = 1 / self.EXPOSED_TO_INFECTIOUS
+        else:  # if we arent sampling we use values from config in self
+            args["beta"] = self.STRAIN_SPECIFIC_R0 / self.INFECTIOUS_PERIOD
+            args["waning_protections"] = self.WANING_PROTECTIONS
+
+        # lets quickly update any values that depend on parameters which may or may not be sampled.
+        if "infectious_period" in args and "r0" in args:
+            beta = numpyro.deterministic(
+                "beta", args["r0"] / args["infectious_period"]
+            )
+        elif "infectious_period" in args:
+            beta = numpyro.deterministic(
+                "beta", self.STRAIN_SPECIFIC_R0 / args["infectious_period"]
+            )
+        elif "r0" in args:
+            beta = numpyro.deterministic(
+                "beta", args["r0"] / self.INFECTIOUS_PERIOD
+            )
+        else:
+            beta = self.STRAIN_SPECIFIC_R0 / self.INFECTIOUS_PERIOD
+        gamma = (
+            1 / self.INFECTIOUS_PERIOD
+            if "infectious_period" not in args
+            else numpyro.deterministic("gamma", 1 / args["infectious_period"])
+        )
+        sigma = (
+            1 / self.EXPOSED_TO_INFECTIOUS
+            if "exposed_to_infectious" not in args
+            else numpyro.deterministic(
+                "sigma", 1 / args["exposed_to_infectious"]
+            )
+        )
         waning_rate = 1 / self.WANING_TIME
         # default to no cross immunity, setting diagnal to 0
         # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
         suseptibility_matrix = jnp.ones(
             (self.NUM_STRAINS, self.NUM_STRAINS)
         ) * (1 - jnp.diag(jnp.array([1] * self.NUM_STRAINS)))
-        # if your model expects added parameters, add them here
-        args = {
-            "beta": beta,
-            "sigma": sigma,
-            "gamma": gamma,
-            "contact_matrix": self.CONTACT_MATRIX,
-            "vax_rate": self.VACCINATION_RATE,
-            "waning_protections": waning_protections,
-            "waning_rate": waning_rate,
-            "mu": self.BIRTH_RATE,
-            "population": self.POPULATION,
-            "susceptibility_matrix": suseptibility_matrix,
-            "num_strains": self.NUM_STRAINS,
-            "num_waning_compartments": self.NUM_WANING_COMPARTMENTS,
-        }
+        # add final parameters, if your model expects added parameters, add them here
+        args = dict(
+            args,
+            **{
+                "beta": beta,
+                "sigma": sigma,
+                "gamma": gamma,
+                "waning_rate": waning_rate,
+                "susceptibility_matrix": suseptibility_matrix,
+            }
+        )
         return args
 
-    def incidence(self, model):
+    def incidence(
+        self,
+        times,
+        incidence,
+        model,
+        sample_dist_dict={},
+        tf=1000,
+    ):
         """
         Approximate the ODE model incidence (new exposure) per time step,
         based on diffeqsolve solution obtained after self.run.
@@ -162,35 +218,22 @@ class BasicMechanisticModel:
         ----------
         List of arrays of incidence (one per time step).
         """
-        if not self.solution:
-            raise ValueError(
-                "Solution not found in the BasicMechanisticModel object, run() the ode solver first."
-            )
+        solution = self.run(
+            model, sample=True, sample_dist_dict=sample_dist_dict, tf=tf
+        )
+        # add 1 to strain idx because we are straified by time in the solution object
+        model_incidence = jnp.sum(
+            solution.ys[self.IDX.C], axis=self.AXIS_IDX.strain + 1
+        )
+        # axis = 0 because we take diff across time
+        model_incidence = jnp.diff(model_incidence, axis=0)
+        numpyro.sample(
+            "incidence",
+            numpyro.distributions.Poisson(model_incidence),
+            obs=incidence,
+        )
 
-        incidence = []
-        sol = self.solution.ys
-        total_steps = len(self.solution.ts)
-
-        for i in range(total_steps - 1):  # incidence always one less
-            st = (
-                sol[0][i, :],
-                sol[1][i, :, :],
-                sol[2][i, :, :],
-                sol[3][i, :, :],
-                sol[4][i, :, :, :],
-            )
-
-            out = model(st, 0, self.get_args())
-            incidence.append(out[1])
-
-        return incidence
-
-        # Observed incidence
-        # numpyro.sample(
-        #     "incidence", dist.Poisson(model_incidence), obs=incidence
-        # )
-
-    def infer(self, model, incidence):
+    def infer(self, model, incidence, sample_dist_dict, timesteps=1000.0):
         """
         Runs inference given some observed incidence and a model of transmission dynamics.
         Uses MCMC and NUTS for parameter tuning of the model returns estimated parameter values given incidence.
@@ -204,16 +247,19 @@ class BasicMechanisticModel:
             observed incidence of each compartment to compare against.
         """
         mcmc = MCMC(
-            NUTS(model, dense_mass=True),
+            NUTS(self.incidence, dense_mass=True),
             num_warmup=self.MCMC_NUM_WARMUP,
             num_samples=self.MCMC_NUM_SAMPLES,
             num_chains=self.MCMC_NUM_CHAINS,
             progress_bar=self.MCMC_PROGRESS_BAR,
         )
         mcmc.run(
-            PRNGKey(self.MCMC_PRNGKEY),
-            times=np.linspace(0.0, 100.0, 101),
+            rng_key=PRNGKey(self.MCMC_PRNGKEY),
+            times=np.linspace(0.0, timesteps, int(timesteps) + 1),
             incidence=incidence,
+            sample_dist_dict=sample_dist_dict,
+            model=model,
+            tf=timesteps,
         )
         mcmc.print_summary()
 
@@ -221,9 +267,11 @@ class BasicMechanisticModel:
         self,
         model,
         tf=100.0,
-        plot=True,
-        show=True,
-        save=True,
+        plot=False,
+        show=False,
+        save=False,
+        sample=False,
+        sample_dist_dict={},
         save_path="model_run.png",
         plot_compartments=["s", "e", "i", "r", "w0", "w1", "w2", "w3"],
     ):
@@ -238,15 +286,18 @@ class BasicMechanisticModel:
             for example functions see the model_odes folder.
         tf: int
             stopping time point (with default configuration this is days)
+        plot: boolean
+            whether or not to plot the solution using plot_difrax_solution()
         show: boolean
             whether or not to show an image via matplotlib.pyplot.show()
         save: boolean
             whether or not to save an image and its metadata to `save_path`
+        sample: boolean
+            whether or not to sample parameters or use values from config. See `get_args()` for sampling process
         save_path: str
             relative or absolute path where to save an image and its metadata if `save=True`
         plot_compartments: list(str)
-            a list of compartments to plot in the image, strings may be upper or lower case and must match
-            strings specified in self.IDX or self.W_IDX.
+            a list of compartments to plot, strings must match those specified in self.IDX or self.W_IDX.
 
         Returns
         ----------
@@ -266,7 +317,9 @@ class BasicMechanisticModel:
             tf,
             dt0,
             self.INITIAL_STATE,
-            args=self.get_args(sample=False),
+            args=self.get_args(
+                sample=sample, sample_dist_dict=sample_dist_dict
+            ),
             saveat=saveat,
             max_steps=30000,
         )
