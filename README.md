@@ -24,7 +24,7 @@ from model_odes.seir_model_v5 import seirw_ode
 from mechanistic_compartments import build_basic_mechanistic_model
 from config.config_base import ConfigBase
 
-solution = build_basic_mechanistic_model(ConfigBase()).run(seirw_ode, save_path="output/example.png")
+solution = build_basic_mechanistic_model(ConfigBase()).run(seirw_ode, plot=True, show=True, save=True, save_path="output/example.png")
 ```
 
 To create your own scenario, and modify parameters such as strain R0 and vaccination rate follow these steps:
@@ -40,7 +40,7 @@ from model_odes.seir_model_v5 import seirw_ode
 from mechanistic_compartments import build_basic_mechanistic_model
 from config.config_scenario_example import ConfigScenario
 
-solution = build_basic_mechanistic_model(ConfigScenario()).run(seirw_ode, save_path="output/example_scenario.png")
+solution = build_basic_mechanistic_model(ConfigScenario()).run(seirw_ode, plot=True, show=True, save=True, save_path="output/example_scenario.png")
 ```
 
 ## Data Sources
