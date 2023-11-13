@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpyro
 import pandas as pd
-from diffrax import ODETerm, SaveAt, Tsit5, diffeqsolve
+from diffrax import ODETerm, SaveAt, Solution, Tsit5, diffeqsolve
 from jax.random import PRNGKey
 from numpyro.infer import MCMC, NUTS
 
@@ -612,6 +612,8 @@ class BasicMechanisticModel:
             a file object that can be written to, usually the result of a call like open("file.txt") as f
         """
 
+        # define a custom encoder so that things like Enums, numpy arrays,
+        # and Diffrax.Solution objects can be JSON serializable
         class CustomEncoder(json.JSONEncoder):
             def default(self, obj):
                 if isinstance(obj, np.ndarray) or isinstance(obj, jnp.ndarray):
@@ -620,6 +622,8 @@ class BasicMechanisticModel:
                     return {
                         str(e): idx for e, idx in zip(obj, range(len(obj)))
                     }
+                if isinstance(obj, Solution):
+                    return obj.ys
                 return json.JSONEncoder.default(self, obj)
 
         return json.dump(self.__dict__, file, indent=4, cls=CustomEncoder)
