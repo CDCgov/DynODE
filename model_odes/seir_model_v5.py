@@ -9,7 +9,7 @@ class Parameters(object):
         self.__dict__ = dict
 
 
-def _seirw_ode(state, _, parameters):
+def seirw_ode(state, _, parameters):
     """
     A basic SEIRW ODE model to be used in a wrapper which is then feed into solvers such as odeint
     or diffeqsolve.
@@ -18,7 +18,8 @@ def _seirw_ode(state, _, parameters):
     ----------
     state : array-like pytree
     a tuple or any array-like object capable of unpacking, holding the current state of the model,
-    in this case holding population values of the S, E, I, R, and W compartments,
+    in this case holding population values of the S, E, I, R, W, and C compartments. (note: C =
+    cumulative incidence).
 
     _ : None
     Formally used to denote current time of the model, is not currently used in this function
@@ -27,17 +28,15 @@ def _seirw_ode(state, _, parameters):
     a dictionary holding the values of parameters needed by the SEIRW model.
 
     Returns:
-    a list consists of two elements:
-    1. a tuple containing the rates of change of all compartments given in the `state` parameter.
+    a tuple containing the rates of change of all compartments given in the `state` parameter.
     each element in the return tuple will match the dimensions of the parallel element in `state`.
-    2. an array of incidence (e.g., ds_to_i + dw_to_i)
 
     """
     # Unpack state
-    # dims s = (dc.NUM_AGE_GROUPS)
+    # dims s/c = (dc.NUM_AGE_GROUPS)
     # dims e/i/r = (dc.NUM_AGE_GROUPS, dc.NUM_STRAINS)
     # dims w = (dc.NUM_AGE_GROUPS, dc.NUM_STRAINS, mc.NUM_WANING_COMPARTMENTS)
-    s, e, i, r, w = state
+    s, e, i, r, w, c = state
     p = Parameters(parameters)
 
     # TODO when adding birth and deaths just create it as a compartment
@@ -74,7 +73,7 @@ def _seirw_ode(state, _, parameters):
             dw = dw.at[:, strain_target_idx, :].add(-ws_exposed)
             # element wise addition of exposed w_s into de
             de = de.at[:, strain_source_idx].add(np.sum(ws_exposed, axis=1))
-    dw_to_e = -dw
+    dw_to_e = de
 
     # lets measure our waned rates
     for w_idx in range(w.shape[-1]):
@@ -122,13 +121,110 @@ def _seirw_ode(state, _, parameters):
     di = jnp.add(jnp.zeros(i.shape), jnp.add(de_to_i, -di_to_r))
     dr = jnp.add(jnp.zeros(r.shape), jnp.add(di_to_r, -dr_to_w))
 
-    ds_to_e = jnp.sum(ds_to_e, axis=1) # across strains
-    dw_to_e = jnp.sum(dw_to_e, axis=[1, 2]) # across strains & w compartments
-    incidence = ds_to_e + dw_to_e
-    return [(ds, de, di, dr, dw), incidence]
+    dc = ds_to_e + dw_to_e
+    return (ds, de, di, dr, dw, dc)
 
 
-def seirw_ode(state, _, parameters):
-    """Wrapper to feed _seirw_ode model to solvers."""
-    out = _seirw_ode(state, _, parameters)
-    return out[0]
+def seirw_ode2(state, _, parameters):
+    """
+    A basic SEIRW ODE model to be used in a wrapper which is then feed into solvers such as odeint
+    or diffeqsolve.
+
+    Parameters:
+    ----------
+    state : array-like pytree
+    a tuple or any array-like object capable of unpacking, holding the current state of the model,
+    in this case holding population values of the S, E, I, R, W, and C compartments. (note: C =
+    cumulative incidence).
+
+    _ : None
+    Formally used to denote current time of the model, is not currently used in this function
+
+    parameters : a dictionary
+    a dictionary holding the values of parameters needed by the SEIRW model.
+
+    Returns:
+    a tuple containing the rates of change of all compartments given in the `state` parameter.
+    each element in the return tuple will match the dimensions of the parallel element in `state`.
+
+    """
+    # Unpack state
+    # dims s/c = (dc.NUM_AGE_GROUPS)
+    # dims e/i/r = (dc.NUM_AGE_GROUPS, dc.NUM_STRAINS)
+    # dims w = (dc.NUM_AGE_GROUPS, dc.NUM_STRAINS, mc.NUM_WANING_COMPARTMENTS)
+    s, e, i, r, w, c = state
+    p = Parameters(parameters)
+
+    # TODO when adding birth and deaths just create it as a compartment
+    force_of_infection = (
+        p.beta * p.contact_matrix.dot(i) / p.population[:, None]
+    )
+    ds_to_e = force_of_infection * s[:, None]
+    ds_to_w = s * p.vax_rate  # vaccination of suseptibles
+    de_to_i = p.sigma * e  # exposure -> infectious
+    di_to_r = p.gamma * i  # infectious -> recovered
+    dr_to_w = p.waning_rate * r
+    # guaranteed to wane into first waning compartment remaining in their strains.
+
+    dw = jnp.zeros(w.shape)
+    de = jnp.zeros(e.shape)
+    # competition between strains for waned individuals + reinfection by same strain
+    for strain_source_idx in range(p.num_strains):
+        force_of_infection_strain = force_of_infection[:, strain_source_idx]
+
+        partial_susceptibility = p.susceptibility_matrix[strain_source_idx, :]
+        effective_susceptibility = 1 - jnp.matmul(
+            p.waning_protections[:, None],
+            (1 - partial_susceptibility)[None, :],
+        )
+        ws_exposed = jnp.array(
+            [
+                force_of_infection_strain[:, None]
+                * w[:, i, :]
+                * effective_susceptibility[:, i]
+                for i in range(p.num_strains)
+            ]
+        )
+        ws_exposed = jnp.transpose(ws_exposed, (1, 0, 2))
+        dw = dw - ws_exposed
+        de = de.at[:, strain_source_idx].add(jnp.sum(ws_exposed, axis=(1, 2)))
+
+    dw_to_e = de
+
+    # lets measure our waned + vax rates
+    # last w group doesn't wane
+    waning_array = jnp.zeros(w.shape) + p.waning_rate
+    waning_array = waning_array.at[:, :, w.shape[2] - 1].set(0)
+    w_waned = waning_array * w
+
+    # first w group doesn't vax
+    vaxed_array = jnp.zeros(w.shape) + p.vax_rate
+    vaxed_array = vaxed_array.at[:, :, 0].set(0)
+    w_vaxed = vaxed_array * w
+
+    # first w group gain from everywhere, others only from neighbour
+    w_gained = jnp.zeros(w.shape)
+    w_gained = w_gained.at[:, :, 0].add(jnp.sum(w_vaxed, axis=2))
+    w_gained = w_gained.at[:, :, 1 : w.shape[2]].add(
+        w_waned[:, :, 0 : w.shape[2] - 1]
+    )
+
+    dw = dw + w_gained - w_waned - w_vaxed
+    # waning from recovered into first waning compartment
+    dw = dw.at[:, :, 0].add(dr_to_w)
+    # vaccination from suseptible into first waning compartment, first strain only
+    # TODO vaccination in alpha strain currently. move to omicron?
+    dw = dw.at[:, 0, 0].add(ds_to_w)  # TODO fix this 0 hard code
+    # last compartment doesnt wane
+    # only top waning compartment receives people from "r"
+
+    # sum ds_to_e since s does not split by subtype
+    ds = jnp.add(
+        jnp.zeros(s.shape), jnp.add(-jnp.sum(ds_to_e, axis=1), -ds_to_w)
+    )
+    de = jnp.add(de, -de_to_i + ds_to_e)
+    di = jnp.add(jnp.zeros(i.shape), jnp.add(de_to_i, -di_to_r))
+    dr = jnp.add(jnp.zeros(r.shape), jnp.add(di_to_r, -dr_to_w))
+
+    dc = ds_to_e + dw_to_e
+    return (ds, de, di, dr, dw, dc)

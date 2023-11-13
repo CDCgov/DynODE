@@ -10,9 +10,9 @@ from config.config_strain_2 import ConfigScenario as config_strain_2
 from mechanistic_compartments import build_basic_mechanistic_model
 
 # IMPORT MODEL YOU WISH TO TEST AND SET IT HERE
-from model_odes.seir_model_v5 import seirw_ode
+from model_odes.seir_model_v5 import seirw_ode2
 
-MODEL = seirw_ode
+MODEL = seirw_ode2
 
 all_models = [
     build_basic_mechanistic_model(config_base()),
@@ -66,7 +66,7 @@ def test_r0_at_1_constant_infections():
     first_derivatives = MODEL(
         state, 0, model_r0_1_vax_0.get_args(sample=False)
     )
-    (ds, de, di, dr, dw) = first_derivatives
+    (ds, de, di, dr, dw, dc) = first_derivatives
     # sum across strains to just get age groups
     de = np.sum(de, axis=model_r0_1_vax_0.AXIS_IDX.strain)
     di = np.sum(di, axis=model_r0_1_vax_0.AXIS_IDX.strain)
@@ -81,7 +81,7 @@ def test_constant_population():
     for test_model in all_models:
         state = test_model.INITIAL_STATE
         first_derivatives = MODEL(state, 0, test_model.get_args(sample=False))
-        (ds, de, di, dr, dw) = first_derivatives
+        (ds, de, di, dr, dw, dc) = first_derivatives
         de = np.sum(de, axis=-1)  # sum across strains since ds has no strains
         di = np.sum(di, axis=-1)
         dr = np.sum(dr, axis=-1)
@@ -103,7 +103,7 @@ def test_no_exposed_r0_0():
     first_derivatives = MODEL(
         state, 0, model_r0_0_with_vax.get_args(sample=False)
     )
-    (ds, de, di, dr, dw) = first_derivatives
+    (ds, de, di, dr, dw, dc) = first_derivatives
     de = np.sum(de, axis=-1)  # sum across strains to just get age groups
     assert not de.any(), "model still exposing new individuals even with r0=0"
 
@@ -117,10 +117,8 @@ def test_strains_equal():
     """
     for test_model in no_vax_models:
         state = test_model.INITIAL_STATE
-        first_derivatives = seirw_ode(
-            state, 0, test_model.get_args(sample=False)
-        )
-        (ds, de, di, dr, dw) = first_derivatives
+        first_derivatives = MODEL(state, 0, test_model.get_args(sample=False))
+        (ds, de, di, dr, dw, dc) = first_derivatives
         dw = np.sum(dw, axis=-1)  # summing waning compartments
         for arr in [de, di, dr, dw]:
             cond = [
