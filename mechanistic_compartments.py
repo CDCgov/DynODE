@@ -42,18 +42,18 @@ class BasicMechanisticModel:
         # grab all parameters passed from config
         self.__dict__.update(kwargs)
 
-        # if not given, generate population fractions based on observed census data
+        # if not given, load population fractions based on observed census data into self
         if not self.INITIAL_POPULATION_FRACTIONS:
             self.load_inital_population_fractions()
 
         self.POPULATION = self.POP_SIZE * self.INITIAL_POPULATION_FRACTIONS
 
-        # if not given, load contact matrices via mixing data.
+        # if not given, load contact matrices via mixing data into self.
         if not self.CONTACT_MATRIX:
             self.load_contact_matrix()
 
         # TODO does it make sense to set one and not the other if provided one ?
-        # if not given, load inital waning and recovered distributions from serological data
+        # if not given, load inital waning and recovered distributions from serological data into self
         if self.INIT_WANING_DIST is None or self.INIT_RECOVERED_DIST is None:
             self.load_waning_and_recovered_distributions()
 
@@ -103,20 +103,29 @@ class BasicMechanisticModel:
 
         self.solution = None
 
-    def get_args(self, sample=False, sample_dist_dict={}):
+    def get_args(
+        self,
+        sample: bool = False,
+        sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
+    ):
         """
         A function that returns model args as a dictionary as expected by the ODETerm function f(t, y(t), args)dt
         https://docs.kidger.site/diffrax/api/terms/#diffrax.ODETerm
 
         for example functions f() in charge of disease dynamics see the model_odes folder.
         if sample=True, and no sample_dist_dict supplied, omicron strain beta and waning protections are automatically sampled.
+
         Parameters
         ----------
-        sample: boolean
-                whether or not to sample key parameters, used when model is being run in MCMC and parameters are being infered
-        sample_dist_dict: dict(str:numpyro.distribution)
-                          a dictionary of parameters to sample, if empty, defaults will be sampled and rest are left at values specified in config.
-                          follows format "parameter_name":numpyro.Distributions.dist(). DO NOT pass numpyro.sample() objects to the dictionary.
+        `sample`: boolean
+            whether or not to sample key parameters, used when model is being run in MCMC and parameters are being infered
+        `sample_dist_dict`: dict(str:numpyro.distribution)
+            a dictionary of parameters to sample, if empty, defaults will be sampled and rest are left at values specified in config.
+            follows format "parameter_name":numpyro.Distributions.dist(). DO NOT pass numpyro.sample() objects to the dictionary.
+
+        Returns
+        ----------
+        dict{str: Object}: A dictionary where key value pairs are used as parameters by an ODE model, things like R0 or contact matricies.
         """
         args = {
             "contact_matrix": self.CONTACT_MATRIX,
@@ -184,10 +193,10 @@ class BasicMechanisticModel:
 
     def incidence(
         self,
-        times,
-        incidence,
+        _,
+        incidence: list[int],
         model,
-        sample_dist_dict={},
+        sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
     ):
         """
         Approximate the ODE model incidence (new exposure) per time step,
@@ -195,16 +204,17 @@ class BasicMechanisticModel:
 
         Parameters
         ----------
-        incidence: list(int)
+        `incidence`: list(int)
                     observed incidence of each compartment to compare against.
 
-        model: function()
+        `model`: function()
             an ODE style function which takes in state, time, and parameters in that order,
             and return a list of two: tuple of changes in compartment and array of incidences.
 
-        sample_dist_dict: dict(str:numpyro.distribution)
-                          a dictionary of parameters to sample, if empty, defaults will be sampled and rest are left at values specified in config.
-                          follows format "parameter_name":numpyro.Distributions.dist(). DO NOT pass numpyro.sample() objects to the dictionary.
+        `sample_dist_dict`: dict(str:numpyro.distribution)
+            a dictionary of parameters to sample, if empty, defaults will be sampled and rest are left at values specified in config.
+            follows format "parameter_name":numpyro.Distributions.dist(). DO NOT pass numpyro.sample() objects to the dictionary.
+
         Returns
         ----------
         List of arrays of incidence (one per time step).
@@ -227,18 +237,29 @@ class BasicMechanisticModel:
             obs=incidence,
         )
 
-    def infer(self, model, incidence, sample_dist_dict={}, timesteps=1000.0):
+    def infer(
+        self,
+        model,
+        incidence,
+        sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
+        timesteps: int = 1000.0,
+    ):
         """
         Runs inference given some observed incidence and a model of transmission dynamics.
         Uses MCMC and NUTS for parameter tuning of the model returns estimated parameter values given incidence.
 
         Parameters
         ----------
-        model: function()
+        `model`: function()
             a standard ODE style function which takes in state, time, and parameters in that order.
             for example functions see the model_odes folder.
-        incidence: list(int)
+        `incidence`: list(int)
             observed incidence of each compartment to compare against.
+        `sample_dist_dict`: dict(str:numpyro.distribution)
+            a dictionary of parameters to sample, if empty, defaults will be sampled and rest are left at values specified in config.
+            follows format "parameter_name":numpyro.Distributions.dist(). DO NOT pass numpyro.sample() objects to the dictionary.
+        `timesteps`: int
+            number of timesteps over which you wish to infer over, must match len(`incidence`)
         """
         mcmc = MCMC(
             NUTS(self.incidence, dense_mass=True),
@@ -259,14 +280,14 @@ class BasicMechanisticModel:
     def run(
         self,
         model,
-        tf=100.0,
-        plot=False,
-        show=False,
-        save=False,
-        sample=False,
-        sample_dist_dict={},
-        save_path="model_run.png",
-        plot_compartments=["S", "E", "I", "R", "W", "C"],
+        tf: int = 100.0,
+        plot: bool = False,
+        show: bool = False,
+        save: bool = False,
+        sample: bool = False,
+        sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
+        save_path: str = "model_run.png",
+        plot_compartments: list[str] = ["S", "E", "I", "R", "W", "C"],
     ):
         """
         Takes parameters from self and applies them to some disease dynamics modeled in `model`
@@ -274,22 +295,25 @@ class BasicMechanisticModel:
 
         Parameters
         ----------
-        model: function()
+        `model`: function()
             a standard ODE style function which takes in state, time, and parameters in that order.
             for example functions see the model_odes folder.
-        tf: int
+        `tf`: int
             stopping time point (with default configuration this is days)
-        plot: boolean
+        `plot`: boolean
             whether or not to plot the solution using plot_difrax_solution()
-        show: boolean
+        `show`: boolean
             whether or not to show an image via matplotlib.pyplot.show()
-        save: boolean
+        `save`: boolean
             whether or not to save an image and its metadata to `save_path`
-        sample: boolean
+        `sample`: boolean
             whether or not to sample parameters or use values from config. See `get_args()` for sampling process
-        save_path: str
+        `sample_dist_dict`: dict(str:numpyro.distribution)
+            a dictionary of parameters to sample, if empty, defaults will be sampled and rest are left at values specified in config.
+            follows format "parameter_name":numpyro.Distributions.dist(). DO NOT pass numpyro.sample() objects to the dictionary.
+        `save_path`: str
             relative or absolute path where to save an image and its metadata if `save=True`
-        plot_compartments: list(str)
+        `plot_compartments`: list(str)
             a list of compartments to plot, strings must match those specified in self.IDX or self.W_IDX.
 
         Returns
@@ -334,9 +358,9 @@ class BasicMechanisticModel:
 
     def plot_diffrax_solution(
         self,
-        sol,
-        plot_compartments=["s", "e", "i", "r", "w", "c"],
-        save_path=None,
+        sol: Solution,
+        plot_compartments: list[str] = ["s", "e", "i", "r", "w", "c"],
+        save_path: str = None,
     ):
         """
         plots a run from diffeqsolve() with compartments `plot_compartments` returning figure and axis.
@@ -346,9 +370,9 @@ class BasicMechanisticModel:
         ----------
         sol : difrax.Solution
             object containing ODE run as described by https://docs.kidger.site/diffrax/api/solution/
-        plot_compartment : list(str)
+        plot_compartment : list(str), optional
             compartment titles as defined by the config file used to initialize self
-        save_path : str
+        save_path : str, optional
             if `save_path = None` do not save figure to output directory. Otherwise save to relative path `save_path`
             attaching meta data of the self object.
         """
@@ -412,9 +436,9 @@ class BasicMechanisticModel:
 
         Parameters
         ----------
-        save_path: str/None
+        save_path: {str, None}, optional
             the save path to which to save the figure, None implies figure will not be saved.
-        show: boolean
+        show: {Boolean, None}, optional
             Whether or not to show the figure using plt.show() defaults to True.
 
         Returns
@@ -479,10 +503,20 @@ class BasicMechanisticModel:
 
     def load_waning_and_recovered_distributions(self):
         """
-        a wrapper function which loads serologically informed covid recovered and waning distributions into self.
-        Omicron strain will always be 3 if self.NUM_STRAINS >= 3, otherwise it will be the largest index.
-        older strains like delta and alpha will be at lower indexes than omicron, 1, and 0 respectively.
-        delta and alpha may be combined if self.NUM_STRAINS < 3.
+        a wrapper function which loads serologically informed covid recovered and waning distributions into self, accounting for strain timing.
+        Serology data initalized closely after the end of the Omicron wave on Feb 11th 2022.
+
+        Use `self.STRAIN_IDX` to index strains in correct manner and avoid out of bounds errors
+
+        Updates
+        ----------
+        self.INIT_RECOVERED_DIST : np.array
+            the proportions of the total population for each age bin defined as recovered, or within 1 `self.WANING_TIME` of infection.
+            has a shape of (`self.NUM_AGE_GROUPS`, `self.NUM_STRAINS`)
+
+        self.self.INIT_WANING_DIST : np.array
+            the proportions of the total population for each age bin defined as waning, or within x `self.WANING_TIME`s of infection. where x is the waning compartment
+            has a shape of (`self.NUM_AGE_GROUPS`, `self.NUM_STRAINS`, `self.NUM_WANING_COMPARTMENTS`)
         """
         sero_path = (
             self.SEROLOGICAL_DATA
@@ -517,6 +551,12 @@ class BasicMechanisticModel:
     def load_inital_population_fractions(self):
         """
         a wrapper function which loads age demographics for the US and sets the inital population fraction by age bin.
+
+        Updates
+        ----------
+        `self.INITIAL_POPULATION_FRACTIONS` : numpy.ndarray
+            proportion of the total population that falls into each age group,
+            length of this array is equal the number of age groups and will sum to 1.0.
         """
         populations_path = (
             self.DEMOGRAPHIC_DATA + "population_rescaled_age_distributions/"
@@ -529,6 +569,11 @@ class BasicMechanisticModel:
         """
         a wrapper function that loads a contact matrix for the USA based on mixing paterns data found here:
         https://github.com/mobs-lab/mixing-patterns
+
+        Updates
+        ----------
+        `self.CONTACT_MATRIX` : numpy.ndarray
+            a matrix of shape (self.NUM_AGE_GROUPS, self.NUM_AGE_GROUPS) with each value representing TODO
         """
         self.CONTACT_MATRIX = utils.load_demographic_data(
             self.DEMOGRAPHIC_DATA,
@@ -541,31 +586,29 @@ class BasicMechanisticModel:
     def load_init_infection_infected_and_exposed_dist(self):
         """
         loads the inital infection distribution by age, then separates infections into an
-        infected and exposed distribution, all infections assumed to be omicron.
+        infected and exposed distributions, to account for people who may not be infectious yet,
+        but are part of the initial infections of the model all infections assumed to be omicron.
         utilizes the ratio between gamma and sigma to determine what proportion of inital infections belong in the
         exposed (soon to be infectious), and the already infectious compartments.
 
         infections are stratified across age bins based on proportion of each age bin
-        in individuals who have recent sero-converted before model initalization date.
+        in individuals who have recently sero-converted before model initalization date.
         Equivalent to using proportion of each age bin in self.INIT_RECOVERED_DIST
 
         given that `INIT_INFECTION_DIST` = `INIT_EXPOSED_DIST` + `INIT_INFECTED_DIST`
-        MODIFIES
-        ----------
-        self.INIT_INFECTION_DIST: jnp.array(int)
-            populates values using seroprevalence to produce a distribution of how infections are
-            stratified by age bin. INIT_INFECTION_DIST.shape = (self.NUM_AGE_GROUPS,)
 
-        self.INIT_EXPOSED_DIST: jnp.array(int)
+        Updates
+        ----------
+        `self.INIT_INFECTION_DIST`: jnp.array(int)
+            populates values using seroprevalence to produce a distribution of how new infections are
+            stratified by age bin. INIT_INFECTION_DIST.shape = (self.NUM_AGE_GROUPS,) and sum(self.INIT_INFECTION_DIST) = 1.0
+        `self.INIT_EXPOSED_DIST`: jnp.array(int)
             proportion of INIT_INFECTION_DIST that falls into exposed compartment, formatted into the omicron strain.
             INIT_EXPOSED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
-
-        self.INIT_INFECTED_DIST: jnp.array(int)
+        `self.INIT_INFECTED_DIST`: jnp.array(int)
             proportion of INIT_INFECTION_DIST that falls into infected compartment, formatted into the omicron strain.
             INIT_INFECTED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
         """
-        # TODO, double check, since we are assuming similar dynamics in short time frames
-        # we expect to see similar proportions of each age bin in new infections as recovered
         self.INIT_INFECTION_DIST = self.INIT_RECOVERED_DIST[
             :, self.STRAIN_IDX.omicron
         ]
@@ -606,9 +649,10 @@ class BasicMechanisticModel:
         a simple method which takes self.__dict__ and dumps it into `file`.
         this method effectively deals with nested numpy and jax arrays
         which are normally not JSON serializable and cause errors.
-        PARAMETERS
+
+        Parameters
         ----------
-        file: TextIOWrapper
+        `file`: TextIOWrapper
             a file object that can be written to, usually the result of a call like open("file.txt") as f
         """
 
@@ -632,5 +676,10 @@ class BasicMechanisticModel:
 def build_basic_mechanistic_model(config: config):
     """
     A builder function meant to take in a Config class and build a BasicMechanisticModel() object with values from the config.
+
+    Parameters
+    ----------
+    config : ConfigBase
+        a configuration object of type `ConfigBase` or inherits from `ConfigBase`
     """
     return BasicMechanisticModel(**config.__dict__)
