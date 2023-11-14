@@ -40,10 +40,12 @@ class ConfigBase:
         self.VACCINATION_RATE = 1 / 500.0  # vac_p
         self.INITIAL_INFECTIONS = 1.0
         self.STRAIN_SPECIFIC_R0 = jnp.array([1.5, 1.5, 1.5])  # R0s
-        self.NUM_WANING_COMPARTMENTS = 23
-        # len(WANING_TIMES) = NUM_WANING_COMPARTMENTS + 1 to account for R -> W1 rate.
-        self.WANING_TIMES = [7] * 10 + [21] * 14
-        self.WANING_TIME = 21  # time in WHOLE days before a recovered individual moves to first waned compartment
+        self.NUM_WANING_COMPARTMENTS = 4
+        self.WANING_PROTECTIONS = jnp.array([0.48, 0.473, 0.473, 0])
+        # len(WANING_TIMES) = NUM_WANING_COMPARTMENTS + 1 to account for R -> W0 rate.
+        # WANING_TIMES in days for each waning compartment, ends in 0 as last compartment does not wane
+        self.WANING_TIMES = [21, 142, 142, 142, 0]
+        # self.WANING_TIME = 21  # time in WHOLE days before a recovered individual moves to first waned compartment
         self.INITIAL_PROTECTION = (
             0.52  # %likelihood of re-infection given just recovered source 17
         )
@@ -262,12 +264,21 @@ class ConfigBase:
         assert (
             len(self.STRAIN_SPECIFIC_R0) > 0
         ), "Must specify at least 1 strain R0"
-        assert (
-            self.WANING_TIME >= 1
+        assert all(
+            [wane_time >= 1 for wane_time in self.WANING_TIMES[:-1]]
         ), "Can not have waning time less than 1 day, time is in days if you meant to put months"
-        assert isinstance(
-            self.WANING_TIME, int
-        ), "WANING_TIME must be of type int, no fractional days"
+        assert all(
+            [
+                isinstance(wane_time, int)
+                for wane_time in self.WANING_TIMES[:-1]
+            ]
+        ), "WANING_TIME must be of type list[int], no fractional days"
+        assert (
+            self.WANING_TIMES[-1] == 0
+        ), "Waning times must end in 0 to account for last waning compartment not waning into anything"
+        assert (
+            len(self.WANING_TIMES) == self.NUM_WANING_COMPARTMENTS + 1
+        ), "Waning times must cover R-> w0 and wx-wy for all waning compartments x and y, including last compartment which does not wane"
         assert (
             self.INITIAL_PROTECTION <= 1 and self.INITIAL_PROTECTION >= 0
         ), "INITIAL_PROTECTION must be between 0 and 1 inclusive"

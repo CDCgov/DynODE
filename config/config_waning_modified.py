@@ -16,7 +16,7 @@ class ConfigScenario(ConfigBase):
         # set scenario parameters here
         self.NUM_WANING_COMPARTMENTS = 4
         self.WANING_PROTECTIONS = jnp.array([0.48, 0.473, 0.473, 0])
-        self.WANING_TIMES = [21, 142, 142, 142]
+        self.WANING_TIMES = [21, 142, 142, 142, 0]
         # pass all modified scenario params to the base constructor to set the others.
         # DO NOT CHANGE THE FOLLOWING TWO LINES
         super().__init__(**self.__dict__)

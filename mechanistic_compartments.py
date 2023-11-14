@@ -172,7 +172,12 @@ class BasicMechanisticModel:
                 "sigma", 1 / args["exposed_to_infectious"]
             )
         )
-        waning_rates = [1 / waning_time for waning_time in self.WANING_TIMES]
+        # since our last waning time is zero to account for last compartment never waning
+        # we include an if else statement to catch a division by zero error here.
+        waning_rates = [
+            1 / waning_time if waning_time > 0 else 0
+            for waning_time in self.WANING_TIMES
+        ]
         # default to no cross immunity, setting diagnal to 0
         # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
         suseptibility_matrix = jnp.ones(
@@ -193,7 +198,6 @@ class BasicMechanisticModel:
 
     def incidence(
         self,
-        _,
         incidence: list[int],
         model,
         sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
@@ -270,7 +274,7 @@ class BasicMechanisticModel:
         )
         mcmc.run(
             rng_key=PRNGKey(self.MCMC_PRNGKEY),
-            times=np.linspace(0.0, timesteps, int(timesteps) + 1),
+            # times=np.linspace(0.0, timesteps, int(timesteps) + 1),
             incidence=incidence,
             sample_dist_dict=sample_dist_dict,
             model=model,
@@ -338,7 +342,7 @@ class BasicMechanisticModel:
                 sample=sample, sample_dist_dict=sample_dist_dict
             ),
             saveat=saveat,
-            max_steps=30000,
+            max_steps=10000,  # allows for arbitrarily large time scales
         )
         self.solution = solution
         save_path = (
@@ -487,10 +491,7 @@ class BasicMechanisticModel:
         props = {"rotation": 25, "size": 7}
         plt.setp(ax.get_xticklabels(), **props)
         ax.legend()
-        ax.set_title(
-            "Initial Population Immunity level by %s day intervals"
-            % str(self.WANING_TIME)
-        )
+        ax.set_title("Initial Population Immunity level by waning compartment")
         ax.set_xlabel("Immune Compartment")
         ax.set_ylabel("Population Count, all strains")
         if show:

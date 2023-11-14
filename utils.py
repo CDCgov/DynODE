@@ -373,10 +373,20 @@ def past_infection_dist_from_serology_demographics(
         waning_compartment_date = prev_waning_compartment_date - (
             datetime.timedelta(days=waning_time)
         )
-        select = serology.loc[
-            waning_compartment_date : prev_waning_compartment_date
-            - datetime.timedelta(days=1)
-        ]
+        # if the waning time for this compartment is zero, we never wane out of this compartment
+        # select one day back, remember time slices are inclusive on BOTH sides!
+        if waning_compartment_date == prev_waning_compartment_date:
+            select = serology.loc[
+                waning_compartment_date
+                - datetime.timedelta(days=1) : prev_waning_compartment_date
+                - datetime.timedelta(days=1)
+            ]
+        else:
+            # grab a time range for construction of the waning compartment
+            select = serology.loc[
+                waning_compartment_date : prev_waning_compartment_date
+                - datetime.timedelta(days=1)
+            ]
         assert (
             len(select) > 0
         ), "serology data does not exist for this waning date " + str(
@@ -445,9 +455,8 @@ def past_infection_dist_from_serology_demographics(
                 serology_age_group, weights=population_age_group
             )
             # this is where we would uniformly spread out waning if we wanted to
-            if (
-                waning_index == 0
-            ):  # waning_index=0, add to recovered compartment
+            # waning_index=0, add to recovered compartment
+            if waning_index == 0:
                 recovered_init_distribution[
                     age_group_idx, strain_select
                 ] = serology_weighted
