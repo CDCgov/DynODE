@@ -11,36 +11,16 @@ class ConfigScenario(ConfigBase):
     """
 
     def __init__(self) -> None:
-        self.SCENARIO_NAME = "All persons begin in the recovered compartment, no one anywhere else."
+        self.SCENARIO_NAME = """Scenario in which waning is limited to 4 compartments,
+        where each one is fit according to Ben's R script. Using dynamic waning times and fit waning protections."""
         # set scenario parameters here
-        # pass all modified scenario params to the base constructor to set the others.
-        # DO NOT CHANGE THE FOLLOWING TWO LINES
         self.NUM_WANING_COMPARTMENTS = 4
         self.WANING_PROTECTIONS = jnp.array([0.48, 0.473, 0.473, 0])
         self.WANING_TIMES = [21, 142, 142, 142]
-        self.INITIAL_INFECTIONS = 0
-        self.VACCINATION_RATE = 0
+        # pass all modified scenario params to the base constructor to set the others.
+        # DO NOT CHANGE THE FOLLOWING TWO LINES
         super().__init__(**self.__dict__)
         # Do not add any scenario parameters below, may create inconsistent state
-        self.INIT_EXPOSED_DIST = jnp.zeros(
-            (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
-        )
-        self.INIT_WANING_DIST = jnp.zeros(
-            (
-                self.NUM_AGE_GROUPS,
-                self.NUM_STRAINS,
-                self.NUM_WANING_COMPARTMENTS,
-            )
-        )
-        # since we cant be bothered to check the serology for the age distributions of initial recovered
-        # lets just define the whole population to be recovered, and equally distributed across ages.
-        self.INIT_RECOVERED_DIST = jnp.array(
-            [[0, 0, 1.0], [0, 0, 1.0], [0, 0, 1.0], [0, 0, 1.0]]
-        )
-        self.INIT_INFECTED_DIST = jnp.zeros(
-            (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
-        )
-        self.INIT_INFECTION_DIST = jnp.zeros((self.NUM_AGE_GROUPS,))
 
     def assert_valid_values(self):
         """

@@ -172,7 +172,7 @@ class BasicMechanisticModel:
                 "sigma", 1 / args["exposed_to_infectious"]
             )
         )
-        waning_rate = 1 / self.WANING_TIME
+        waning_rates = [1 / waning_time for waning_time in self.WANING_TIMES]
         # default to no cross immunity, setting diagnal to 0
         # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
         suseptibility_matrix = jnp.ones(
@@ -185,7 +185,7 @@ class BasicMechanisticModel:
                 "beta": beta,
                 "sigma": sigma,
                 "gamma": gamma,
-                "waning_rate": waning_rate,
+                "waning_rates": waning_rates,
                 "susceptibility_matrix": suseptibility_matrix,
             }
         )

@@ -152,12 +152,12 @@ def load_age_demographics(
     return demographic_data
 
 
-def prep_serology_data(path, waning_time):
+def prep_serology_data(path):
     """
     reads serology data from path, filters to only USA site,
     filters Date Ranges from Sep 2020 - Feb 2022,
     calculates monotonically increasing rates of change (to combat sero-reversion from the assay),
-    and converts string dates to datetime.dt.date objects
+    and converts string dates to datetime.dt.date objects. Then interpolates all time spans into individual days.
 
     TODO: change method of combatting sero-reversion to one outlined here:
     https://www.nature.com/articles/s41467-023-37944-5
@@ -171,11 +171,14 @@ def prep_serology_data(path, waning_time):
     Returns
     ----------
     serology table containing the following additional columns:
-    `collection_start` = assay collection start date
-    `collection_end` = assay collection end date
-    `age0_age1_diff` = difference in `Rate (%) [Anti-N, age1-age2 Years Prevalence]` from current and previous collection.
-                  enforced to be positive or 0 to combat sero-reversion. Columns repeats for age bins [0-17, 18-49, 50-64, 65+]
-    modifies `Rate (%) [Anti-N, age1-age2 Years Prevalence, Rounds 1-30 only]` columns to enforce monotonicity as well.
+        `collection_start` = assay collection start date \n
+        `collection_end` = assay collection end date \n
+        `age0_age1_diff` = difference in `Rate (%) [Anti-N, age1-age2 Years Prevalence]` from current and previous collection.
+        enforced to be positive or 0 to combat sero-reversion. Columns repeats for age bins [0-17, 18-49, 50-64, 65+]
+
+    Modifies
+    ----------
+    `Rate (%) [Anti-N, age1-age2 Years Prevalence, Rounds 1-30 only]` columns to enforce monotonicity.
     """
     serology = pd.read_csv(path)
     # filter down to USA and pick a date after omicron surge to load serology from.
@@ -316,7 +319,7 @@ def past_infection_dist_from_serology_demographics(
         the proportions of the total population for each age bin defined as waning, or within x `waning_time`s of infection. where x is the waning compartment
         has a shape of (len(`age_limits`), `num_strains`, `num_waning_compartments`)
     """
-    serology = prep_serology_data(sero_path, waning_times)
+    serology = prep_serology_data(sero_path)
     # we will need population data for weighted averages
     age_distributions = np.loadtxt(
         age_path + "United_States_country_level_age_distribution_85.csv",
