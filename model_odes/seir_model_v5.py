@@ -49,7 +49,7 @@ def seirw_ode(state, _, parameters):
 
     de_to_i = p.sigma * e  # exposure -> infectious
     di_to_r = p.gamma * i  # infectious -> recovered
-    dr_to_w = p.waning_rate * r
+    dr_to_w = p.waning_rates[0] * r
     # guaranteed to wane into first waning compartment remaining in their strains.
 
     dw = jnp.zeros(w.shape)
@@ -77,11 +77,12 @@ def seirw_ode(state, _, parameters):
 
     # lets measure our waned rates
     for w_idx in range(w.shape[-1]):
-        # waning from waning compartment to waning compartment, last compartment does not wane
+        # waning from waning compartment to next waning compartment, last compartment does not wane
+        # p.waning_rates[1:] is an array excluding the R->W0 waning rate, since that is handled explicitly above
         w_waned = (
             0
             if w_idx == p.num_waning_compartments - 1
-            else p.waning_rate * w[:, :, w_idx]
+            else p.waning_rates[1:][w_idx] * w[:, :, w_idx]
         )
         # waned individuals being vaccinated, no w1 -> w1 vaccination of top compartment
         w_vaxed = 0 if w_idx == 0 else p.vax_rate * w[:, :, w_idx]
@@ -99,7 +100,9 @@ def seirw_ode(state, _, parameters):
                 ]
             )
         else:
-            w_gained = p.waning_rate * w[:, :, w_idx - 1]
+            # p.waning_rates[1:] is an array excluding the R->W0 waning rate, since that is handled explicitly above
+            # gained individuals based on the waning rate and population of previous compartment
+            w_gained = p.waning_rates[1:][w_idx - 1] * w[:, :, w_idx - 1]
 
         dw = dw.at[:, :, w_idx].add(-w_waned)
         dw = dw.at[:, :, w_idx].add(w_gained)
@@ -163,7 +166,7 @@ def seirw_ode2(state, _, parameters):
     ds_to_w = s * p.vax_rate  # vaccination of suseptibles
     de_to_i = p.sigma * e  # exposure -> infectious
     di_to_r = p.gamma * i  # infectious -> recovered
-    dr_to_w = p.waning_rate * r
+    dr_to_w = p.waning_rates[0] * r  # recovered -> waning
     # guaranteed to wane into first waning compartment remaining in their strains.
 
     dw = jnp.zeros(w.shape)
@@ -192,9 +195,9 @@ def seirw_ode2(state, _, parameters):
     dw_to_e = de
 
     # lets measure our waned + vax rates
-    # last w group doesn't wane
-    waning_array = jnp.zeros(w.shape) + p.waning_rate
-    waning_array = waning_array.at[:, :, w.shape[2] - 1].set(0)
+    # first element of p.waning_rates is R->W, so it is ignored here. [1:]
+    # last w group doesn't wane but waning_rates enforces a 0 at the end
+    waning_array = jnp.zeros(w.shape).at[:, :].add(p.waning_rates[1:])
     w_waned = waning_array * w
 
     # first w group doesn't vax

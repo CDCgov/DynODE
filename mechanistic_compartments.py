@@ -31,20 +31,20 @@ class BasicMechanisticModel:
 
     def __init__(self, **kwargs):
         """
-        Initalize a basic abstract mechanistic model for covid19 case prediction.
+        initialize a basic abstract mechanistic model for covid19 case prediction.
         Should not be constructed directly, use build_basic_mechanistic_model() with a config file
         """
         # if users call __init__ instead of the builder function, kwargs will be empty, causing errors.
         assert (
             len(kwargs) > 0
-        ), "Do not initalize this object without the helper function build_basic_mechanistic_model() and a config file."
+        ), "Do not initialize this object without the helper function build_basic_mechanistic_model() and a config file."
 
         # grab all parameters passed from config
         self.__dict__.update(kwargs)
 
         # if not given, load population fractions based on observed census data into self
         if not self.INITIAL_POPULATION_FRACTIONS:
-            self.load_inital_population_fractions()
+            self.load_initial_population_fractions()
 
         self.POPULATION = self.POP_SIZE * self.INITIAL_POPULATION_FRACTIONS
 
@@ -58,7 +58,7 @@ class BasicMechanisticModel:
             self.load_waning_and_recovered_distributions()
 
         # because our suseptible population is not strain stratified,
-        # we need to sum these inital recovered/waning distributions by their axis so shapes line up
+        # we need to sum these initial recovered/waning distributions by their axis so shapes line up
         init_recovered_strain_summed = np.sum(
             self.INIT_RECOVERED_DIST, axis=self.AXIS_IDX.strain
         )
@@ -73,16 +73,16 @@ class BasicMechanisticModel:
             self.load_init_infection_infected_and_exposed_dist()
 
         # suseptibles = Total population - infected - recovered - waning
-        inital_suseptible_count = (
+        initial_suseptible_count = (
             self.POPULATION
             - (self.INITIAL_INFECTIONS * self.INIT_INFECTION_DIST)
             - (self.POPULATION * init_recovered_strain_summed)
             - (self.POPULATION * init_waning_strain_compartment_summed)
         )
-        inital_recovered_count = (
+        initial_recovered_count = (
             self.POPULATION * self.INIT_RECOVERED_DIST.transpose()
         ).transpose()
-        inital_waning_count = (
+        initial_waning_count = (
             self.POPULATION * self.INIT_WANING_DIST.transpose()
         ).transpose()
 
@@ -93,11 +93,11 @@ class BasicMechanisticModel:
             self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
         )
         self.INITIAL_STATE = (
-            inital_suseptible_count,  # s
+            initial_suseptible_count,  # s
             initial_exposed_count,  # e
             initial_infectious_count,  # i
-            inital_recovered_count,  # r
-            inital_waning_count,  # w
+            initial_recovered_count,  # r
+            initial_waning_count,  # w
             jnp.zeros(initial_exposed_count.shape),  # c
         )
 
@@ -172,7 +172,12 @@ class BasicMechanisticModel:
                 "sigma", 1 / args["exposed_to_infectious"]
             )
         )
-        waning_rate = 1 / self.WANING_TIME
+        # since our last waning time is zero to account for last compartment never waning
+        # we include an if else statement to catch a division by zero error here.
+        waning_rates = [
+            1 / waning_time if waning_time > 0 else 0
+            for waning_time in self.WANING_TIMES
+        ]
         # default to no cross immunity, setting diagnal to 0
         # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
         suseptibility_matrix = jnp.ones(
@@ -185,7 +190,7 @@ class BasicMechanisticModel:
                 "beta": beta,
                 "sigma": sigma,
                 "gamma": gamma,
-                "waning_rate": waning_rate,
+                "waning_rates": waning_rates,
                 "susceptibility_matrix": suseptibility_matrix,
             }
         )
@@ -193,7 +198,6 @@ class BasicMechanisticModel:
 
     def incidence(
         self,
-        _,
         incidence: list[int],
         model,
         sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
@@ -270,7 +274,7 @@ class BasicMechanisticModel:
         )
         mcmc.run(
             rng_key=PRNGKey(self.MCMC_PRNGKEY),
-            times=np.linspace(0.0, timesteps, int(timesteps) + 1),
+            # times=np.linspace(0.0, timesteps, int(timesteps) + 1),
             incidence=incidence,
             sample_dist_dict=sample_dist_dict,
             model=model,
@@ -338,7 +342,7 @@ class BasicMechanisticModel:
                 sample=sample, sample_dist_dict=sample_dist_dict
             ),
             saveat=saveat,
-            max_steps=30000,
+            max_steps=10000,  # allows for arbitrarily large time scales
         )
         self.solution = solution
         save_path = (
@@ -487,10 +491,7 @@ class BasicMechanisticModel:
         props = {"rotation": 25, "size": 7}
         plt.setp(ax.get_xticklabels(), **props)
         ax.legend()
-        ax.set_title(
-            "Initial Population Immunity level by %s day intervals"
-            % str(self.WANING_TIME)
-        )
+        ax.set_title("Initial Population Immunity level by waning compartment")
         ax.set_xlabel("Immune Compartment")
         ax.set_ylabel("Population Count, all strains")
         if show:
@@ -543,12 +544,12 @@ class BasicMechanisticModel:
             sero_path,
             pop_path,
             self.AGE_LIMITS,
-            self.WANING_TIME,
+            self.WANING_TIMES,
             self.NUM_WANING_COMPARTMENTS,
             self.NUM_STRAINS,
         )
 
-    def load_inital_population_fractions(self):
+    def load_initial_population_fractions(self):
         """
         a wrapper function which loads age demographics for the US and sets the inital population fraction by age bin.
 
