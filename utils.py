@@ -152,7 +152,9 @@ def load_age_demographics(
     return demographic_data
 
 
-def prep_serology_data(path):
+def prep_serology_data(
+    path, num_historical_strains, historical_time_breakpoints
+):
     """
     reads serology data from path, filters to only USA site,
     filters Date Ranges from Sep 2020 - Feb 2022,
@@ -164,9 +166,18 @@ def prep_serology_data(path):
 
     Parameters
     ----------
-    waning_protect_means: str
+    path: str
         relative path to serology data sourced from
         https://data.cdc.gov/Laboratory-Surveillance/Nationwide-Commercial-Laboratory-Seroprevalence-Su/d2tw-32xv
+
+    num_historical_strains: int
+        the number of historical strains to be used in the "strain_select" column of the output.
+        most recent strain will always be placed as value num_historical_strains - 1. While oldest at 0.
+
+    historical_time_breakpoints: list[datetime.date]
+        list of datetime.date breakpoints on which an older strain transitions to a newer one.
+        for example, omicron took off on (2021, 11, 19), meaning anything before that date is delta, on or after is omicron.
+
 
     Returns
     ----------
@@ -174,7 +185,9 @@ def prep_serology_data(path):
         `collection_start` = assay collection start date \n
         `collection_end` = assay collection end date \n
         `age0_age1_diff` = difference in `Rate (%) [Anti-N, age1-age2 Years Prevalence]` from current and previous collection.
-        enforced to be positive or 0 to combat sero-reversion. Columns repeats for age bins [0-17, 18-49, 50-64, 65+]
+        enforced to be positive or 0 to combat sero-reversion. Columns repeats for age bins [0-17, 18-49, 50-64, 65+] \n
+        `strain_select` = the strain index value for sero conversion on that day. As decided by historical_time_breakpoints and
+        the `num_historical_strains`
 
     Modifies
     ----------
@@ -261,6 +274,22 @@ def prep_serology_data(path):
         # )  # resample to waning compart width
         # .max()
     )
+    strain_select = (
+        num_historical_strains - 1
+    )  # initialize as most recent strain
+
+    strain_select_array = [
+        strain_select
+        - sum(
+            [
+                date < pd.Timestamp(historical_breakpoint)
+                for historical_breakpoint in historical_time_breakpoints
+            ]
+        )
+        for date in serology.index
+    ]
+
+    serology["strain_select"] = strain_select_array
     # we will use the absolute change in % serology prevalence to initialize wane compartments
     serology["0_17_diff"] = serology[
         "Rate (%) [Anti-N, 0-17 Years Prevalence]"
@@ -319,7 +348,6 @@ def past_infection_dist_from_serology_demographics(
         the proportions of the total population for each age bin defined as waning, or within x `waning_time`s of infection. where x is the waning compartment
         has a shape of (len(`age_limits`), `num_strains`, `num_waning_compartments`)
     """
-    serology = prep_serology_data(sero_path)
     # we will need population data for weighted averages
     age_distributions = np.loadtxt(
         age_path + "United_States_country_level_age_distribution_85.csv",
@@ -350,6 +378,9 @@ def past_infection_dist_from_serology_demographics(
     assert (
         num_historical_strains == len(historical_time_breakpoints) + 1
     ), "set breakpoints for each of the historical strains you want to initialize with sero data"
+    serology = prep_serology_data(
+        sero_path, num_historical_strains, historical_time_breakpoints
+    )
     # age_to_diff_dict will be used to average age bins when our datas age bins collide with serology datas
     # for example hypothetical 10-20 age bin, needs to be weighted average of 0-17 and 18-49 age bins based on population
     age_to_sero_dict = {}
@@ -394,76 +425,77 @@ def past_infection_dist_from_serology_demographics(
         )
         # depending how far back we are looking, we may be filling waning information for past strains
         # omicron = strain 2, delta = 1, alpha = 0 for example
-        strain_select = (
-            num_historical_strains - 1
-        )  # initialize as most recent strain
-        for historical_breakpoint in historical_time_breakpoints:
-            if waning_compartment_date < historical_breakpoint:
-                strain_select -= 1
         # we have now selected the information for current waning compartment, set the pointer here for next loop
         prev_waning_compartment_date = waning_compartment_date
         # select is now an array spaning from the beginning of the current compartment, up until the begining of the previous one.
-        # select = select.iloc[0]
-        # fill our age_to_sero_dict so each age maps to its sero change we just selected
-        # if we are in the last waning compartment, use sero-prevalence at that date instead
-        # effectively combining all persons with previous infection on or before that date together
-        for age in range(85):
-            if age < serology_age_limits[0]:
-                age_to_sero_dict[age] = (
-                    sum(select["0_17_diff"])
-                    if waning_index < num_waning_compartments
-                    else max(
-                        select["Rate (%) [Anti-N, 0-17 Years Prevalence]"]
+        # however, this compartment can span multiple strains, depending on its size, do calculations for each strain!
+        for strain_select in select["strain_select"].unique():
+            select_strained = select[select["strain_select"] == strain_select]
+
+            # fill our age_to_sero_dict so each age maps to its sero change we just selected
+            # if we are in the last waning compartment, use sero-prevalence at that date instead
+            # effectively combining all persons with previous infection on or before that date together
+            for age in range(85):
+                if age < serology_age_limits[0]:
+                    age_to_sero_dict[age] = (
+                        sum(select_strained["0_17_diff"])
+                        if waning_index < num_waning_compartments
+                        else max(
+                            select_strained[
+                                "Rate (%) [Anti-N, 0-17 Years Prevalence]"
+                            ]
+                        )
                     )
-                )
-            elif age < serology_age_limits[1]:
-                age_to_sero_dict[age] = (
-                    sum(select["18_49_diff"])
-                    if waning_index < num_waning_compartments
-                    else max(
-                        select[
-                            "Rate (%) [Anti-N, 18-49 Years Prevalence, Rounds 1-30 only]"
-                        ]
+                elif age < serology_age_limits[1]:
+                    age_to_sero_dict[age] = (
+                        sum(select_strained["18_49_diff"])
+                        if waning_index < num_waning_compartments
+                        else max(
+                            select[
+                                "Rate (%) [Anti-N, 18-49 Years Prevalence, Rounds 1-30 only]"
+                            ]
+                        )
                     )
-                )
-            elif age < serology_age_limits[2]:
-                age_to_sero_dict[age] = (
-                    sum(select["50_64_diff"])
-                    if waning_index < num_waning_compartments
-                    else max(
-                        select[
-                            "Rate (%) [Anti-N, 50-64 Years Prevalence, Rounds 1-30 only]"
-                        ]
+                elif age < serology_age_limits[2]:
+                    age_to_sero_dict[age] = (
+                        sum(select_strained["50_64_diff"])
+                        if waning_index < num_waning_compartments
+                        else max(
+                            select[
+                                "Rate (%) [Anti-N, 50-64 Years Prevalence, Rounds 1-30 only]"
+                            ]
+                        )
                     )
-                )
-            else:
-                age_to_sero_dict[age] = (
-                    sum(select["65_diff"])
-                    if waning_index < num_waning_compartments
-                    else max(
-                        select[
-                            "Rate (%) [Anti-N, 65+ Years Prevalence, Rounds 1-30 only]"
-                        ]
+                else:
+                    age_to_sero_dict[age] = (
+                        sum(select_strained["65_diff"])
+                        if waning_index < num_waning_compartments
+                        else max(
+                            select[
+                                "Rate (%) [Anti-N, 65+ Years Prevalence, Rounds 1-30 only]"
+                            ]
+                        )
                     )
+            for age_group_idx, age_group in enumerate(age_groups):
+                serology_age_group = [
+                    age_to_sero_dict[age] for age in age_group
+                ]
+                population_age_group = [
+                    age_distributions[age][1] for age in age_group
+                ]
+                serology_weighted = np.average(
+                    serology_age_group, weights=population_age_group
                 )
-        for age_group_idx, age_group in enumerate(age_groups):
-            serology_age_group = [age_to_sero_dict[age] for age in age_group]
-            population_age_group = [
-                age_distributions[age][1] for age in age_group
-            ]
-            serology_weighted = np.average(
-                serology_age_group, weights=population_age_group
-            )
-            # this is where we would uniformly spread out waning if we wanted to
-            # waning_index=0, add to recovered compartment
-            if waning_index == 0:
-                recovered_init_distribution[
-                    age_group_idx, strain_select
-                ] = serology_weighted
-            else:  # add to a waning compartment, subtract 1 to fill 0th waning compartment
-                waning_init_distribution[
-                    age_group_idx, strain_select, waning_index - 1
-                ] = serology_weighted
+                # this is where we would uniformly spread out waning if we wanted to
+                # waning_index=0, add to recovered compartment
+                if waning_index == 0:
+                    recovered_init_distribution[
+                        age_group_idx, strain_select
+                    ] = serology_weighted
+                else:  # add to a waning compartment, subtract 1 to fill 0th waning compartment
+                    waning_init_distribution[
+                        age_group_idx, strain_select, waning_index - 1
+                    ] = serology_weighted
 
     return recovered_init_distribution, waning_init_distribution
 
