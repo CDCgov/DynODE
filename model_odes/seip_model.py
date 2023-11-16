@@ -1,6 +1,5 @@
 import jax.numpy as jnp
-
-# import numpy as np
+import numpy as np
 
 
 class Parameters(object):
@@ -53,28 +52,41 @@ def seip_ode(state, _, parameters):
     p = Parameters(parameters)
     ds, de = jnp.zeros(s.shape), jnp.zeros(e.shape)
     de = de  # to pass precommit
-    # shape of (num_age_groups, num_strains)
+    # shape of (num_age_groups, num_immune_states, max_vax_count+1, num_strains)
+    force_of_infection = (
+        (1 / p.population)
+        * (
+            p.beta * np.einsum("ab,bijk->aijk", p.contact_matrix, i)
+        ).transpose()
+    ).transpose()
     # TODO how does this work?
     for strain_source_idx in range(p.num_strains):
-        # force_of_infection_strain = force_of_infection[:, strain_source_idx]
-        # strain_source_idx will attempt to infect those previously infected with strain_target_idx.
+        # shape = (num_age_groups, immune_compartments, max_vax_count)
+        force_of_infection_strain = force_of_infection[
+            :, :, :, strain_source_idx
+        ]
+        # partial_suseptibility needs to be (immune_state,) meaning susceptiblity matrix = (strain, immune_state)
+        partial_susceptibility = p.susceptibility_matrix[strain_source_idx, :]
+        # p.vax_eff_matrix.shape = (num_strains, max_vax_count)
+        vax_susceptibility_strain = p.vax_eff_matrix[strain_source_idx, :]
         # susceptibility_matrix.shape = (num_strains, 2^num_strains) matrix of strain vs exposure hist.
-        # partial_susceptibility_by_strain.shape = (2^num_strains,)
-        partial_susceptibility_by_strain = p.susceptibility_matrix[
-            strain_source_idx
-        ]
+        # p.vax_eff_matrix.shape = strain, max_vax_count
         # partial_vax_susceptiblity_by_strain.shape = (max_vax_count+1.,)
-        partial_vax_susceptiblity_by_strain = p.vax_eff_matrix[
-            strain_source_idx
-        ]
-        immune_state_susceptibility = jnp.outer(
-            partial_susceptibility_by_strain,
-            partial_vax_susceptiblity_by_strain,
+        # TODO somehow get vaccination in this effective_susceptibility array
+        effective_susceptibility = 1 - jnp.matmul(
+            p.waning_protections[:, None],
+            (1 - partial_susceptibility)[None, :],
+            vax_susceptibility_strain,  # TODO FIX
+        )  # waning, immune_state,
+        exposed_s = jnp.array(
+            [
+                force_of_infection_strain
+                * s[:, :, :, wane]
+                * effective_susceptibility[:, None]
+                for wane in range(p.num_waning)
+            ]
         )
-        effective_exposed = (
-            immune_state_susceptibility * p.waning_protections
-        )  # something here?
-        effective_exposed = effective_exposed  # passing precommit
+        exposed_s = exposed_s  # for precommit
         # dw = dw.at[:, strain_target_idx, :].add(-ws_exposed)
         # de = de.at[:, strain_source_idx].add(np.sum(ws_exposed, axis=1))
 

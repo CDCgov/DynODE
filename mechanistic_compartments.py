@@ -54,52 +54,52 @@ class BasicMechanisticModel:
 
         # TODO does it make sense to set one and not the other if provided one ?
         # if not given, load inital waning and recovered distributions from serological data into self
-        if self.INIT_WANING_DIST is None:
-            self.load_waning_distributions()
+        # if self.INIT_WANING_DIST is None:
+        #     self.load_waning_distributions()
 
         # because our suseptible population is not strain stratified,
         # we need to sum these initial recovered/waning distributions by their axis so shapes line up
-        init_recovered_strain_summed = np.sum(
-            self.INIT_RECOVERED_DIST, axis=self.AXIS_IDX.strain
-        )
-        init_waning_strain_compartment_summed = np.sum(
-            self.INIT_WANING_DIST,
-            axis=(self.AXIS_IDX.strain, self.AXIS_IDX.wane),
-        )
+        # init_recovered_strain_summed = np.sum(
+        #     self.INIT_RECOVERED_DIST, axis=self.AXIS_IDX.strain
+        # )
+        # init_waning_strain_compartment_summed = np.sum(
+        #     self.INIT_WANING_DIST,
+        #     axis=(self.AXIS_IDX.strain, self.AXIS_IDX.wane),
+        # )
 
         # if not given an inital infection distribution, use max eig value vector of contact matrix
         # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
-        if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
-            self.load_init_infection_infected_and_exposed_dist()
+        # if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
+        #     self.load_init_infection_infected_and_exposed_dist()
 
         # suseptibles = Total population - infected - recovered - waning
-        initial_suseptible_count = (
-            self.POPULATION
-            - (self.INITIAL_INFECTIONS * self.INIT_INFECTION_DIST)
-            - (self.POPULATION * init_recovered_strain_summed)
-            - (self.POPULATION * init_waning_strain_compartment_summed)
-        )
-        initial_recovered_count = (
-            self.POPULATION * self.INIT_RECOVERED_DIST.transpose()
-        ).transpose()
-        initial_waning_count = (
-            self.POPULATION * self.INIT_WANING_DIST.transpose()
-        ).transpose()
+        # initial_suseptible_count = (
+        #     self.POPULATION
+        #     - (self.INITIAL_INFECTIONS * self.INIT_INFECTION_DIST)
+        #     - (self.POPULATION * init_recovered_strain_summed)
+        #     - (self.POPULATION * init_waning_strain_compartment_summed)
+        # )
+        # initial_recovered_count = (
+        #     self.POPULATION * self.INIT_RECOVERED_DIST.transpose()
+        # ).transpose()
+        # initial_waning_count = (
+        #     self.POPULATION * self.INIT_WANING_DIST.transpose()
+        # ).transpose()
 
-        initial_infectious_count = (
-            self.INITIAL_INFECTIONS * self.INIT_INFECTED_DIST
-        )
-        initial_exposed_count = (
-            self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
-        )
-        self.INITIAL_STATE = (
-            initial_suseptible_count,  # s
-            initial_exposed_count,  # e
-            initial_infectious_count,  # i
-            initial_recovered_count,  # r
-            initial_waning_count,  # w
-            jnp.zeros(initial_exposed_count.shape),  # c
-        )
+        # initial_infectious_count = (
+        #     self.INITIAL_INFECTIONS * self.INIT_INFECTED_DIST
+        # )
+        # initial_exposed_count = (
+        #     self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
+        # )
+        # self.INITIAL_STATE = (
+        #     initial_suseptible_count,  # s
+        #     initial_exposed_count,  # e
+        #     initial_infectious_count,  # i
+        #     initial_recovered_count,  # r
+        #     initial_waning_count,  # w
+        #     jnp.zeros(initial_exposed_count.shape),  # c
+        # )
 
         self.solution = None
 
@@ -180,9 +180,11 @@ class BasicMechanisticModel:
         ]
         # default to no cross immunity, setting diagnal to 0
         # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
-        suseptibility_matrix = jnp.ones(
-            (self.NUM_STRAINS, self.NUM_STRAINS)
-        ) * (1 - jnp.diag(jnp.array([1] * self.NUM_STRAINS)))
+        # suseptibility_matrix = jnp.ones(
+        #     (self.NUM_STRAINS, self.NUM_STRAINS)
+        # ) * (1 - jnp.diag(jnp.array([1] * self.NUM_STRAINS)))
+        # non-omicron vs omicron, immune_state filler values
+        suseptibility_matrix = jnp.array([[1, 0, 0, 0], [1, 0.5, 0, 0]])
         # add final parameters, if your model expects added parameters, add them here
         args = dict(
             args,
