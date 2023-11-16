@@ -307,7 +307,7 @@ def prep_serology_data(
     return serology
 
 
-def past_infection_dist_from_serology_demographics(
+def past_immune_dist_from_serology_demographics(
     sero_path,
     age_path,
     age_limits,
@@ -317,7 +317,7 @@ def past_infection_dist_from_serology_demographics(
     initialization_date=datetime.date(2022, 2, 12),
 ):
     """
-    initializes and returns the recovered and waning compartments for a model based on __covid__ serological data.
+    initializes and returns the immune history for a model based on __covid__ serological data.
 
     Parameters
     ----------
@@ -328,25 +328,26 @@ def past_infection_dist_from_serology_demographics(
     age_limits: list(int)
           The age limits of your model that you wish to initialize compartments of.
           Example: for bins of 0-17, 18-49, 50-64, 65+ age_limits = [0, 18, 50, 65]
-    waning_time: int
+    waning_times: int
           Time in days it takes for a person to wane to the next level of protection
     num_waning_compartments: int
           number of waning compartments in your model that you wish to initialize.
+    max_vaccination_count: int
+          maximum number of vaccinations you want to actively keep track of.
+          example val 2: keep track of 0, 1, 2+ shots.
     num_strains: int
           number of strains in your model that you wish to initialize.
           Note: people will be distributed across 3 strains if num_strains >= 3
-          The 3 strains account for omicron, delta, and alpha waves. And are timed accordingly.
+          The 3 strains account for omicron, delta, and alpha waves.
+          The total number of cells used to represent immune history of all strains = 2^num_strains
           if num_strains < 3, will collapse earlier strains into one another.
 
     Returns
     ----------
-    recovered_init_distribution: np.array
-        the proportions of the total population for each age bin defined as recovered, or within 1 `waning_time` of infection.
-        has a shape of (len(`age_limits`), `num_strains`)
-
-    waning_init_distribution
-        the proportions of the total population for each age bin defined as waning, or within x `waning_time`s of infection. where x is the waning compartment
-        has a shape of (len(`age_limits`), `num_strains`, `num_waning_compartments`)
+    immune_history_dist: np.array
+        the proportions of the total population for each age bin stratified by immune history.
+        immune history consists of previous infection history (omicron vs non-omicron infection) as well as number of vaccinations.
+        The more recent of infection vs vaccination decides the waning compartment of that individual.
     """
     # we will need population data for weighted averages
     age_distributions = np.loadtxt(

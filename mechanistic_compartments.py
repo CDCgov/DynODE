@@ -54,8 +54,8 @@ class BasicMechanisticModel:
 
         # TODO does it make sense to set one and not the other if provided one ?
         # if not given, load inital waning and recovered distributions from serological data into self
-        if self.INIT_WANING_DIST is None or self.INIT_RECOVERED_DIST is None:
-            self.load_waning_and_recovered_distributions()
+        if self.INIT_WANING_DIST is None:
+            self.load_waning_distributions()
 
         # because our suseptible population is not strain stratified,
         # we need to sum these initial recovered/waning distributions by their axis so shapes line up
@@ -502,10 +502,12 @@ class BasicMechanisticModel:
                 self.to_json(meta)
         return fig, ax
 
-    def load_waning_and_recovered_distributions(self):
+    def load_immune_history(self):
         """
-        a wrapper function which loads serologically informed covid recovered and waning distributions into self, accounting for strain timing.
-        Serology data initalized closely after the end of the Omicron wave on Feb 11th 2022.
+        a wrapper function which loads serologically informed covid immune history distributions into self, accounting for strain timing.
+        Serology data initalized closely after the end of the Omicron wave on Feb 11th 2022. Individuals are marked with
+        previous omicron exposure, or previous non-omicron exposure, as well number of vaccinations. Placed into waning compartments
+        according to the more recent of exposure or vaccination.
 
         Use `self.STRAIN_IDX` to index strains in correct manner and avoid out of bounds errors
 
@@ -537,16 +539,17 @@ class BasicMechanisticModel:
         pop_path = (
             self.DEMOGRAPHIC_DATA + "population_rescaled_age_distributions/"
         )
-        (
-            self.INIT_RECOVERED_DIST,
-            self.INIT_WANING_DIST,
-        ) = utils.past_infection_dist_from_serology_demographics(
-            sero_path,
-            pop_path,
-            self.AGE_LIMITS,
-            self.WANING_TIMES,
-            self.NUM_WANING_COMPARTMENTS,
-            self.NUM_STRAINS,
+        # return the proportions of each age group with each immune history
+        # immune history = natural infection + vaccination tracking whats more recent.
+        self.INIT_IMMUNE_HISTORY = (
+            utils.past_immune_dist_from_serology_demographics(
+                sero_path,
+                pop_path,
+                self.AGE_LIMITS,
+                self.WANING_TIMES,
+                self.NUM_WANING_COMPARTMENTS,
+                self.NUM_STRAINS,
+            )
         )
 
     def load_initial_population_fractions(self):
