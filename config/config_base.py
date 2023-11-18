@@ -39,7 +39,7 @@ class ConfigBase:
         self.EXPOSED_TO_INFECTIOUS = 3.6  # sigma
         self.VACCINATION_RATE = 1 / 500.0  # vac_p
         self.INITIAL_INFECTIONS = 1.0
-        self.STRAIN_SPECIFIC_R0 = jnp.array([1.5, 1.5, 1.5])  # R0s
+        self.STRAIN_SPECIFIC_R0 = jnp.array([1.5, 1.5])  # R0s
         self.NUM_WANING_COMPARTMENTS = 4
         self.WANING_PROTECTIONS = jnp.array([0.48, 0.473, 0.473, 0])
         # len(WANING_TIMES) = NUM_WANING_COMPARTMENTS + 1 to account for R -> W0 rate.
@@ -60,8 +60,13 @@ class ConfigBase:
         self.INIT_INFECTED_DIST = None
         self.NUM_COMPARTMENTS = 5
         # indexes ENUM for readability in code
-        self.IDX = IntEnum("idx", ["S", "E", "I", "R", "W", "C"], start=0)
-        self.AXIS_IDX = IntEnum("idx", ["age", "strain", "wane"], start=0)
+        self.IDX = IntEnum("idx", ["S", "E", "I", "C"], start=0)
+        self.S_AXIS_IDX = IntEnum(
+            "idx", ["age", "hist", "vax", "wane"], start=0
+        )
+        self.I_AXIS_IDX = IntEnum(
+            "idx", ["age", "hist", "vax", "strain"], start=0
+        )
         # setting default rng keys
         self.MCMC_PRNGKEY = 8675309
         self.MCMC_NUM_WARMUP = 100
@@ -93,30 +98,8 @@ class ConfigBase:
             ["alpha", "delta", "omicron"][3 - self.NUM_STRAINS :],
             start=0,
         )
-        self.WANING_TIME_MONTHS = (
-            jnp.cumsum(jnp.array(self.WANING_TIMES)) / 30.0
-        )
-        self.init_waning_protections_if_not_set()
         # Check that no values are incongruent with one another
         self.assert_valid_values()
-
-    def init_waning_protections_if_not_set(self):
-        """
-        Checks if the waning protections curve is initialized by some scenario,
-        defaults to a waning protections curve as described by TODO
-        """
-        # we skip the first waning_time_months because that is the recovered compartment, which has a protection of 1
-        self.WANING_PROTECTIONS = (
-            jnp.array(
-                [
-                    self.INITIAL_PROTECTION
-                    / (1 + jnp.e ** (-(2.46 - (0.2 * t))))
-                    for t in self.WANING_TIME_MONTHS[1:]
-                ]
-            )
-            if "WANING_PROTECTIONS" not in self.__dict__.keys()
-            else self.WANING_PROTECTIONS
-        )
 
     def assert_valid_values(self):
         """

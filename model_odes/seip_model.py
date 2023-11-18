@@ -9,6 +9,44 @@ class Parameters(object):
         self.__dict__ = dict
 
 
+def new_immune_state(current_state, exposed_strain, num_strains):
+    """a method using BITWISE OR to determine a new immune state position given current state and the exposing strain
+
+    EXAMPLES
+    ----------
+    num_strains = 2, possible states are:
+    00(no exposure), 1(exposed to strain 0 only), 2(exposed to strain 1 only), 3(exposed to both)
+
+    exposed strains are represented by:
+    exposing strain = 0 -> represented by 01. exposed_strain = 1 -> represented by 10.
+
+    current state | exposed strain -> new state
+    00 | 01 -> 01
+    01 | 01 -> 01 exposed to strain 0 already, no change in state
+    01 | 10 -> 11 exposed to strain 0 prev, now exposed to both
+    10 | 01 -> 11 exposed to strain 1 prev, now exposed to both
+    10 | 10 -> 10 exposed to strain 1 already, no change in state
+    11 | 01 -> 11 exposed to both already, no change in state
+    11 | 10 -> 11 exposed to both already, no change in state
+    """
+    # TODO make this more efficient by moving away from strings into actual bitset representations
+    # represent current state as bit string, ex: state = 3 & num_strains = 2 -> binary = '11'
+    current_state_binary = format(current_state, "b")
+
+    # represent exposing strain as an indiciator bit string. ex: exposing_strain = 1 -> binary = 10
+    exposing_strain_binary = ["0"] * num_strains
+    exposing_strain_binary[-(exposed_strain + 1)] = "1"
+    exposing_strain_binary = "".join(exposing_strain_binary)
+
+    # we now have
+    new_state = format(
+        int(current_state_binary, 2) | int(exposing_strain_binary, 2), "b"
+    )
+    prepend_zeros = "".join(["0" for _ in range(num_strains - len(new_state))])
+    new_state = prepend_zeros + new_state
+    return int(new_state, 2)
+
+
 def seip_ode(state, _, parameters):
     """
     A immune state ode model which aims to represent an SEIP model, with better representation of immune state and partial suseptibility.
@@ -45,56 +83,72 @@ def seip_ode(state, _, parameters):
 
     """
     # strain dimension = 0-3 with some ENUM 0=no_prev_inf, 1 = prev_non_omicron, 2 = prev_omicron, 3=prev_both
-    # s.shape = (NUM_AGE_GROUPS, strain, prev_vax_count, waned_state)
-    # e/i/c .shape = (NUM_AGE_GROUPS, strain, prev_vax_count)
+    # s.shape = (NUM_AGE_GROUPS, hist, prev_vax_count, waned_state)
+    # e/i/c .shape = (NUM_AGE_GROUPS, hist, prev_vax_count, strain)
     # we dont have waning state once infection successful, waning state only impacts infection chances.
     s, e, i, c = state
     p = Parameters(parameters)
-    ds, de = jnp.zeros(s.shape), jnp.zeros(e.shape)
-    de = de  # to pass precommit
-    # shape of (num_age_groups, num_immune_states, max_vax_count+1, num_strains)
+    ds, de, di, dc = (
+        jnp.zeros(s.shape),
+        jnp.zeros(e.shape),
+        jnp.zeros(i.shape),
+        jnp.zeros(c.shape),
+    )
+    # CALCULATING SUCCESSFULL INFECTIONS OF (partially) SUSCEPTIBLE INDIVIDUALS
     force_of_infection = (
-        (1 / p.population)
-        * (
-            p.beta * np.einsum("ab,bijk->aijk", p.contact_matrix, i)
-        ).transpose()
-    ).transpose()
-    # TODO how does this work?
-    for strain_source_idx in range(p.num_strains):
-        # shape = (num_age_groups, immune_compartments, max_vax_count)
+        (p.BETA * np.einsum("ab,bijk->aijk", p.CONTACT_MATRIX, i)).transpose()
+        / p.POPULATION
+    ).transpose()  # (NUM_AGE_GROUPS, hist, prev_vax_count, strain)
+
+    for strain in range(p.NUM_STRAINS):
         force_of_infection_strain = force_of_infection[
-            :, :, :, strain_source_idx
-        ]
-        # partial_suseptibility needs to be (immune_state,) meaning susceptiblity matrix = (strain, immune_state)
-        partial_susceptibility = p.susceptibility_matrix[strain_source_idx, :]
-        # p.vax_eff_matrix.shape = (num_strains, max_vax_count)
-        vax_susceptibility_strain = p.vax_eff_matrix[strain_source_idx, :]
-        # susceptibility_matrix.shape = (num_strains, 2^num_strains) matrix of strain vs exposure hist.
-        # p.vax_eff_matrix.shape = strain, max_vax_count
-        # partial_vax_susceptiblity_by_strain.shape = (max_vax_count+1.,)
-        # TODO somehow get vaccination in this effective_susceptibility array
+            :, :, :, strain
+        ]  # (num_age_groups, hist, max_vax_count)
+
+        # partial_suseptibility = (hist,)
+        partial_susceptibility = p.SUSCEPTIBILITY_MATRIX[strain, :]
+        # p.vax_susceptibility_strain.shape = (max_vax_count,)
+        vax_susceptibility_strain = p.VAX_EFF_MATRIX[strain, :]
+
         effective_susceptibility = 1 - jnp.matmul(
-            p.waning_protections[:, None],
+            p.WANING_PROTECTIONS[:, None],
             (1 - partial_susceptibility)[None, :],
-            vax_susceptibility_strain,  # TODO FIX
-        )  # waning, immune_state,
+        )  # (waning, immune_state,)
         exposed_s = jnp.array(
             [
-                force_of_infection_strain
-                * s[:, :, :, wane]
-                * effective_susceptibility[:, None]
-                for wane in range(p.num_waning)
+                np.einsum(
+                    "b,abc->abc",
+                    effective_susceptibility[wane, :],
+                    (
+                        force_of_infection_strain
+                        * s[:, :, :, wane]
+                        * vax_susceptibility_strain[None, :]
+                    ),
+                )
+                for wane in range(s.shape[-1])
             ]
         )
-        exposed_s = exposed_s  # for precommit
-        # dw = dw.at[:, strain_target_idx, :].add(-ws_exposed)
+        # equation: (immune_state) x ((num_age_groups, immune_state, max_vax_count)**2 * (1, max_vax_count))
+        # for loop prepends a (wane) dimension to this array, tranpose into correct order
+        exposed_s = exposed_s.transpose((1, 2, 3, 0))
+        # we know strain_source is infecting people, de has no waning compartments, so sum over those.
+        de = de.at[:, :, :, strain].add(jnp.sum(exposed_s, axis=-1))
+        ds = ds.add(-exposed_s)
         # de = de.at[:, strain_source_idx].add(np.sum(ws_exposed, axis=1))
 
     # e and i shape remain same, just multiplying by a constant.
     de_to_i = p.sigma * e  # exposure -> infectious
-    # s[:, a, b, c] -> s[:, d, b, 0], if a = both_prev_inf (4), then a=d. immune event just ended, zeroth waning compartment.
     di_to_w0 = p.gamma * i  # infectious -> new_immune_state
     di = jnp.add(de_to_i, -di_to_w0)
+    de = de.add(-de_to_i)
+
+    for strain, immune_state in zip(range(p.NUM_STRAINS), s.shape[-1]):
+        new_state = new_immune_state(immune_state, strain, p.NUM_STRAINS)
+        # recovered i->w0 transfer from `immune_state` -> `new_state` due to recovery from `strain`
+        ds = ds.at[:, new_state, :, 0].add(
+            di_to_w0.at[:, immune_state, :, strain]
+        )
+        # TODO this is where some percentage of the recovery goes to death or hosptialization
 
     # lets measure our waned + vax rates
     # TODO, change waning_rates because we no longer have R->W
@@ -102,8 +156,9 @@ def seip_ode(state, _, parameters):
     waning_array = jnp.zeros(s.shape).at[:, :, :].add(p.waning_rates)
     s_waned = waning_array * s
     ds.at[:, :, :, 1 : p.num_waning].add(s_waned[:, :, 0 : p.num_waning - 1])
+    # TODO forgot to subtract the waning only added people here
     # TODO here we need to add our di_to_w0 but in a smarter way to sort out prev_exposure column
-    # ds.at[:, :, :, 0]
+    # with num_strains=2 we get 2^2 immune_states. no exposure, strain 0 only, strain 1 only, both strains.
 
     # slice across age, strain, and wane. vaccination updates the vax column and also moves all to w0.
     # ex: diagonal movement from 1 shot in 4th waning compartment to 2 shots 0 waning compartment      s[:, 0, 1, 3] -> s[:, 0, 2, 0]
@@ -123,4 +178,4 @@ def seip_ode(state, _, parameters):
         # set the w0 compartment to 0 here since we are going to subtract it from the other waning compartments
         ds.at[:, :, vaccine_count, :].add(-s_vax_count)
 
-    return (ds, de, di, jnp.zeros(c.shape))
+    return (ds, de, di, dc)

@@ -47,44 +47,35 @@ class BasicMechanisticModel:
             self.load_initial_population_fractions()
 
         self.POPULATION = self.POP_SIZE * self.INITIAL_POPULATION_FRACTIONS
+        # self.POPULATION.shape = (NUM_AGE_GROUPS,)
 
         # if not given, load contact matrices via mixing data into self.
         if not self.CONTACT_MATRIX:
             self.load_contact_matrix()
 
-        # TODO does it make sense to set one and not the other if provided one ?
+        # TODO change this to load the S compartment proportions for each age group, hist, vax combination
         # if not given, load inital waning and recovered distributions from serological data into self
-        # if self.INIT_WANING_DIST is None:
-        #     self.load_waning_distributions()
+        # if self.INIT_IMMUNE_HISTORY is None:
+        # self.load_immune_history()
 
-        # because our suseptible population is not strain stratified,
-        # we need to sum these initial recovered/waning distributions by their axis so shapes line up
-        # init_recovered_strain_summed = np.sum(
-        #     self.INIT_RECOVERED_DIST, axis=self.AXIS_IDX.strain
-        # )
-        # init_waning_strain_compartment_summed = np.sum(
-        #     self.INIT_WANING_DIST,
-        #     axis=(self.AXIS_IDX.strain, self.AXIS_IDX.wane),
-        # )
+        # self.INIT_IMMUNE_HISTORY.shape = (hist, num_vax, waning)
 
-        # if not given an inital infection distribution, use max eig value vector of contact matrix
         # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
         # if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
-        #     self.load_init_infection_infected_and_exposed_dist()
+        # self.load_init_infection_infected_and_exposed_dist()
+        # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax)
+        # self.INIT_INFECTED_DIST.shape = (age, hist, num_vax, strain)
+        # self.INIT_EXPOSED_DIST.shape = (age, hist, num_vax, strain)
 
-        # suseptibles = Total population - infected - recovered - waning
+        # suseptible / partial susceptible = Total population - infected - recovered - waning
         # initial_suseptible_count = (
-        #     self.POPULATION
-        #     - (self.INITIAL_INFECTIONS * self.INIT_INFECTION_DIST)
-        #     - (self.POPULATION * init_recovered_strain_summed)
-        #     - (self.POPULATION * init_waning_strain_compartment_summed)
+        #     self.POPULATION[:, np.newaxis, np.newaxis, np.newaxis]
+        #     * self.INIT_IMMUNE_HISTORY
         # )
-        # initial_recovered_count = (
-        #     self.POPULATION * self.INIT_RECOVERED_DIST.transpose()
-        # ).transpose()
-        # initial_waning_count = (
-        #     self.POPULATION * self.INIT_WANING_DIST.transpose()
-        # ).transpose()
+        # # dont forget to subtract the recently recovered people
+        # initial_suseptible_count[:, :, :, 0] = initial_suseptible_count[
+        #     :, :, :, 0
+        # ] - (self.INITIAL_INFECTIONS * self.INIT_INFECTION_DIST)
 
         # initial_infectious_count = (
         #     self.INITIAL_INFECTIONS * self.INIT_INFECTED_DIST
@@ -96,8 +87,6 @@ class BasicMechanisticModel:
         #     initial_suseptible_count,  # s
         #     initial_exposed_count,  # e
         #     initial_infectious_count,  # i
-        #     initial_recovered_count,  # r
-        #     initial_waning_count,  # w
         #     jnp.zeros(initial_exposed_count.shape),  # c
         # )
 
@@ -128,13 +117,13 @@ class BasicMechanisticModel:
         dict{str: Object}: A dictionary where key value pairs are used as parameters by an ODE model, things like R0 or contact matricies.
         """
         args = {
-            "contact_matrix": self.CONTACT_MATRIX,
-            "vax_rate": self.VACCINATION_RATE,
-            "mu": self.BIRTH_RATE,
-            "population": self.POPULATION,
-            "num_strains": self.NUM_STRAINS,
-            "num_waning_compartments": self.NUM_WANING_COMPARTMENTS,
-            "waning_protections": self.WANING_PROTECTIONS,
+            "CONTACT_MATRIX": self.CONTACT_MATRIX,
+            "VACCINATION_RATE": self.VACCINATION_RATE,
+            "BIRTH_RATE": self.BIRTH_RATE,
+            "POPULATION": self.POPULATION,
+            "NUM_STRAINS": self.NUM_STRAINS,
+            "NUM_WANING_COMPARTMENTS": self.NUM_WANING_COMPARTMENTS,
+            "WANING_PROTECTIONS": self.WANING_PROTECTIONS,
         }
         if sample:
             # if user provides parameters and distributions they wish to sample, sample those
@@ -147,29 +136,29 @@ class BasicMechanisticModel:
                 r0_omicron = utils.sample_r0()
                 strain_specific_r0 = list(self.STRAIN_SPECIFIC_R0)
                 strain_specific_r0[self.STRAIN_IDX.omicron] = r0_omicron
-                default_sample_dict["r0"] = jnp.asarray(strain_specific_r0)
+                default_sample_dict["R0"] = jnp.asarray(strain_specific_r0)
                 args = dict(args, **default_sample_dict)
 
         # lets quickly update any values that depend on other parameters which may or may not be sampled.
         # set defaults if they are not in args aka not sampled.
-        r0 = args.get("r0", self.STRAIN_SPECIFIC_R0)
+        r0 = args.get("R0", self.STRAIN_SPECIFIC_R0)
         infectious_period = args.get(
-            "infectious_period", self.INFECTIOUS_PERIOD
+            "INFECTIOUS_PERIOD", self.INFECTIOUS_PERIOD
         )
-        if "infectious_period" in args or "r0" in args:
-            beta = numpyro.deterministic("beta", r0 / infectious_period)
+        if "INFECTIOUS_PERIOD" in args or "R0" in args:
+            beta = numpyro.deterministic("BETA", r0 / infectious_period)
         else:
             beta = r0 / infectious_period
         gamma = (
             1 / self.INFECTIOUS_PERIOD
-            if "infectious_period" not in args
-            else numpyro.deterministic("gamma", 1 / args["infectious_period"])
+            if "INFECTIOUS_PERIOD" not in args
+            else numpyro.deterministic("gamma", 1 / args["INFECTIOUS_PERIOD"])
         )
         sigma = (
             1 / self.EXPOSED_TO_INFECTIOUS
-            if "exposed_to_infectious" not in args
+            if "EXPOSED_TO_INFECTIOUS" not in args
             else numpyro.deterministic(
-                "sigma", 1 / args["exposed_to_infectious"]
+                "SIGMA", 1 / args["EXPOSED_TO_INFECTIOUS"]
             )
         )
         # since our last waning time is zero to account for last compartment never waning
@@ -189,11 +178,11 @@ class BasicMechanisticModel:
         args = dict(
             args,
             **{
-                "beta": beta,
-                "sigma": sigma,
-                "gamma": gamma,
-                "waning_rates": waning_rates,
-                "susceptibility_matrix": suseptibility_matrix,
+                "BETA": beta,
+                "SIGMA": sigma,
+                "GAMMA": gamma,
+                "WANING_RATES": waning_rates,
+                "SUSCEPTIBILITY_MATRIX": suseptibility_matrix,
             }
         )
         return args
@@ -365,7 +354,7 @@ class BasicMechanisticModel:
     def plot_diffrax_solution(
         self,
         sol: Solution,
-        plot_compartments: list[str] = ["s", "e", "i", "r", "w", "c"],
+        plot_compartments: list[str] = ["s", "e", "i", "c"],
         save_path: str = None,
     ):
         """
