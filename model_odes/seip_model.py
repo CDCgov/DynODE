@@ -1,50 +1,14 @@
 import jax.numpy as jnp
 import numpy as np
 
+from utils import new_immune_state
+
 
 class Parameters(object):
     """A dummy container that converts a dictionary into attributes."""
 
     def __init__(self, dict: dict):
         self.__dict__ = dict
-
-
-def new_immune_state(current_state, exposed_strain, num_strains):
-    """a method using BITWISE OR to determine a new immune state position given current state and the exposing strain
-
-    EXAMPLES
-    ----------
-    num_strains = 2, possible states are:
-    00(no exposure), 1(exposed to strain 0 only), 2(exposed to strain 1 only), 3(exposed to both)
-
-    exposed strains are represented by:
-    exposing strain = 0 -> represented by 01. exposed_strain = 1 -> represented by 10.
-
-    current state | exposed strain -> new state
-    00 | 01 -> 01
-    01 | 01 -> 01 exposed to strain 0 already, no change in state
-    01 | 10 -> 11 exposed to strain 0 prev, now exposed to both
-    10 | 01 -> 11 exposed to strain 1 prev, now exposed to both
-    10 | 10 -> 10 exposed to strain 1 already, no change in state
-    11 | 01 -> 11 exposed to both already, no change in state
-    11 | 10 -> 11 exposed to both already, no change in state
-    """
-    # TODO make this more efficient by moving away from strings into actual bitset representations
-    # represent current state as bit string, ex: state = 3 & num_strains = 2 -> binary = '11'
-    current_state_binary = format(current_state, "b")
-
-    # represent exposing strain as an indiciator bit string. ex: exposing_strain = 1 -> binary = 10
-    exposing_strain_binary = ["0"] * num_strains
-    exposing_strain_binary[-(exposed_strain + 1)] = "1"
-    exposing_strain_binary = "".join(exposing_strain_binary)
-
-    # we now have
-    new_state = format(
-        int(current_state_binary, 2) | int(exposing_strain_binary, 2), "b"
-    )
-    prepend_zeros = "".join(["0" for _ in range(num_strains - len(new_state))])
-    new_state = prepend_zeros + new_state
-    return int(new_state, 2)
 
 
 def seip_ode(state, _, parameters):

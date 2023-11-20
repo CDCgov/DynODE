@@ -55,10 +55,10 @@ class BasicMechanisticModel:
 
         # TODO change this to load the S compartment proportions for each age group, hist, vax combination
         # if not given, load inital waning and recovered distributions from serological data into self
-        # if self.INIT_IMMUNE_HISTORY is None:
-        # self.load_immune_history()
+        if self.INIT_IMMUNE_HISTORY is None:
+            self.load_immune_history()
 
-        # self.INIT_IMMUNE_HISTORY.shape = (hist, num_vax, waning)
+        # self.INIT_IMMUNE_HISTORY.shape = (age, hist, num_vax, waning)
 
         # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
         # if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:

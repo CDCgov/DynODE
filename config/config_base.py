@@ -44,7 +44,7 @@ class ConfigBase:
         self.WANING_PROTECTIONS = jnp.array([0.48, 0.473, 0.473, 0])
         # len(WANING_TIMES) = NUM_WANING_COMPARTMENTS + 1 to account for R -> W0 rate.
         # WANING_TIMES in days for each waning compartment, ends in 0 as last compartment does not wane
-        self.WANING_TIMES = [21, 142, 142, 142, 0]
+        self.WANING_TIMES = [21, 142, 142, 0]
         # self.WANING_TIME = 21  # time in WHOLE days before a recovered individual moves to first waned compartment
         self.INITIAL_PROTECTION = (
             0.52  # %likelihood of re-infection given just recovered source 17
@@ -55,6 +55,7 @@ class ConfigBase:
         self.CONTACT_MATRIX = None
         self.INIT_INFECTION_DIST = None
         self.INIT_EXPOSED_DIST = None
+        self.INIT_IMMUNE_HISTORY = None
         self.INIT_WANING_DIST = None
         self.INIT_RECOVERED_DIST = None
         self.INIT_INFECTED_DIST = None
@@ -259,9 +260,6 @@ class ConfigBase:
         assert (
             self.WANING_TIMES[-1] == 0
         ), "Waning times must end in 0 to account for last waning compartment not waning into anything"
-        assert (
-            len(self.WANING_TIMES) == self.NUM_WANING_COMPARTMENTS + 1
-        ), "Waning times must cover R-> w0 and wx-wy for all waning compartments x and y, including last compartment which does not wane"
         assert (
             self.INITIAL_PROTECTION <= 1 and self.INITIAL_PROTECTION >= 0
         ), "INITIAL_PROTECTION must be between 0 and 1 inclusive"

@@ -48,6 +48,60 @@ def sample_waning_protections(waning_protect_means):
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# INDEXING FUNCTIONS
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+def new_immune_state(current_state, exposed_strain, num_strains):
+    """a method using BITWISE OR to determine a new immune state position given
+    current state and the exposing strain
+
+    Parameters
+    ----------
+    current_state: int
+        int representing the current state of the individual or group being exposed to a strain
+    exposed_strain: int
+        int representing the strain exposed to the individuals in state `current_state`
+        expects that `0 <= exposed_strain <= num_strains - 1`
+    num_strains: int
+        number of strains in the model
+    Examples
+    ----------
+    num_strains = 2, possible states are:
+    00(no exposure), 1(exposed to strain 0 only), 2(exposed to strain 1 only), 3(exposed to both)
+
+    exposed strains are transformed by this function into:
+    exposing strain = 0 -> represented by 01. exposed_strain = 1 -> represented by 10.
+
+    current state | exposed strain -> new state -> int(new state)
+    00 | 01 -> 01 -> 1 no previous exposure, now exposed to strain 0.
+    01 | 01 -> 01 -> 1 exposed to strain 0 already, no change in state
+    01 | 10 -> 11 -> 3 exposed to strain 0 prev, now exposed to both
+    10 | 01 -> 11 -> 3 exposed to strain 1 prev, now exposed to both
+    10 | 10 -> 10 -> 2 exposed to strain 1 already, no change in state
+    11 | 01 -> 11 -> 3 exposed to both already, no change in state
+    11 | 10 -> 11 -> 3 exposed to both already, no change in state
+    """
+    assert (
+        exposed_strain >= 0 and exposed_strain <= num_strains - 1
+    ), "invalid exposed_strain val"
+    assert current_state < 2**num_strains, "invalid current state"
+    # represent current state as bit string, ex: state = 3 & num_strains = 2 -> binary = '11'
+    current_state_binary = format(current_state, "b")
+
+    # represent exposing strain as an indiciator bit string. ex: exposing_strain = 1 -> binary = 10
+    exposing_strain_binary = ["0"] * num_strains
+    exposing_strain_binary[-(exposed_strain + 1)] = "1"
+    exposing_strain_binary = "".join(exposing_strain_binary)
+
+    # we now have
+    new_state = format(
+        int(current_state_binary, 2) | int(exposing_strain_binary, 2), "b"
+    )
+    return int(new_state, 2)
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # DEMOGRAPHICS CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
@@ -307,6 +361,119 @@ def prep_serology_data(
     return serology
 
 
+def set_serology_timeline(num_strains):
+    """
+    a helper method which does the logic of setting historical strain breakpoint dates.
+
+    Takes the number of strains serology data will be used to initialize, and collapses certain strains together
+    if needed.
+
+    Parameters
+    ----------
+    num_strains: int
+        number of strains the serology data is supposed to initialize for.
+        Any value greater than 3 will be treated as 3 for historical initialization.
+
+    Returns
+    -----------
+    The number of historical strains to be loaded as an int.
+    an array of datetime.dates representing the breakpoints between each historical date.
+
+    Example
+    ----------
+    if you wish to initialize omicron, delta, and alpha strains. Num strains must be set to 3 or higher
+    will return (3, [datetime.date(2021, 6, 25), datetime.date(2021, 11, 19)])
+    with each date representing the date at which alpha -> delta and then delta -> omicron
+
+    """
+    # number of strains alloted for in the serological data, for covid this is omicron, delta, and alpha
+    # if model only allows for 2 or 1 strain we need to collapse delta and alpha waves together
+    num_historical_strains = 3 if num_strains >= 3 else num_strains
+    # breakpoints for each historical strain, oldest first, alpha - delta, delta - omicron
+    omicron_date = datetime.date(2021, 11, 19)  # as omicron took off
+    delta_date = datetime.date(2021, 6, 25)  # as the delta wave took off.
+    historical_time_breakpoints = [delta_date, omicron_date]
+    # small modifications needed so this does not break 2 and 1 strain models
+    if num_historical_strains == 1:
+        # no breakpoints when only 1 historical strain
+        historical_time_breakpoints = []
+    elif num_historical_strains == 2:
+        # if we are only looking at 2 historical strains, only take most recent breakpoint
+        historical_time_breakpoints = [historical_time_breakpoints[-1]]
+    assert (
+        num_historical_strains <= num_strains
+    ), "you are attempting to find sero data for more historical strains than total strains alloted to the model"
+
+    assert (
+        num_historical_strains == len(historical_time_breakpoints) + 1
+    ), "set breakpoints for each of the historical strains you want to initialize with sero data"
+    return num_historical_strains, historical_time_breakpoints
+
+
+def imply_immune_history_dist_from_strains(
+    strain_exposure_dist, num_strains, repeat_inf_rate=0.5
+):
+    """
+    takes a matrix of shape (age, strain, waning) and converts it to
+    (age, immune_hist, waning). It does this by assuming the following.
+    Any individuals who are infected by a single strain,
+    half of those individuals will be re-infected by all incoming future strains.
+
+    Parameters
+    ----------
+    strain_exposure_dist: np.array
+        a numpy array of proportions of persons exposed to a variety of strains.
+        stratified by age, strain, and waning compartment.
+    num_strains: int
+        number of strains for which sero data is being loaded
+    repeat_inf_rate: float
+        the rate at which those infected by one strain are re-infected by a strain in the future.
+
+    Returns
+    ----------
+    immune_history_dist: np.array
+        a numpy array representing proportions of the population in each immune state as informed by the
+        strain_exposure_dist. Waning compartments and age structure are preserved. Strain dimension is
+        modified to represent immune history, predicting multiple infections and more complex immune states.
+    """
+    return_shape = (
+        strain_exposure_dist.shape[0],
+        2**num_strains,
+        strain_exposure_dist.shape[2],
+    )  # immune states equal to 2^num_strains
+    immune_history_dist = np.zeros(return_shape)
+    immune_states = []
+    for strain in range(0, num_strains):
+        # fill in single strain immune state first. no repeated exposures yet.
+        single_strain_state = new_immune_state(0, strain, num_strains)
+        immune_history_dist[:, single_strain_state, :] = strain_exposure_dist[
+            :, strain, :
+        ]
+        # now grab individuals from previous states and infect 1/2 of them with this strain
+        multi_strain_states = []
+        for prev_state in immune_states:
+            multi_strain_state = new_immune_state(
+                prev_state,
+                strain,
+                num_strains,
+            )
+            multi_strain_states.append(multi_strain_state)
+            immune_history_dist[:, multi_strain_state, :] += (
+                repeat_inf_rate * immune_history_dist[:, prev_state, :]
+            )
+            immune_history_dist[:, prev_state, :] -= (
+                repeat_inf_rate * immune_history_dist[:, prev_state, :]
+            )
+        immune_states.append(single_strain_state)
+        immune_states = immune_states + multi_strain_states
+    # now that we have taken all the strain stratified ages and waning compartments
+    # place the fully susceptible people into [:, 0, 0].
+    partial_immunity_proportion = np.sum(immune_history_dist, axis=(1, 2))
+    fully_susceptible_by_age = 1 - partial_immunity_proportion
+    immune_history_dist[:, 0, 0] = fully_susceptible_by_age
+    return immune_history_dist
+
+
 def past_immune_dist_from_serology_demographics(
     sero_path,
     age_path,
@@ -345,7 +512,7 @@ def past_immune_dist_from_serology_demographics(
     Returns
     ----------
     immune_history_dist: np.array
-        the proportions of the total population for each age bin stratified by immune history.
+        the proportions of the total population for each age bin stratified by immune history (natural and vaccine).
         immune history consists of previous infection history (omicron vs non-omicron infection) as well as number of vaccinations.
         The more recent of infection vs vaccination decides the waning compartment of that individual.
     """
@@ -358,27 +525,12 @@ def past_immune_dist_from_serology_demographics(
     )
     # serology data only comes in these age bins, exclusive, min age 0
     serology_age_limits = [18, 50, 65]
-    # number of strains alloted for in the serological data, for covid this is omicron, delta, and alpha
-    # if model only allows for 2 or 1 strain we need to collapse delta and alpha waves together
-    num_historical_strains = 3 if num_strains >= 3 else num_strains
-    # breakpoints for each historical strain, oldest first, alpha - delta, delta - omicron
-    omicron_date = datetime.date(2021, 11, 19)  # as omicron took off
-    delta_date = datetime.date(2021, 6, 25)  # as the delta wave took off.
-    historical_time_breakpoints = [delta_date, omicron_date]
-    # small modifications needed so this does not break 2 and 1 strain models
-    if num_historical_strains == 1:
-        # no breakpoints when only 1 historical strain
-        historical_time_breakpoints = []
-    elif num_historical_strains == 2:
-        # if we are only looking at 2 historical strains, only take most recent breakpoint
-        historical_time_breakpoints = [historical_time_breakpoints[-1]]
-    assert (
-        num_historical_strains <= num_strains
-    ), "you are attempting to find sero data for more historical strains than total strains alloted to the model"
-
-    assert (
-        num_historical_strains == len(historical_time_breakpoints) + 1
-    ), "set breakpoints for each of the historical strains you want to initialize with sero data"
+    (
+        num_historical_strains,
+        historical_time_breakpoints,
+    ) = set_serology_timeline(num_strains)
+    # prep the sero data into daily resolution, pass historical breakpoints to mark the strain
+    # that each day of sero contributes to.
     serology = prep_serology_data(
         sero_path, num_historical_strains, historical_time_breakpoints
     )
@@ -387,18 +539,16 @@ def past_immune_dist_from_serology_demographics(
     age_to_sero_dict = {}
     age_groups = generate_yearly_age_bins_from_limits(age_limits)
 
-    # return these after filling it with the proprtion of waned/recovered individuals of total population
-    waning_init_distribution = np.zeros(
+    # return these after filling it with the proprtion of individuals
+    # exposed to each strain of the total population
+    strain_exposure_distribution = np.zeros(
         (len(age_limits), num_strains, num_waning_compartments)
-    )
-    recovered_init_distribution = np.zeros(
-        shape=(len(age_limits), num_strains)
     )
     # begin at the initialization date, move back from there
     prev_waning_compartment_date = initialization_date
     # for each waning index fill in its (age x strain) matrix based on weighted sero data for that age bin
     for waning_index, waning_time in zip(
-        range(0, num_waning_compartments + 1), waning_times
+        range(0, num_waning_compartments), waning_times
     ):
         # go back `waning_time` days at a time and use our diff columns to populate recoved/waning
         # initialization_date is the date our chosen serology begins, based on post-omicron peak.
@@ -424,11 +574,9 @@ def past_immune_dist_from_serology_demographics(
         ), "serology data does not exist for this waning date " + str(
             waning_compartment_date
         )
-        # depending how far back we are looking, we may be filling waning information for past strains
-        # omicron = strain 2, delta = 1, alpha = 0 for example
         # we have now selected the information for current waning compartment, set the pointer here for next loop
         prev_waning_compartment_date = waning_compartment_date
-        # select is now an array spaning from the beginning of the current compartment, up until the begining of the previous one.
+        # `select` is now an array spaning from the beginning of the current compartment, up until the begining of the previous one.
         # however, this compartment can span multiple strains, depending on its size, do calculations for each strain!
         for strain_select in select["strain_select"].unique():
             select_strained = select[select["strain_select"] == strain_select]
@@ -477,6 +625,7 @@ def past_immune_dist_from_serology_demographics(
                             ]
                         )
                     )
+            # finally, sum over age groups, weighting sero by the population of each age.
             for age_group_idx, age_group in enumerate(age_groups):
                 serology_age_group = [
                     age_to_sero_dict[age] for age in age_group
@@ -487,18 +636,18 @@ def past_immune_dist_from_serology_demographics(
                 serology_weighted = np.average(
                     serology_age_group, weights=population_age_group
                 )
-                # this is where we would uniformly spread out waning if we wanted to
-                # waning_index=0, add to recovered compartment
-                if waning_index == 0:
-                    recovered_init_distribution[
-                        age_group_idx, strain_select
-                    ] = serology_weighted
-                else:  # add to a waning compartment, subtract 1 to fill 0th waning compartment
-                    waning_init_distribution[
-                        age_group_idx, strain_select, waning_index - 1
-                    ] = serology_weighted
+                # add to a waning compartment
+                strain_exposure_distribution[
+                    age_group_idx, strain_select, waning_index
+                ] = serology_weighted
+    # we now have the timing of when each proportion of the population was exposed to each strain
+    # lets make some assumptions about repeat infections to produce immune history.
+    immune_history_dist = imply_immune_history_dist_from_strains(
+        strain_exposure_distribution, num_strains
+    )
+    # TODO add vaccinations here too.
 
-    return recovered_init_distribution, waning_init_distribution
+    return immune_history_dist
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
