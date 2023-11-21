@@ -61,17 +61,17 @@ class BasicMechanisticModel:
         # self.INIT_IMMUNE_HISTORY.shape = (age, hist, num_vax, waning)
 
         # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
-        # if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
-        # self.load_init_infection_infected_and_exposed_dist()
+        if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
+            self.load_init_infection_infected_and_exposed_dist()
         # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax)
         # self.INIT_INFECTED_DIST.shape = (age, hist, num_vax, strain)
         # self.INIT_EXPOSED_DIST.shape = (age, hist, num_vax, strain)
 
         # suseptible / partial susceptible = Total population - infected - recovered - waning
-        # initial_suseptible_count = (
-        #     self.POPULATION[:, np.newaxis, np.newaxis, np.newaxis]
-        #     * self.INIT_IMMUNE_HISTORY
-        # )
+        initial_suseptible_count = (
+            self.POPULATION[:, np.newaxis, np.newaxis, np.newaxis]
+            * self.INIT_IMMUNE_HISTORY
+        )
         # # dont forget to subtract the recently recovered people
         # initial_suseptible_count[:, :, :, 0] = initial_suseptible_count[
         #     :, :, :, 0
@@ -83,12 +83,12 @@ class BasicMechanisticModel:
         # initial_exposed_count = (
         #     self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
         # )
-        # self.INITIAL_STATE = (
-        #     initial_suseptible_count,  # s
-        #     initial_exposed_count,  # e
-        #     initial_infectious_count,  # i
-        #     jnp.zeros(initial_exposed_count.shape),  # c
-        # )
+        self.INITIAL_STATE = (
+            initial_suseptible_count,  # s
+            # initial_exposed_count,  # e
+            # initial_infectious_count,  # i
+            # jnp.zeros(initial_exposed_count.shape),  # c
+        )
 
         self.solution = None
 
@@ -539,6 +539,7 @@ class BasicMechanisticModel:
                 self.AGE_LIMITS,
                 self.WANING_TIMES,
                 self.NUM_WANING_COMPARTMENTS,
+                self.MAX_VAX_COUNT,
                 self.NUM_STRAINS,
             )
         )
@@ -604,16 +605,28 @@ class BasicMechanisticModel:
             proportion of INIT_INFECTION_DIST that falls into infected compartment, formatted into the omicron strain.
             INIT_INFECTED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
         """
-        self.INIT_INFECTION_DIST = self.INIT_RECOVERED_DIST[
-            :, self.STRAIN_IDX.omicron
-        ]
-        # eig_data = np.linalg.eig(self.CONTACT_MATRIX)
-        # max_index = np.argmax(eig_data[0])
-        # self.INIT_INFECTION_DIST = abs(eig_data[1][:, max_index])
+        # base infection distribution on the currently freshly recovered individuals.
+        # TODO this is a problem because we dont know if those in 0 waning are there due to nat
+        # infection or there due to vaccination. So what we will do is pick those who are infected with omicron
+        # since we know that this model is initalized just after omicron wave, so its likely that they have
+        # just been infected naturally and are in wane=0 because of that rather than vaccination.
+        infection_shape = tuple(
+            list(self.INIT_IMMUNE_HISTORY.shape)[:-1] + [self.NUM_STRAINS]
+        )
+        self.INIT_INFECTION_DIST = np.zeros(infection_shape)
+        # TODO as of right now we only infect those in states with omicron, what about
+        # fully susceptible / non-omicron exposure people????
+        # we need some distribution for infections across state within an age group.
+        states_with_omicron = utils.all_immune_states_with(
+            self.STRAIN_IDX.omicron, self.NUM_STRAINS
+        )
+        self.INIT_INFECTION_DIST[
+            :, states_with_omicron, :, self.STRAIN_IDX.omicron
+        ] = self.INIT_IMMUNE_HISTORY[:, states_with_omicron, :, 0]
         # infections does not equal INFECTED.
         # infected is a compartment, infections means successful passing of virus
-        self.INIT_INFECTION_DIST = self.INIT_INFECTION_DIST / sum(
-            self.INIT_INFECTION_DIST
+        self.INIT_INFECTION_DIST = self.INIT_INFECTION_DIST / np.sum(
+            self.INIT_INFECTION_DIST, axis=(0, 1, 2, 3)
         )
         # old method was to use contact matrix max eigan value. produce diff values and ranking
         # [0.30490018 0.28493648 0.23049002 0.17967332] sero method 4 age bins
@@ -626,18 +639,30 @@ class BasicMechanisticModel:
         self.INIT_EXPOSED_DIST = (
             exposed_to_infected_ratio * self.INIT_INFECTION_DIST
         )
+        # an array used to add the 'strain' dimension into exposed and infected arrays.
+        # strain_filler_array = np.array(  # build strain array
+        #     [0] * self.STRAIN_IDX.omicron
+        #     + [1]
+        #     + [0] * (self.NUM_STRAINS - 1 - self.STRAIN_IDX.omicron)
+        # )
         # INIT_EXPOSED_DIST is not strain stratified, put infected into the omicron strain via indicator vec
-        self.INIT_EXPOSED_DIST = self.INIT_EXPOSED_DIST[:, None] * np.array(
-            [0] * self.STRAIN_IDX.omicron + [1]
-        )
+        # self.INIT_EXPOSED_DIST = (
+        #     self.INIT_EXPOSED_DIST[:, :, :, None] * strain_filler_array
+        # )
+        # next we correct for the states we cut out.
+        # self.INIT_EXPOSED_DIST = np.concatenate(
+        #     [self.INIT_EXPOSED_DIST, np.zeros((self.INIT_EXPOSED_DIST.shape))],
+        #     axis=1,
+        # )
         self.INIT_INFECTED_DIST = (
             1 - exposed_to_infected_ratio
         ) * self.INIT_INFECTION_DIST
 
         # INIT_INFECTED_DIST is not strain stratified, put infected into the omicron strain via indicator vec
-        self.INIT_INFECTED_DIST = self.INIT_INFECTED_DIST[:, None] * np.array(
-            [0] * self.STRAIN_IDX.omicron + [1]
-        )
+        # self.INIT_INFECTED_DIST = (
+        #     self.INIT_INFECTED_DIST[:, :, :, None] * strain_filler_array
+        # )
+        print("done")
 
     def to_json(self, file):
         """

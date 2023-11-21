@@ -101,6 +101,45 @@ def new_immune_state(current_state, exposed_strain, num_strains):
     return int(new_state, 2)
 
 
+def all_immune_states_with(strain, num_strains):
+    """
+    a function returning all of the immune states which contain an exposure to `strain`
+
+    Parameters
+    ----------
+    strain: int
+        int representing the strain that the returns states are exposed to
+        expects that `0 <= strain <= num_strains - 1`
+    num_strains: int
+        number of strains in the model
+
+    Returns
+    ----------
+    list[int] representing all states that include previous exposure to `strain`
+
+    Example
+    ----------
+    in a simple model where num_strains = 2 the following is returned.
+    Reminder: state = 0 (no exposure),
+    state = 1/2 (exposure to strain 0/1 respectively), state=3 (exposed to both)
+    all_immune_states_with(0, 2) -> [1, 3]
+    all_immune_states_with(1, 2) -> [2, 3]
+    """
+    # represent all possible states as binary
+    binary_array = [bin(val) for val in range(2**num_strains)]
+    # represent exposing strain as an indiciator bit string. ex: exposing_strain = 1 -> binary = 10
+    strain_binary = ["0"] * num_strains
+    strain_binary[-(strain + 1)] = "1"
+    strain_binary = "".join(strain_binary)
+    # a state contains the strain being filtered if the bitwise AND produces a non-zero value
+    filtered_states = [
+        int(binary, 2)
+        for binary in binary_array
+        if (int(binary, 2) & int(strain_binary, 2)) > 0
+    ]
+    return filtered_states
+
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # DEMOGRAPHICS CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -411,7 +450,10 @@ def set_serology_timeline(num_strains):
 
 
 def imply_immune_history_dist_from_strains(
-    strain_exposure_dist, num_strains, repeat_inf_rate=0.5
+    strain_exposure_dist,
+    num_strains,
+    num_historical_strains,
+    repeat_inf_rate=0.5,
 ):
     """
     takes a matrix of shape (age, strain, waning) and converts it to
@@ -439,16 +481,17 @@ def imply_immune_history_dist_from_strains(
     return_shape = (
         strain_exposure_dist.shape[0],
         2**num_strains,
+        3,  # TODO remove this and all MAGIC 0s after adding vax
         strain_exposure_dist.shape[2],
     )  # immune states equal to 2^num_strains
     immune_history_dist = np.zeros(return_shape)
     immune_states = []
-    for strain in range(0, num_strains):
+    for strain in range(0, num_historical_strains):
         # fill in single strain immune state first. no repeated exposures yet.
         single_strain_state = new_immune_state(0, strain, num_strains)
-        immune_history_dist[:, single_strain_state, :] = strain_exposure_dist[
-            :, strain, :
-        ]
+        immune_history_dist[
+            :, single_strain_state, 0, :  # TODO remove 0
+        ] = strain_exposure_dist[:, strain, :]
         # now grab individuals from previous states and infect 1/2 of them with this strain
         multi_strain_states = []
         for prev_state in immune_states:
@@ -458,19 +501,22 @@ def imply_immune_history_dist_from_strains(
                 num_strains,
             )
             multi_strain_states.append(multi_strain_state)
-            immune_history_dist[:, multi_strain_state, :] += (
-                repeat_inf_rate * immune_history_dist[:, prev_state, :]
+            # TODO remove 0s
+            immune_history_dist[:, multi_strain_state, 0, :] += (
+                repeat_inf_rate * immune_history_dist[:, prev_state, 0, :]
             )
-            immune_history_dist[:, prev_state, :] -= (
-                repeat_inf_rate * immune_history_dist[:, prev_state, :]
+            # TODO remove 0s
+            immune_history_dist[:, prev_state, 0, :] -= (
+                repeat_inf_rate * immune_history_dist[:, prev_state, 0, :]
             )
         immune_states.append(single_strain_state)
         immune_states = immune_states + multi_strain_states
     # now that we have taken all the strain stratified ages and waning compartments
     # place the fully susceptible people into [:, 0, 0].
-    partial_immunity_proportion = np.sum(immune_history_dist, axis=(1, 2))
+    partial_immunity_proportion = np.sum(immune_history_dist, axis=(1, 2, 3))
     fully_susceptible_by_age = 1 - partial_immunity_proportion
-    immune_history_dist[:, 0, 0] = fully_susceptible_by_age
+    # TODO remove 0
+    immune_history_dist[:, 0, 0, 0] = fully_susceptible_by_age
     return immune_history_dist
 
 
@@ -480,6 +526,7 @@ def past_immune_dist_from_serology_demographics(
     age_limits,
     waning_times,
     num_waning_compartments,
+    max_vaccine_count,
     num_strains,
     initialization_date=datetime.date(2022, 2, 12),
 ):
@@ -588,7 +635,7 @@ def past_immune_dist_from_serology_demographics(
                 if age < serology_age_limits[0]:
                     age_to_sero_dict[age] = (
                         sum(select_strained["0_17_diff"])
-                        if waning_index < num_waning_compartments
+                        if waning_index < num_waning_compartments - 1
                         else max(
                             select_strained[
                                 "Rate (%) [Anti-N, 0-17 Years Prevalence]"
@@ -598,7 +645,7 @@ def past_immune_dist_from_serology_demographics(
                 elif age < serology_age_limits[1]:
                     age_to_sero_dict[age] = (
                         sum(select_strained["18_49_diff"])
-                        if waning_index < num_waning_compartments
+                        if waning_index < num_waning_compartments - 1
                         else max(
                             select[
                                 "Rate (%) [Anti-N, 18-49 Years Prevalence, Rounds 1-30 only]"
@@ -608,7 +655,7 @@ def past_immune_dist_from_serology_demographics(
                 elif age < serology_age_limits[2]:
                     age_to_sero_dict[age] = (
                         sum(select_strained["50_64_diff"])
-                        if waning_index < num_waning_compartments
+                        if waning_index < num_waning_compartments - 1
                         else max(
                             select[
                                 "Rate (%) [Anti-N, 50-64 Years Prevalence, Rounds 1-30 only]"
@@ -618,7 +665,7 @@ def past_immune_dist_from_serology_demographics(
                 else:
                     age_to_sero_dict[age] = (
                         sum(select_strained["65_diff"])
-                        if waning_index < num_waning_compartments
+                        if waning_index < num_waning_compartments - 1
                         else max(
                             select[
                                 "Rate (%) [Anti-N, 65+ Years Prevalence, Rounds 1-30 only]"
@@ -643,7 +690,7 @@ def past_immune_dist_from_serology_demographics(
     # we now have the timing of when each proportion of the population was exposed to each strain
     # lets make some assumptions about repeat infections to produce immune history.
     immune_history_dist = imply_immune_history_dist_from_strains(
-        strain_exposure_distribution, num_strains
+        strain_exposure_distribution, num_strains, num_historical_strains
     )
     # TODO add vaccinations here too.
 

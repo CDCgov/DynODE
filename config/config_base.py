@@ -38,6 +38,8 @@ class ConfigBase:
         # informed by mean of Binom(0.53, gamma(3.1, 1.6)) + 1, sources 4 and 5 (see bottom of file)
         self.EXPOSED_TO_INFECTIOUS = 3.6  # sigma
         self.VACCINATION_RATE = 1 / 500.0  # vac_p
+        # number of vaccines considered to be maximum for an individual
+        self.MAX_VAX_COUNT = 2
         self.INITIAL_INFECTIONS = 1.0
         self.STRAIN_SPECIFIC_R0 = jnp.array([1.5, 1.5])  # R0s
         self.NUM_WANING_COMPARTMENTS = 4
@@ -99,6 +101,8 @@ class ConfigBase:
             ["alpha", "delta", "omicron"][3 - self.NUM_STRAINS :],
             start=0,
         )
+
+        self.NUM_PREV_INF_STATES = 2**self.NUM_STRAINS
         # Check that no values are incongruent with one another
         self.assert_valid_values()
 
