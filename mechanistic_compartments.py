@@ -52,30 +52,19 @@ class BasicMechanisticModel:
         # if not given, load contact matrices via mixing data into self.
         if not self.CONTACT_MATRIX:
             self.load_contact_matrix()
+        # self.CONTACT_MATRIX.shape = (NUM_AGE_GROUPS, NUM_AGE_GROUPS)
 
-        # TODO change this to load the S compartment proportions for each age group, hist, vax combination
-        # if not given, load inital waning and recovered distributions from serological data into self
         if self.INIT_IMMUNE_HISTORY is None:
             self.load_immune_history()
-
         # self.INIT_IMMUNE_HISTORY.shape = (age, hist, num_vax, waning)
 
         # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
+        # stratify initial infections appropriately across age, hist, vax counts
         if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
             self.load_init_infection_infected_and_exposed_dist()
-        # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax)
+        # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax, strain)
         # self.INIT_INFECTED_DIST.shape = (age, hist, num_vax, strain)
         # self.INIT_EXPOSED_DIST.shape = (age, hist, num_vax, strain)
-
-        # suseptible / partial susceptible = Total population - infected - recovered - waning
-        initial_suseptible_count = (
-            self.POPULATION[:, np.newaxis, np.newaxis, np.newaxis]
-            * self.INIT_IMMUNE_HISTORY
-        )
-        # # dont forget to subtract the recently recovered people
-        # initial_suseptible_count[:, :, :, 0] = initial_suseptible_count[
-        #     :, :, :, 0
-        # ] - (self.INITIAL_INFECTIONS * self.INIT_INFECTION_DIST)
 
         # initial_infectious_count = (
         #     self.INITIAL_INFECTIONS * self.INIT_INFECTED_DIST
@@ -83,6 +72,14 @@ class BasicMechanisticModel:
         # initial_exposed_count = (
         #     self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
         # )
+
+        # suseptible / partial susceptible = Total population - infected - exposed
+        initial_suseptible_count = (
+            self.POPULATION[:, np.newaxis, np.newaxis, np.newaxis]
+            * self.INIT_IMMUNE_HISTORY
+            # - initial_infectious_count - initial_exposed_count
+        )
+
         self.INITIAL_STATE = (
             initial_suseptible_count,  # s
             # initial_exposed_count,  # e
@@ -167,12 +164,9 @@ class BasicMechanisticModel:
             1 / waning_time if waning_time > 0 else 0
             for waning_time in self.WANING_TIMES
         ]
-        # default to no cross immunity, setting diagnal to 0
+        # default to no cross immunity, setting diagnal to 0, susceptibility is now strainxhist
         # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
-        # suseptibility_matrix = jnp.ones(
-        #     (self.NUM_STRAINS, self.NUM_STRAINS)
-        # ) * (1 - jnp.diag(jnp.array([1] * self.NUM_STRAINS)))
-        # non-omicron vs omicron, immune_state filler values
+        # non-omicron vs omicron, hist filler values
         suseptibility_matrix = jnp.array([[1, 0, 0, 0], [1, 0.5, 0, 0]])
         # add final parameters, if your model expects added parameters, add them here
         args = dict(
@@ -276,13 +270,12 @@ class BasicMechanisticModel:
         self,
         model,
         tf: int = 100.0,
-        plot: bool = False,
         show: bool = False,
         save: bool = False,
         sample: bool = False,
         sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
         save_path: str = "model_run.png",
-        plot_compartments: list[str] = ["S", "E", "I", "R", "W", "C"],
+        plot_compartments: list[str] = ["S", "E", "I", "C"],
     ):
         """
         Takes parameters from self and applies them to some disease dynamics modeled in `model`
@@ -295,8 +288,6 @@ class BasicMechanisticModel:
             for example functions see the model_odes folder.
         `tf`: int
             stopping time point (with default configuration this is days)
-        `plot`: boolean
-            whether or not to plot the solution using plot_difrax_solution()
         `show`: boolean
             whether or not to show an image via matplotlib.pyplot.show()
         `save`: boolean
@@ -340,7 +331,7 @@ class BasicMechanisticModel:
             save_path if save else None
         )  # dont set a save path if we dont want to save
 
-        if plot:
+        if show or save:
             fig, ax = self.plot_diffrax_solution(
                 solution,
                 plot_compartments=plot_compartments,
@@ -376,38 +367,45 @@ class BasicMechanisticModel:
         for compartment in plot_compartments:
             # if W with no index is passed, sum all W compartments together.
             if "W" == compartment.upper():
-                get_indexes.append(
-                    self.IDX.__getitem__(compartment.strip().upper())
-                )
+                get_indexes.append(self.IDX.__getitem__("S"))
             # if W1/2/3/4 is supplied, we want that specific waning compartment
             elif "W" in compartment.upper():
                 # waning compartments are held in a different manner, we need two indexes to access them
                 index_slice = [
-                    self.IDX.__getitem__("W"),
+                    self.IDX.__getitem__("S"),
                     self.W_IDX.__getitem__(compartment.strip().upper()),
                 ]
                 get_indexes.append(index_slice)
-            else:
+            else:  # for E, I, and C compartments
                 get_indexes.append(
                     self.IDX.__getitem__(compartment.strip().upper())
                 )
 
         fig, ax = plt.subplots(1)
         for compartment, idx in zip(plot_compartments, get_indexes):
+            # turn sol_compartment into shape (time, age, hist, vax). Requires removal of last dimension.
             # if user selects all W compartments, we must sum across the waning axis.
             if "W" == compartment.upper():
                 # the waning index + 1 because first index is for time in the solution
+                # exclude fully susceptible people since they are not waning to anything [1:]
                 sol_compartment = np.sum(
-                    np.array(sol[idx]), axis=self.AXIS_IDX.wane + 1
+                    np.array(sol[idx][:, :, 1:, :, :]),
+                    axis=(self.S_AXIS_IDX.wane + 1),
                 )
-            # if W1/W2/W3... idx=(idx.W, w_idx.W1/2/....), select specific waning compartment
+            # if W1/W2/W3... idx=(idx.S, w_idx.W1/2/....), select specific waning compartment
             elif "W" in compartment.upper():
                 # if we are plotting a waning compartment, we need to parse 1 extra dimension
-                sol_compartment = np.array(sol[idx[0]])[:, :, :, idx[1]]
+                # exclude fully susceptible people since they are not waning to anything [1:]
+                sol_compartment = np.array(sol[idx[0]][:, :, 1:, :, idx[1]])
+            elif "S" == compartment.upper():
+                # fully susceptible persons are in hist=0 and wane=0
+                sol_compartment = np.array(sol[idx][:, :, 0, :, 0])
             else:
-                # non-waning compartments dont have this extra dimension
-                sol_compartment = sol[idx]
-            # summing over age groups + strains, 0th dim is timestep
+                # E and I compartments are stratified by exposing strains opposed to waning
+                sol_compartment = np.sum(
+                    np.array(sol[idx]), axis=(self.I_AXIS_IDX.strain + 1)
+                )
+            # summing over age groups + hist + num_vax, 0th dim is timestep
             dimensions_to_sum_over = tuple(range(1, sol_compartment.ndim))
             ax.plot(
                 sol_compartment.sum(axis=dimensions_to_sum_over),
@@ -443,23 +441,14 @@ class BasicMechanisticModel:
         ax: matplotlib.axes._axes.Axes
             Matplotlib axes containing data on the generated plot.
         """
-        # get all recovered dists, sum across strains
-        recovered_strain_sum = np.sum(
-            self.INIT_RECOVERED_DIST, axis=self.AXIS_IDX.strain
-        )
-        # get all waned dists, sum across strains
-        waned_strain_sum = np.sum(
-            self.INIT_WANING_DIST, axis=self.AXIS_IDX.strain
-        ).transpose()
         # combine them together into one matrix, multiply by pop counts
-        immune_compartments = np.vstack(
-            (recovered_strain_sum, waned_strain_sum)
-        )
+        immune_compartments = [
+            self.INIT_IMMUNE_HISTORY[:, :, :, w_idx] for w_idx in self.W_IDX
+        ]
         immune_compartments_populations = self.POPULATION * immune_compartments
         # reverse for plot readability since we read left to right
         immune_compartments_populations = immune_compartments_populations[::-1]
-        x_axis = ["R"] + ["W" + str(int(idx)) for idx in self.W_IDX]
-        x_axis = x_axis[::-1]
+        x_axis = ["W" + str(int(idx)) for idx in self.W_IDX][::-1]
         age_to_immunity_slice = {}
         # for each age group, plot its number of persons in each immune compartment
         # stack the bars on top of one another by summing the previous age groups underneath
@@ -612,7 +601,7 @@ class BasicMechanisticModel:
         # just been infected naturally and are in wane=0 because of that rather than vaccination.
         infection_shape = tuple(
             list(self.INIT_IMMUNE_HISTORY.shape)[:-1] + [self.NUM_STRAINS]
-        )
+        )  # age, state, num_vax, strain
         self.INIT_INFECTION_DIST = np.zeros(infection_shape)
         # TODO as of right now we only infect those in states with omicron, what about
         # fully susceptible / non-omicron exposure people????
