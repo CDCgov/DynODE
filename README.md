@@ -9,7 +9,7 @@ This code aims to combine a number of different codebases to forecast different 
 ## Model Structure
 
 Subject to change, currently seir_model_v4 follows these disease dynamics.
-![](/misc/seir_model_v4_diagram.png)
+![](/misc/scenarios_seip_model_diagram.png)
 
 ## Quick Start
 
