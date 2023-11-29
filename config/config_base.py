@@ -87,7 +87,9 @@ class ConfigBase:
             str(self.AGE_LIMITS[i - 1]) + "-" + str(self.AGE_LIMITS[i] - 1)
             for i in range(1, len(self.AGE_LIMITS))
         ] + [str(self.AGE_LIMITS[-1]) + "+"]
+
         self.NUM_STRAINS = len(self.STRAIN_SPECIFIC_R0)
+
         # enum for marking waning indexes, improving readability
         self.W_IDX = IntEnum(
             "w_idx",

@@ -1,15 +1,28 @@
 # CFA Scenarios Model
-
+[Overview](#overview) |
+[Model Structure](#model-structure) |
+[Quick Start](#quick-start) |
+[Data Sources](#data-sources) |
+[Project Admins](#project-admins) |
+[Fine Text and Disclaimers](#general-disclaimer)
 ## Overview
 
 This repository is for the design and implementation of a Scenarios forecasting model, built by the Scenarios team within CFA-Predict.
 
-This code aims to combine a number of different codebases to forecast different covid scenarios in a Compartmental Mechanistic ODE model with multiple competing covid variants.
+This code aims to combine a number of different codebases to forecast different covid scenarios with a Compartmental Mechanistic ODE model modeling multiple competing covid variants. The aim of this model is to provide enough flexibility for its users to explore a variety of scenarios, but also making certain design decisions that allow for fast computation and fitting as well as code readability.
+
+What this model is:
+
+a compartmental mechanistic ODE model capible of dynamic age binning, waning, vaccination scenarios, introduction of new variants, transmission structures, and timing estimation. TODO
+
+What this model is not:
+
+A fully dynamic suite of compartment models where any compartment may be easily added or removed. All models have assumptions, the basic compartment structure is assumed in many places, making it non-trivial to change.
 
 ## Model Structure
 
-Subject to change, currently seir_model_v4 follows these disease dynamics.
-![](/misc/scenarios_seip_model_diagram.png)
+Subject to change, current transmission dynamics follow this basic model
+![](/misc/scenarios_seip_model_diagram_cdc_blue.png)
 
 ## Quick Start
 
@@ -24,7 +37,7 @@ from model_odes.seir_model_v5 import seirw_ode
 from mechanistic_compartments import build_basic_mechanistic_model
 from config.config_base import ConfigBase
 
-solution = build_basic_mechanistic_model(ConfigBase()).run(seirw_ode, plot=True, show=True, save=True, save_path="output/example.png")
+solution = build_basic_mechanistic_model(ConfigBase()).run(seirw_ode, tf=100.0, show=True, save=True, save_path="output/example.png")
 ```
 
 To create your own scenario, and modify parameters such as strain R0 and vaccination rate follow these steps:
@@ -40,7 +53,7 @@ from model_odes.seir_model_v5 import seirw_ode
 from mechanistic_compartments import build_basic_mechanistic_model
 from config.config_scenario_example import ConfigScenario
 
-solution = build_basic_mechanistic_model(ConfigScenario()).run(seirw_ode, plot=True, show=True, save=True, save_path="output/example_scenario.png")
+solution = build_basic_mechanistic_model(ConfigScenario()).run(seirw_ode, tf=100.0, show=True, save=True, save_path="output/example_scenario.png")
 ```
 
 ## Data Sources
@@ -49,7 +62,7 @@ The model is fed the following data sources:
 1. data/demographic-data/contact_matricies : Dinas contact matricies todo
 2. data/serological-data/* : serology data sourced from: [data.cdc.gov](https://data.cdc.gov/Laboratory-Surveillance/Nationwide-Commercial-Laboratory-Seroprevalence-Su/d2tw-32xv)
 
-## Project Admin
+## Project Admins
 
 Ariel Shurygin, M.S Data Sci, uva5@cdc.gov, CDC/IOD/ORR/CFA
 

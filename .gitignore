@@ -50,7 +50,7 @@ testing.py
 !output/example_output_1000_days.png_meta.json
 !output/base_model_initial_immune_distribution.png
 !output/base_model_initial_immune_distribution.png_meta.json
-!misc/scenarios_seip_model_diagram.png
+!misc/scenarios_seip_model_diagram_cdc_blue.png
 
 #####
 # Python
