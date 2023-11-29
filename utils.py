@@ -140,6 +140,36 @@ def all_immune_states_with(strain, num_strains):
     return filtered_states
 
 
+def all_immune_states_without(strain, num_strains):
+    """
+    function returning all of the immune states which DO NOT contain an exposure to `strain`
+
+    Parameters
+    ----------
+    strain: int
+        int representing the strain that the returns states are NOT exposed to
+        expects that `0 <= strain <= num_strains - 1`
+    num_strains: int
+        number of strains in the model
+
+    Returns
+    ----------
+    list[int] representing all states that DO NOT include previous exposure to `strain`
+
+    Example
+    ----------
+    in a simple model where num_strains = 2 the following is returned.
+    Reminder: state = 0 (no exposure),
+    state = 1/2 (exposure to strain 0/1 respectively), state=3 (exposed to both)
+    all_immune_states_with(0, 2) -> [0, 2]
+    all_immune_states_with(1, 2) -> [0, 1]
+    """
+    all_states = list(range(2**num_strains))
+    states_with_strain = all_immune_states_with(strain, num_strains)
+    # return set difference of all states and states including strain
+    return set(all_states) - set(states_with_strain)
+
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # DEMOGRAPHICS CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -405,7 +435,8 @@ def set_serology_timeline(num_strains):
     a helper method which does the logic of setting historical strain breakpoint dates.
 
     Takes the number of strains serology data will be used to initialize, and collapses certain strains together
-    if needed.
+    if needed. Returning the number of strains which are counted individually (after collapse).
+    This value may be different than num_strains if num_strains > 3, as only 3 historical timelines are supported.
 
     Parameters
     ----------
@@ -460,6 +491,7 @@ def imply_immune_history_dist_from_strains(
     (age, immune_hist, waning). It does this by assuming the following.
     Any individuals who are infected by a single strain,
     half of those individuals will be re-infected by all incoming future strains.
+    Immune hist is a integer state representing all past infections.
 
     Parameters
     ----------
@@ -501,14 +533,28 @@ def imply_immune_history_dist_from_strains(
                 num_strains,
             )
             multi_strain_states.append(multi_strain_state)
+            age_summed = np.sum(strain_exposure_dist[:, strain, :], axis=0)
+            waning_compartments_with_strain = np.where(age_summed > 0)
             # TODO remove 0s
-            immune_history_dist[:, multi_strain_state, 0, :] += (
-                repeat_inf_rate * immune_history_dist[:, prev_state, 0, :]
-            )
-            # TODO remove 0s
-            immune_history_dist[:, prev_state, 0, :] -= (
-                repeat_inf_rate * immune_history_dist[:, prev_state, 0, :]
-            )
+            # following for loop assumes reinfection of previous states with the incoming strain.
+            # will pull `repeat_inf_rate`% people from all previous waning compartments before the current
+            for waning_compartment in waning_compartments_with_strain[::-1]:
+                immune_history_dist[
+                    :, multi_strain_state, 0, waning_compartment
+                ] += np.sum(
+                    repeat_inf_rate
+                    * immune_history_dist[
+                        :, prev_state, 0, waning_compartment + 1 :
+                    ],  # waning_compartment + 1 selects prev waning compartments
+                    axis=2,
+                )
+                # TODO remove 0s
+                immune_history_dist[:, prev_state, 0, :] -= (
+                    repeat_inf_rate
+                    * immune_history_dist[
+                        :, prev_state, 0, waning_compartment + 1 :
+                    ]
+                )
         immune_states.append(single_strain_state)
         immune_states = immune_states + multi_strain_states
     # now that we have taken all the strain stratified ages and waning compartments
@@ -538,12 +584,13 @@ def past_immune_dist_from_serology_demographics(
     sero_path: str
           relative or absolute path to serological data from which to initialize compartments
     age_path: str
-          relateive or absolute path to demographic data folder for age distributions
+          relative or absolute path to demographic data folder for age distributions
     age_limits: list(int)
           The age limits of your model that you wish to initialize compartments of.
           Example: for bins of 0-17, 18-49, 50-64, 65+ age_limits = [0, 18, 50, 65]
-    waning_times: int
-          Time in days it takes for a person to wane to the next level of protection
+    waning_times: list(int)
+          Time in days it takes for a person to wane from a waning compartment to the next level of protection.
+          len(waning_times) == num_waning_compartments, ending in 0.
     num_waning_compartments: int
           number of waning compartments in your model that you wish to initialize.
     max_vaccination_count: int
@@ -560,7 +607,7 @@ def past_immune_dist_from_serology_demographics(
     ----------
     immune_history_dist: np.array
         the proportions of the total population for each age bin stratified by immune history (natural and vaccine).
-        immune history consists of previous infection history (omicron vs non-omicron infection) as well as number of vaccinations.
+        immune history consists of previous infection history as well as number of vaccinations.
         The more recent of infection vs vaccination decides the waning compartment of that individual.
     """
     # we will need population data for weighted averages
