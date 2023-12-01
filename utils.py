@@ -170,6 +170,97 @@ def all_immune_states_without(strain, num_strains):
     return set(all_states) - set(states_with_strain)
 
 
+def find_age_bin(age, age_limits):
+    """
+    Given an age, return the age bin it belongs to in the age limits array
+
+    Parameters
+    ----------
+    age: int
+        age of the individual to be binned
+    age_limits: list(int)
+        age limit for each age bin in the model, begining with minimum age
+        values are exclusive in upper bound. so [0,18) means 0-17, 18+
+
+    Returns
+    ----------
+    The index of the bin, assuming 0 is the youngest age bin and len(age_limits)-1 is the oldest age bin
+    """
+    current_bin = -1
+    for age_limit in age_limits:
+        if age - age_limit < 0:
+            return current_bin
+        else:
+            current_bin += 1
+    return current_bin
+
+
+def find_vax_bin(vax_shots, max_doses):
+    """
+    Given a number of vaccinations, returns the bin it belongs to given the maximum doses ceiling
+
+    Parameters
+    ----------
+    vax_shots: int
+        the number of vaccinations given to the individual
+    max_doses: int
+        the number of doses maximum before all subsequent doses are no longer counted
+
+    Returns
+    ----------
+    The index of the vax bin, assuming 0 is 0 vaccinations and max_doses = any vaccinations equal to or more than max_doses
+    """
+    return min(vax_shots, max_doses)
+
+
+def convert_state(strains, STRAIN_IDX, num_strains):
+    """
+    a function that transforms a comma separated list of strains and transform them into an immune history state.
+    num_strains and STRAIN_IDX are often initalized in configuration files and may include less strains than those included in
+    `strains`. Any unrecognized strain strings inside of `strains` do not contiribute to the returned state.
+
+    Parameters
+    ----------
+    strains: str
+        a comma separated string of each exposed strain, order does not matter, capitalization does not matter.
+    STRAIN_IDX: intEnum
+        an enum containing the name of each strain and its associated strain index, as initialized by ConfigBase.
+    num_strains:
+        the number of _tracked_ strains in the model. This may be less than or equal to the unique number of strains in `strains`
+
+    """
+    state = 0
+    for strain in filter(None, strains.split(",")):
+        if strain.lower() in STRAIN_IDX._member_map_:
+            strain_idx = STRAIN_IDX[strain.lower()]
+        else:
+            strain_idx = 0
+        state = new_immune_state(state, strain_idx, num_strains)
+    return state
+
+
+def find_waning_compartment(TSLIE, waning_times):
+    """
+    Given a TSLIE (time since last immunogenetic event) in days, returns the waning compartment index of the event.
+
+    Parameters
+    ----------
+    TSLIE: int
+        the number of days since the initialization of the model that the immunogenetic event occured (this could be vaccination or infection).
+    waning_times: list(int)
+        the number of days an individual stays in each waning compartment, ending in zero as the last compartment does not wane.
+    """
+    current_bin = 0
+    for wane_time in waning_times:
+        if TSLIE - wane_time < 0:
+            return current_bin
+        else:
+            TSLIE -= wane_time
+            current_bin += 1
+    # last compartment waning_time = 0, shifts us 1 extra bin, shift back in this edge case.
+    return current_bin - 1
+
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # DEMOGRAPHICS CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -742,6 +833,53 @@ def past_immune_dist_from_serology_demographics(
     # TODO add vaccinations here too.
 
     return immune_history_dist
+
+
+def past_immune_dist_from_simulations(
+    sim_path,
+    num_age_groups,
+    age_limits,
+    max_vax_count,
+    waning_times,
+    num_waning_compartments,
+    num_strains,
+    STRAIN_IDXs,
+):
+    num_states = 2**num_strains
+    abm_population = pd.read_csv(sim_path).fillna("")
+    # remove those with active infections, those are designated for exposed/infected
+    abm_population = abm_population[abm_population["TSLIE"] >= 0]
+    immune_hist = np.zeros(
+        (
+            num_age_groups,
+            num_states,
+            max_vax_count + 1,
+            num_waning_compartments,
+        )
+    )
+    abm_population["vax_bin"] = abm_population["num_doses"].apply(
+        lambda x: find_vax_bin(x, max_vax_count)
+    )
+    abm_population["age_bin"] = abm_population["age"].apply(
+        lambda x: find_age_bin(x, age_limits)
+    )
+    abm_population["waning_compartment_bin"] = abm_population["TSLIE"].apply(
+        lambda x: find_waning_compartment(x, waning_times)
+    )
+    abm_population["state"] = abm_population["strains"].apply(
+        lambda x: convert_state(x, STRAIN_IDXs, num_strains)
+    )
+    for idx, vax_bin, age_bin, waning_compartment_bin, state in abm_population[
+        abm_population.columns[6:]
+    ].itertuples():
+        immune_hist[age_bin, state, vax_bin, waning_compartment_bin] += 1.0
+
+    pop_by_age_bin = np.sum(immune_hist, axis=(1, 2, 3))
+    # normalize for each age bin, all individual age bins sum to 1.
+    immune_hist_normalized = (
+        immune_hist / pop_by_age_bin[:, np.newaxis, np.newaxis, np.newaxis]
+    )
+    return immune_hist_normalized
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

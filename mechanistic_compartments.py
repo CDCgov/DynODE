@@ -55,13 +55,13 @@ class BasicMechanisticModel:
         # self.CONTACT_MATRIX.shape = (NUM_AGE_GROUPS, NUM_AGE_GROUPS)
 
         if self.INIT_IMMUNE_HISTORY is None:
-            self.load_immune_history()
+            self.load_immune_history_via_abm()
         # self.INIT_IMMUNE_HISTORY.shape = (age, hist, num_vax, waning)
 
         # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
         # stratify initial infections appropriately across age, hist, vax counts
-        if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
-            self.load_init_infection_infected_and_exposed_dist()
+        # if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
+        #     self.load_init_infection_infected_and_exposed_dist()
         # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax, strain)
         # self.INIT_INFECTED_DIST.shape = (age, hist, num_vax, strain)
         # self.INIT_EXPOSED_DIST.shape = (age, hist, num_vax, strain)
@@ -482,7 +482,7 @@ class BasicMechanisticModel:
                 self.to_json(meta)
         return fig, ax
 
-    def load_immune_history(self):
+    def load_immune_history_via_serology(self):
         """
         a wrapper function which loads serologically informed covid immune history distributions into self, accounting for strain timing.
         Serology data initalized closely after the end of the Omicron wave on Feb 11th 2022. Individuals are marked with
@@ -531,6 +531,18 @@ class BasicMechanisticModel:
                 self.MAX_VAX_COUNT,
                 self.NUM_STRAINS,
             )
+        )
+
+    def load_immune_history_via_abm(self):
+        self.INIT_IMMUNE_HISTORY = utils.past_immune_dist_from_simulations(
+            self.SIM_DATA,
+            self.NUM_AGE_GROUPS,
+            self.AGE_LIMITS,
+            self.MAX_VAX_COUNT,
+            self.WANING_TIMES,
+            self.NUM_WANING_COMPARTMENTS,
+            self.NUM_STRAINS,
+            self.STRAIN_IDX,
         )
 
     def load_initial_population_fractions(self):

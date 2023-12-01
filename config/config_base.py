@@ -24,6 +24,7 @@ class ConfigBase:
         self.REGIONS = ["United States"]
         self.DEMOGRAPHIC_DATA = "data/demographic-data/"
         self.SEROLOGICAL_DATA = "data/serological-data/"
+        self.SIM_DATA = "data/abm_population.csv"
         self.SAVE_PATH = "output/"
         # CONTACT MATRICES & DEMOGRAPHY
         self.MINIMUM_AGE = 0  # why was this 1
@@ -100,7 +101,7 @@ class ConfigBase:
         # omicron will always be index=2 if num_strains >= 3. In a two strain model we must combine alpha and delta together.
         self.STRAIN_IDX = IntEnum(
             "strain_idx",
-            ["alpha", "delta", "omicron"][3 - self.NUM_STRAINS :],
+            ["wildtype", "alpha", "delta", "omicron"][4 - self.NUM_STRAINS :],
             start=0,
         )
 
