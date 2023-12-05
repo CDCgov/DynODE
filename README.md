@@ -59,8 +59,9 @@ solution = build_basic_mechanistic_model(ConfigScenario()).run(seirw_ode, tf=100
 ## Data Sources
 
 The model is fed the following data sources:
-1. data/demographic-data/contact_matricies : Dinas contact matricies todo
+1. data/demographic-data/contact_matricies : contact matricies sourced from work done by Dina Minstry's past work in this [Github Project](https://github.com/mobs-lab/mixing-patterns).
 2. data/serological-data/* : serology data sourced from: [data.cdc.gov](https://data.cdc.gov/Laboratory-Surveillance/Nationwide-Commercial-Laboratory-Seroprevalence-Su/d2tw-32xv)
+3. data/sim_data_*.sqlite: ABM data sourced from Tom Hladish's work found [here](https://github.com/tjhladish/covid-abm)
 
 ## Project Admins
 

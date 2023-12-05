@@ -24,7 +24,7 @@ class ConfigBase:
         self.REGIONS = ["United States"]
         self.DEMOGRAPHIC_DATA = "data/demographic-data/"
         self.SEROLOGICAL_DATA = "data/serological-data/"
-        self.SIM_DATA = "data/abm_population.csv"
+        self.SIM_DATA = "data/abm_population2.csv"
         self.SAVE_PATH = "output/"
         # CONTACT MATRICES & DEMOGRAPHY
         self.MINIMUM_AGE = 0  # why was this 1

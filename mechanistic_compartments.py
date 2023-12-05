@@ -60,31 +60,46 @@ class BasicMechanisticModel:
 
         # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
         # stratify initial infections appropriately across age, hist, vax counts
-        # if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
-        #     self.load_init_infection_infected_and_exposed_dist()
+        if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
+            self.load_init_infection_infected_and_exposed_dist_via_abm()
         # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax, strain)
         # self.INIT_INFECTED_DIST.shape = (age, hist, num_vax, strain)
         # self.INIT_EXPOSED_DIST.shape = (age, hist, num_vax, strain)
 
-        # initial_infectious_count = (
-        #     self.INITIAL_INFECTIONS * self.INIT_INFECTED_DIST
-        # )
-        # initial_exposed_count = (
-        #     self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
-        # )
-
+        initial_infectious_count = (
+            self.INITIAL_INFECTIONS * self.INIT_INFECTED_DIST
+        )
+        initial_infectious_count_ages = jnp.sum(
+            initial_infectious_count,
+            axis=(
+                self.I_AXIS_IDX.hist,
+                self.I_AXIS_IDX.vax,
+                self.I_AXIS_IDX.strain,
+            ),
+        )
+        initial_exposed_count = (
+            self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
+        )
+        initial_exposed_count_ages = jnp.sum(
+            initial_exposed_count,
+            axis=(
+                self.I_AXIS_IDX.hist,
+                self.I_AXIS_IDX.vax,
+                self.I_AXIS_IDX.strain,
+            ),
+        )
         # suseptible / partial susceptible = Total population - infected - exposed
         initial_suseptible_count = (
-            self.POPULATION[:, np.newaxis, np.newaxis, np.newaxis]
-            * self.INIT_IMMUNE_HISTORY
-            # - initial_infectious_count - initial_exposed_count
-        )
+            self.POPULATION
+            - initial_infectious_count_ages
+            - initial_exposed_count_ages
+        )[:, np.newaxis, np.newaxis, np.newaxis] * self.INIT_IMMUNE_HISTORY
 
         self.INITIAL_STATE = (
             initial_suseptible_count,  # s
-            # initial_exposed_count,  # e
-            # initial_infectious_count,  # i
-            # jnp.zeros(initial_exposed_count.shape),  # c
+            initial_exposed_count,  # e
+            initial_infectious_count,  # i
+            jnp.zeros(initial_exposed_count.shape),  # c
         )
 
         self.solution = None
@@ -121,6 +136,7 @@ class BasicMechanisticModel:
             "NUM_STRAINS": self.NUM_STRAINS,
             "NUM_WANING_COMPARTMENTS": self.NUM_WANING_COMPARTMENTS,
             "WANING_PROTECTIONS": self.WANING_PROTECTIONS,
+            "MAX_VAX_COUNT": self.MAX_VAX_COUNT,
         }
         if sample:
             # if user provides parameters and distributions they wish to sample, sample those
@@ -164,10 +180,11 @@ class BasicMechanisticModel:
             1 / waning_time if waning_time > 0 else 0
             for waning_time in self.WANING_TIMES
         ]
-        # default to no cross immunity, setting diagnal to 0, susceptibility is now strainxhist
         # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
-        # non-omicron vs omicron, hist filler values
+        # non-omicron vs omicron, stratified by immune history
         suseptibility_matrix = jnp.array([[1, 0, 0, 0], [1, 0.5, 0, 0]])
+        # non-omicron vs omicron, stratified by vaccine count, 0, 1, 2+ shots
+        vax_eff_matrix = jnp.array([[0, 0.9, 0.95], [0, 0.85, 0.9]])
         # add final parameters, if your model expects added parameters, add them here
         args = dict(
             args,
@@ -177,6 +194,7 @@ class BasicMechanisticModel:
                 "GAMMA": gamma,
                 "WANING_RATES": waning_rates,
                 "SUSCEPTIBILITY_MATRIX": suseptibility_matrix,
+                "VAX_EFF_MATRIX": vax_eff_matrix,
             }
         )
         return args
@@ -534,7 +552,7 @@ class BasicMechanisticModel:
         )
 
     def load_immune_history_via_abm(self):
-        self.INIT_IMMUNE_HISTORY = utils.past_immune_dist_from_simulations(
+        self.INIT_IMMUNE_HISTORY = utils.past_immune_dist_from_abm(
             self.SIM_DATA,
             self.NUM_AGE_GROUPS,
             self.AGE_LIMITS,
@@ -580,7 +598,7 @@ class BasicMechanisticModel:
             self.AGE_LIMITS,
         )["United States"]["avg_CM"]
 
-    def load_init_infection_infected_and_exposed_dist(self):
+    def load_init_infection_infected_and_exposed_dist_via_serology(self):
         """
         loads the inital infection distribution by age, then separates infections into an
         infected and exposed distributions, to account for people who may not be infectious yet,
@@ -663,7 +681,44 @@ class BasicMechanisticModel:
         # self.INIT_INFECTED_DIST = (
         #     self.INIT_INFECTED_DIST[:, :, :, None] * strain_filler_array
         # )
-        print("done")
+
+    def load_init_infection_infected_and_exposed_dist_via_abm(self):
+        """
+        loads the inital infection distribution by age, then separates infections into an
+        infected and exposed distributions, to account for people who may not be infectious yet,
+        but are part of the initial infections of the model all infections assumed to be omicron.
+        utilizes the ratio between gamma and sigma to determine what proportion of inital infections belong in the
+        exposed (soon to be infectious), and the already infectious compartments.
+
+        given that `INIT_INFECTION_DIST` = `INIT_EXPOSED_DIST` + `INIT_INFECTED_DIST`
+
+        Updates
+        ----------
+        `self.INIT_INFECTION_DIST`: jnp.array(int)
+            populates values using seroprevalence to produce a distribution of how new infections are
+            stratified by age bin. INIT_INFECTION_DIST.shape = (self.NUM_AGE_GROUPS,) and sum(self.INIT_INFECTION_DIST) = 1.0
+        `self.INIT_EXPOSED_DIST`: jnp.array(int)
+            proportion of INIT_INFECTION_DIST that falls into exposed compartment, formatted into the omicron strain.
+            INIT_EXPOSED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
+        `self.INIT_INFECTED_DIST`: jnp.array(int)
+            proportion of INIT_INFECTION_DIST that falls into infected compartment, formatted into the omicron strain.
+            INIT_INFECTED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
+        """
+        (
+            self.INIT_INFECTION_DIST,
+            self.INIT_EXPOSED_DIST,
+            self.INIT_INFECTED_DIST,
+        ) = utils.init_infections_from_abm(
+            self.SIM_DATA,
+            self.NUM_AGE_GROUPS,
+            self.AGE_LIMITS,
+            self.MAX_VAX_COUNT,
+            self.WANING_TIMES,
+            self.NUM_STRAINS,
+            self.STRAIN_IDX,
+            self.EXPOSED_TO_INFECTIOUS,
+            self.INFECTIOUS_PERIOD,
+        )
 
     def to_json(self, file):
         """

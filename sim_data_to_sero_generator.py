@@ -6,7 +6,7 @@ import pandas as pd
 SIM_START_DATE = datetime.date(2020, 2, 10)
 SIM_INPUT_PATH = "data/sim_data_0.sqlite"
 MODEL_INIT_DATE = datetime.date(2022, 2, 11)
-OUTPUT_DATA_PATH = "data/abm_population.csv"
+OUTPUT_DATA_PATH = "data/abm_population2.csv"
 
 
 # Create your connection.
@@ -51,7 +51,7 @@ infection_history_by_infected = infection_history.groupby(
     "inf_owner_id", as_index=False
 ).agg(
     {
-        "strain": set,
+        "strain": list,
         "infected_time": max,
         "infectious_start": max,
         "infectious_end": max,
@@ -87,7 +87,7 @@ infection_history_by_infected.columns = [
 
 ### FILL NA VALUES WITH GOOD DEFAULTS AND SET TO INT FROM FLOAT.
 infection_history_by_infected["strains"] = (
-    infection_history_by_infected["strains"].fillna("").apply(set)
+    infection_history_by_infected["strains"].fillna("").apply(list)
 )
 infection_history_by_infected["num_doses"] = (
     infection_history_by_infected["num_doses"].fillna(0).astype(int)

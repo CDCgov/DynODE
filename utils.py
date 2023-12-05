@@ -213,7 +213,7 @@ def find_vax_bin(vax_shots, max_doses):
     return min(vax_shots, max_doses)
 
 
-def convert_state(strains, STRAIN_IDX, num_strains):
+def convert_hist(strains, STRAIN_IDX, num_strains):
     """
     a function that transforms a comma separated list of strains and transform them into an immune history state.
     num_strains and STRAIN_IDX are often initalized in configuration files and may include less strains than those included in
@@ -237,6 +237,28 @@ def convert_state(strains, STRAIN_IDX, num_strains):
             strain_idx = 0
         state = new_immune_state(state, strain_idx, num_strains)
     return state
+
+
+def convert_strain(strain, STRAIN_IDX):
+    """
+    given a text description of a string, return the correct strain index as specified by the STRAIN_IDX enum.
+    If strain is not found in STRAIN_IDX, return 0 (the oldest strain included in the model)
+
+    Parameters
+    -----------
+    strain: str
+        a string representing the infecting strain, capitalization does not matter.
+    STRAIN_IDX: intEnum
+        an enum containing the name of each strain and its associated strain index, as initialized by ConfigBase.
+
+    Returns
+    ----------
+    STRAIN_IDX[strain] if exists, else 0
+    """
+    if strain.lower() in STRAIN_IDX._member_map_:
+        return STRAIN_IDX[strain.lower()]
+    else:
+        return 0  # return oldest strain if not included
 
 
 def find_waning_compartment(TSLIE, waning_times):
@@ -521,6 +543,60 @@ def prep_serology_data(
     return serology
 
 
+def prep_abm_data(
+    abm_population,
+    max_vax_count,
+    age_limits,
+    waning_times,
+    num_strains,
+    STRAIN_IDXs,
+):
+    """
+    A helper function called by past_immune_dist_from_abm() that takes as input a path to some abm data with schema specified by the README,
+    and applies transformations to the table, adding some columns so individuals within the ABM data are able to be placed
+    in the correct partial immunity bins. This includes vaccination, age binning, waning bins, and conversion of strain exposure history
+    into an immune history.
+
+    Parameters
+    ----------
+    abm_population: pd.Dataframe
+        ABM data input with schema specified by project README.
+    max_vax_count: int
+        the number of doses maximum before all subsequent doses are no longer counted. ex: 2 -> 0, 1, 2+ doses (3 bins)
+    age_limits: list(int)
+        The age limits of your model that you wish to initialize compartments of.
+        Example: for bins of 0-17, 18-49, 50-64, 65+ age_limits = [0, 18, 50, 65]
+    waning_times: list(int)
+        Time in days it takes for a person to wane from a waning compartment to the next level of protection.
+        len(waning_times) == num_waning_compartments, ending in 0.
+    num_strains: int
+        number of distinct strains in your model, used to inform the `state` column in output
+    STRAIN_IDX: intEnum
+        an enum containing the name of each strain and its associated strain index, as initialized by ConfigBase.
+
+    Returns
+    ----------
+    A pandas dataframe read in from abm_path with 4 added columns: vax_bin, age_bin, waning_compartment_bin, and state.
+    The first 3 are simple transformations made to bin a domain according to the parameters of a model.
+    While the last converts a list of strain exposures into a integer state representing immune history.
+    """
+    # replace N/A values with empty string so that convert_state() works correctly.
+    abm_population["strains"] = abm_population["strains"].fillna("")
+    abm_population["vax_bin"] = abm_population["num_doses"].apply(
+        lambda x: find_vax_bin(x, max_vax_count)
+    )
+    abm_population["age_bin"] = abm_population["age"].apply(
+        lambda x: find_age_bin(x, age_limits)
+    )
+    abm_population["waning_compartment_bin"] = abm_population["TSLIE"].apply(
+        lambda x: find_waning_compartment(x, waning_times)
+    )
+    abm_population["state"] = abm_population["strains"].apply(
+        lambda x: convert_hist(x, STRAIN_IDXs, num_strains)
+    )
+    return abm_population
+
+
 def set_serology_timeline(num_strains):
     """
     a helper method which does the logic of setting historical strain breakpoint dates.
@@ -579,10 +655,10 @@ def imply_immune_history_dist_from_strains(
 ):
     """
     takes a matrix of shape (age, strain, waning) and converts it to
-    (age, immune_hist, waning). It does this by assuming the following.
+    (age, immune_hist, waning). It does this by assuming the following:
     Any individuals who are infected by a single strain,
     half of those individuals will be re-infected by all incoming future strains.
-    Immune hist is a integer state representing all past infections.
+    Immune hist is a integer state representing a history of all past infections.
 
     Parameters
     ----------
@@ -835,8 +911,8 @@ def past_immune_dist_from_serology_demographics(
     return immune_history_dist
 
 
-def past_immune_dist_from_simulations(
-    sim_path,
+def past_immune_dist_from_abm(
+    abm_path,
     num_age_groups,
     age_limits,
     max_vax_count,
@@ -845,34 +921,68 @@ def past_immune_dist_from_simulations(
     num_strains,
     STRAIN_IDXs,
 ):
-    num_states = 2**num_strains
-    abm_population = pd.read_csv(sim_path).fillna("")
+    """
+    A function used to initialize susceptible and partially susceptible distributions for a model via ABM (agent based model) data.
+    Given a path to an ABM state as CSV (schema for this data specified in README), read in dataframe, bin individuals according
+    to model parameters (age/wane/vax binning), and place individuals into strata.
+    Finally normalize by age group such that proportions within a single bin sum to 1.
+
+    Parameters
+    ----------
+    abm_path: str
+        path to the abm input data, stored as a csv.
+    num_age_groups: int
+        number of age bins in the model being initialized.
+    age_limits: list(int)
+        The age limits of your model that you wish to initialize compartments of.
+        Example: for bins of 0-17, 18-49, 50-64, 65+ age_limits = [0, 18, 50, 65]
+    max_vax_count: int
+        the number of doses maximum before all subsequent doses are no longer counted. ex: 2 -> 0, 1, 2+ doses (3 bins)
+    waning_times: list(int)
+        Time in days it takes for a person to wane from a waning compartment to the next level of protection.
+        len(waning_times) == num_waning_compartments, ending in 0.
+    num_waning_compartments: int
+        The number of waning bins in the model being initialized.
+    num_strains: int
+        number of distinct strains in your model, used to inform the `state` column in output
+    STRAIN_IDX: intEnum
+        an enum containing the name of each strain and its associated strain index, as initialized by ConfigBase.
+
+
+    Returns:
+    A numpy matrix stratified by age bin, immune history, vaccine bin, and waning bin. Where proportions within an single age bin sum to 1.
+    Representing the distributions of people within that age bin who belong to each strata of immune history, vaccination, and waning.
+    """
+    num_immune_hist = 2**num_strains
+    abm_population = pd.read_csv(abm_path)
     # remove those with active infections, those are designated for exposed/infected
     abm_population = abm_population[abm_population["TSLIE"] >= 0]
+    abm_population = prep_abm_data(
+        abm_population,
+        max_vax_count,
+        age_limits,
+        waning_times,
+        num_strains,
+        STRAIN_IDXs,
+    )
     immune_hist = np.zeros(
         (
             num_age_groups,
-            num_states,
+            num_immune_hist,
             max_vax_count + 1,
             num_waning_compartments,
         )
     )
-    abm_population["vax_bin"] = abm_population["num_doses"].apply(
-        lambda x: find_vax_bin(x, max_vax_count)
+    stratas, counts = np.unique(
+        abm_population[
+            ["age_bin", "state", "vax_bin", "waning_compartment_bin"]
+        ],
+        axis=0,
+        return_counts=True,
     )
-    abm_population["age_bin"] = abm_population["age"].apply(
-        lambda x: find_age_bin(x, age_limits)
-    )
-    abm_population["waning_compartment_bin"] = abm_population["TSLIE"].apply(
-        lambda x: find_waning_compartment(x, waning_times)
-    )
-    abm_population["state"] = abm_population["strains"].apply(
-        lambda x: convert_state(x, STRAIN_IDXs, num_strains)
-    )
-    for idx, vax_bin, age_bin, waning_compartment_bin, state in abm_population[
-        abm_population.columns[6:]
-    ].itertuples():
-        immune_hist[age_bin, state, vax_bin, waning_compartment_bin] += 1.0
+    for strata, count in zip(stratas, counts):
+        age_bin, state, vax_bin, waning_compartment_bin = strata
+        immune_hist[age_bin, state, vax_bin, waning_compartment_bin] += count
 
     pop_by_age_bin = np.sum(immune_hist, axis=(1, 2, 3))
     # normalize for each age bin, all individual age bins sum to 1.
@@ -880,6 +990,105 @@ def past_immune_dist_from_simulations(
         immune_hist / pop_by_age_bin[:, np.newaxis, np.newaxis, np.newaxis]
     )
     return immune_hist_normalized
+
+
+def init_infections_from_abm(
+    abm_path,
+    num_age_groups,
+    age_limits,
+    max_vax_count,
+    waning_times,
+    num_strains,
+    STRAIN_IDXs,
+    exposed_to_infectious,
+    infectious_period,
+):
+    """
+    A function that uses ABM state data to inform initial infections and distribute them across infected and exposed compartments
+    according to the ratio of exposed_to_infectious time and infectious_period time.
+    Returns proportions of new infections belonging to each strata, all attributed to STRAIN_IDX.omicron as that was the dominant
+    strain during the initialization date.
+
+     Parameters
+    ----------
+    abm_path: str
+        path to the abm input data, stored as a csv.
+    num_age_groups: int
+        number of age bins in the model being initialized.
+    age_limits: list(int)
+        The age limits of your model that you wish to initialize compartments of.
+        Example: for bins of 0-17, 18-49, 50-64, 65+ age_limits = [0, 18, 50, 65]
+    max_vax_count: int
+        the number of doses maximum before all subsequent doses are no longer counted. ex: 2 -> 0, 1, 2+ doses (3 bins)
+    waning_times: list(int)
+        Time in days it takes for a person to wane from a waning compartment to the next level of protection.
+        len(waning_times) == num_waning_compartments, ending in 0.
+    num_waning_compartments: int
+        The number of waning bins in the model being initialized.
+    num_strains: int
+        number of distinct strains in your model, used to inform the `state` column in output
+    STRAIN_IDX: intEnum
+        an enum containing the name of each strain and its associated strain index, as initialized by ConfigBase.
+    exposed_to_infectious: int
+        mean exposed_to_infectious time in days in the model being initialized
+    infectious_period: int
+        mean infectious_period time in days in the model being initialized
+
+    Returns
+    ----------
+    (infections, exposed, infected): tuple of np.arrays
+    infections = exposed + infected
+    representing the proportions of each initial infection belonging to each strata, meaning sum(infections) == 1.
+    All numpy arrays stratified by age, immune history, vaccination, and infecting strain (always omicron).
+    """
+    num_immune_hist = 2**num_strains
+    abm_population = pd.read_csv(abm_path)
+    # select for those with active infections, aka TSLIE < 0
+    active_infections_abm = abm_population[abm_population["TSLIE"] < 0]
+    # since we are looking at active infections, the last element in the strains array will be the current infecting strain
+    # thus we separate it into its own column so it does not soil the immune history pre-infection of the individual
+    active_infections_abm["infecting_strain"] = active_infections_abm[
+        "strains"
+    ].apply(lambda x: convert_strain(x.split(",")[-1], STRAIN_IDXs))
+
+    active_infections_abm["strains"] = active_infections_abm["strains"].apply(
+        lambda x: ",".join(x.split(",")[:-1])
+    )
+    active_infections_abm = prep_abm_data(
+        active_infections_abm,
+        max_vax_count,
+        age_limits,
+        waning_times,
+        num_strains,
+        STRAIN_IDXs,
+    )
+    infections = np.zeros(
+        (
+            num_age_groups,
+            num_immune_hist,
+            max_vax_count + 1,
+            num_strains,
+        )
+    )
+    stratas, counts = np.unique(
+        active_infections_abm[
+            ["age_bin", "state", "vax_bin", "infecting_strain"]
+        ],
+        axis=0,
+        return_counts=True,
+    )
+    for strata, count in zip(stratas, counts):
+        age_bin, state, vax_bin, infecting_strain = strata
+        infections[age_bin, state, vax_bin, infecting_strain] += count
+
+    total_pop = np.sum(infections, axis=(0, 1, 2, 3))
+    # normalize so all infections sum to 1, getting proportions of each strata
+    infections_normalized = infections / total_pop
+    exposed_to_infected_ratio = exposed_to_infectious / infectious_period
+    exposed = infections_normalized * exposed_to_infected_ratio
+    infected = infections_normalized * (1 - exposed_to_infected_ratio)
+
+    return infections, exposed, infected
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
