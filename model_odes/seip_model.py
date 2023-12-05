@@ -61,42 +61,51 @@ def seip_ode(state, _, parameters):
     )
     # CALCULATING SUCCESSFULL INFECTIONS OF (partially) SUSCEPTIBLE INDIVIDUALS
     force_of_infection = (
-        (p.BETA * jnp.einsum("ab,bijk->aijk", p.CONTACT_MATRIX, i)).transpose()
+        (p.BETA * jnp.einsum("ab,bijk->ak", p.CONTACT_MATRIX, i)).transpose()
         / p.POPULATION
-    ).transpose()  # (NUM_AGE_GROUPS, hist, prev_vax_count, strain)
+    ).transpose()  # (NUM_AGE_GROUPS, strain)
 
     # TODO there is no explicit competition yet, we need another FOR loop somewhere here
     for strain in range(p.NUM_STRAINS):
         force_of_infection_strain = force_of_infection[
-            :, :, :, strain
-        ]  # (num_age_groups, hist, MAX_VAX_COUNT)
+            :, strain
+        ]  # (num_age_groups,)
 
         # partial_suseptibility = (hist,)
         partial_susceptibility = p.SUSCEPTIBILITY_MATRIX[strain, :]
         # p.vax_susceptibility_strain.shape = (MAX_VAX_COUNT,)
         vax_susceptibility_strain = p.VAX_EFF_MATRIX[strain, :]
 
-        effective_susceptibility = 1 - jnp.matmul(
-            p.WANING_PROTECTIONS[:, None],
-            (1 - partial_susceptibility)[None, :],
-        )  # (waning, immune_state,)
-        exposed_s = jnp.array(
-            [
-                jnp.einsum(
-                    "b,abc->abc",
-                    effective_susceptibility[:, immune_hist],  # waning
-                    (
-                        force_of_infection_strain  # (num_age_groups, hist, MAX_VAX_COUNT)
-                        * s[:, immune_hist, :, :]  # age, vax, wane
-                        * vax_susceptibility_strain[None, :]  # (1, vax)
-                    ),
-                )
-                for immune_hist in range(s.shape[1])
-            ]
+        foi_suscept = jnp.einsum(
+            "i,j,k,l",
+            force_of_infection_strain,
+            partial_susceptibility,
+            vax_susceptibility_strain,
+            1 - p.WANING_PROTECTIONS,
         )
+        exposed_s = s * foi_suscept
+
+        # effective_susceptibility = 1 - jnp.matmul(
+        #     p.WANING_PROTECTIONS[:, None],
+        #     (1 - partial_susceptibility)[None, :],
+        # )  # (waning, immune_state, vax)
+        # exposed_s = jnp.array(
+        #     [
+        #         jnp.einsum(
+        #             "i,ijk,jk->ijk",
+        #             (
+        #                 force_of_infection_strain  # (num_age_groups,)
+        #                 * s[:, immune_hist, :, :]  # age, hist, vax, wane
+        #                 * effective_susceptibility[immune_hist, :, :]
+        #                 # (hist, vax, wane)
+        #             ),
+        #         )  # age, hist, vax
+        #         for immune_hist in range(s.shape[1])
+        #     ]
+        # )  # age, hist, vax, wane
         # equation: (immune_state) x ((num_age_groups, immune_state, MAX_VAX_COUNT)**2 * (1, MAX_VAX_COUNT))
         # for loop prepends a (wane) dimension to this array, tranpose into correct order
-        exposed_s = exposed_s.transpose((1, 2, 3, 0))
+        # exposed_s = exposed_s.transpose((1, 2, 3, 0))
         # we know strain_source is infecting people, de has no waning compartments, so sum over those.
         de = de.at[:, :, :, strain].add(jnp.sum(exposed_s, axis=-1))
         ds = jnp.add(ds, -exposed_s)
@@ -125,6 +134,7 @@ def seip_ode(state, _, parameters):
     waning_array = jnp.zeros(s.shape).at[:, :, :].add(p.WANING_RATES)
     s_waned = waning_array * s
     ds = ds.at[:, :, :, 1:].add(s_waned[:, :, :, :-1])
+    ds = ds.at[:, :, :, :-1].add(-s_waned[:, :, :, :-1])
     # TODO forgot to subtract the waning only added people here
     # TODO here we need to add our di_to_w0 but in a smarter way to sort out prev_exposure column
     # with num_strains=2 we get 2^2 immune_states. no exposure, strain 0 only, strain 1 only, both strains.

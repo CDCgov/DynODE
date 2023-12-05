@@ -182,9 +182,11 @@ class BasicMechanisticModel:
         ]
         # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
         # non-omicron vs omicron, stratified by immune history
-        suseptibility_matrix = jnp.array([[1, 0, 0, 0], [1, 0.5, 0, 0]])
+        suseptibility_matrix = jnp.array(
+            [[1, 0.5, 0.3, 0.2], [1, 0.7, 0.5, 0.3]]
+        )
         # non-omicron vs omicron, stratified by vaccine count, 0, 1, 2+ shots
-        vax_eff_matrix = jnp.array([[0, 0.9, 0.95], [0, 0.85, 0.9]])
+        vax_eff_matrix = jnp.array([[1, 0.1, 0.05], [1, 0.15, 0.1]])
         # add final parameters, if your model expects added parameters, add them here
         args = dict(
             args,
@@ -380,30 +382,29 @@ class BasicMechanisticModel:
             if `save_path = None` do not save figure to output directory. Otherwise save to relative path `save_path`
             attaching meta data of the self object.
         """
+        plot_compartments = [x.strip().upper() for x in plot_compartments]
         sol = sol.ys
         get_indexes = []
         for compartment in plot_compartments:
             # if W with no index is passed, sum all W compartments together.
-            if "W" == compartment.upper():
+            if "W" == compartment or "P" == compartment:
                 get_indexes.append(self.IDX.__getitem__("S"))
             # if W1/2/3/4 is supplied, we want that specific waning compartment
-            elif "W" in compartment.upper():
+            elif "W" in compartment:
                 # waning compartments are held in a different manner, we need two indexes to access them
                 index_slice = [
                     self.IDX.__getitem__("S"),
-                    self.W_IDX.__getitem__(compartment.strip().upper()),
+                    self.W_IDX.__getitem__(compartment),
                 ]
                 get_indexes.append(index_slice)
             else:  # for E, I, and C compartments
-                get_indexes.append(
-                    self.IDX.__getitem__(compartment.strip().upper())
-                )
+                get_indexes.append(self.IDX.__getitem__(compartment))
 
         fig, ax = plt.subplots(1)
         for compartment, idx in zip(plot_compartments, get_indexes):
             # turn sol_compartment into shape (time, age, hist, vax). Requires removal of last dimension.
             # if user selects all W compartments, we must sum across the waning axis.
-            if "W" == compartment.upper():
+            if "W" == compartment or "P" == compartment:
                 # the waning index + 1 because first index is for time in the solution
                 # exclude fully susceptible people since they are not waning to anything [1:]
                 sol_compartment = np.sum(
@@ -411,13 +412,16 @@ class BasicMechanisticModel:
                     axis=(self.S_AXIS_IDX.wane + 1),
                 )
             # if W1/W2/W3... idx=(idx.S, w_idx.W1/2/....), select specific waning compartment
-            elif "W" in compartment.upper():
+            elif "W" in compartment:
                 # if we are plotting a waning compartment, we need to parse 1 extra dimension
                 # exclude fully susceptible people since they are not waning to anything [1:]
                 sol_compartment = np.array(sol[idx[0]][:, :, 1:, :, idx[1]])
-            elif "S" == compartment.upper():
-                # fully susceptible persons are in hist=0 and wane=0
-                sol_compartment = np.array(sol[idx][:, :, 0, :, 0])
+            elif "S" == compartment:
+                # persons with no immune history are in hist=0 and wane=0
+                sol_compartment = np.sum(
+                    np.array(sol[idx][:, :, 0, :, :]),
+                    axis=(self.S_AXIS_IDX.wane),
+                )
             else:
                 # E and I compartments are stratified by exposing strains opposed to waning
                 sol_compartment = np.sum(
