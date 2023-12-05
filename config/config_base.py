@@ -41,8 +41,8 @@ class ConfigBase:
         self.VACCINATION_RATE = 1 / 500.0  # vac_p
         # number of vaccines considered to be maximum for an individual
         self.MAX_VAX_COUNT = 2
-        self.INITIAL_INFECTIONS = 1.0
-        self.STRAIN_SPECIFIC_R0 = jnp.array([1.5, 1.5])  # R0s
+        self.INITIAL_INFECTIONS = 100.0
+        self.STRAIN_SPECIFIC_R0 = jnp.array([1.2, 1.5])  # R0s
         self.NUM_WANING_COMPARTMENTS = 4
         self.WANING_PROTECTIONS = jnp.array([0.48, 0.473, 0.473, 0])
         # len(WANING_TIMES) = NUM_WANING_COMPARTMENTS + 1 to account for R -> W0 rate.

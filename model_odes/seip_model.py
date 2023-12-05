@@ -65,6 +65,7 @@ def seip_ode(state, _, parameters):
         / p.POPULATION
     ).transpose()  # (NUM_AGE_GROUPS, hist, prev_vax_count, strain)
 
+    # TODO there is no explicit competition yet, we need another FOR loop somewhere here
     for strain in range(p.NUM_STRAINS):
         force_of_infection_strain = force_of_infection[
             :, :, :, strain
@@ -83,14 +84,14 @@ def seip_ode(state, _, parameters):
             [
                 jnp.einsum(
                     "b,abc->abc",
-                    effective_susceptibility[wane, :],
+                    effective_susceptibility[:, immune_hist],  # waning
                     (
-                        force_of_infection_strain
-                        * s[:, :, :, wane]
-                        * vax_susceptibility_strain[None, :]
+                        force_of_infection_strain  # (num_age_groups, hist, MAX_VAX_COUNT)
+                        * s[:, immune_hist, :, :]  # age, vax, wane
+                        * vax_susceptibility_strain[None, :]  # (1, vax)
                     ),
                 )
-                for wane in range(s.shape[-1])
+                for immune_hist in range(s.shape[1])
             ]
         )
         # equation: (immune_state) x ((num_age_groups, immune_state, MAX_VAX_COUNT)**2 * (1, MAX_VAX_COUNT))
@@ -99,7 +100,6 @@ def seip_ode(state, _, parameters):
         # we know strain_source is infecting people, de has no waning compartments, so sum over those.
         de = de.at[:, :, :, strain].add(jnp.sum(exposed_s, axis=-1))
         ds = jnp.add(ds, -exposed_s)
-        # de = de.at[:, strain_source_idx].add(np.sum(ws_exposed, axis=1))
 
     # e and i shape remain same, just multiplying by a constant.
     de_to_i = p.SIGMA * e  # exposure -> infectious
@@ -124,7 +124,7 @@ def seip_ode(state, _, parameters):
     # last w group doesn't wane but WANING_RATES enforces a 0 at the end
     waning_array = jnp.zeros(s.shape).at[:, :, :].add(p.WANING_RATES)
     s_waned = waning_array * s
-    ds.at[:, :, :, 1:].add(s_waned[:, :, :, :-1])
+    ds = ds.at[:, :, :, 1:].add(s_waned[:, :, :, :-1])
     # TODO forgot to subtract the waning only added people here
     # TODO here we need to add our di_to_w0 but in a smarter way to sort out prev_exposure column
     # with num_strains=2 we get 2^2 immune_states. no exposure, strain 0 only, strain 1 only, both strains.
@@ -141,10 +141,10 @@ def seip_ode(state, _, parameters):
         vax_gained = jnp.sum(s_vax_count, axis=(-1))
         # if people already at the max counted vaccinations, dont move them, only update waning
         if vaccine_count == p.MAX_VAX_COUNT:
-            ds.at[:, :, vaccine_count, 0].add(vax_gained)
+            ds = ds.at[:, :, vaccine_count, 0].add(vax_gained)
         else:  # increment num_vaccines by 1, waning reset
-            ds.at[:, :, vaccine_count + 1, 0].add(vax_gained)
+            ds = ds.at[:, :, vaccine_count + 1, 0].add(vax_gained)
         # set the w0 compartment to 0 here since we are going to subtract it from the other waning compartments
-        ds.at[:, :, vaccine_count, :].add(-s_vax_count)
+        ds = ds.at[:, :, vaccine_count, :].add(-s_vax_count)
 
     return (ds, de, di, dc)
