@@ -65,48 +65,29 @@ def seip_ode(state, _, parameters):
         / p.POPULATION
     ).transpose()  # (NUM_AGE_GROUPS, strain)
 
-    # TODO there is no explicit competition yet, we need another FOR loop somewhere here
     for strain in range(p.NUM_STRAINS):
         force_of_infection_strain = force_of_infection[
             :, strain
         ]  # (num_age_groups,)
 
         # partial_suseptibility = (hist,)
-        partial_susceptibility = p.SUSCEPTIBILITY_MATRIX[strain, :]
+        crossimmunity_matrix = p.CROSSIMMUNITY_MATRIX[strain, :]
         # p.vax_susceptibility_strain.shape = (MAX_VAX_COUNT,)
-        vax_susceptibility_strain = p.VAX_EFF_MATRIX[strain, :]
+        vax_efficacy_strain = p.VAX_EFF_MATRIX[strain, :]
 
+        initial_immunity = 1 - jnp.einsum(
+            "j, k",
+            1 - crossimmunity_matrix,
+            1 - vax_efficacy_strain,
+        )
+        waned_immunity = jnp.einsum(
+            "jk,l", initial_immunity, p.WANING_PROTECTIONS
+        )
         foi_suscept = jnp.einsum(
-            "i,j,k,l",
-            force_of_infection_strain,
-            partial_susceptibility,
-            vax_susceptibility_strain,
-            1 - p.WANING_PROTECTIONS,
+            "i, jkl", force_of_infection_strain, 1 - waned_immunity
         )
         exposed_s = s * foi_suscept
-
-        # effective_susceptibility = 1 - jnp.matmul(
-        #     p.WANING_PROTECTIONS[:, None],
-        #     (1 - partial_susceptibility)[None, :],
-        # )  # (waning, immune_state, vax)
-        # exposed_s = jnp.array(
-        #     [
-        #         jnp.einsum(
-        #             "i,ijk,jk->ijk",
-        #             (
-        #                 force_of_infection_strain  # (num_age_groups,)
-        #                 * s[:, immune_hist, :, :]  # age, hist, vax, wane
-        #                 * effective_susceptibility[immune_hist, :, :]
-        #                 # (hist, vax, wane)
-        #             ),
-        #         )  # age, hist, vax
-        #         for immune_hist in range(s.shape[1])
-        #     ]
-        # )  # age, hist, vax, wane
-        # equation: (immune_state) x ((num_age_groups, immune_state, MAX_VAX_COUNT)**2 * (1, MAX_VAX_COUNT))
-        # for loop prepends a (wane) dimension to this array, tranpose into correct order
-        # exposed_s = exposed_s.transpose((1, 2, 3, 0))
-        # we know strain_source is infecting people, de has no waning compartments, so sum over those.
+        # we know `strain` is infecting people, de has no waning compartments, so sum over those.
         de = de.at[:, :, :, strain].add(jnp.sum(exposed_s, axis=-1))
         ds = jnp.add(ds, -exposed_s)
 
@@ -129,23 +110,18 @@ def seip_ode(state, _, parameters):
         # TODO this is where some percentage of the recovery goes to death or hosptialization
 
     # lets measure our waned + vax rates
-    # TODO, change WANING_RATES because we no longer have R->W
     # last w group doesn't wane but WANING_RATES enforces a 0 at the end
     waning_array = jnp.zeros(s.shape).at[:, :, :].add(p.WANING_RATES)
     s_waned = waning_array * s
     ds = ds.at[:, :, :, 1:].add(s_waned[:, :, :, :-1])
     ds = ds.at[:, :, :, :-1].add(-s_waned[:, :, :, :-1])
-    # TODO forgot to subtract the waning only added people here
-    # TODO here we need to add our di_to_w0 but in a smarter way to sort out prev_exposure column
-    # with num_strains=2 we get 2^2 immune_states. no exposure, strain 0 only, strain 1 only, both strains.
 
     # slice across age, strain, and wane. vaccination updates the vax column and also moves all to w0.
     # ex: diagonal movement from 1 shot in 4th waning compartment to 2 shots 0 waning compartment      s[:, 0, 1, 3] -> s[:, 0, 2, 0]
     for vaccine_count in range(p.MAX_VAX_COUNT + 1):
         # num of people who had vaccine_count shots and then are getting 1 more
         s_vax_count = p.VACCINATION_RATE * s[:, :, vaccine_count, :]
-        # TODO, do people in W0 get vaccinated? They just recovered so I am going with no.
-        # this also means people who just got vaccinated wont get another one for at least 1 waning compartment time.
+        # people who just got vaccinated/recovered wont get another shot for at least 1 waning compartment time.
         s_vax_count = s_vax_count.at[:, :, 0].set(0)
         # sum all the people getting vaccines, across waning bins since they will be put in w0
         vax_gained = jnp.sum(s_vax_count, axis=(-1))
@@ -154,7 +130,7 @@ def seip_ode(state, _, parameters):
             ds = ds.at[:, :, vaccine_count, 0].add(vax_gained)
         else:  # increment num_vaccines by 1, waning reset
             ds = ds.at[:, :, vaccine_count + 1, 0].add(vax_gained)
-        # set the w0 compartment to 0 here since we are going to subtract it from the other waning compartments
+        # we moved everyone into their correct compartment, now remove them from their starting position
         ds = ds.at[:, :, vaccine_count, :].add(-s_vax_count)
 
     return (ds, de, di, dc)

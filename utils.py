@@ -973,6 +973,7 @@ def past_immune_dist_from_abm(
             num_waning_compartments,
         )
     )
+    # get the number of people who fall in each age_bin, state, vax_bin, and waning_bin combination
     stratas, counts = np.unique(
         abm_population[
             ["age_bin", "state", "vax_bin", "waning_compartment_bin"]
@@ -980,6 +981,7 @@ def past_immune_dist_from_abm(
         axis=0,
         return_counts=True,
     )
+    # place people into their correct bins using the counts from above
     for strata, count in zip(stratas, counts):
         age_bin, state, vax_bin, waning_compartment_bin = strata
         immune_hist[age_bin, state, vax_bin, waning_compartment_bin] += count

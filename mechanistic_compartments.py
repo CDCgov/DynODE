@@ -61,6 +61,7 @@ class BasicMechanisticModel:
         # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
         # stratify initial infections appropriately across age, hist, vax counts
         if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
+            # TODO dont use gamma/sigma ratio, instead add the last_exposed column back into abm_population and use that
             self.load_init_infection_infected_and_exposed_dist_via_abm()
         # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax, strain)
         # self.INIT_INFECTED_DIST.shape = (age, hist, num_vax, strain)
@@ -137,6 +138,8 @@ class BasicMechanisticModel:
             "NUM_WANING_COMPARTMENTS": self.NUM_WANING_COMPARTMENTS,
             "WANING_PROTECTIONS": self.WANING_PROTECTIONS,
             "MAX_VAX_COUNT": self.MAX_VAX_COUNT,
+            "CROSSIMMUNITY_MATRIX": self.CROSSIMMUNITY_MATRIX,
+            "VAX_EFF_MATRIX": self.VAX_EFF_MATRIX,
         }
         if sample:
             # if user provides parameters and distributions they wish to sample, sample those
@@ -180,13 +183,6 @@ class BasicMechanisticModel:
             1 / waning_time if waning_time > 0 else 0
             for waning_time in self.WANING_TIMES
         ]
-        # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
-        # non-omicron vs omicron, stratified by immune history
-        suseptibility_matrix = jnp.array(
-            [[1, 0.5, 0.3, 0.2], [1, 0.7, 0.5, 0.3]]
-        )
-        # non-omicron vs omicron, stratified by vaccine count, 0, 1, 2+ shots
-        vax_eff_matrix = jnp.array([[1, 0.1, 0.05], [1, 0.15, 0.1]])
         # add final parameters, if your model expects added parameters, add them here
         args = dict(
             args,
@@ -195,8 +191,6 @@ class BasicMechanisticModel:
                 "SIGMA": sigma,
                 "GAMMA": gamma,
                 "WANING_RATES": waning_rates,
-                "SUSCEPTIBILITY_MATRIX": suseptibility_matrix,
-                "VAX_EFF_MATRIX": vax_eff_matrix,
             }
         )
         return args
@@ -296,6 +290,7 @@ class BasicMechanisticModel:
         sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
         save_path: str = "model_run.png",
         plot_compartments: list[str] = ["S", "E", "I", "C"],
+        log_scale: bool = False,
     ):
         """
         Takes parameters from self and applies them to some disease dynamics modeled in `model`
@@ -356,6 +351,7 @@ class BasicMechanisticModel:
                 solution,
                 plot_compartments=plot_compartments,
                 save_path=save_path,
+                log_scale=log_scale,
             )
             if show:
                 plt.show()
@@ -367,6 +363,7 @@ class BasicMechanisticModel:
         sol: Solution,
         plot_compartments: list[str] = ["s", "e", "i", "c"],
         save_path: str = None,
+        log_scale: bool = False,
     ):
         """
         plots a run from diffeqsolve() with compartments `plot_compartments` returning figure and axis.
@@ -439,6 +436,8 @@ class BasicMechanisticModel:
         )
         ax.set_xlabel("Days since scenario start")
         ax.set_ylabel("Population Count")
+        if log_scale:
+            ax.set_yscale("log")
         if save_path:
             fig.savefig(save_path)
             with open(save_path + "_meta.json", "w") as meta:
@@ -515,13 +514,9 @@ class BasicMechanisticModel:
 
         Updates
         ----------
-        self.INIT_RECOVERED_DIST : np.array
-            the proportions of the total population for each age bin defined as recovered, or within 1 `self.WANING_TIME` of infection.
-            has a shape of (`self.NUM_AGE_GROUPS`, `self.NUM_STRAINS`)
-
-        self.self.INIT_WANING_DIST : np.array
+        self.self.INIT_IMMUNE_HISTORY : np.array
             the proportions of the total population for each age bin defined as waning, or within x `self.WANING_TIME`s of infection. where x is the waning compartment
-            has a shape of (`self.NUM_AGE_GROUPS`, `self.NUM_STRAINS`, `self.NUM_WANING_COMPARTMENTS`)
+            has a shape of (`self.NUM_AGE_GROUPS`, `self.NUM_PREV_INF_STATES`, `self.MAX_VAX_COUNT + 1`, `self.NUM_WANING_COMPARTMENTS`)
         """
         sero_path = (
             self.SEROLOGICAL_DATA
@@ -612,7 +607,7 @@ class BasicMechanisticModel:
 
         infections are stratified across age bins based on proportion of each age bin
         in individuals who have recently sero-converted before model initalization date.
-        Equivalent to using proportion of each age bin in self.INIT_RECOVERED_DIST
+        Equivalent to using proportion of each age bin in top waning compartment
 
         given that `INIT_INFECTION_DIST` = `INIT_EXPOSED_DIST` + `INIT_INFECTED_DIST`
 
