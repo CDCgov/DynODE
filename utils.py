@@ -1086,9 +1086,12 @@ def init_infections_from_abm(
     total_pop = np.sum(infections, axis=(0, 1, 2, 3))
     # normalize so all infections sum to 1, getting proportions of each strata
     infections_normalized = infections / total_pop
-    exposed_to_infected_ratio = exposed_to_infectious / infectious_period
-    exposed = infections_normalized * exposed_to_infected_ratio
-    infected = infections_normalized * (1 - exposed_to_infected_ratio)
+    # column called "infectious" == 1 if person is actively infectious, 0 if just exposed and not yet infectious
+    infected_to_exposed_ratio = sum(active_infections_abm["infectious"]) / len(
+        active_infections_abm
+    )
+    exposed = infections_normalized * (1 - infected_to_exposed_ratio)
+    infected = infections_normalized * infected_to_exposed_ratio
 
     return infections, exposed, infected
 

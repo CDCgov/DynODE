@@ -6,7 +6,7 @@ import pandas as pd
 SIM_START_DATE = datetime.date(2020, 2, 10)
 SIM_INPUT_PATH = "data/sim_data_0.sqlite"
 MODEL_INIT_DATE = datetime.date(2022, 2, 11)
-OUTPUT_DATA_PATH = "data/abm_population2.csv"
+OUTPUT_DATA_PATH = "data/abm_population3.csv"
 
 
 # Create your connection.
@@ -125,6 +125,16 @@ infection_history_by_infected["TSLIE"] = [
 infection_history_by_infected["num_infections"] = [
     len(x) for x in infection_history_by_infected["strains"]
 ]
+
+infection_history_by_infected["infectious"] = [
+    int(start_date <= days_diff)
+    for start_date in infection_history_by_infected[
+        "last_infectious_start_date"
+    ]
+]
+infection_history_by_infected.loc[
+    infection_history_by_infected["TSLIE"] >= 0, "infectious"
+] = 0
 
 # drop date columns since they arent needed anymore
 infection_history_by_infected = infection_history_by_infected.drop(
