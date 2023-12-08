@@ -1,3 +1,4 @@
+import datetime
 import os
 from enum import IntEnum
 
@@ -26,6 +27,8 @@ class ConfigBase:
         self.SEROLOGICAL_DATA = "data/serological-data/"
         self.SIM_DATA = "data/abm_population3.csv"
         self.SAVE_PATH = "output/"
+        # model initialization date DO NOT CHANGE
+        self.INIT_DATE = datetime.date(2022, 2, 11)
         # CONTACT MATRICES & DEMOGRAPHY
         self.MINIMUM_AGE = 0  # why was this 1
         # age limits for each age bin in the model, begining with minimum age

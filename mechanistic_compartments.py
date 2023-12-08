@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 from enum import EnumMeta
@@ -426,7 +427,13 @@ class BasicMechanisticModel:
                 )
             # summing over age groups + hist + num_vax, 0th dim is timestep
             dimensions_to_sum_over = tuple(range(1, sol_compartment.ndim))
+            line_to_plot = sol_compartment.sum(axis=dimensions_to_sum_over)
+            days = list(range(len(line_to_plot)))
+            x_axis = [
+                self.INIT_DATE + datetime.timedelta(days=day) for day in days
+            ]
             ax.plot(
+                x_axis,
                 sol_compartment.sum(axis=dimensions_to_sum_over),
                 label=compartment,
             )
@@ -434,6 +441,7 @@ class BasicMechanisticModel:
         ax.set_title(
             "Population count by compartment across all ages and strains"
         )
+        ax.tick_params(axis="x", labelrotation=45)
         ax.set_xlabel("Days since scenario start")
         ax.set_ylabel("Population Count")
         if log_scale:
