@@ -29,39 +29,47 @@ class ConfigBase:
         self.SAVE_PATH = "output/"
         # model initialization date DO NOT CHANGE
         self.INIT_DATE = datetime.date(2022, 2, 11)
-        # CONTACT MATRICES & DEMOGRAPHY
-        self.MINIMUM_AGE = 0  # why was this 1
+        self.MINIMUM_AGE = 0
         # age limits for each age bin in the model, begining with minimum age
         # values are exclusive in upper bound. so [0,18) means 0-17, 18+
         self.AGE_LIMITS = [self.MINIMUM_AGE, 18, 50, 65]
-        # FIXED SEIR PARAMETERS
+        # Total Population size of simulation
         self.POP_SIZE = 20000
-        self.BIRTH_RATE = 1 / 75.0  # mu #TODO IMPLEMENT DEATHS
-        # informed by source 5 (see bottom of file)
+        # Time in days an individual is infectious for informed by source 5 (see bottom of file)
         self.INFECTIOUS_PERIOD = 7.0  # gamma
+        # time in days between exposure to virus to infectious and able to pass to others
         # informed by mean of Binom(0.53, gamma(3.1, 1.6)) + 1, sources 4 and 5 (see bottom of file)
         self.EXPOSED_TO_INFECTIOUS = 3.6  # sigma
+        # rate of vaccinations per num individuals vaccinated each day?
+        # TODO informed by?
         self.VACCINATION_RATE = 1 / 500.0  # vac_p
-        # number of vaccines considered to be maximum for an individual
+        # number of vaccines maximum for an individual, any more are not counted with bonus immunity.
         self.MAX_VAX_COUNT = 2
+        # Initial Infections in the model, these are dispersed between exposed and infectious states
         # sourced via the number of infections from Tom's ABM
         self.INITIAL_INFECTIONS = 339.46
+        # R0 values of each strain, from oldest to newest.
         self.STRAIN_SPECIFIC_R0 = jnp.array([1.2, 1.8])  # R0s
+        # number of compartments individuals wane through the moment of recovery.
+        # there is no explicit "recovered" compartment.
         self.NUM_WANING_COMPARTMENTS = 4
+        # the % protection from reinfection offered to individuals in each waning compartment.
         # TODO SOURCE?
         self.WANING_PROTECTIONS = jnp.array([1.0, 0.985, 0.985, 0])
+        # WANING_TIMES in days for each waning compartment, ends in 0 as last compartment does not wane
+        self.WANING_TIMES = [21, 142, 142, 0]
         # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
+        # the protection afforded by different immune histories from infection.
         # non-omicron vs omicron, stratified by immune history. 0 = fully susceptible, 1 = fully immune.
         # TODO SOURCE?
         self.CROSSIMMUNITY_MATRIX = jnp.array(
             [[0, 0.5, 0.7, 0.8], [0, 0.3, 0.5, 0.7]]
         )
+        # the protection afforded by different numbers of vaccinations from infection.
         # non-omicron vs omicron, stratified by vaccine count, 0, 1, 2+ shots. 0 = fully susceptible, 1 = fully immune.
         # TODO SOURCE?
         self.VAX_EFF_MATRIX = jnp.array([[0, 0.34, 0.68], [0, 0.24, 0.48]])
-        # WANING_TIMES in days for each waning compartment, ends in 0 as last compartment does not wane
-        self.WANING_TIMES = [21, 142, 142, 0]
-        # setting the following to None will get the model to initialize them from demographic/serological data
+        # setting the following to None will get the model to initialize them from demographic/abm data
         self.INITIAL_POPULATION_FRACTIONS = None
         self.CONTACT_MATRIX = None
         self.INIT_INFECTION_DIST = None
@@ -110,7 +118,9 @@ class ConfigBase:
             start=0,
         )
 
-        self.NUM_PREV_INF_STATES = 2**self.NUM_STRAINS
+        # number of previous infection histories depends on the number of strains being tested.
+        # can be either infected or not infected by each strain.
+        self.NUM_PREV_INF_HIST = 2**self.NUM_STRAINS
         # Check that no values are incongruent with one another
         self.assert_valid_values()
 
@@ -194,14 +204,14 @@ class ConfigBase:
         if self.INIT_INFECTED_DIST:
             assert self.INIT_INFECTED_DIST.shape == (
                 self.NUM_AGE_GROUPS,
-                self.NUM_PREV_INF_STATES,
+                self.NUM_PREV_INF_HIST,
                 self.MAX_VAX_COUNT + 1,
                 self.NUM_STRAINS,
             ), "INIT_INFECTED_DIST must be of shape %s, received %s" % (
                 str(
                     (
                         self.NUM_AGE_GROUPS,
-                        self.NUM_PREV_INF_STATES,
+                        self.NUM_PREV_INF_HIST,
                         self.MAX_VAX_COUNT + 1,
                         self.NUM_STRAINS,
                     )
@@ -212,14 +222,14 @@ class ConfigBase:
         if self.INIT_EXPOSED_DIST:
             assert self.INIT_EXPOSED_DIST.shape == (
                 self.NUM_AGE_GROUPS,
-                self.NUM_PREV_INF_STATES,
+                self.NUM_PREV_INF_HIST,
                 self.MAX_VAX_COUNT + 1,
                 self.NUM_STRAINS,
             ), "INIT_EXPOSED_DIST must be of shape %s, received %s" % (
                 str(
                     (
                         self.NUM_AGE_GROUPS,
-                        self.NUM_PREV_INF_STATES,
+                        self.NUM_PREV_INF_HIST,
                         self.MAX_VAX_COUNT + 1,
                         self.NUM_STRAINS,
                     )
@@ -227,7 +237,6 @@ class ConfigBase:
                 str(self.INIT_EXPOSED_DIST.shape),
             )
 
-        assert self.BIRTH_RATE >= 0, "BIRTH_RATE can not be negative"
         assert (
             self.INFECTIOUS_PERIOD >= 0
         ), "INFECTIOUS_PERIOD can not be negative"
@@ -267,7 +276,7 @@ class ConfigBase:
         ), "unable to load config, NUM_WANING_COMPARTMENTS must equal to len(WANING_PROTECTIONS)"
         assert self.CROSSIMMUNITY_MATRIX.shape == (
             self.NUM_STRAINS,
-            self.NUM_PREV_INF_STATES,
+            self.NUM_PREV_INF_HIST,
         ), "CROSSIMMUNITY_MATRIX shape incorrect"
         assert self.VAX_EFF_MATRIX.shape == (
             self.NUM_STRAINS,

@@ -1002,8 +1002,6 @@ def init_infections_from_abm(
     waning_times,
     num_strains,
     STRAIN_IDXs,
-    exposed_to_infectious,
-    infectious_period,
 ):
     """
     A function that uses ABM state data to inform initial infections and distribute them across infected and exposed compartments
@@ -1031,10 +1029,6 @@ def init_infections_from_abm(
         number of distinct strains in your model, used to inform the `state` column in output
     STRAIN_IDX: intEnum
         an enum containing the name of each strain and its associated strain index, as initialized by ConfigBase.
-    exposed_to_infectious: int
-        mean exposed_to_infectious time in days in the model being initialized
-    infectious_period: int
-        mean infectious_period time in days in the model being initialized
 
     Returns
     ----------
@@ -1093,7 +1087,7 @@ def init_infections_from_abm(
     exposed = infections_normalized * (1 - infected_to_exposed_ratio)
     infected = infections_normalized * infected_to_exposed_ratio
 
-    return infections, exposed, infected
+    return infections_normalized, exposed, infected
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

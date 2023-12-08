@@ -133,7 +133,6 @@ class BasicMechanisticModel:
         args = {
             "CONTACT_MATRIX": self.CONTACT_MATRIX,
             "VACCINATION_RATE": self.VACCINATION_RATE,
-            "BIRTH_RATE": self.BIRTH_RATE,
             "POPULATION": self.POPULATION,
             "NUM_STRAINS": self.NUM_STRAINS,
             "NUM_WANING_COMPARTMENTS": self.NUM_WANING_COMPARTMENTS,
@@ -524,7 +523,7 @@ class BasicMechanisticModel:
         ----------
         self.self.INIT_IMMUNE_HISTORY : np.array
             the proportions of the total population for each age bin defined as waning, or within x `self.WANING_TIME`s of infection. where x is the waning compartment
-            has a shape of (`self.NUM_AGE_GROUPS`, `self.NUM_PREV_INF_STATES`, `self.MAX_VAX_COUNT + 1`, `self.NUM_WANING_COMPARTMENTS`)
+            has a shape of (`self.NUM_AGE_GROUPS`, `self.NUM_PREV_INF_HIST`, `self.MAX_VAX_COUNT + 1`, `self.NUM_WANING_COMPARTMENTS`)
         """
         sero_path = (
             self.SEROLOGICAL_DATA
@@ -723,8 +722,6 @@ class BasicMechanisticModel:
             self.WANING_TIMES,
             self.NUM_STRAINS,
             self.STRAIN_IDX,
-            self.EXPOSED_TO_INFECTIOUS,
-            self.INFECTIOUS_PERIOD,
         )
 
     def to_json(self, file):
