@@ -17,7 +17,7 @@ class ConfigScenario(ConfigBase):
         # DO NOT CHANGE THE FOLLOWING TWO LINES
         self.NUM_WANING_COMPARTMENTS = 4
         self.WANING_PROTECTIONS = jnp.array([0.48, 0.473, 0.473, 0])
-        self.WANING_TIMES = [21, 142, 142, 142]
+        self.WANING_TIMES = [21, 142, 142, 0]
         self.INITIAL_INFECTIONS = 0
         self.VACCINATION_RATE = 0
         super().__init__(**self.__dict__)
