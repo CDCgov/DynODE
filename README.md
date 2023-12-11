@@ -56,6 +56,9 @@ from config.config_scenario_example import ConfigScenario
 solution = build_basic_mechanistic_model(ConfigScenario()).run(seirw_ode, tf=100.0, show=True, save=True, save_path="output/example_scenario.png")
 ```
 
+Before you go about running your own experiments it is best to understand how the model is initialized. Rather than looking through the model matricies yourself, the Scenarios team has created a Shiny application allowing for easy data visualization of the model's initial state!
+Simply run `visualizer_app.py` and navigate to http://localhost:8000/ and play with the data yourself.
+
 ## Data Sources
 
 The model is fed the following data sources:
