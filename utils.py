@@ -392,6 +392,8 @@ def prep_serology_data(
     path, num_historical_strains, historical_time_breakpoints
 ):
     """
+    DEPRECATED: USE ABM INFORMED INITIALIZATION ROUTINES
+
     reads serology data from path, filters to only USA site,
     filters Date Ranges from Sep 2020 - Feb 2022,
     calculates monotonically increasing rates of change (to combat sero-reversion from the assay),
@@ -599,6 +601,8 @@ def prep_abm_data(
 
 def set_serology_timeline(num_strains):
     """
+    DEPRECATED: USE ABM INFORMED INITIALIZATION ROUTINES
+
     a helper method which does the logic of setting historical strain breakpoint dates.
 
     Takes the number of strains serology data will be used to initialize, and collapses certain strains together
@@ -654,6 +658,8 @@ def imply_immune_history_dist_from_strains(
     repeat_inf_rate=0.5,
 ):
     """
+    DEPRECATED: USE ABM INFORMED INITIALIZATION ROUTINES
+
     takes a matrix of shape (age, strain, waning) and converts it to
     (age, immune_hist, waning). It does this by assuming the following:
     Any individuals who are infected by a single strain,
@@ -744,6 +750,8 @@ def past_immune_dist_from_serology_demographics(
     initialization_date=datetime.date(2022, 2, 12),
 ):
     """
+    DEPRECATED: USE ABM INFORMED INITIALIZATION ROUTINES
+
     initializes and returns the immune history for a model based on __covid__ serological data.
 
     Parameters

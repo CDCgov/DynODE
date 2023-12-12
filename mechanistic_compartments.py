@@ -228,9 +228,15 @@ class BasicMechanisticModel:
             sample_dist_dict=sample_dist_dict,
             tf=len(incidence),
         )
-        # add 1 to strain idx because we are straified by time in the solution object
+        # add 1 to idxs because we are straified by time in the solution object
+        # sum down to just time x age bins
         model_incidence = jnp.sum(
-            solution.ys[self.IDX.C], axis=self.AXIS_IDX.strain + 1
+            solution.ys[self.IDX.C],
+            axis=(
+                self.I_AXIS_IDX.hist + 1,
+                self.I_AXIS_IDX.vax + 1,
+                self.I_AXIS_IDX.strain + 1,
+            ),
         )
         # axis = 0 because we take diff across time
         model_incidence = jnp.diff(model_incidence, axis=0)

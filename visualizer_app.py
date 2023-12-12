@@ -1,8 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import seaborn as sn
 from shiny import App, render, ui
 
+import utils
 from config.config_base import ConfigBase
 from mechanistic_compartments import build_basic_mechanistic_model
 
@@ -174,6 +176,74 @@ def waning_in_population(input, fig, ax):
     ax.set_xlabel("Immune Compartment")
     ax.set_ylabel("Population " + input.display())
     return fig, ax
+
+
+def model_sero_curve(input, fig, ax):
+    """
+    A function that plots the hypothetical serology curve of the population up to the initialization date.
+
+    Parameters
+    ----------
+    `input`:
+        an object holding the Shiny app input parameters, such as the compartments selected and age groups specified.
+    `fig`: plt.fig
+        matplotlib.pyplot figure object
+    `ax`: plt.ax
+        matplotlib.axis object where the plot will be drawn on
+
+    Returns
+    ----------
+    the `fig` and `ax` parameters, modified to have the model sero curve drawn in.
+    """
+
+    abm_population = pd.read_csv(model.SIM_DATA)
+    # remove those with active infections, those are designated for exposed/infected
+    if (
+        len(input.compartment()) == 0
+        or len(input.age_bin()) == 0
+        or len(input.display()) == 0
+    ):
+        return None
+    compartment_selections = input.compartment()
+    # these selectors will help us narrow down our abm_population into just the groups we need.
+    select_susceptible = abm_population["TSLIE"] >= 0
+    select_exposed = (abm_population["TSLIE"] < 0) & (
+        abm_population["infectious"] == 0
+    )
+    select_infected = (abm_population["TSLIE"] < 0) & (
+        abm_population["infectious"] == 1
+    )
+    select_dict = {
+        "Susceptible": select_susceptible,
+        "Exposed": select_exposed,
+        "Infectious": select_infected,
+    }
+    # build up the compartment filter using OR statements.
+    compartment_filter = False
+    for compartment in compartment_selections:
+        compartment_filter = compartment_filter | select_dict[compartment]
+
+    # filter to just our compartments
+    abm_population = abm_population[compartment_filter]
+    # next we want to add bins to our abm data just like our model does.
+    abm_population = utils.prep_abm_data(
+        abm_population,
+        model.MAX_VAX_COUNT,
+        model.AGE_LIMITS,
+        model.WANING_TIMES,
+        model.NUM_STRAINS,
+        model.STRAIN_IDX,
+    )
+    # next filter down the age bins we want using the new columns we added above
+    age_selections = input.age_bin()
+    age_bin = []
+    for age in age_selections:
+        if age == "All":
+            age_bin = age_dict[age]
+            break
+        else:
+            age_bin.append(age_dict[age])
+    abm_population = abm_population[abm_population["age_bin"].isin(age_bin)]
 
 
 def server(input, output, session):

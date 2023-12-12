@@ -12,7 +12,7 @@ class Parameters(object):
         self.__dict__ = dict
 
 
-def seip_ode(state, _, parameters):
+def seip_ode(state, t, parameters):
     """
     A immune state ode model which aims to represent an SEIP model, with better representation of immune state and partial suseptibility.
 
@@ -36,8 +36,8 @@ def seip_ode(state, _, parameters):
     in this case holding population values of the S, E, I, and C compartments. (note: C =
     cumulative incidence).
 
-    _ : None
-    Formally used to denote current time of the model, is not currently used in this function
+    t : int
+    used to denote current time of the model in days
 
     parameters : a dictionary
     a dictionary holding the values of parameters needed by the SEIP model.
@@ -90,7 +90,7 @@ def seip_ode(state, _, parameters):
         # we know `strain` is infecting people, de has no waning compartments, so sum over those.
         de = de.at[:, :, :, strain].add(jnp.sum(exposed_s, axis=-1))
         ds = jnp.add(ds, -exposed_s)
-
+    dc = de  # at this point we only have infections in de, so we add to cumulative
     # e and i shape remain same, just multiplying by a constant.
     de_to_i = p.SIGMA * e  # exposure -> infectious
     di_to_w0 = p.GAMMA * i  # infectious -> new_immune_state
@@ -132,5 +132,4 @@ def seip_ode(state, _, parameters):
             ds = ds.at[:, :, vaccine_count + 1, 0].add(vax_gained)
         # we moved everyone into their correct compartment, now remove them from their starting position
         ds = ds.at[:, :, vaccine_count, :].add(-s_vax_count)
-
     return (ds, de, di, dc)
