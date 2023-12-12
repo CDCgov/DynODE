@@ -1,15 +1,28 @@
 # CFA Scenarios Model
-
+[Overview](#overview) |
+[Model Structure](#model-structure) |
+[Quick Start](#quick-start) |
+[Data Sources](#data-sources) |
+[Project Admins](#project-admins) |
+[Fine Text and Disclaimers](#general-disclaimer)
 ## Overview
 
 This repository is for the design and implementation of a Scenarios forecasting model, built by the Scenarios team within CFA-Predict.
 
-This code aims to combine a number of different codebases to forecast different covid scenarios in a Compartmental Mechanistic ODE model with multiple competing covid variants.
+This code aims to combine a number of different codebases to forecast different covid scenarios with a Compartmental Mechanistic ODE model modeling multiple competing covid variants. The aim of this model is to provide enough flexibility for its users to explore a variety of scenarios, but also making certain design decisions that allow for fast computation and fitting as well as code readability.
+
+What this model is:
+
+a compartmental mechanistic ODE model capible of dynamic age binning, waning, vaccination scenarios, introduction of new variants, transmission structures, and timing estimation. TODO
+
+What this model is not:
+
+A fully dynamic suite of compartment models where any compartment may be easily added or removed. All models have assumptions, the basic compartment structure is assumed in many places, making it non-trivial to change.
 
 ## Model Structure
 
-Subject to change, currently seir_model_v4 follows these disease dynamics.
-![](/misc/seir_model_v4_diagram.png)
+Subject to change, current transmission dynamics follow this basic model
+![](/misc/scenarios_seip_model_diagram_cdc_blue.png)
 
 ## Quick Start
 
@@ -24,7 +37,7 @@ from model_odes.seir_model_v5 import seirw_ode
 from mechanistic_compartments import build_basic_mechanistic_model
 from config.config_base import ConfigBase
 
-solution = build_basic_mechanistic_model(ConfigBase()).run(seirw_ode, plot=True, show=True, save=True, save_path="output/example.png")
+solution = build_basic_mechanistic_model(ConfigBase()).run(seirw_ode, tf=100.0, show=True, save=True, save_path="output/example.png")
 ```
 
 To create your own scenario, and modify parameters such as strain R0 and vaccination rate follow these steps:
@@ -40,16 +53,30 @@ from model_odes.seir_model_v5 import seirw_ode
 from mechanistic_compartments import build_basic_mechanistic_model
 from config.config_scenario_example import ConfigScenario
 
-solution = build_basic_mechanistic_model(ConfigScenario()).run(seirw_ode, plot=True, show=True, save=True, save_path="output/example_scenario.png")
+solution = build_basic_mechanistic_model(ConfigScenario()).run(seirw_ode, tf=100.0, show=True, save=True, save_path="output/example_scenario.png")
 ```
+
+Before you go about running your own experiments it is best to understand how the model is initialized. Rather than looking through the model matricies yourself, the Scenarios team has created a Shiny application allowing for easy data visualization of the model's initial state!
+Simply run `visualizer_app.py` and navigate to http://localhost:8000/ and play with the data yourself.
 
 ## Data Sources
 
 The model is fed the following data sources:
-1. data/demographic-data/contact_matricies : Dinas contact matricies todo
+1. data/demographic-data/contact_matricies : contact matricies sourced from work done by Dina Minstry's past work in this [Github Project](https://github.com/mobs-lab/mixing-patterns).
 2. data/serological-data/* : serology data sourced from: [data.cdc.gov](https://data.cdc.gov/Laboratory-Surveillance/Nationwide-Commercial-Laboratory-Seroprevalence-Su/d2tw-32xv)
+3. data/sim_data_*.sqlite: ABM data sourced from Tom Hladish's work found [here](https://github.com/tjhladish/covid-abm)
+    1. Data from the SQLITE files is used to generate an `abm_population` csv file. If you wish to use a new ABM to initialize the model, providing a replica schema to that shown below will allow code reuse. Schema for intermediate `abm_population` file : `pid`,`age`,`strains`,`num_doses`,`TSLIE`,`num_infections`, `infectious`.
+        1. `pid`: a unique ID number as int
+        2. `age`: a integer age of the individual
+        3. `strains`: a comma separated string of strain exposure history before the initialization date, in order from oldest to most recent, values must match those in your config file STRAIN_IDX enum.
+        4. `num_doses`: number of vaccines given to that individual before the initialization date.
+        5. `TSLIE`: (Time Since Last Immunological Event) The number of days since the initialization the last immune event occured, either vaccination or recovery from infection whichever is more recent.
+        6. `num_infections`: number of times person has been infected should equal the len(strains)
+        7. `infectious`: boolean 1 = person is actively infectious at initialization date, 0 = person is not actively infectious. This could be due to recovery or because they were exposed recently and not yet infectious. Paired with negative TSLIE values to identify exposed compartment.
 
-## Project Admin
+
+
+## Project Admins
 
 Ariel Shurygin, M.S Data Sci, uva5@cdc.gov, CDC/IOD/ORR/CFA
 

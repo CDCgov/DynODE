@@ -1,3 +1,4 @@
+import datetime
 import os
 from enum import IntEnum
 
@@ -24,44 +25,65 @@ class ConfigBase:
         self.REGIONS = ["United States"]
         self.DEMOGRAPHIC_DATA = "data/demographic-data/"
         self.SEROLOGICAL_DATA = "data/serological-data/"
+        self.SIM_DATA = "data/abm_population3.csv"
         self.SAVE_PATH = "output/"
-        # CONTACT MATRICES & DEMOGRAPHY
-        self.MINIMUM_AGE = 0  # why was this 1
+        # model initialization date DO NOT CHANGE
+        self.INIT_DATE = datetime.date(2022, 2, 11)
+        self.MINIMUM_AGE = 0
         # age limits for each age bin in the model, begining with minimum age
         # values are exclusive in upper bound. so [0,18) means 0-17, 18+
         self.AGE_LIMITS = [self.MINIMUM_AGE, 18, 50, 65]
-        # FIXED SEIR PARAMETERS
+        # Total Population size of simulation
         self.POP_SIZE = 20000
-        self.BIRTH_RATE = 1 / 75.0  # mu #TODO IMPLEMENT DEATHS
-        # informed by source 5 (see bottom of file)
+        # Time in days an individual is infectious for informed by source 5 (see bottom of file)
         self.INFECTIOUS_PERIOD = 7.0  # gamma
+        # time in days between exposure to virus to infectious and able to pass to others
         # informed by mean of Binom(0.53, gamma(3.1, 1.6)) + 1, sources 4 and 5 (see bottom of file)
         self.EXPOSED_TO_INFECTIOUS = 3.6  # sigma
+        # rate of vaccinations per num individuals vaccinated each day?
+        # TODO informed by?
         self.VACCINATION_RATE = 1 / 500.0  # vac_p
-        self.INITIAL_INFECTIONS = 1.0
-        self.STRAIN_SPECIFIC_R0 = jnp.array([1.5, 1.5, 1.5])  # R0s
+        # number of vaccines maximum for an individual, any more are not counted with bonus immunity.
+        self.MAX_VAX_COUNT = 2
+        # Initial Infections in the model, these are dispersed between exposed and infectious states
+        # sourced via the number of infections from Tom's ABM
+        self.INITIAL_INFECTIONS = 339.46
+        # R0 values of each strain, from oldest to newest.
+        self.STRAIN_SPECIFIC_R0 = jnp.array([1.2, 1.8])  # R0s
+        # number of compartments individuals wane through the moment of recovery.
+        # there is no explicit "recovered" compartment.
         self.NUM_WANING_COMPARTMENTS = 4
-        self.WANING_PROTECTIONS = jnp.array([0.48, 0.473, 0.473, 0])
-        # len(WANING_TIMES) = NUM_WANING_COMPARTMENTS + 1 to account for R -> W0 rate.
+        # the % protection from reinfection offered to individuals in each waning compartment.
+        # TODO SOURCE?
+        self.WANING_PROTECTIONS = jnp.array([1.0, 0.985, 0.985, 0])
         # WANING_TIMES in days for each waning compartment, ends in 0 as last compartment does not wane
-        self.WANING_TIMES = [21, 142, 142, 142, 0]
-        # self.WANING_TIME = 21  # time in WHOLE days before a recovered individual moves to first waned compartment
-        self.INITIAL_PROTECTION = (
-            0.52  # %likelihood of re-infection given just recovered source 17
+        self.WANING_TIMES = [21, 142, 142, 0]
+        # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
+        # the protection afforded by different immune histories from infection.
+        # non-omicron vs omicron, stratified by immune history. 0 = fully susceptible, 1 = fully immune.
+        # TODO SOURCE?
+        self.CROSSIMMUNITY_MATRIX = jnp.array(
+            [[0, 0.5, 0.7, 0.8], [0, 0.3, 0.5, 0.7]]
         )
-        # protection against infection in each stage of waning, influenced by source 20
-        # setting the following to None will get the model to initialize them from demographic/serological data
+        # the protection afforded by different numbers of vaccinations from infection.
+        # non-omicron vs omicron, stratified by vaccine count, 0, 1, 2+ shots. 0 = fully susceptible, 1 = fully immune.
+        # TODO SOURCE?
+        self.VAX_EFF_MATRIX = jnp.array([[0, 0.34, 0.68], [0, 0.24, 0.48]])
+        # setting the following to None will get the model to initialize them from demographic/abm data
         self.INITIAL_POPULATION_FRACTIONS = None
         self.CONTACT_MATRIX = None
         self.INIT_INFECTION_DIST = None
         self.INIT_EXPOSED_DIST = None
-        self.INIT_WANING_DIST = None
-        self.INIT_RECOVERED_DIST = None
+        self.INIT_IMMUNE_HISTORY = None
         self.INIT_INFECTED_DIST = None
-        self.NUM_COMPARTMENTS = 5
         # indexes ENUM for readability in code
-        self.IDX = IntEnum("idx", ["S", "E", "I", "R", "W", "C"], start=0)
-        self.AXIS_IDX = IntEnum("idx", ["age", "strain", "wane"], start=0)
+        self.IDX = IntEnum("idx", ["S", "E", "I", "C"], start=0)
+        self.S_AXIS_IDX = IntEnum(
+            "idx", ["age", "hist", "vax", "wane"], start=0
+        )
+        self.I_AXIS_IDX = IntEnum(
+            "idx", ["age", "hist", "vax", "strain"], start=0
+        )
         # setting default rng keys
         self.MCMC_PRNGKEY = 8675309
         self.MCMC_NUM_WARMUP = 100
@@ -79,7 +101,9 @@ class ConfigBase:
             str(self.AGE_LIMITS[i - 1]) + "-" + str(self.AGE_LIMITS[i] - 1)
             for i in range(1, len(self.AGE_LIMITS))
         ] + [str(self.AGE_LIMITS[-1]) + "+"]
+
         self.NUM_STRAINS = len(self.STRAIN_SPECIFIC_R0)
+
         # enum for marking waning indexes, improving readability
         self.W_IDX = IntEnum(
             "w_idx",
@@ -90,33 +114,15 @@ class ConfigBase:
         # omicron will always be index=2 if num_strains >= 3. In a two strain model we must combine alpha and delta together.
         self.STRAIN_IDX = IntEnum(
             "strain_idx",
-            ["alpha", "delta", "omicron"][3 - self.NUM_STRAINS :],
+            ["wildtype", "alpha", "delta", "omicron"][4 - self.NUM_STRAINS :],
             start=0,
         )
-        self.WANING_TIME_MONTHS = (
-            jnp.cumsum(jnp.array(self.WANING_TIMES)) / 30.0
-        )
-        self.init_waning_protections_if_not_set()
+
+        # number of previous infection histories depends on the number of strains being tested.
+        # can be either infected or not infected by each strain.
+        self.NUM_PREV_INF_HIST = 2**self.NUM_STRAINS
         # Check that no values are incongruent with one another
         self.assert_valid_values()
-
-    def init_waning_protections_if_not_set(self):
-        """
-        Checks if the waning protections curve is initialized by some scenario,
-        defaults to a waning protections curve as described by TODO
-        """
-        # we skip the first waning_time_months because that is the recovered compartment, which has a protection of 1
-        self.WANING_PROTECTIONS = (
-            jnp.array(
-                [
-                    self.INITIAL_PROTECTION
-                    / (1 + jnp.e ** (-(2.46 - (0.2 * t))))
-                    for t in self.WANING_TIME_MONTHS[1:]
-                ]
-            )
-            if "WANING_PROTECTIONS" not in self.__dict__.keys()
-            else self.WANING_PROTECTIONS
-        )
 
     def assert_valid_values(self):
         """
@@ -154,6 +160,10 @@ class ConfigBase:
         assert (
             self.INITIAL_INFECTIONS <= self.POP_SIZE
         ), "cant have more initial infections than total population size"
+
+        assert (
+            self.INITIAL_INFECTIONS >= 0
+        ), "cant have negative initial infections"
 
         # if user has supplied custom values for distributions instead of using prebuilt ones, sanity check them here
         if self.INITIAL_POPULATION_FRACTIONS:
@@ -194,11 +204,15 @@ class ConfigBase:
         if self.INIT_INFECTED_DIST:
             assert self.INIT_INFECTED_DIST.shape == (
                 self.NUM_AGE_GROUPS,
+                self.NUM_PREV_INF_HIST,
+                self.MAX_VAX_COUNT + 1,
                 self.NUM_STRAINS,
             ), "INIT_INFECTED_DIST must be of shape %s, received %s" % (
                 str(
                     (
                         self.NUM_AGE_GROUPS,
+                        self.NUM_PREV_INF_HIST,
+                        self.MAX_VAX_COUNT + 1,
                         self.NUM_STRAINS,
                     )
                 ),
@@ -208,47 +222,21 @@ class ConfigBase:
         if self.INIT_EXPOSED_DIST:
             assert self.INIT_EXPOSED_DIST.shape == (
                 self.NUM_AGE_GROUPS,
+                self.NUM_PREV_INF_HIST,
+                self.MAX_VAX_COUNT + 1,
                 self.NUM_STRAINS,
             ), "INIT_EXPOSED_DIST must be of shape %s, received %s" % (
                 str(
                     (
                         self.NUM_AGE_GROUPS,
+                        self.NUM_PREV_INF_HIST,
+                        self.MAX_VAX_COUNT + 1,
                         self.NUM_STRAINS,
                     )
                 ),
                 str(self.INIT_EXPOSED_DIST.shape),
             )
 
-        if self.INIT_WANING_DIST:
-            assert self.INIT_WANING_DIST.shape == (
-                self.NUM_AGE_GROUPS,
-                self.NUM_STRAINS,
-                self.NUM_WANING_COMPARTMENTS,
-            ), "INIT_WANING_DIST must be of shape %s, received %s" % (
-                str(
-                    (
-                        self.NUM_AGE_GROUPS,
-                        self.NUM_STRAINS,
-                        self.NUM_WANING_COMPARTMENTS,
-                    )
-                ),
-                str(self.INIT_WANING_DIST.shape),
-            )
-        if self.INIT_RECOVERED_DIST:
-            assert self.INIT_RECOVERED_DIST.shape == (
-                self.NUM_AGE_GROUPS,
-                self.NUM_STRAINS,
-            ), "INIT_RECOVERED_DIST must be of shape %s, received %s" % (
-                str(
-                    (
-                        self.NUM_AGE_GROUPS,
-                        self.NUM_STRAINS,
-                    )
-                ),
-                str(self.INIT_RECOVERED_DIST.shape),
-            )
-
-        assert self.BIRTH_RATE >= 0, "BIRTH_RATE can not be negative"
         assert (
             self.INFECTIOUS_PERIOD >= 0
         ), "INFECTIOUS_PERIOD can not be negative"
@@ -276,12 +264,6 @@ class ConfigBase:
         assert (
             self.WANING_TIMES[-1] == 0
         ), "Waning times must end in 0 to account for last waning compartment not waning into anything"
-        assert (
-            len(self.WANING_TIMES) == self.NUM_WANING_COMPARTMENTS + 1
-        ), "Waning times must cover R-> w0 and wx-wy for all waning compartments x and y, including last compartment which does not wane"
-        assert (
-            self.INITIAL_PROTECTION <= 1 and self.INITIAL_PROTECTION >= 0
-        ), "INITIAL_PROTECTION must be between 0 and 1 inclusive"
         assert self.NUM_STRAINS >= 1, "No such thing as a 0 strain model"
         assert (
             len(self.STRAIN_SPECIFIC_R0) == self.NUM_STRAINS
@@ -292,6 +274,14 @@ class ConfigBase:
         assert self.NUM_WANING_COMPARTMENTS == len(
             self.WANING_PROTECTIONS
         ), "unable to load config, NUM_WANING_COMPARTMENTS must equal to len(WANING_PROTECTIONS)"
+        assert self.CROSSIMMUNITY_MATRIX.shape == (
+            self.NUM_STRAINS,
+            self.NUM_PREV_INF_HIST,
+        ), "CROSSIMMUNITY_MATRIX shape incorrect"
+        assert self.VAX_EFF_MATRIX.shape == (
+            self.NUM_STRAINS,
+            self.MAX_VAX_COUNT + 1,
+        ), "Vaccine effectiveness matrix shape incorrect"
         assert self.NUM_AGE_GROUPS == len(
             self.AGE_LIMITS
         ), "Number of age bins must match the NUM_AGE_GROUPS variable"

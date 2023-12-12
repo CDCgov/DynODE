@@ -1,5 +1,3 @@
-import numpy as np
-
 from config.config_base import ConfigBase as mc_base
 from config.config_r0_0 import ConfigScenario as mc_r0_0_vax_1in500
 from config.config_r0_1_vax_0 import ConfigScenario as mc_r0_1_vax_0
@@ -23,17 +21,3 @@ all_models = [
     model_r0_15_vax_0,
     model_strain_2,
 ]
-
-
-def test_uniform_initial_infection_distribution():
-    """testing that the number of initial infections is uniformally distributed across strains"""
-    for test_model in all_models:
-        initial_infection_distribution = test_model.INITIAL_STATE[
-            test_model.IDX.I
-        ]
-        initial_infection_distribution = np.round(
-            np.sum(initial_infection_distribution, axis=0), decimals=4
-        )  # sum across age groups
-        assert (
-            len(set(initial_infection_distribution)) == 1
-        ), "initial infections are not equally distributed across strains"

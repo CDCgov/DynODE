@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 from enum import EnumMeta
@@ -47,57 +48,59 @@ class BasicMechanisticModel:
             self.load_initial_population_fractions()
 
         self.POPULATION = self.POP_SIZE * self.INITIAL_POPULATION_FRACTIONS
+        # self.POPULATION.shape = (NUM_AGE_GROUPS,)
 
         # if not given, load contact matrices via mixing data into self.
         if not self.CONTACT_MATRIX:
             self.load_contact_matrix()
+        # self.CONTACT_MATRIX.shape = (NUM_AGE_GROUPS, NUM_AGE_GROUPS)
 
-        # TODO does it make sense to set one and not the other if provided one ?
-        # if not given, load inital waning and recovered distributions from serological data into self
-        if self.INIT_WANING_DIST is None or self.INIT_RECOVERED_DIST is None:
-            self.load_waning_and_recovered_distributions()
+        if self.INIT_IMMUNE_HISTORY is None:
+            self.load_immune_history_via_abm()
+        # self.INIT_IMMUNE_HISTORY.shape = (age, hist, num_vax, waning)
 
-        # because our suseptible population is not strain stratified,
-        # we need to sum these initial recovered/waning distributions by their axis so shapes line up
-        init_recovered_strain_summed = np.sum(
-            self.INIT_RECOVERED_DIST, axis=self.AXIS_IDX.strain
-        )
-        init_waning_strain_compartment_summed = np.sum(
-            self.INIT_WANING_DIST,
-            axis=(self.AXIS_IDX.strain, self.AXIS_IDX.wane),
-        )
-
-        # if not given an inital infection distribution, use max eig value vector of contact matrix
         # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
+        # stratify initial infections appropriately across age, hist, vax counts
         if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
-            self.load_init_infection_infected_and_exposed_dist()
-
-        # suseptibles = Total population - infected - recovered - waning
-        initial_suseptible_count = (
-            self.POPULATION
-            - (self.INITIAL_INFECTIONS * self.INIT_INFECTION_DIST)
-            - (self.POPULATION * init_recovered_strain_summed)
-            - (self.POPULATION * init_waning_strain_compartment_summed)
-        )
-        initial_recovered_count = (
-            self.POPULATION * self.INIT_RECOVERED_DIST.transpose()
-        ).transpose()
-        initial_waning_count = (
-            self.POPULATION * self.INIT_WANING_DIST.transpose()
-        ).transpose()
+            # TODO dont use gamma/sigma ratio, instead add the last_exposed column back into abm_population and use that
+            self.load_init_infection_infected_and_exposed_dist_via_abm()
+        # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax, strain)
+        # self.INIT_INFECTED_DIST.shape = (age, hist, num_vax, strain)
+        # self.INIT_EXPOSED_DIST.shape = (age, hist, num_vax, strain)
 
         initial_infectious_count = (
             self.INITIAL_INFECTIONS * self.INIT_INFECTED_DIST
         )
+        initial_infectious_count_ages = jnp.sum(
+            initial_infectious_count,
+            axis=(
+                self.I_AXIS_IDX.hist,
+                self.I_AXIS_IDX.vax,
+                self.I_AXIS_IDX.strain,
+            ),
+        )
         initial_exposed_count = (
             self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
         )
+        initial_exposed_count_ages = jnp.sum(
+            initial_exposed_count,
+            axis=(
+                self.I_AXIS_IDX.hist,
+                self.I_AXIS_IDX.vax,
+                self.I_AXIS_IDX.strain,
+            ),
+        )
+        # suseptible / partial susceptible = Total population - infected - exposed
+        initial_suseptible_count = (
+            self.POPULATION
+            - initial_infectious_count_ages
+            - initial_exposed_count_ages
+        )[:, np.newaxis, np.newaxis, np.newaxis] * self.INIT_IMMUNE_HISTORY
+
         self.INITIAL_STATE = (
             initial_suseptible_count,  # s
             initial_exposed_count,  # e
             initial_infectious_count,  # i
-            initial_recovered_count,  # r
-            initial_waning_count,  # w
             jnp.zeros(initial_exposed_count.shape),  # c
         )
 
@@ -128,13 +131,15 @@ class BasicMechanisticModel:
         dict{str: Object}: A dictionary where key value pairs are used as parameters by an ODE model, things like R0 or contact matricies.
         """
         args = {
-            "contact_matrix": self.CONTACT_MATRIX,
-            "vax_rate": self.VACCINATION_RATE,
-            "mu": self.BIRTH_RATE,
-            "population": self.POPULATION,
-            "num_strains": self.NUM_STRAINS,
-            "num_waning_compartments": self.NUM_WANING_COMPARTMENTS,
-            "waning_protections": self.WANING_PROTECTIONS,
+            "CONTACT_MATRIX": self.CONTACT_MATRIX,
+            "VACCINATION_RATE": self.VACCINATION_RATE,
+            "POPULATION": self.POPULATION,
+            "NUM_STRAINS": self.NUM_STRAINS,
+            "NUM_WANING_COMPARTMENTS": self.NUM_WANING_COMPARTMENTS,
+            "WANING_PROTECTIONS": self.WANING_PROTECTIONS,
+            "MAX_VAX_COUNT": self.MAX_VAX_COUNT,
+            "CROSSIMMUNITY_MATRIX": self.CROSSIMMUNITY_MATRIX,
+            "VAX_EFF_MATRIX": self.VAX_EFF_MATRIX,
         }
         if sample:
             # if user provides parameters and distributions they wish to sample, sample those
@@ -147,29 +152,29 @@ class BasicMechanisticModel:
                 r0_omicron = utils.sample_r0()
                 strain_specific_r0 = list(self.STRAIN_SPECIFIC_R0)
                 strain_specific_r0[self.STRAIN_IDX.omicron] = r0_omicron
-                default_sample_dict["r0"] = jnp.asarray(strain_specific_r0)
+                default_sample_dict["R0"] = jnp.asarray(strain_specific_r0)
                 args = dict(args, **default_sample_dict)
 
         # lets quickly update any values that depend on other parameters which may or may not be sampled.
         # set defaults if they are not in args aka not sampled.
-        r0 = args.get("r0", self.STRAIN_SPECIFIC_R0)
+        r0 = args.get("R0", self.STRAIN_SPECIFIC_R0)
         infectious_period = args.get(
-            "infectious_period", self.INFECTIOUS_PERIOD
+            "INFECTIOUS_PERIOD", self.INFECTIOUS_PERIOD
         )
-        if "infectious_period" in args or "r0" in args:
-            beta = numpyro.deterministic("beta", r0 / infectious_period)
+        if "INFECTIOUS_PERIOD" in args or "R0" in args:
+            beta = numpyro.deterministic("BETA", r0 / infectious_period)
         else:
             beta = r0 / infectious_period
         gamma = (
             1 / self.INFECTIOUS_PERIOD
-            if "infectious_period" not in args
-            else numpyro.deterministic("gamma", 1 / args["infectious_period"])
+            if "INFECTIOUS_PERIOD" not in args
+            else numpyro.deterministic("gamma", 1 / args["INFECTIOUS_PERIOD"])
         )
         sigma = (
             1 / self.EXPOSED_TO_INFECTIOUS
-            if "exposed_to_infectious" not in args
+            if "EXPOSED_TO_INFECTIOUS" not in args
             else numpyro.deterministic(
-                "sigma", 1 / args["exposed_to_infectious"]
+                "SIGMA", 1 / args["EXPOSED_TO_INFECTIOUS"]
             )
         )
         # since our last waning time is zero to account for last compartment never waning
@@ -178,20 +183,14 @@ class BasicMechanisticModel:
             1 / waning_time if waning_time > 0 else 0
             for waning_time in self.WANING_TIMES
         ]
-        # default to no cross immunity, setting diagnal to 0
-        # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
-        suseptibility_matrix = jnp.ones(
-            (self.NUM_STRAINS, self.NUM_STRAINS)
-        ) * (1 - jnp.diag(jnp.array([1] * self.NUM_STRAINS)))
         # add final parameters, if your model expects added parameters, add them here
         args = dict(
             args,
             **{
-                "beta": beta,
-                "sigma": sigma,
-                "gamma": gamma,
-                "waning_rates": waning_rates,
-                "susceptibility_matrix": suseptibility_matrix,
+                "BETA": beta,
+                "SIGMA": sigma,
+                "GAMMA": gamma,
+                "WANING_RATES": waning_rates,
             }
         )
         return args
@@ -285,13 +284,13 @@ class BasicMechanisticModel:
         self,
         model,
         tf: int = 100.0,
-        plot: bool = False,
         show: bool = False,
         save: bool = False,
         sample: bool = False,
         sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
         save_path: str = "model_run.png",
-        plot_compartments: list[str] = ["S", "E", "I", "R", "W", "C"],
+        plot_compartments: list[str] = ["S", "E", "I", "C"],
+        log_scale: bool = False,
     ):
         """
         Takes parameters from self and applies them to some disease dynamics modeled in `model`
@@ -304,8 +303,6 @@ class BasicMechanisticModel:
             for example functions see the model_odes folder.
         `tf`: int
             stopping time point (with default configuration this is days)
-        `plot`: boolean
-            whether or not to plot the solution using plot_difrax_solution()
         `show`: boolean
             whether or not to show an image via matplotlib.pyplot.show()
         `save`: boolean
@@ -349,11 +346,12 @@ class BasicMechanisticModel:
             save_path if save else None
         )  # dont set a save path if we dont want to save
 
-        if plot:
+        if show or save:
             fig, ax = self.plot_diffrax_solution(
                 solution,
                 plot_compartments=plot_compartments,
                 save_path=save_path,
+                log_scale=log_scale,
             )
             if show:
                 plt.show()
@@ -363,8 +361,9 @@ class BasicMechanisticModel:
     def plot_diffrax_solution(
         self,
         sol: Solution,
-        plot_compartments: list[str] = ["s", "e", "i", "r", "w", "c"],
+        plot_compartments: list[str] = ["s", "e", "i", "c"],
         save_path: str = None,
+        log_scale: bool = False,
     ):
         """
         plots a run from diffeqsolve() with compartments `plot_compartments` returning figure and axis.
@@ -380,45 +379,60 @@ class BasicMechanisticModel:
             if `save_path = None` do not save figure to output directory. Otherwise save to relative path `save_path`
             attaching meta data of the self object.
         """
+        plot_compartments = [x.strip().upper() for x in plot_compartments]
         sol = sol.ys
         get_indexes = []
         for compartment in plot_compartments:
             # if W with no index is passed, sum all W compartments together.
-            if "W" == compartment.upper():
-                get_indexes.append(
-                    self.IDX.__getitem__(compartment.strip().upper())
-                )
+            if "W" == compartment or "P" == compartment:
+                get_indexes.append(self.IDX.__getitem__("S"))
             # if W1/2/3/4 is supplied, we want that specific waning compartment
-            elif "W" in compartment.upper():
+            elif "W" in compartment:
                 # waning compartments are held in a different manner, we need two indexes to access them
                 index_slice = [
-                    self.IDX.__getitem__("W"),
-                    self.W_IDX.__getitem__(compartment.strip().upper()),
+                    self.IDX.__getitem__("S"),
+                    self.W_IDX.__getitem__(compartment),
                 ]
                 get_indexes.append(index_slice)
-            else:
-                get_indexes.append(
-                    self.IDX.__getitem__(compartment.strip().upper())
-                )
+            else:  # for E, I, and C compartments
+                get_indexes.append(self.IDX.__getitem__(compartment))
 
         fig, ax = plt.subplots(1)
         for compartment, idx in zip(plot_compartments, get_indexes):
+            # turn sol_compartment into shape (time, age, hist, vax). Requires removal of last dimension.
             # if user selects all W compartments, we must sum across the waning axis.
-            if "W" == compartment.upper():
+            if "W" == compartment or "P" == compartment:
                 # the waning index + 1 because first index is for time in the solution
+                # exclude fully susceptible people since they are not waning to anything [1:]
                 sol_compartment = np.sum(
-                    np.array(sol[idx]), axis=self.AXIS_IDX.wane + 1
+                    np.array(sol[idx][:, :, 1:, :, :]),
+                    axis=(self.S_AXIS_IDX.wane + 1),
                 )
-            # if W1/W2/W3... idx=(idx.W, w_idx.W1/2/....), select specific waning compartment
-            elif "W" in compartment.upper():
+            # if W1/W2/W3... idx=(idx.S, w_idx.W1/2/....), select specific waning compartment
+            elif "W" in compartment:
                 # if we are plotting a waning compartment, we need to parse 1 extra dimension
-                sol_compartment = np.array(sol[idx[0]])[:, :, :, idx[1]]
+                # exclude fully susceptible people since they are not waning to anything [1:]
+                sol_compartment = np.array(sol[idx[0]][:, :, 1:, :, idx[1]])
+            elif "S" == compartment:
+                # persons with no immune history are in hist=0 and wane=0
+                sol_compartment = np.sum(
+                    np.array(sol[idx][:, :, 0, :, :]),
+                    axis=(self.S_AXIS_IDX.wane),
+                )
             else:
-                # non-waning compartments dont have this extra dimension
-                sol_compartment = sol[idx]
-            # summing over age groups + strains, 0th dim is timestep
+                # E and I compartments are stratified by exposing strains opposed to waning
+                sol_compartment = np.sum(
+                    np.array(sol[idx]), axis=(self.I_AXIS_IDX.strain + 1)
+                )
+            # summing over age groups + hist + num_vax, 0th dim is timestep
             dimensions_to_sum_over = tuple(range(1, sol_compartment.ndim))
+            line_to_plot = sol_compartment.sum(axis=dimensions_to_sum_over)
+            days = list(range(len(line_to_plot)))
+            x_axis = [
+                self.INIT_DATE + datetime.timedelta(days=day) for day in days
+            ]
             ax.plot(
+                x_axis,
                 sol_compartment.sum(axis=dimensions_to_sum_over),
                 label=compartment,
             )
@@ -426,8 +440,11 @@ class BasicMechanisticModel:
         ax.set_title(
             "Population count by compartment across all ages and strains"
         )
+        ax.tick_params(axis="x", labelrotation=45)
         ax.set_xlabel("Days since scenario start")
         ax.set_ylabel("Population Count")
+        if log_scale:
+            ax.set_yscale("log")
         if save_path:
             fig.savefig(save_path)
             with open(save_path + "_meta.json", "w") as meta:
@@ -452,23 +469,14 @@ class BasicMechanisticModel:
         ax: matplotlib.axes._axes.Axes
             Matplotlib axes containing data on the generated plot.
         """
-        # get all recovered dists, sum across strains
-        recovered_strain_sum = np.sum(
-            self.INIT_RECOVERED_DIST, axis=self.AXIS_IDX.strain
-        )
-        # get all waned dists, sum across strains
-        waned_strain_sum = np.sum(
-            self.INIT_WANING_DIST, axis=self.AXIS_IDX.strain
-        ).transpose()
         # combine them together into one matrix, multiply by pop counts
-        immune_compartments = np.vstack(
-            (recovered_strain_sum, waned_strain_sum)
-        )
+        immune_compartments = [
+            self.INIT_IMMUNE_HISTORY[:, :, :, w_idx] for w_idx in self.W_IDX
+        ]
         immune_compartments_populations = self.POPULATION * immune_compartments
         # reverse for plot readability since we read left to right
         immune_compartments_populations = immune_compartments_populations[::-1]
-        x_axis = ["R"] + ["W" + str(int(idx)) for idx in self.W_IDX]
-        x_axis = x_axis[::-1]
+        x_axis = ["W" + str(int(idx)) for idx in self.W_IDX][::-1]
         age_to_immunity_slice = {}
         # for each age group, plot its number of persons in each immune compartment
         # stack the bars on top of one another by summing the previous age groups underneath
@@ -502,22 +510,20 @@ class BasicMechanisticModel:
                 self.to_json(meta)
         return fig, ax
 
-    def load_waning_and_recovered_distributions(self):
+    def load_immune_history_via_serology(self):
         """
-        a wrapper function which loads serologically informed covid recovered and waning distributions into self, accounting for strain timing.
-        Serology data initalized closely after the end of the Omicron wave on Feb 11th 2022.
+        a wrapper function which loads serologically informed covid immune history distributions into self, accounting for strain timing.
+        Serology data initalized closely after the end of the Omicron wave on Feb 11th 2022. Individuals are marked with
+        previous omicron exposure, or previous non-omicron exposure, as well number of vaccinations. Placed into waning compartments
+        according to the more recent of exposure or vaccination.
 
         Use `self.STRAIN_IDX` to index strains in correct manner and avoid out of bounds errors
 
         Updates
         ----------
-        self.INIT_RECOVERED_DIST : np.array
-            the proportions of the total population for each age bin defined as recovered, or within 1 `self.WANING_TIME` of infection.
-            has a shape of (`self.NUM_AGE_GROUPS`, `self.NUM_STRAINS`)
-
-        self.self.INIT_WANING_DIST : np.array
+        self.self.INIT_IMMUNE_HISTORY : np.array
             the proportions of the total population for each age bin defined as waning, or within x `self.WANING_TIME`s of infection. where x is the waning compartment
-            has a shape of (`self.NUM_AGE_GROUPS`, `self.NUM_STRAINS`, `self.NUM_WANING_COMPARTMENTS`)
+            has a shape of (`self.NUM_AGE_GROUPS`, `self.NUM_PREV_INF_HIST`, `self.MAX_VAX_COUNT + 1`, `self.NUM_WANING_COMPARTMENTS`)
         """
         sero_path = (
             self.SEROLOGICAL_DATA
@@ -537,16 +543,30 @@ class BasicMechanisticModel:
         pop_path = (
             self.DEMOGRAPHIC_DATA + "population_rescaled_age_distributions/"
         )
-        (
-            self.INIT_RECOVERED_DIST,
-            self.INIT_WANING_DIST,
-        ) = utils.past_infection_dist_from_serology_demographics(
-            sero_path,
-            pop_path,
+        # return the proportions of each age group with each immune history
+        # immune history = natural infection + vaccination tracking whats more recent.
+        self.INIT_IMMUNE_HISTORY = (
+            utils.past_immune_dist_from_serology_demographics(
+                sero_path,
+                pop_path,
+                self.AGE_LIMITS,
+                self.WANING_TIMES,
+                self.NUM_WANING_COMPARTMENTS,
+                self.MAX_VAX_COUNT,
+                self.NUM_STRAINS,
+            )
+        )
+
+    def load_immune_history_via_abm(self):
+        self.INIT_IMMUNE_HISTORY = utils.past_immune_dist_from_abm(
+            self.SIM_DATA,
+            self.NUM_AGE_GROUPS,
             self.AGE_LIMITS,
+            self.MAX_VAX_COUNT,
             self.WANING_TIMES,
             self.NUM_WANING_COMPARTMENTS,
             self.NUM_STRAINS,
+            self.STRAIN_IDX,
         )
 
     def load_initial_population_fractions(self):
@@ -584,7 +604,7 @@ class BasicMechanisticModel:
             self.AGE_LIMITS,
         )["United States"]["avg_CM"]
 
-    def load_init_infection_infected_and_exposed_dist(self):
+    def load_init_infection_infected_and_exposed_dist_via_serology(self):
         """
         loads the inital infection distribution by age, then separates infections into an
         infected and exposed distributions, to account for people who may not be infectious yet,
@@ -594,7 +614,7 @@ class BasicMechanisticModel:
 
         infections are stratified across age bins based on proportion of each age bin
         in individuals who have recently sero-converted before model initalization date.
-        Equivalent to using proportion of each age bin in self.INIT_RECOVERED_DIST
+        Equivalent to using proportion of each age bin in top waning compartment
 
         given that `INIT_INFECTION_DIST` = `INIT_EXPOSED_DIST` + `INIT_INFECTED_DIST`
 
@@ -610,16 +630,28 @@ class BasicMechanisticModel:
             proportion of INIT_INFECTION_DIST that falls into infected compartment, formatted into the omicron strain.
             INIT_INFECTED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
         """
-        self.INIT_INFECTION_DIST = self.INIT_RECOVERED_DIST[
-            :, self.STRAIN_IDX.omicron
-        ]
-        # eig_data = np.linalg.eig(self.CONTACT_MATRIX)
-        # max_index = np.argmax(eig_data[0])
-        # self.INIT_INFECTION_DIST = abs(eig_data[1][:, max_index])
+        # base infection distribution on the currently freshly recovered individuals.
+        # TODO this is a problem because we dont know if those in 0 waning are there due to nat
+        # infection or there due to vaccination. So what we will do is pick those who are infected with omicron
+        # since we know that this model is initalized just after omicron wave, so its likely that they have
+        # just been infected naturally and are in wane=0 because of that rather than vaccination.
+        infection_shape = tuple(
+            list(self.INIT_IMMUNE_HISTORY.shape)[:-1] + [self.NUM_STRAINS]
+        )  # age, state, num_vax, strain
+        self.INIT_INFECTION_DIST = np.zeros(infection_shape)
+        # TODO as of right now we only infect those in states with omicron, what about
+        # fully susceptible / non-omicron exposure people????
+        # we need some distribution for infections across state within an age group.
+        states_with_omicron = utils.all_immune_states_with(
+            self.STRAIN_IDX.omicron, self.NUM_STRAINS
+        )
+        self.INIT_INFECTION_DIST[
+            :, states_with_omicron, :, self.STRAIN_IDX.omicron
+        ] = self.INIT_IMMUNE_HISTORY[:, states_with_omicron, :, 0]
         # infections does not equal INFECTED.
         # infected is a compartment, infections means successful passing of virus
-        self.INIT_INFECTION_DIST = self.INIT_INFECTION_DIST / sum(
-            self.INIT_INFECTION_DIST
+        self.INIT_INFECTION_DIST = self.INIT_INFECTION_DIST / np.sum(
+            self.INIT_INFECTION_DIST, axis=(0, 1, 2, 3)
         )
         # old method was to use contact matrix max eigan value. produce diff values and ranking
         # [0.30490018 0.28493648 0.23049002 0.17967332] sero method 4 age bins
@@ -632,17 +664,64 @@ class BasicMechanisticModel:
         self.INIT_EXPOSED_DIST = (
             exposed_to_infected_ratio * self.INIT_INFECTION_DIST
         )
+        # an array used to add the 'strain' dimension into exposed and infected arrays.
+        # strain_filler_array = np.array(  # build strain array
+        #     [0] * self.STRAIN_IDX.omicron
+        #     + [1]
+        #     + [0] * (self.NUM_STRAINS - 1 - self.STRAIN_IDX.omicron)
+        # )
         # INIT_EXPOSED_DIST is not strain stratified, put infected into the omicron strain via indicator vec
-        self.INIT_EXPOSED_DIST = self.INIT_EXPOSED_DIST[:, None] * np.array(
-            [0] * self.STRAIN_IDX.omicron + [1]
-        )
+        # self.INIT_EXPOSED_DIST = (
+        #     self.INIT_EXPOSED_DIST[:, :, :, None] * strain_filler_array
+        # )
+        # next we correct for the states we cut out.
+        # self.INIT_EXPOSED_DIST = np.concatenate(
+        #     [self.INIT_EXPOSED_DIST, np.zeros((self.INIT_EXPOSED_DIST.shape))],
+        #     axis=1,
+        # )
         self.INIT_INFECTED_DIST = (
             1 - exposed_to_infected_ratio
         ) * self.INIT_INFECTION_DIST
 
         # INIT_INFECTED_DIST is not strain stratified, put infected into the omicron strain via indicator vec
-        self.INIT_INFECTED_DIST = self.INIT_INFECTED_DIST[:, None] * np.array(
-            [0] * self.STRAIN_IDX.omicron + [1]
+        # self.INIT_INFECTED_DIST = (
+        #     self.INIT_INFECTED_DIST[:, :, :, None] * strain_filler_array
+        # )
+
+    def load_init_infection_infected_and_exposed_dist_via_abm(self):
+        """
+        loads the inital infection distribution by age, then separates infections into an
+        infected and exposed distributions, to account for people who may not be infectious yet,
+        but are part of the initial infections of the model all infections assumed to be omicron.
+        utilizes the ratio between gamma and sigma to determine what proportion of inital infections belong in the
+        exposed (soon to be infectious), and the already infectious compartments.
+
+        given that `INIT_INFECTION_DIST` = `INIT_EXPOSED_DIST` + `INIT_INFECTED_DIST`
+
+        Updates
+        ----------
+        `self.INIT_INFECTION_DIST`: jnp.array(int)
+            populates values using seroprevalence to produce a distribution of how new infections are
+            stratified by age bin. INIT_INFECTION_DIST.shape = (self.NUM_AGE_GROUPS,) and sum(self.INIT_INFECTION_DIST) = 1.0
+        `self.INIT_EXPOSED_DIST`: jnp.array(int)
+            proportion of INIT_INFECTION_DIST that falls into exposed compartment, formatted into the omicron strain.
+            INIT_EXPOSED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
+        `self.INIT_INFECTED_DIST`: jnp.array(int)
+            proportion of INIT_INFECTION_DIST that falls into infected compartment, formatted into the omicron strain.
+            INIT_INFECTED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
+        """
+        (
+            self.INIT_INFECTION_DIST,
+            self.INIT_EXPOSED_DIST,
+            self.INIT_INFECTED_DIST,
+        ) = utils.init_infections_from_abm(
+            self.SIM_DATA,
+            self.NUM_AGE_GROUPS,
+            self.AGE_LIMITS,
+            self.MAX_VAX_COUNT,
+            self.WANING_TIMES,
+            self.NUM_STRAINS,
+            self.STRAIN_IDX,
         )
 
     def to_json(self, file):
