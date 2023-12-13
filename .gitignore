@@ -16,6 +16,7 @@ testing.py
 *.xlsx
 *.txt
 *.json
+*.sqlite
 
 # Documents
 *.doc

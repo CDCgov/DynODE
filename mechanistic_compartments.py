@@ -135,11 +135,14 @@ class BasicMechanisticModel:
             "VACCINATION_RATE": self.VACCINATION_RATE,
             "POPULATION": self.POPULATION,
             "NUM_STRAINS": self.NUM_STRAINS,
+            "NUM_AGE_GROUPS": self.NUM_AGE_GROUPS,
             "NUM_WANING_COMPARTMENTS": self.NUM_WANING_COMPARTMENTS,
             "WANING_PROTECTIONS": self.WANING_PROTECTIONS,
             "MAX_VAX_COUNT": self.MAX_VAX_COUNT,
             "CROSSIMMUNITY_MATRIX": self.CROSSIMMUNITY_MATRIX,
             "VAX_EFF_MATRIX": self.VAX_EFF_MATRIX,
+            "INTRODUCTION_TIMES": self.INTRODUCTION_TIMES,
+            "external_i": self.external_i,
         }
         if sample:
             # if user provides parameters and distributions they wish to sample, sample those
@@ -363,6 +366,34 @@ class BasicMechanisticModel:
                 plt.show()
 
         return solution
+
+    from functools import partial
+
+    from jax import jit
+
+    @partial(jit, static_argnames=["t"])
+    def external_i(params, t):
+        i = jnp.zeros(
+            (
+                params.NUM_AGE_GROUPS,
+                2**params.NUM_STRAINS,
+                params.MAX_VAX_COUNT + 1,
+                params.NUM_STRAINS,
+            )
+        )
+        first_introduced_strain_index = params.NUM_STRAINS - len(
+            params.INTRODUCTION_TIMES
+        )
+        for intro_time in params.INTRODUCTION_TIMES:
+            if t == intro_time:
+                # if jnp.any(jnp.equal(t, intro_time)):
+                # take the 1% of the 18-49 age bin, and that is the externally introduced I.
+                i.at[1, 0, 0, first_introduced_strain_index].set(
+                    0.01 * params.POPULATION[1]
+                )
+                first_introduced_strain_index += 1
+
+        return i
 
     def plot_diffrax_solution(
         self,

@@ -48,8 +48,10 @@ class ConfigBase:
         # Initial Infections in the model, these are dispersed between exposed and infectious states
         # sourced via the number of infections from Tom's ABM
         self.INITIAL_INFECTIONS = 339.46
-        # R0 values of each strain, from oldest to newest.
-        self.STRAIN_SPECIFIC_R0 = jnp.array([1.2, 1.8])  # R0s
+        # R0 values of each strain, from oldest to newest. Including R0 for introduced strains
+        self.STRAIN_SPECIFIC_R0 = jnp.array([1.2, 1.8, 2.0])  # R0s
+        # days after model initialization when  new strains are externally introduced
+        self.INTRODUCTION_TIMES = [150]
         # number of compartments individuals wane through the moment of recovery.
         # there is no explicit "recovered" compartment.
         self.NUM_WANING_COMPARTMENTS = 4
@@ -63,12 +65,22 @@ class ConfigBase:
         # non-omicron vs omicron, stratified by immune history. 0 = fully susceptible, 1 = fully immune.
         # TODO SOURCE?
         self.CROSSIMMUNITY_MATRIX = jnp.array(
-            [[0, 0.5, 0.7, 0.8], [0, 0.3, 0.5, 0.7]]
-        )
+            [
+                [0, 0.5, 0.7, 0.8, 0.8, 0.8, 0.8, 0.8],  # delta
+                [0, 0.3, 0.5, 0.7, 0.8, 0.8, 0.8, 0.8],  # omicron1
+                [0, 0.1, 0.3, 0.5, 0.7, 0.7, 0.8, 0.8],  # omicron2
+            ]
+        )  # TODO what do we do about delta challenging someone with prev omi2 exposure?
         # the protection afforded by different numbers of vaccinations from infection.
         # non-omicron vs omicron, stratified by vaccine count, 0, 1, 2+ shots. 0 = fully susceptible, 1 = fully immune.
         # TODO SOURCE?
-        self.VAX_EFF_MATRIX = jnp.array([[0, 0.34, 0.68], [0, 0.24, 0.48]])
+        self.VAX_EFF_MATRIX = jnp.array(
+            [
+                [0, 0.34, 0.68],  # delta
+                [0, 0.24, 0.48],  # omicron1
+                [0, 0.14, 0.28],  # omicron 2
+            ]
+        )
         # setting the following to None will get the model to initialize them from demographic/abm data
         self.INITIAL_POPULATION_FRACTIONS = None
         self.CONTACT_MATRIX = None
@@ -110,11 +122,22 @@ class ConfigBase:
             ["W" + str(idx) for idx in range(self.NUM_WANING_COMPARTMENTS)],
             start=0,
         )
+
+        # this are all the strains currently supported, historical and future
+        all_strains = [
+            "wildtype",
+            "alpha",
+            "delta",
+            "omicron",
+            "omicron2",
+        ]
+        # it often does not make sense to differentiate between wildtype and alpha, so combine strains here
+        self.STRAIN_NAMES = all_strains[5 - self.NUM_STRAINS :]
         # in each compartment that is strain stratified we use strain indexes to improve readability.
         # omicron will always be index=2 if num_strains >= 3. In a two strain model we must combine alpha and delta together.
         self.STRAIN_IDX = IntEnum(
             "strain_idx",
-            ["wildtype", "alpha", "delta", "omicron"][4 - self.NUM_STRAINS :],
+            self.STRAIN_NAMES,
             start=0,
         )
 

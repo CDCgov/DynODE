@@ -1,8 +1,35 @@
+from functools import partial
 from itertools import product
 
 import jax.numpy as jnp
+from jax import jit
 
 from utils import new_immune_state
+
+
+@partial(jit, static_argnames=["params", "t"])
+def external_i(params, t):
+    i = jnp.zeros(
+        (
+            params.NUM_AGE_GROUPS,
+            2**params.NUM_STRAINS,
+            params.MAX_VAX_COUNT + 1,
+            params.NUM_STRAINS,
+        )
+    )
+    first_introduced_strain_index = params.NUM_STRAINS - len(
+        params.INTRODUCTION_TIMES
+    )
+    for intro_time in params.INTRODUCTION_TIMES:
+        # if t == intro_time:
+        if jnp.any(jnp.equal(t, intro_time)):
+            # take the 1% of the 18-49 age bin, and that is the externally introduced I.
+            i.at[1, 0, 0, first_introduced_strain_index].set(
+                0.01 * params.POPULATION[1]
+            )
+            first_introduced_strain_index += 1
+
+    return i
 
 
 class Parameters(object):
@@ -61,7 +88,10 @@ def seip_ode(state, t, parameters):
     )
     # CALCULATING SUCCESSFULL INFECTIONS OF (partially) SUSCEPTIBLE INDIVIDUALS
     force_of_infection = (
-        (p.BETA * jnp.einsum("ab,bijk->ak", p.CONTACT_MATRIX, i)).transpose()
+        (
+            p.BETA
+            * jnp.einsum("ab,bijk->ak", p.CONTACT_MATRIX, i + external_i(p, t))
+        ).transpose()
         / p.POPULATION
     ).transpose()  # (NUM_AGE_GROUPS, strain)
 

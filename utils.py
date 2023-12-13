@@ -599,7 +599,7 @@ def prep_abm_data(
     return abm_population
 
 
-def set_serology_timeline(num_strains):
+def set_serology_timeline(num_strains, num_historical_strains):
     """
     DEPRECATED: USE ABM INFORMED INITIALIZATION ROUTINES
 
@@ -612,8 +612,9 @@ def set_serology_timeline(num_strains):
     Parameters
     ----------
     num_strains: int
-        number of strains the serology data is supposed to initialize for.
-        Any value greater than 3 will be treated as 3 for historical initialization.
+        total number of strains in the model
+    num_historical_strains: int
+        number of strains serology data is supposed to initialize for
 
     Returns
     -----------
@@ -627,9 +628,6 @@ def set_serology_timeline(num_strains):
     with each date representing the date at which alpha -> delta and then delta -> omicron
 
     """
-    # number of strains alloted for in the serological data, for covid this is omicron, delta, and alpha
-    # if model only allows for 2 or 1 strain we need to collapse delta and alpha waves together
-    num_historical_strains = 3 if num_strains >= 3 else num_strains
     # breakpoints for each historical strain, oldest first, alpha - delta, delta - omicron
     omicron_date = datetime.date(2021, 11, 19)  # as omicron took off
     delta_date = datetime.date(2021, 6, 25)  # as the delta wave took off.
@@ -747,6 +745,7 @@ def past_immune_dist_from_serology_demographics(
     num_waning_compartments,
     max_vaccine_count,
     num_strains,
+    num_historical_strains,
     initialization_date=datetime.date(2022, 2, 12),
 ):
     """
@@ -797,7 +796,7 @@ def past_immune_dist_from_serology_demographics(
     (
         num_historical_strains,
         historical_time_breakpoints,
-    ) = set_serology_timeline(num_strains)
+    ) = set_serology_timeline(num_strains, num_historical_strains)
     # prep the sero data into daily resolution, pass historical breakpoints to mark the strain
     # that each day of sero contributes to.
     serology = prep_serology_data(
