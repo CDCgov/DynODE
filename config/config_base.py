@@ -51,6 +51,11 @@ class ConfigBase:
         self.STRAIN_SPECIFIC_R0 = jnp.array([1.2, 1.8, 3.0])  # R0s
         # days after model initialization when new strains are externally introduced
         self.INTRODUCTION_TIMES = [120]
+        # the percentage of the total population as a float who are externally introduced with the new strain.
+        self.INTRODUCTION_PERCENTAGE = 0.01
+        # mask of what age bins to introduce external infected populations as.
+        # with 4 age bins, 0-17, 18-49, 50-64, 65+ a True in the first index corresponds to 0-17 aged infected introduced
+        self.INTRODUCTION_AGE_MASK = [False, True, False, False]
         # number of compartments individuals wane through the moment of recovery.
         # there is no explicit "recovered" compartment.
         self.NUM_WANING_COMPARTMENTS = 4
