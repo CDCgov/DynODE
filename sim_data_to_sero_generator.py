@@ -4,7 +4,7 @@ import sqlite3
 import pandas as pd
 
 SIM_START_DATE = datetime.date(2020, 2, 10)
-SIM_INPUT_PATH = "data/sim_data_0.sqlite"
+SIM_INPUT_PATH = "data/abm-data/sim_data_scaled_us.sqlite"
 MODEL_INIT_DATE = datetime.date(2022, 2, 11)
 OUTPUT_DATA_PATH = "data/abm_population3.csv"
 
@@ -13,8 +13,12 @@ OUTPUT_DATA_PATH = "data/abm_population3.csv"
 cnx = sqlite3.connect(SIM_INPUT_PATH)
 res = cnx.execute("SELECT name FROM sqlite_master WHERE type='table';")
 print("available tables: ")
-for name in res.fetchall():
-    print(name[0])
+tables = [name[0] for name in res.fetchall()]
+print(tables)
+
+retention = 1 if "retention" in tables else 0
+if retention:
+    print("subsampling of infection history detected")
 
 days_diff = (MODEL_INIT_DATE - SIM_START_DATE).days
 print("model init date: " + str(days_diff))
@@ -22,19 +26,28 @@ print("model init date: " + str(days_diff))
 ### LOAD IN TABLES ##########################################################
 
 sim_people = pd.read_csv(
-    "data/sim_ages.txt", sep=" "
+    "data/abm-data/sim_ages.txt", sep=" "
 )  # all people in the simulation and their ages
 # all infections that occured before init date.
 # we exclude those who died from their infections, unless they died after the model init date
-infection_history = pd.read_sql_query(
-    sql="""SELECT inf_owner_id, strain, infected_time, infectious_start, infectious_end
+if retention:
+    sql = """SELECT inf.inf_owner_id, inf.strain, inf.infected_time, inf.infectious_start, 
+    inf.infectious_end, r.retain
+    FROM infection_history AS inf
+    JOIN retention AS r ON inf.inf = r.inf
+    WHERE ((death_time == 2147483647 AND infected_time <= {}) OR
+    (death_time > {} AND infected_time <= {})) AND retain = 1"""
+else:
+    sql = """SELECT inf_owner_id, strain, infected_time, infectious_start, infectious_end
     FROM infection_history
     WHERE (death_time == 2147483647 AND infected_time <= {}) OR
-    (death_time > {} AND infected_time <= {})""".format(
-        days_diff, days_diff, days_diff
-    ),
+    (death_time > {} AND infected_time <= {})"""
+
+infection_history = pd.read_sql_query(
+    sql=sql.format(days_diff, days_diff, days_diff),
     con=cnx,
 )
+
 vaccination_history = (
     pd.read_sql_query(
         "SELECT * FROM vaccination_history WHERE vax_sim_day <= "
