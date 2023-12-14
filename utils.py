@@ -283,6 +283,71 @@ def find_waning_compartment(TSLIE, waning_times):
     return current_bin - 1
 
 
+def strain_interaction_to_cross_immunity(num_strains, strain_interactions):
+    """
+    a function which takes a strain_interactions matrix, which is of shape (num_strains, num_strains)
+    and returns a cross immunity matrix of shape (num_strains, 2**num_strains) representing the immunity
+    of all 2**num_strains immune histories against some challenging strain.
+
+    Parameters
+    ----------
+    num_strains: int
+        the number of strains for which the crossimmunity matrix is being generated.
+    strain_interactions: np.array
+        a matrix of shape (num_strains, num_strains) representing the relative immunity of someone recovered from
+        one strain to a different challenging strain. 1's in the diagnal representing 0 reinfection (before waning).
+
+    Returns
+    ----------
+    crossimmunity_matrix: np.array
+        a matrix of shape (num_strains, 2**num_strains) representing the relative immunity of someone with a specific
+        immune history to a challenging strain.
+    """
+    infection_history = range(2**num_strains)
+    crossimmunity_matrix = np.zeros((num_strains, len(infection_history)))
+    for challenging_strain in range(num_strains):
+        # if immune history already contains exposure to challenging_strain, this is a reinfection.
+        crossimmunity_matrix[
+            challenging_strain,
+            all_immune_states_with(challenging_strain, num_strains),
+        ] = strain_interactions[challenging_strain, challenging_strain]
+        # for individuals without previous exposure to this strain, use protection from most recent infection.
+        states_without_strain = all_immune_states_without(
+            challenging_strain, num_strains
+        )
+        for state_without_strain in states_without_strain:
+            # if state = 0, they have no most recent infection, thus 0 immunity
+            if state_without_strain == 0:
+                crossimmunity_matrix[
+                    challenging_strain, state_without_strain
+                ] = 0
+            else:  # find last most recent infection
+                # turn state into binary, find the 1 correlating to the most recent strain
+                state_binary = str(bin(state_without_strain))[2:]  # 0b remove
+                # prepend 0s to make string correct length eg 10 -> 010 in 3 strain model
+                state_binary = (
+                    state_binary
+                    if len(state_binary) == num_strains
+                    else ("0" * (num_strains - len(state_binary)))
+                    + state_binary
+                )
+                state_list = [int(d) for d in state_binary][::-1]
+                strains = np.where(np.array(state_list) == 1)[0]
+                immunities = np.array(
+                    [
+                        strain_interactions[challenging_strain, strain]
+                        for strain in strains
+                    ]
+                )
+                highest_immunity_strain = strains[np.argmax(immunities)]
+                crossimmunity_matrix[
+                    challenging_strain, state_without_strain
+                ] = strain_interactions[
+                    challenging_strain, highest_immunity_strain
+                ]
+    return crossimmunity_matrix
+
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # DEMOGRAPHICS CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

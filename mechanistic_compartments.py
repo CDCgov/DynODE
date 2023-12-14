@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 from enum import EnumMeta
+from functools import partial
 
 import jax.config
 import jax.numpy as jnp
@@ -10,6 +11,7 @@ import numpy as np
 import numpyro
 import pandas as pd
 from diffrax import ODETerm, SaveAt, Solution, Tsit5, diffeqsolve
+from jax import jit
 from jax.random import PRNGKey
 from numpyro.infer import MCMC, NUTS
 
@@ -43,6 +45,9 @@ class BasicMechanisticModel:
         # grab all parameters passed from config
         self.__dict__.update(kwargs)
 
+        # GENERATE CROSS IMMUNITY MATRIX with protection from STRAIN_INTERACTIONS most recent infected strain.
+        if not self.CROSSIMMUNITY_MATRIX:
+            self.build_cross_immunity_matrix()
         # if not given, load population fractions based on observed census data into self
         if not self.INITIAL_POPULATION_FRACTIONS:
             self.load_initial_population_fractions()
@@ -141,8 +146,7 @@ class BasicMechanisticModel:
             "MAX_VAX_COUNT": self.MAX_VAX_COUNT,
             "CROSSIMMUNITY_MATRIX": self.CROSSIMMUNITY_MATRIX,
             "VAX_EFF_MATRIX": self.VAX_EFF_MATRIX,
-            "INTRODUCTION_TIMES": self.INTRODUCTION_TIMES,
-            "external_i": self.external_i,
+            "EXTERNAL_I": self.external_i,
         }
         if sample:
             # if user provides parameters and distributions they wish to sample, sample those
@@ -197,6 +201,36 @@ class BasicMechanisticModel:
             }
         )
         return args
+
+    @partial(jit, static_argnums=(0))
+    def external_i(self, t):
+        """
+        Given some time t, returns jnp.array of shape self.INITIAL_STATE[self.IDX.I] representing external infected persons
+        interacting with the population. it does so by calling some function f_s(t) for each strain s. This function
+        must be differentiable across all positive timesteps and zero.
+        """
+        external_i_compartment = jnp.zeros(
+            self.INITIAL_STATE[self.IDX.I].shape
+        )
+        for strain in self.STRAIN_IDX:
+            external_i_distribution = self.EXTERNAL_I_DISTRIBUTIONS[strain]
+            external_i_compartment = external_i_compartment.at[
+                1, 0, 0, strain
+            ].set(external_i_distribution(t) * 0.01 * self.POPULATION[1])
+        return external_i_compartment
+
+    @partial(jit, static_argnums=(0))
+    def vaccination_rate(self, t):
+        """
+        Given some time t, returns a jnp.array of shape (self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)
+        representing the age / vax history stratified vaccination rates for an additional vaccine. Used by transmission models
+        to determine vaccination rates at a particular time step.
+        MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t.
+        """
+        # vaccinated_rates = jnp.zeros(
+        #     (self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)
+        # )
+        pass
 
     def incidence(
         self,
@@ -366,34 +400,6 @@ class BasicMechanisticModel:
                 plt.show()
 
         return solution
-
-    from functools import partial
-
-    from jax import jit
-
-    @partial(jit, static_argnames=["t"])
-    def external_i(params, t):
-        i = jnp.zeros(
-            (
-                params.NUM_AGE_GROUPS,
-                2**params.NUM_STRAINS,
-                params.MAX_VAX_COUNT + 1,
-                params.NUM_STRAINS,
-            )
-        )
-        first_introduced_strain_index = params.NUM_STRAINS - len(
-            params.INTRODUCTION_TIMES
-        )
-        for intro_time in params.INTRODUCTION_TIMES:
-            if t == intro_time:
-                # if jnp.any(jnp.equal(t, intro_time)):
-                # take the 1% of the 18-49 age bin, and that is the externally introduced I.
-                i.at[1, 0, 0, first_introduced_strain_index].set(
-                    0.01 * params.POPULATION[1]
-                )
-                first_introduced_strain_index += 1
-
-        return i
 
     def plot_diffrax_solution(
         self,
@@ -759,6 +765,11 @@ class BasicMechanisticModel:
             self.WANING_TIMES,
             self.NUM_STRAINS,
             self.STRAIN_IDX,
+        )
+
+    def build_cross_immunity_matrix(self):
+        self.CROSSIMMUNITY_MATRIX = utils.strain_interaction_to_cross_immunity(
+            self.NUM_STRAINS, self.STRAIN_INTERACTIONS
         )
 
     def to_json(self, file):
