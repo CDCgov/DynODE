@@ -1,3 +1,10 @@
+####################################################
+# Process the serology data downloaded from CDC
+# Process the FL ABM output and extract serology information
+# Plot the seroprevalence from actual observation vs ABM
+# Write out processed serology data as CSVs
+####################################################
+
 pacman::p_load(dplyr, ggplot2, lubridate, tidyr, glue)
 pacman::p_load(RSQLite)
 theme_set(theme_bw(base_size = 13))

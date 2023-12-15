@@ -1,3 +1,15 @@
+####################################################
+# Rescale the output of ABM such that it matches with US
+#   serology data
+# This is done by first subsampling the pre-omicron
+#   infections in the ABM to match with seroprevalence
+#   on 2021-11-15
+# Then subsampling the omicron infections to match with
+#   seroprevalence on 2022-02-10
+# Store the subsample as a `retention` table in the
+#   sqlite database (1 to be retained, 0 to be removed)
+####################################################
+
 pacman::p_load(dplyr, data.table, lubridate, tidyr, ggplot2)
 theme_set(theme_bw(base_size = 13))
 theme_update(
