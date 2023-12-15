@@ -11,7 +11,12 @@ theme_update(
 )
 
 # Observed Serology
-df <- data.table::fread("./data/serological-data/Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv")
+csv <- file.path(
+  "data",
+  "serological-data",
+  "Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
+)
+df <- data.table::fread(csv)
 df
 
 cols <- c(

@@ -31,7 +31,7 @@ sim_people = pd.read_csv(
 # all infections that occured before init date.
 # we exclude those who died from their infections, unless they died after the model init date
 if retention:
-    sql = """SELECT inf.inf_owner_id, inf.strain, inf.infected_time, inf.infectious_start, 
+    sql = """SELECT inf.inf_owner_id, inf.strain, inf.infected_time, inf.infectious_start,
     inf.infectious_end, r.retain
     FROM infection_history AS inf
     JOIN retention AS r ON inf.inf = r.inf

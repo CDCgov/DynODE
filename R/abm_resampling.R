@@ -74,7 +74,6 @@ q <- dbSendQuery(
 )
 query_inf_history <- dbFetch(q)
 dbClearResult(q)
-# dbDisconnect(con)
 
 age_df <- age_df |>
   mutate(age = case_when(
