@@ -61,7 +61,10 @@ def seip_ode(state, t, parameters):
     )
     # CALCULATING SUCCESSFULL INFECTIONS OF (partially) SUSCEPTIBLE INDIVIDUALS
     force_of_infection = (
-        (p.BETA * jnp.einsum("ab,bijk->ak", p.CONTACT_MATRIX, i)).transpose()
+        (
+            p.BETA
+            * jnp.einsum("ab,bijk->ak", p.CONTACT_MATRIX, i + p.EXTERNAL_I(t))
+        ).transpose()
         / p.POPULATION
     ).transpose()  # (NUM_AGE_GROUPS, strain)
 

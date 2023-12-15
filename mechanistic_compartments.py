@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 from enum import EnumMeta
+from functools import partial
 
 import jax.config
 import jax.numpy as jnp
@@ -10,7 +11,9 @@ import numpy as np
 import numpyro
 import pandas as pd
 from diffrax import ODETerm, SaveAt, Solution, Tsit5, diffeqsolve
+from jax import jit
 from jax.random import PRNGKey
+from jax.scipy.stats.norm import pdf
 from numpyro.infer import MCMC, NUTS
 
 import utils
@@ -43,6 +46,9 @@ class BasicMechanisticModel:
         # grab all parameters passed from config
         self.__dict__.update(kwargs)
 
+        # GENERATE CROSS IMMUNITY MATRIX with protection from STRAIN_INTERACTIONS most recent infected strain.
+        if not self.CROSSIMMUNITY_MATRIX:
+            self.build_cross_immunity_matrix()
         # if not given, load population fractions based on observed census data into self
         if not self.INITIAL_POPULATION_FRACTIONS:
             self.load_initial_population_fractions()
@@ -135,6 +141,7 @@ class BasicMechanisticModel:
             "VACCINATION_RATE": self.VACCINATION_RATE,
             "POPULATION": self.POPULATION,
             "NUM_STRAINS": self.NUM_STRAINS,
+            "NUM_AGE_GROUPS": self.NUM_AGE_GROUPS,
             "NUM_WANING_COMPARTMENTS": self.NUM_WANING_COMPARTMENTS,
             "WANING_PROTECTIONS": self.WANING_PROTECTIONS,
             "MAX_VAX_COUNT": self.MAX_VAX_COUNT,
@@ -191,9 +198,93 @@ class BasicMechanisticModel:
                 "SIGMA": sigma,
                 "GAMMA": gamma,
                 "WANING_RATES": waning_rates,
+                "EXTERNAL_I": partial(self.external_i, sample_dist_dict=args),
             }
         )
         return args
+
+    @partial(jit, static_argnums=(0))
+    def external_i(self, t, sample_dist_dict={}):
+        """
+        Given some time t, returns jnp.array of shape self.INITIAL_STATE[self.IDX.I] representing external infected persons
+        interacting with the population. it does so by calling some function f_s(t) for each strain s.
+
+        MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t.
+
+        Parameters
+        ----------
+        `t`: float as Traced<ShapedArray(float32[])>
+            current time in the model, due to the just-in-time nature of Jax this float value may be contained within a
+            traced array of shape () and size 1. Thus no explicit comparison should be done on "t".
+
+        `sample_dist_dict`: dict(str:numpyro.sample)
+            a dictionary of parameters being sampled, if empty or does not include INTRODUCTION_PERCENTAGE or EXTERNAL_I_DISTRIBUTIONS keys
+            uses the defaults provided in the config.
+
+        Returns
+        -----------
+        external_i_compartment: jnp.array()
+            jnp.array(shape=(self.INITIAL_STATE[self.IDX.I].shape)) of external individuals to the system
+            interacting with susceptibles within the system.
+        """
+        # set up our return value
+        external_i_compartment = jnp.zeros(
+            self.INITIAL_STATE[self.IDX.I].shape
+        )
+        # default from the config
+        external_i_distributions = self.EXTERNAL_I_DISTRIBUTIONS
+        # pick sampled versions or defaults from config
+        if "INTRODUCTION_TIMES" in sample_dist_dict.keys():
+            # if we are sampling, sample the introduction times and use it to inform our
+            # external_i_distribution as the mean distribution day.
+            for introduced_strain_idx, introduced_time_sampler in enumerate(
+                sample_dist_dict["INTRODUCTION_TIMES"]
+            ):
+                dist_idx = self.NUM_STRAINS - introduced_strain_idx - 1
+                # use a normal PDF with std dv
+                external_i_distributions[dist_idx] = lambda t: pdf(
+                    t, loc=introduced_time_sampler, scale=2
+                )
+        introduction_age_mask = jnp.where(
+            jnp.array(self.INTRODUCTION_AGE_MASK),
+            1,
+            0,
+        )
+        for strain in self.STRAIN_IDX:
+            external_i_distribution = external_i_distributions[strain]
+            external_i_compartment = external_i_compartment.at[
+                introduction_age_mask, 0, 0, strain
+            ].set(
+                external_i_distribution(t)
+                * self.INTRODUCTION_PERCENTAGE
+                * self.POPULATION[self.INTRODUCTION_AGE_MASK]
+            )
+        return external_i_compartment
+
+    @partial(jit, static_argnums=(0))
+    def vaccination_rate(self, t):
+        """
+        Given some time t, returns a jnp.array of shape (self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)
+        representing the age / vax history stratified vaccination rates for an additional vaccine. Used by transmission models
+        to determine vaccination rates at a particular time step.
+
+        MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t.
+
+        Parameters
+        ----------
+        t: float as Traced<ShapedArray(float32[])>
+            current time in the model, due to the just-in-time nature of Jax this float value may be contained within a
+            traced array of shape () and size 1. Thus no explicit comparison should be done on "t".
+
+        Returns
+        -----------
+        vaccination_rates: jnp.array()
+            jnp.array(shape=(self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
+        """
+        # vaccinated_rates = jnp.zeros(
+        #     (self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)
+        # )
+        pass
 
     def incidence(
         self,
@@ -271,7 +362,12 @@ class BasicMechanisticModel:
             number of timesteps over which you wish to infer over, must match len(`incidence`)
         """
         mcmc = MCMC(
-            NUTS(self.incidence, dense_mass=True),
+            NUTS(
+                self.incidence,
+                dense_mass=True,
+                max_tree_depth=5,
+                init_strategy=numpyro.infer.init_to_median,
+            ),
             num_warmup=self.MCMC_NUM_WARMUP,
             num_samples=self.MCMC_NUM_SAMPLES,
             num_chains=self.MCMC_NUM_CHAINS,
@@ -728,6 +824,23 @@ class BasicMechanisticModel:
             self.WANING_TIMES,
             self.NUM_STRAINS,
             self.STRAIN_IDX,
+        )
+
+    def build_cross_immunity_matrix(self):
+        """
+        Loads the Crossimmunity matrix given the strain interactions matrix.
+        Strain interactions matrix is a matrix of shape (num_strains, num_strains) representing the relative immune escape risk
+        of those who are being challenged by a strain in dim 0 but have recovered from a strain in dim 1.
+        Neither the strain interactions matrix nor the crossimmunity matrix take into account waning.
+
+        Updates
+        ----------
+        self.CROSSIMMUNITY_MATRIX:
+            updates this matrix to shape (self.NUM_STRAINS, self.NUM_PREV_INF_HIST) containing the relative immune escape
+            values for each challenging strain compared to each prior immune history in the model.
+        """
+        self.CROSSIMMUNITY_MATRIX = utils.strain_interaction_to_cross_immunity(
+            self.NUM_STRAINS, self.STRAIN_INTERACTIONS
         )
 
     def to_json(self, file):

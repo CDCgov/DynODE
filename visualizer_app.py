@@ -1,3 +1,10 @@
+"""
+This Python script, when run, launches a Shiny app on http://localhost:8000/ that aids in visualizing the initial conditions of a model
+initialized with the config_base.py config file. This file is an active work in progress and aims to be an easy way for users to
+get an understanding of the context that their mechanistic model is being run in.
+"""
+
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd

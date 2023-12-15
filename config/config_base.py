@@ -3,8 +3,7 @@ import os
 from enum import IntEnum
 
 import jax.numpy as jnp
-
-base_parameters = {}
+from jax.scipy.stats.norm import pdf
 
 
 class ConfigBase:
@@ -48,8 +47,15 @@ class ConfigBase:
         # Initial Infections in the model, these are dispersed between exposed and infectious states
         # sourced via the number of infections from Tom's ABM
         self.INITIAL_INFECTIONS = 339.46
-        # R0 values of each strain, from oldest to newest.
-        self.STRAIN_SPECIFIC_R0 = jnp.array([1.2, 1.8])  # R0s
+        # R0 values of each strain, from oldest to newest. Including R0 for introduced strains
+        self.STRAIN_SPECIFIC_R0 = jnp.array([1.2, 1.8, 3.0])  # R0s
+        # days after model initialization when new strains are externally introduced
+        self.INTRODUCTION_TIMES = [120]
+        # the percentage of the total population as a float who are externally introduced with the new strain.
+        self.INTRODUCTION_PERCENTAGE = 0.01
+        # mask of what age bins to introduce external infected populations as.
+        # with 4 age bins, 0-17, 18-49, 50-64, 65+ a True in the first index corresponds to 0-17 aged infected introduced
+        self.INTRODUCTION_AGE_MASK = [False, True, False, False]
         # number of compartments individuals wane through the moment of recovery.
         # there is no explicit "recovered" compartment.
         self.NUM_WANING_COMPARTMENTS = 4
@@ -62,15 +68,34 @@ class ConfigBase:
         # the protection afforded by different immune histories from infection.
         # non-omicron vs omicron, stratified by immune history. 0 = fully susceptible, 1 = fully immune.
         # TODO SOURCE?
-        self.CROSSIMMUNITY_MATRIX = jnp.array(
-            [[0, 0.5, 0.7, 0.8], [0, 0.3, 0.5, 0.7]]
+        self.STRAIN_INTERACTIONS = jnp.array(
+            [
+                [1.0, 0.7, 0.49],  # delta
+                [0.7, 1.0, 0.7],  # omi
+                [0.49, 0.7, 1.0],  # BA1.1
+            ]
         )
+        # TODO fix this to use SxS matrix to inform this.
+        # self.CROSSIMMUNITY_MATRIX = jnp.array(
+        #     [
+        #         [0, 0.5, 0.7, 0.8, 0.8, 0.8, 0.8, 0.8],  # delta
+        #         [0, 0.3, 0.5, 0.7, 0.8, 0.8, 0.8, 0.8],  # omicron
+        #         [0, 0.1, 0.3, 0.5, 0.7, 0.7, 0.8, 0.8],  # BA1.1
+        #     ]
+        # )  # TODO what do we do about delta challenging someone with prev omi2 exposure?
         # the protection afforded by different numbers of vaccinations from infection.
         # non-omicron vs omicron, stratified by vaccine count, 0, 1, 2+ shots. 0 = fully susceptible, 1 = fully immune.
         # TODO SOURCE?
-        self.VAX_EFF_MATRIX = jnp.array([[0, 0.34, 0.68], [0, 0.24, 0.48]])
+        self.VAX_EFF_MATRIX = jnp.array(
+            [
+                [0, 0.34, 0.68],  # delta
+                [0, 0.24, 0.48],  # omicron1
+                [0, 0.14, 0.28],  # BA1.1
+            ]
+        )
         # setting the following to None will get the model to initialize them from demographic/abm data
         self.INITIAL_POPULATION_FRACTIONS = None
+        self.CROSSIMMUNITY_MATRIX = None
         self.CONTACT_MATRIX = None
         self.INIT_INFECTION_DIST = None
         self.INIT_EXPOSED_DIST = None
@@ -110,17 +135,51 @@ class ConfigBase:
             ["W" + str(idx) for idx in range(self.NUM_WANING_COMPARTMENTS)],
             start=0,
         )
+
+        # this are all the strains currently supported, historical and future
+        all_strains = [
+            "wildtype",
+            "alpha",
+            "delta",
+            "omicron",
+            "BA1.1",
+        ]
+        # it often does not make sense to differentiate between wildtype and alpha, so combine strains here
+        self.STRAIN_NAMES = all_strains[5 - self.NUM_STRAINS :]
         # in each compartment that is strain stratified we use strain indexes to improve readability.
         # omicron will always be index=2 if num_strains >= 3. In a two strain model we must combine alpha and delta together.
         self.STRAIN_IDX = IntEnum(
             "strain_idx",
-            ["wildtype", "alpha", "delta", "omicron"][4 - self.NUM_STRAINS :],
+            self.STRAIN_NAMES,
             start=0,
         )
+
+        # we need some functions to model external infected persons interacting with the population
+        # these functions should take some time in days
+        # summing over all days should equal 1.0. While the MechanisticModel itself decides the total
+        # number of external infected individuals over all timepoints.
+        def zero_function(_):
+            return 0
+
+        self.EXTERNAL_I_DISTRIBUTIONS = [
+            zero_function for _ in range(self.NUM_STRAINS)
+        ]
+        for introduced_strain_idx, introduced_time in enumerate(
+            self.INTRODUCTION_TIMES
+        ):
+            dist_idx = self.NUM_STRAINS - introduced_strain_idx - 1
+            # use a normal PDF with std dv
+            self.EXTERNAL_I_DISTRIBUTIONS[dist_idx] = lambda t: pdf(
+                t, loc=introduced_time, scale=2
+            )
 
         # number of previous infection histories depends on the number of strains being tested.
         # can be either infected or not infected by each strain.
         self.NUM_PREV_INF_HIST = 2**self.NUM_STRAINS
+
+        self.VACCINATION_MODEL = (
+            {}
+        )  # some way to look up each individual logistic function by age/vax hist
         # Check that no values are incongruent with one another
         self.assert_valid_values()
 
@@ -274,9 +333,13 @@ class ConfigBase:
         assert self.NUM_WANING_COMPARTMENTS == len(
             self.WANING_PROTECTIONS
         ), "unable to load config, NUM_WANING_COMPARTMENTS must equal to len(WANING_PROTECTIONS)"
-        assert self.CROSSIMMUNITY_MATRIX.shape == (
-            self.NUM_STRAINS,
-            self.NUM_PREV_INF_HIST,
+        assert (
+            self.CROSSIMMUNITY_MATRIX is None
+            or self.CROSSIMMUNITY_MATRIX.shape
+            == (
+                self.NUM_STRAINS,
+                self.NUM_PREV_INF_HIST,
+            )
         ), "CROSSIMMUNITY_MATRIX shape incorrect"
         assert self.VAX_EFF_MATRIX.shape == (
             self.NUM_STRAINS,
