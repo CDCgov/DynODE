@@ -339,6 +339,7 @@ def strain_interaction_to_cross_immunity(num_strains, strain_interactions):
                         for strain in strains
                     ]
                 )
+                # pick the strain in this state with the highest immunity to challenging strain
                 highest_immunity_strain = strains[np.argmax(immunities)]
                 crossimmunity_matrix[
                     challenging_strain, state_without_strain

@@ -827,6 +827,18 @@ class BasicMechanisticModel:
         )
 
     def build_cross_immunity_matrix(self):
+        """
+        Loads the Crossimmunity matrix given the strain interactions matrix.
+        Strain interactions matrix is a matrix of shape (num_strains, num_strains) representing the relative immune escape risk
+        of those who are being challenged by a strain in dim 0 but have recovered from a strain in dim 1.
+        Neither the strain interactions matrix nor the crossimmunity matrix take into account waning.
+
+        Updates
+        ----------
+        self.CROSSIMMUNITY_MATRIX:
+            updates this matrix to shape (self.NUM_STRAINS, self.NUM_PREV_INF_HIST) containing the relative immune escape
+            values for each challenging strain compared to each prior immune history in the model.
+        """
         self.CROSSIMMUNITY_MATRIX = utils.strain_interaction_to_cross_immunity(
             self.NUM_STRAINS, self.STRAIN_INTERACTIONS
         )
