@@ -1,6 +1,7 @@
 import datetime
 import glob
 import os
+import re
 
 import numpy as np
 import numpyro
@@ -1131,6 +1132,7 @@ def init_infections_from_abm(
         num_strains,
         STRAIN_IDXs,
     )
+    proportion_infected = len(active_infections_abm) / len(abm_population)
     infections = np.zeros(
         (
             num_age_groups,
@@ -1160,7 +1162,60 @@ def init_infections_from_abm(
     exposed = infections_normalized * (1 - infected_to_exposed_ratio)
     infected = infections_normalized * infected_to_exposed_ratio
 
-    return infections_normalized, exposed, infected
+    return infections_normalized, exposed, infected, proportion_infected
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Plotting CODE
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+def get_timeline_from_solution_with_command(
+    sol, compartment_idx, w_idx, strain_idx, command
+):
+    explicit_form_pattern = re.compile(
+        "^(["
+        + "|".join(compartment_idx._member_names_)
+        + "][:|\d+]-[:|\d+]-[:|\d+]-[:|\d+])$"
+    )
+    # plot whole compartment
+    if command in compartment_idx._member_names_:
+        compartment = np.array(sol[compartment_idx[command]])
+    # plot infections from that strain
+    elif command in strain_idx._member_names_:
+        exposed = np.array(sol[compartment_idx["E"]])
+        infected = np.array(sol[compartment_idx["I"]])
+        compartment = (
+            exposed[:, :, :, :, strain_idx[command]]
+            + infected[:, :, :, :, strain_idx[command]]
+        )
+    # plot members of a wane compartment
+    elif command in w_idx._member_names_:
+        compartment = np.array(sol[compartment_idx["S"]])[
+            :, :, :, :, w_idx[command]
+        ]
+    # S:-0-0-0 plots all age bins in 0 immune state, 0 vax, 0 waning.
+    elif explicit_form_pattern.match(command):
+        compartment = sol[compartment_idx[command[0].upper()]]
+        # split by '-' and cast to int or slice() in the case of the ':' command input
+        indexes = [slice(None)] + [
+            (int(index) if index.isdigit() else slice(None))
+            for index in command[1:].split("-")
+        ]
+        compartment = compartment[tuple(indexes)]
+
+    else:
+        print(
+            "there was an error interpretting the following command: "
+            + command
+        )
+
+    def is_close(x):
+        return 0 if np.isclose(x, 0.0) else x
+
+    is_close_v = np.vectorize(is_close)
+    dimensions_to_sum_over = tuple(range(1, compartment.ndim))
+    return is_close_v(np.sum(compartment, axis=dimensions_to_sum_over))
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

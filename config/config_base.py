@@ -24,7 +24,7 @@ class ConfigBase:
         self.REGIONS = ["United States"]
         self.DEMOGRAPHIC_DATA = "data/demographic-data/"
         self.SEROLOGICAL_DATA = "data/serological-data/"
-        self.SIM_DATA = "data/abm_population3.csv"
+        self.SIM_DATA = "data/abm_population.csv"
         self.SAVE_PATH = "output/"
         # model initialization date DO NOT CHANGE
         self.INIT_DATE = datetime.date(2022, 2, 11)
@@ -33,7 +33,7 @@ class ConfigBase:
         # values are exclusive in upper bound. so [0,18) means 0-17, 18+
         self.AGE_LIMITS = [self.MINIMUM_AGE, 18, 50, 65]
         # Total Population size of simulation
-        self.POP_SIZE = 20000
+        self.POP_SIZE = 10000
         # Time in days an individual is infectious for informed by source 5 (see bottom of file)
         self.INFECTIOUS_PERIOD = 7.0  # gamma
         # time in days between exposure to virus to infectious and able to pass to others
@@ -45,8 +45,8 @@ class ConfigBase:
         # number of vaccines maximum for an individual, any more are not counted with bonus immunity.
         self.MAX_VAX_COUNT = 2
         # Initial Infections in the model, these are dispersed between exposed and infectious states
-        # sourced via the number of infections from Tom's ABM
-        self.INITIAL_INFECTIONS = 339.46
+        # If None, sourced via the proportion of infections from Tom's ABM * POP_SIZE
+        self.INITIAL_INFECTIONS = None
         # R0 values of each strain, from oldest to newest. Including R0 for introduced strains
         self.STRAIN_SPECIFIC_R0 = jnp.array([1.2, 1.8, 3.0])  # R0s
         # days after model initialization when new strains are externally introduced
@@ -216,13 +216,14 @@ class ConfigBase:
             self.AGE_LIMITS[-1] < 85
         ), "age limits can not exceed 84 years of age, the last age bin is implied and does not need to be included"
         assert self.POP_SIZE > 0, "population size must be a non-zero value"
-        assert (
-            self.INITIAL_INFECTIONS <= self.POP_SIZE
-        ), "cant have more initial infections than total population size"
+        if self.INITIAL_INFECTIONS:
+            assert (
+                self.INITIAL_INFECTIONS <= self.POP_SIZE
+            ), "cant have more initial infections than total population size"
 
-        assert (
-            self.INITIAL_INFECTIONS >= 0
-        ), "cant have negative initial infections"
+            assert (
+                self.INITIAL_INFECTIONS >= 0
+            ), "cant have negative initial infections"
 
         # if user has supplied custom values for distributions instead of using prebuilt ones, sanity check them here
         if self.INITIAL_POPULATION_FRACTIONS:
@@ -305,9 +306,6 @@ class ConfigBase:
         assert (
             self.VACCINATION_RATE >= 0
         ), "EXPOSED_TO_INFECTIOUS can not be negative"
-        assert (
-            self.INITIAL_INFECTIONS >= 0
-        ), "INITIAL_INFECTIONS can not be negative"
         assert (
             len(self.STRAIN_SPECIFIC_R0) > 0
         ), "Must specify at least 1 strain R0"

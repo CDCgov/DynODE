@@ -391,12 +391,12 @@ class BasicMechanisticModel:
         sample: bool = False,
         sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
         save_path: str = "model_run.png",
-        plot_compartments: list[str] = ["S", "E", "I", "C"],
+        plot_commands: list[str] = ["S", "E", "I", "C"],
         log_scale: bool = False,
     ):
         """
         Takes parameters from self and applies them to some disease dynamics modeled in `model`
-        from `t0=0` to `tf`. Optionally saving compartment plots from `plot_compartments` to `save_path` if `save=True`
+        from `t0=0` to `tf`. Optionally saving compartment plots from `plot_commands` to `save_path` if `save=True`
 
         Parameters
         ----------
@@ -416,7 +416,7 @@ class BasicMechanisticModel:
             follows format "parameter_name":numpyro.Distributions.dist(). DO NOT pass numpyro.sample() objects to the dictionary.
         `save_path`: str
             relative or absolute path where to save an image and its metadata if `save=True`
-        `plot_compartments`: list(str)
+        `plot_commands`: list(str)
             a list of compartments to plot, strings must match those specified in self.IDX or self.W_IDX.
 
         Returns
@@ -451,7 +451,7 @@ class BasicMechanisticModel:
         if show or save:
             fig, ax = self.plot_diffrax_solution(
                 solution,
-                plot_compartments=plot_compartments,
+                plot_commands=plot_commands,
                 save_path=save_path,
                 log_scale=log_scale,
             )
@@ -463,80 +463,43 @@ class BasicMechanisticModel:
     def plot_diffrax_solution(
         self,
         sol: Solution,
-        plot_compartments: list[str] = ["s", "e", "i", "c"],
+        plot_commands: list[str] = ["s", "e", "i", "c"],
         save_path: str = None,
         log_scale: bool = False,
     ):
         """
-        plots a run from diffeqsolve() with compartments `plot_compartments` returning figure and axis.
+        plots a run from diffeqsolve() with compartments `plot_commands` returning figure and axis.
         If `save_path` is not None will save figure to that path attached with meta data in `meta_data`.
 
         Parameters
         ----------
         sol : difrax.Solution
             object containing ODE run as described by https://docs.kidger.site/diffrax/api/solution/
-        plot_compartment : list(str), optional
-            compartment titles as defined by the config file used to initialize self
+        plot_commands : list(str), optional
+            commands to the plotter on which populations to show, may be compartment titles, strain names, or waning compartments
         save_path : str, optional
             if `save_path = None` do not save figure to output directory. Otherwise save to relative path `save_path`
             attaching meta data of the self object.
         """
-        plot_compartments = [x.strip().upper() for x in plot_compartments]
+        plot_commands = [x.strip() for x in plot_commands]
         sol = sol.ys
-        get_indexes = []
-        for compartment in plot_compartments:
-            # if W with no index is passed, sum all W compartments together.
-            if "W" == compartment or "P" == compartment:
-                get_indexes.append(self.IDX.__getitem__("S"))
-            # if W1/2/3/4 is supplied, we want that specific waning compartment
-            elif "W" in compartment:
-                # waning compartments are held in a different manner, we need two indexes to access them
-                index_slice = [
-                    self.IDX.__getitem__("S"),
-                    self.W_IDX.__getitem__(compartment),
-                ]
-                get_indexes.append(index_slice)
-            else:  # for E, I, and C compartments
-                get_indexes.append(self.IDX.__getitem__(compartment))
-
         fig, ax = plt.subplots(1)
-        for compartment, idx in zip(plot_compartments, get_indexes):
-            # turn sol_compartment into shape (time, age, hist, vax). Requires removal of last dimension.
-            # if user selects all W compartments, we must sum across the waning axis.
-            if "W" == compartment or "P" == compartment:
-                # the waning index + 1 because first index is for time in the solution
-                # exclude fully susceptible people since they are not waning to anything [1:]
-                sol_compartment = np.sum(
-                    np.array(sol[idx][:, :, 1:, :, :]),
-                    axis=(self.S_AXIS_IDX.wane + 1),
-                )
-            # if W1/W2/W3... idx=(idx.S, w_idx.W1/2/....), select specific waning compartment
-            elif "W" in compartment:
-                # if we are plotting a waning compartment, we need to parse 1 extra dimension
-                # exclude fully susceptible people since they are not waning to anything [1:]
-                sol_compartment = np.array(sol[idx[0]][:, :, 1:, :, idx[1]])
-            elif "S" == compartment:
-                # persons with no immune history are in hist=0 and wane=0
-                sol_compartment = np.sum(
-                    np.array(sol[idx][:, :, 0, :, :]),
-                    axis=(self.S_AXIS_IDX.wane),
-                )
-            else:
-                # E and I compartments are stratified by exposing strains opposed to waning
-                sol_compartment = np.sum(
-                    np.array(sol[idx]), axis=(self.I_AXIS_IDX.strain + 1)
-                )
-            # summing over age groups + hist + num_vax, 0th dim is timestep
-            dimensions_to_sum_over = tuple(range(1, sol_compartment.ndim))
-            line_to_plot = sol_compartment.sum(axis=dimensions_to_sum_over)
-            days = list(range(len(line_to_plot)))
+        for command in plot_commands:
+            timeline = utils.get_timeline_from_solution_with_command(
+                sol,
+                self.IDX,
+                self.W_IDX,
+                self.STRAIN_IDX,
+                command,
+            )
+            days = list(range(len(timeline)))
             x_axis = [
                 self.INIT_DATE + datetime.timedelta(days=day) for day in days
             ]
             ax.plot(
                 x_axis,
-                sol_compartment.sum(axis=dimensions_to_sum_over),
-                label=compartment,
+                timeline,
+                label=command,
             )
         fig.legend()
         ax.set_title(
@@ -811,11 +774,15 @@ class BasicMechanisticModel:
         `self.INIT_INFECTED_DIST`: jnp.array(int)
             proportion of INIT_INFECTION_DIST that falls into infected compartment, formatted into the omicron strain.
             INIT_INFECTED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
+        `self.INITIAL_INFECTIONS`: float
+            if `INITIAL_INFECTIONS` is not specified in the config, will use the proportion of the total population
+            that is exposed or infected in the abm, multiplied by the population size, for the models number of infections.
         """
         (
             self.INIT_INFECTION_DIST,
             self.INIT_EXPOSED_DIST,
             self.INIT_INFECTED_DIST,
+            proportion_infected,
         ) = utils.init_infections_from_abm(
             self.SIM_DATA,
             self.NUM_AGE_GROUPS,
@@ -825,6 +792,8 @@ class BasicMechanisticModel:
             self.NUM_STRAINS,
             self.STRAIN_IDX,
         )
+        if self.INITIAL_INFECTIONS is None:
+            self.INITIAL_INFECTIONS = self.POP_SIZE * proportion_infected
 
     def build_cross_immunity_matrix(self):
         """
@@ -867,7 +836,13 @@ class BasicMechanisticModel:
                     }
                 if isinstance(obj, Solution):
                     return obj.ys
-                return json.JSONEncoder.default(self, obj)
+                if isinstance(obj, datetime.date):
+                    return obj.strftime("%d-%m-%y")
+                try:
+                    res = json.JSONEncoder.default(self, obj)
+                except TypeError:
+                    res = "error not serializable"
+                return res
 
         return json.dump(self.__dict__, file, indent=4, cls=CustomEncoder)
 
