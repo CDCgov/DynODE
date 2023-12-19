@@ -1,7 +1,6 @@
 import datetime
 import glob
 import os
-import re
 
 import numpy as np
 import numpyro
@@ -1173,11 +1172,40 @@ def init_infections_from_abm(
 def get_timeline_from_solution_with_command(
     sol, compartment_idx, w_idx, strain_idx, command
 ):
-    explicit_form_pattern = re.compile(
-        "^(["
-        + "|".join(compartment_idx._member_names_)
-        + "][:|\d+]-[:|\d+]-[:|\d+]-[:|\d+])$"
-    )
+    """
+    A function designed to execute `command` over a `sol` object, returning a timeline after `command` is used to select a certain view of `sol`
+
+    Possible values of `command` include:
+
+    - a compartment title, as specified in the `compartment_idx` IntEnum. Eg:"S", "E", "I"
+    - a strain title, as specified in `strain_idx` IntEnum. Eg "omicron", "delta"
+    - a wane index, as specified by `w_idx`. Eg: "W0" "W1"
+    - a numpy slice of a compartment title, as specified in the `compartment_idx` IntEnum. Eg: "S[:, 0, 0, :]" or "E[:, 1:3, [0,1], 1]"
+    Format must include compartment title, followed by square brackets and comma separated slices.
+    Do NOT include extra time dimension found in the sol object. Assume dimensionality of the compartment as in initialization.
+
+    Parameters
+    ----------
+    `sol` : tuple(jnp.array)
+        generally .ys object containing ODE run as described by https://docs.kidger.site/diffrax/api/solution/
+        a tuple containing the ys of the ODE run.
+    `compartment_idx`: IntEnum:
+        an enum containing the name of each compartment and its associated compartment index,
+        as initialized by the config file of the model that generated `sol`
+    `w_idx`: IntEnum:
+        an enum containing the name of each waning compartment and its associated compartment index,
+        as initialized by the config file of the model that generated `sol`
+    `strain_idx`: intEnum
+        an enum containing the name of each strain and its associated strain index,
+        as initialized by the config file of the model that generated `sol`
+    `command`: str
+        a string command of the format specified in the function description.
+
+    Returns
+    ----------
+    a slice of the `sol` object collapsed into the first dimension of the command selected.
+    eg: return.shape = sol[0].shape[0] since all first dimensions in sol are equal normally.
+    """
     # plot whole compartment
     if command in compartment_idx._member_names_:
         compartment = np.array(sol[compartment_idx[command]])
@@ -1194,21 +1222,26 @@ def get_timeline_from_solution_with_command(
         compartment = np.array(sol[compartment_idx["S"]])[
             :, :, :, :, w_idx[command]
         ]
-    # S:-0-0-0 plots all age bins in 0 immune state, 0 vax, 0 waning.
-    elif explicit_form_pattern.match(command):
-        compartment = sol[compartment_idx[command[0].upper()]]
-        # split by '-' and cast to int or slice() in the case of the ':' command input
-        indexes = [slice(None)] + [
-            (int(index) if index.isdigit() else slice(None))
-            for index in command[1:].split("-")
-        ]
-        compartment = compartment[tuple(indexes)]
-
+    # assuming explicit compartment, will explode if passed incorrect input
     else:
-        print(
-            "there was an error interpretting the following command: "
-            + command
-        )
+        compartment_slice = command[1:].strip()
+        # add an extra dimension : for time
+        compartment_slice = compartment_slice[0] + ":," + compartment_slice[1:]
+        try:
+            compartment_slice = eval("np.s_{}".format(compartment_slice))
+            compartment = sol[compartment_idx[command[0].upper()]][
+                compartment_slice
+            ]
+        except NameError:
+            print(
+                "There was an error in the plotting command: {}, returning null timeline".format(
+                    command
+                )
+            )
+            print(
+                "Please review `utils/get_timeline_from_solution_with_command()` documentation"
+            )
+            return np.zeros(sol[compartment_idx["S"]].shape[0])
 
     def is_close(x):
         return 0 if np.isclose(x, 0.0) else x
