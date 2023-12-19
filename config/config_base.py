@@ -177,9 +177,9 @@ class ConfigBase:
         # can be either infected or not infected by each strain.
         self.NUM_PREV_INF_HIST = 2**self.NUM_STRAINS
 
-        self.VACCINATION_MODEL = (
-            {}
-        )  # some way to look up each individual logistic function by age/vax hist
+        self.VAX_MODEL_PARAMS = 0.2 * jnp.ones(
+            (self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)
+        )
         # Check that no values are incongruent with one another
         self.assert_valid_values()
 

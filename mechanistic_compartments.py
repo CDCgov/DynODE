@@ -198,13 +198,17 @@ class BasicMechanisticModel:
                 "SIGMA": sigma,
                 "GAMMA": gamma,
                 "WANING_RATES": waning_rates,
-                "EXTERNAL_I": partial(self.external_i, sample_dist_dict=args),
+                "EXTERNAL_I": partial(
+                    self.external_i,
+                    intro_times_sample=args.get("INTRODUCTION_TIMES", {}),
+                ),
+                "VACCINATION_RATES": self.vaccination_rate,
             }
         )
         return args
 
     @partial(jit, static_argnums=(0))
-    def external_i(self, t, sample_dist_dict={}):
+    def external_i(self, t, intro_times_sample={}):
         """
         Given some time t, returns jnp.array of shape self.INITIAL_STATE[self.IDX.I] representing external infected persons
         interacting with the population. it does so by calling some function f_s(t) for each strain s.
@@ -217,9 +221,8 @@ class BasicMechanisticModel:
             current time in the model, due to the just-in-time nature of Jax this float value may be contained within a
             traced array of shape () and size 1. Thus no explicit comparison should be done on "t".
 
-        `sample_dist_dict`: dict(str:numpyro.sample)
-            a dictionary of parameters being sampled, if empty or does not include INTRODUCTION_PERCENTAGE or EXTERNAL_I_DISTRIBUTIONS keys
-            uses the defaults provided in the config.
+        `intro_times_sample`: list(numpyro.sample) or False
+            a list of numpyro samples for each of the strain introduction times, if sampling is happening. Otherwise False use config file defaults.
 
         Returns
         -----------
@@ -234,11 +237,11 @@ class BasicMechanisticModel:
         # default from the config
         external_i_distributions = self.EXTERNAL_I_DISTRIBUTIONS
         # pick sampled versions or defaults from config
-        if "INTRODUCTION_TIMES" in sample_dist_dict.keys():
+        if intro_times_sample:
             # if we are sampling, sample the introduction times and use it to inform our
             # external_i_distribution as the mean distribution day.
             for introduced_strain_idx, introduced_time_sampler in enumerate(
-                sample_dist_dict["INTRODUCTION_TIMES"]
+                intro_times_sample
             ):
                 dist_idx = self.NUM_STRAINS - introduced_strain_idx - 1
                 # use a normal PDF with std dv
@@ -281,10 +284,7 @@ class BasicMechanisticModel:
         vaccination_rates: jnp.array()
             jnp.array(shape=(self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
         """
-        # vaccinated_rates = jnp.zeros(
-        #     (self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)
-        # )
-        pass
+        return self.VAX_MODEL_PARAMS * jnp.exp(-self.VAX_MODEL_PARAMS * t)
 
     def incidence(
         self,
