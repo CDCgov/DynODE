@@ -468,7 +468,7 @@ class BasicMechanisticModel:
         log_scale: bool = False,
     ):
         """
-        plots a run from diffeqsolve() with compartments `plot_commands` returning figure and axis.
+        plots a run from diffeqsolve() with `plot_commands` returning figure and axis.
         If `save_path` is not None will save figure to that path attached with meta data in `meta_data`.
 
         Parameters
@@ -476,7 +476,8 @@ class BasicMechanisticModel:
         sol : difrax.Solution
             object containing ODE run as described by https://docs.kidger.site/diffrax/api/solution/
         plot_commands : list(str), optional
-            commands to the plotter on which populations to show, may be compartment titles, strain names, or waning compartments
+            commands to the plotter on which populations to show, may be compartment titles, strain names, waning compartments, or explicit numpy slices!
+            see utils/get_timeline_from_solution_with_command() for more in depth explanation of commands.
         save_path : str, optional
             if `save_path = None` do not save figure to output directory. Otherwise save to relative path `save_path`
             attaching meta data of the self object.
