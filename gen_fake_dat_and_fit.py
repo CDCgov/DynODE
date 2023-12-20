@@ -1,9 +1,9 @@
 # %%
 import jax.config
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 import numpyro
-import matplotlib.pyplot as plt
 
 from config.config_base import ConfigBase
 from mechanistic_compartments import build_basic_mechanistic_model
@@ -72,3 +72,5 @@ model.infer(
 #     model=model,
 # )
 # mcmc.print_summary()
+
+# %%
