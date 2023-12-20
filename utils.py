@@ -1131,6 +1131,7 @@ def init_infections_from_abm(
         num_strains,
         STRAIN_IDXs,
     )
+    proportion_infected = len(active_infections_abm) / len(abm_population)
     infections = np.zeros(
         (
             num_age_groups,
@@ -1160,7 +1161,101 @@ def init_infections_from_abm(
     exposed = infections_normalized * (1 - infected_to_exposed_ratio)
     infected = infections_normalized * infected_to_exposed_ratio
 
-    return infections_normalized, exposed, infected
+    return infections_normalized, exposed, infected, proportion_infected
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# Plotting CODE
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+def get_timeline_from_solution_with_command(
+    sol, compartment_idx, w_idx, strain_idx, command
+):
+    """
+    A function designed to execute `command` over a `sol` object, returning a timeline after `command` is used to select a certain view of `sol`
+
+    Possible values of `command` include:
+
+    - a compartment title, as specified in the `compartment_idx` IntEnum. Eg:"S", "E", "I"
+    - a strain title, as specified in `strain_idx` IntEnum. Eg "omicron", "delta"
+    - a wane index, as specified by `w_idx`. Eg: "W0" "W1"
+    - a numpy slice of a compartment title, as specified in the `compartment_idx` IntEnum. Eg: "S[:, 0, 0, :]" or "E[:, 1:3, [0,1], 1]"
+    Format must include compartment title, followed by square brackets and comma separated slices.
+    Do NOT include extra time dimension found in the sol object. Assume dimensionality of the compartment as in initialization.
+
+    Parameters
+    ----------
+    `sol` : tuple(jnp.array)
+        generally .ys object containing ODE run as described by https://docs.kidger.site/diffrax/api/solution/
+        a tuple containing the ys of the ODE run.
+    `compartment_idx`: IntEnum:
+        an enum containing the name of each compartment and its associated compartment index,
+        as initialized by the config file of the model that generated `sol`
+    `w_idx`: IntEnum:
+        an enum containing the name of each waning compartment and its associated compartment index,
+        as initialized by the config file of the model that generated `sol`
+    `strain_idx`: intEnum
+        an enum containing the name of each strain and its associated strain index,
+        as initialized by the config file of the model that generated `sol`
+    `command`: str
+        a string command of the format specified in the function description.
+
+    Returns
+    ----------
+    a slice of the `sol` object collapsed into the first dimension of the command selected.
+    eg: return.shape = sol[0].shape[0] since all first dimensions in sol are equal normally.
+    """
+
+    def is_close(x):
+        return 0 if np.isclose(x, 0.0) else x
+
+    is_close_v = np.vectorize(is_close)
+    # plot whole compartment
+    if command in compartment_idx._member_names_:
+        compartment = np.array(sol[compartment_idx[command]])
+    # plot infections from that strain
+    elif command in strain_idx._member_names_:
+        exposed = np.array(sol[compartment_idx["E"]])
+        infected = np.array(sol[compartment_idx["I"]])
+        compartment = (
+            exposed[:, :, :, :, strain_idx[command]]
+            + infected[:, :, :, :, strain_idx[command]]
+        )
+    # plot members of a wane compartment
+    elif command in w_idx._member_names_:
+        compartment = np.array(sol[compartment_idx["S"]])[
+            :, :, :, :, w_idx[command]
+        ]
+    # plot incidence, which is the diff of the C compartment.
+    elif command.lower().strip() == "incidence":
+        compartment = np.array(sol[compartment_idx["C"]])
+        compartment = np.sum(
+            compartment, axis=tuple(range(1, compartment.ndim))
+        )
+        return is_close_v(np.diff(compartment))
+    # assuming explicit compartment, will explode if passed incorrect input
+    else:
+        compartment_slice = command[1:].strip()
+        # add an extra dimension : for time
+        compartment_slice = compartment_slice[0] + ":," + compartment_slice[1:]
+        try:
+            compartment_slice = eval("np.s_{}".format(compartment_slice))
+            compartment = sol[compartment_idx[command[0].upper()]][
+                compartment_slice
+            ]
+        except NameError:
+            print(
+                "There was an error in the plotting command: {}, returning null timeline".format(
+                    command
+                )
+            )
+            print(
+                "Please review `utils/get_timeline_from_solution_with_command()` documentation"
+            )
+            return np.zeros(sol[compartment_idx["S"]].shape[0])
+    dimensions_to_sum_over = tuple(range(1, compartment.ndim))
+    return is_close_v(np.sum(compartment, axis=dimensions_to_sum_over))
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

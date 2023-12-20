@@ -6,7 +6,7 @@ import pandas as pd
 SIM_START_DATE = datetime.date(2020, 2, 10)
 SIM_INPUT_PATH = "data/abm-data/sim_data_scaled_us.sqlite"
 MODEL_INIT_DATE = datetime.date(2022, 2, 11)
-OUTPUT_DATA_PATH = "data/abm_population3.csv"
+OUTPUT_DATA_PATH = "data/abm_population.csv"
 
 
 # Create your connection.
