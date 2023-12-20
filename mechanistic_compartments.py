@@ -151,34 +151,45 @@ class BasicMechanisticModel:
         }
         if sample:
             # if user provides parameters and distributions they wish to sample, sample those
-            if sample_dist_dict:
-                for key, dist in sample_dist_dict.items():
-                    args[key] = numpyro.sample(key, dist)
-            # otherwise, by default just sample the omicron excess r0
-            else:
+            # otherwise, we simply sample infectious period and introduction times by default
+            if not sample_dist_dict:
                 sample_dist_dict = {
                     "INFECTIOUS_PERIOD": Dist.TruncatedNormal(
                         loc=10, scale=2, low=0
                     ),
-                    # "exposed_to_infectious": Dist.TruncatedNormal(
-                    #     loc=5, scale=2, low=0
-                    # ),
                 }
-
-                for key, dist in sample_dist_dict.items():
-                    args[key] = numpyro.sample(key, dist)
-
+                # introduction times are used by a different function, external_i, which is just in time compiled
+                # thus we set it as a part of self, rather than in args dict.
+                # if sampling is needed then
                 self.INTRODUCTION_TIMES_SAMPLE = [
                     numpyro.sample(
-                        "INTRODUCTION_TIME",
-                        Dist.TruncatedNormal(loc=60, scale=20, low=0),
-                    ),
+                        "INTRODUCTION_TIME_{}".format(i),
+                        Dist.TruncatedNormal(loc=intro_time, scale=20, low=0),
+                    )
+                    for i, intro_time in enumerate(self.INTRODUCTION_TIMES)
                 ]
-                # r0_omicron = utils.sample_r0()
-                # strain_specific_r0 = list(self.STRAIN_SPECIFIC_R0)
-                # strain_specific_r0[self.STRAIN_IDX.omicron] = r0_omicron
-                # default_sample_dict["R0"] = jnp.asarray(strain_specific_r0)
-                # args = dict(args, **sample_dist_dict)
+            # either using the default sample_dist_dict, or the one provided by the user
+            # transform these distributions into numpyro samples.
+            for key, item in sample_dist_dict.items():
+                # sometimes you may want to sample the elements of a list, like R0 for strains
+                # check for that here:
+                if isinstance(item, list):
+                    # build up a list of samples
+                    sample_list = jnp.zeros(shape=(len(item),))
+                    for i, dist in enumerate(item):
+                        # sometimes people pass a mixture of static and sampled values. check for numbers
+                        if isinstance(dist, (int, float)) and not isinstance(
+                            dist, bool
+                        ):
+                            sample = numpyro.deterministic(
+                                key + "_" + str(i), dist
+                            )
+                        else:
+                            sample = numpyro.sample(key + "_" + str(i), dist)
+                        sample_list = sample_list.at[i].set(sample)
+                    args[key] = sample_list
+                else:
+                    args[key] = numpyro.sample(key, item)
 
         # lets quickly update any values that depend on other parameters which may or may not be sampled.
         # set defaults if they are not in args aka not sampled.
@@ -236,14 +247,11 @@ class BasicMechanisticModel:
             current time in the model, due to the just-in-time nature of Jax this float value may be contained within a
             traced array of shape () and size 1. Thus no explicit comparison should be done on "t".
 
-        `intro_times_sample`: list(numpyro.sample) or False
-            a list of numpyro samples for each of the strain introduction times, if sampling is happening. Otherwise False use config file defaults.
-
         Returns
         -----------
         external_i_compartment: jnp.array()
             jnp.array(shape=(self.INITIAL_STATE[self.IDX.I].shape)) of external individuals to the system
-            interacting with susceptibles within the system.
+            interacting with susceptibles within the system, used to impact force of infection.
         """
         # set up our return value
         external_i_compartment = jnp.zeros(
@@ -829,6 +837,17 @@ class BasicMechanisticModel:
             self.INITIAL_INFECTIONS = self.POP_SIZE * proportion_infected
 
     def build_cross_immunity_matrix(self):
+        """
+        Loads the Crossimmunity matrix given the strain interactions matrix.
+        Strain interactions matrix is a matrix of shape (num_strains, num_strains) representing the relative immune escape risk
+        of those who are being challenged by a strain in dim 0 but have recovered from a strain in dim 1.
+        Neither the strain interactions matrix nor the crossimmunity matrix take into account waning.
+        Updates
+        ----------
+        self.CROSSIMMUNITY_MATRIX:
+            updates this matrix to shape (self.NUM_STRAINS, self.NUM_PREV_INF_HIST) containing the relative immune escape
+            values for each challenging strain compared to each prior immune history in the model.
+        """
         self.CROSSIMMUNITY_MATRIX = utils.strain_interaction_to_cross_immunity(
             self.NUM_STRAINS, self.STRAIN_INTERACTIONS
         )
