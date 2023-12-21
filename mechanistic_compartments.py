@@ -68,8 +68,10 @@ class BasicMechanisticModel:
         # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
         # stratify initial infections appropriately across age, hist, vax counts
         if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
-            # TODO dont use gamma/sigma ratio, instead add the last_exposed column back into abm_population and use that
             self.load_init_infection_infected_and_exposed_dist_via_abm()
+
+        if self.VAX_MODEL_PARAMS is None:
+            self.load_vaccination_model()
         # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax, strain)
         # self.INIT_INFECTED_DIST.shape = (age, hist, num_vax, strain)
         # self.INIT_EXPOSED_DIST.shape = (age, hist, num_vax, strain)
@@ -812,6 +814,44 @@ class BasicMechanisticModel:
         self.CROSSIMMUNITY_MATRIX = utils.strain_interaction_to_cross_immunity(
             self.NUM_STRAINS, self.STRAIN_INTERACTIONS
         )
+
+    def load_vaccination_model(self):
+        """
+        loads parameters of a polynomial spline vaccination model stratified on age bin and current vaccination status.
+        """
+        parameters = pd.read_csv(self.VAX_MODEL_DATA)
+        age_bins = len(parameters["age_group"].unique())
+        vax_bins = len(parameters["vaccination"].unique())
+        # change this if you start using higher degree polynomials to fit vax model
+        polynomial_degree = 5
+        # add another to the degree dimensino for the intercept
+        polynomial_intercept = 1
+        assert age_bins == self.NUM_AGE_GROUPS, (
+            "the number of age bins in your model does not match the input vaccination parameters, "
+            + "please provide your own vaccination parameters that match, or adjust your age bins"
+        )
+
+        assert vax_bins == self.MAX_VAX_COUNT + 1, (
+            "the number of vaccination counts in your model does not match the input vaccination parameters, "
+            + "please provide your own vaccination parameters that match, or adjust your age bins"
+        )
+        vax_parameters = np.zeros(
+            (age_bins, vax_bins, polynomial_degree + polynomial_intercept)
+        )
+        vax_functions = np.empty((age_bins, vax_bins), dtype=np.dtype(object))
+        for row in parameters.itertuples():
+            _, age_group, vaccination, _ = row[0:4]
+            intersect_and_ts = row[4:]  # len(ts) = polynomial_degree + 1
+            age_group_idx = self.AGE_GROUP_IDX[age_group]
+            vax_idx = vaccination - 1
+            vax_parameters[age_group_idx, vax_idx, :] = np.array(
+                intersect_and_ts
+            )
+            vax_functions[age_group_idx, vax_idx] = np.polynomial.Polynomial(
+                intersect_and_ts
+            )
+        self.VAX_MODEL_PARAMETERS = vax_parameters
+        self.VAX_MODEL_FUNCTIONS = vax_functions
 
     def to_json(self, file):
         """

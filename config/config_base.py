@@ -25,6 +25,7 @@ class ConfigBase:
         self.DEMOGRAPHIC_DATA = "data/demographic-data/"
         self.SEROLOGICAL_DATA = "data/serological-data/"
         self.SIM_DATA = "data/abm_population.csv"
+        self.VAX_MODEL_DATA = "data/vax_model_poly_fits.csv"
         self.SAVE_PATH = "output/"
         # model initialization date DO NOT CHANGE
         self.INIT_DATE = datetime.date(2022, 2, 11)
@@ -101,6 +102,7 @@ class ConfigBase:
         self.INIT_EXPOSED_DIST = None
         self.INIT_IMMUNE_HISTORY = None
         self.INIT_INFECTED_DIST = None
+        self.VAX_MODEL_PARAMS = None
         # indexes ENUM for readability in code
         self.IDX = IntEnum("idx", ["S", "E", "I", "C"], start=0)
         self.S_AXIS_IDX = IntEnum(
@@ -126,6 +128,7 @@ class ConfigBase:
             str(self.AGE_LIMITS[i - 1]) + "-" + str(self.AGE_LIMITS[i] - 1)
             for i in range(1, len(self.AGE_LIMITS))
         ] + [str(self.AGE_LIMITS[-1]) + "+"]
+        self.AGE_GROUP_IDX = IntEnum("age", self.AGE_GROUP_STRS, start=0)
 
         self.NUM_STRAINS = len(self.STRAIN_SPECIFIC_R0)
 
@@ -176,10 +179,6 @@ class ConfigBase:
         # number of previous infection histories depends on the number of strains being tested.
         # can be either infected or not infected by each strain.
         self.NUM_PREV_INF_HIST = 2**self.NUM_STRAINS
-
-        self.VAX_MODEL_PARAMS = 0.2 * jnp.ones(
-            (self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)
-        )
         # Check that no values are incongruent with one another
         self.assert_valid_values()
 
@@ -201,6 +200,12 @@ class ConfigBase:
         )
         assert os.path.exists(self.SEROLOGICAL_DATA), (
             "%s is not a valid path" % self.SEROLOGICAL_DATA
+        )
+        assert os.path.exists(self.SIM_DATA), (
+            "%s is not a valid path" % self.SIM_DATA
+        )
+        assert os.path.exists(self.VAX_MODEL_DATA), (
+            "%s is not a valid path" % self.VAX_MODEL_DATA
         )
         assert self.MINIMUM_AGE >= 0, "no negative minimum ages, lowest is 0"
         assert (
