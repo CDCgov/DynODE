@@ -176,6 +176,39 @@ class ConfigBase:
                 t, loc=introduced_time, scale=2
             )
 
+        def base_equation(t):
+            return (3.265 * t) - (78.505 * t**2) + (768.17 * t**3) - 0.0127
+
+        def conditional_knots(t, knots, coefficients):
+            indicators = jnp.where(t > knots, t - knots, 0)
+            return jnp.sum(indicators**3 * coefficients, axis=-1)
+
+        def vax_function(t, knots, coefficients):
+            """
+            Returns the value of a cubic spline with knots and coefficients evaluated on day `t` for each age_bin x vax history combination.
+            Cubic spline equation f(t) = a + bt + ct^2 + dt^3 + sum_i_len(knots) {coef[i] * (t-knots[i])^3 * I(t > knots[i]) }
+
+            Where coef/knots[i] is the i'th index of each array. and the I() function is an indicator variable 1 or 0.
+
+            PARAMETERS
+            ----------
+            t: jax.tracer array
+                a jax tracer containing within it the time in days since model simulation start
+            knots: jnp.array()
+                knot locations of each cubic spline for all combinations of age bin and vax history
+                knots.shape=(NUM_AGE_GROUPS, MAX_VAX_COUTNT + 1, # knots in each spline)
+            coefficients: jnp.array()
+                knot coefficients of each cubic spline for all combinations of age bin and vax history
+                coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUTNT + 1, # knots in each spline)
+
+            Returns
+            ----------
+            jnp.array() containing the proportion of individuals in each age x vax combination that will be vaccinated during this time step.
+            """
+            base = base_equation(t / 878.0)
+            knots = conditional_knots(t / 878.0, knots, coefficients)
+            return base + knots
+
         # number of previous infection histories depends on the number of strains being tested.
         # can be either infected or not infected by each strain.
         self.NUM_PREV_INF_HIST = 2**self.NUM_STRAINS
