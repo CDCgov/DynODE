@@ -14,6 +14,7 @@ from diffrax import ODETerm, SaveAt, Solution, Tsit5, diffeqsolve
 from jax import jit
 from jax.random import PRNGKey
 from jax.scipy.stats.norm import pdf
+from numpyro import distributions as Dist
 from numpyro.infer import MCMC, NUTS
 
 import utils
@@ -152,17 +153,45 @@ class BasicMechanisticModel:
         }
         if sample:
             # if user provides parameters and distributions they wish to sample, sample those
-            if sample_dist_dict:
-                for key, dist in sample_dist_dict.items():
-                    args[key] = numpyro.sample(key, dist)
-            # otherwise, by default just sample the omicron excess r0
-            else:
-                default_sample_dict = {}
-                r0_omicron = utils.sample_r0()
-                strain_specific_r0 = list(self.STRAIN_SPECIFIC_R0)
-                strain_specific_r0[self.STRAIN_IDX.omicron] = r0_omicron
-                default_sample_dict["R0"] = jnp.asarray(strain_specific_r0)
-                args = dict(args, **default_sample_dict)
+            # otherwise, we simply sample infectious period and introduction times by default
+            if not sample_dist_dict:
+                sample_dist_dict = {
+                    "INFECTIOUS_PERIOD": Dist.TruncatedNormal(
+                        loc=10, scale=2, low=0
+                    ),
+                }
+                # introduction times are used by a different function, external_i, which is just in time compiled
+                # thus we set it as a part of self, rather than in args dict.
+                # if sampling is needed then
+                self.INTRODUCTION_TIMES_SAMPLE = [
+                    numpyro.sample(
+                        "INTRODUCTION_TIME_{}".format(i),
+                        Dist.TruncatedNormal(loc=intro_time, scale=20, low=0),
+                    )
+                    for i, intro_time in enumerate(self.INTRODUCTION_TIMES)
+                ]
+            # either using the default sample_dist_dict, or the one provided by the user
+            # transform these distributions into numpyro samples.
+            for key, item in sample_dist_dict.items():
+                # sometimes you may want to sample the elements of a list, like R0 for strains
+                # check for that here:
+                if isinstance(item, list):
+                    # build up a list of samples
+                    sample_list = jnp.zeros(shape=(len(item),))
+                    for i, dist in enumerate(item):
+                        # sometimes people pass a mixture of static and sampled values. check for numbers
+                        if isinstance(dist, (int, float)) and not isinstance(
+                            dist, bool
+                        ):
+                            sample = numpyro.deterministic(
+                                key + "_" + str(i), dist
+                            )
+                        else:
+                            sample = numpyro.sample(key + "_" + str(i), dist)
+                        sample_list = sample_list.at[i].set(sample)
+                    args[key] = sample_list
+                else:
+                    args[key] = numpyro.sample(key, item)
 
         # lets quickly update any values that depend on other parameters which may or may not be sampled.
         # set defaults if they are not in args aka not sampled.
@@ -200,17 +229,14 @@ class BasicMechanisticModel:
                 "SIGMA": sigma,
                 "GAMMA": gamma,
                 "WANING_RATES": waning_rates,
-                "EXTERNAL_I": partial(
-                    self.external_i,
-                    intro_times_sample=args.get("INTRODUCTION_TIMES", {}),
-                ),
+                "EXTERNAL_I": partial(self.external_i),
                 "VACCINATION_RATES": self.vaccination_rate,
             }
         )
         return args
 
     @partial(jit, static_argnums=(0))
-    def external_i(self, t, intro_times_sample={}):
+    def external_i(self, t):
         """
         Given some time t, returns jnp.array of shape self.INITIAL_STATE[self.IDX.I] representing external infected persons
         interacting with the population. it does so by calling some function f_s(t) for each strain s.
@@ -223,14 +249,11 @@ class BasicMechanisticModel:
             current time in the model, due to the just-in-time nature of Jax this float value may be contained within a
             traced array of shape () and size 1. Thus no explicit comparison should be done on "t".
 
-        `intro_times_sample`: list(numpyro.sample) or False
-            a list of numpyro samples for each of the strain introduction times, if sampling is happening. Otherwise False use config file defaults.
-
         Returns
         -----------
         external_i_compartment: jnp.array()
             jnp.array(shape=(self.INITIAL_STATE[self.IDX.I].shape)) of external individuals to the system
-            interacting with susceptibles within the system.
+            interacting with susceptibles within the system, used to impact force of infection.
         """
         # set up our return value
         external_i_compartment = jnp.zeros(
@@ -239,11 +262,11 @@ class BasicMechanisticModel:
         # default from the config
         external_i_distributions = self.EXTERNAL_I_DISTRIBUTIONS
         # pick sampled versions or defaults from config
-        if intro_times_sample:
+        if hasattr(self, "INTRODUCTION_TIMES_SAMPLE"):
             # if we are sampling, sample the introduction times and use it to inform our
             # external_i_distribution as the mean distribution day.
             for introduced_strain_idx, introduced_time_sampler in enumerate(
-                intro_times_sample
+                self.INTRODUCTION_TIMES_SAMPLE
             ):
                 dist_idx = self.NUM_STRAINS - introduced_strain_idx - 1
                 # use a normal PDF with std dv
@@ -292,6 +315,7 @@ class BasicMechanisticModel:
         self,
         incidence: list[int],
         model,
+        negbin=True,
         sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
     ):
         """
@@ -333,18 +357,34 @@ class BasicMechanisticModel:
         )
         # axis = 0 because we take diff across time
         model_incidence = jnp.diff(model_incidence, axis=0)
-        numpyro.sample(
-            "incidence",
-            numpyro.distributions.Poisson(model_incidence),
-            obs=incidence,
-        )
+
+        # sample infection hospitalization rate here
+        with numpyro.plate("num_age", self.NUM_AGE_GROUPS):
+            ihr = numpyro.sample("ihr", Dist.Beta(0.5, 10))
+
+        # scale model_incidence w ihr and apply Poisson or NB observation model
+        if negbin:
+            k = numpyro.sample("k", Dist.HalfCauchy(1.0))
+            numpyro.sample(
+                "incidence",
+                Dist.NegativeBinomial2(
+                    mean=model_incidence * ihr, concentration=k
+                ),
+                obs=incidence,
+            )
+        else:
+            numpyro.sample(
+                "incidence",
+                Dist.Poisson(model_incidence * ihr),
+                obs=incidence,
+            )
 
     def infer(
         self,
         model,
         incidence,
         sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
-        timesteps: int = 1000.0,
+        negbin=True,
     ):
         """
         Runs inference given some observed incidence and a model of transmission dynamics.
@@ -377,10 +417,10 @@ class BasicMechanisticModel:
         )
         mcmc.run(
             rng_key=PRNGKey(self.MCMC_PRNGKEY),
-            # times=np.linspace(0.0, timesteps, int(timesteps) + 1),
             incidence=incidence,
-            sample_dist_dict=sample_dist_dict,
             model=model,
+            negbin=negbin,
+            sample_dist_dict=sample_dist_dict,
         )
         mcmc.print_summary()
 
@@ -804,7 +844,6 @@ class BasicMechanisticModel:
         Strain interactions matrix is a matrix of shape (num_strains, num_strains) representing the relative immune escape risk
         of those who are being challenged by a strain in dim 0 but have recovered from a strain in dim 1.
         Neither the strain interactions matrix nor the crossimmunity matrix take into account waning.
-
         Updates
         ----------
         self.CROSSIMMUNITY_MATRIX:

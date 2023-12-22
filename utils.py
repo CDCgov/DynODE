@@ -1206,6 +1206,11 @@ def get_timeline_from_solution_with_command(
     a slice of the `sol` object collapsed into the first dimension of the command selected.
     eg: return.shape = sol[0].shape[0] since all first dimensions in sol are equal normally.
     """
+
+    def is_close(x):
+        return 0 if np.isclose(x, 0.0) else x
+
+    is_close_v = np.vectorize(is_close)
     # plot whole compartment
     if command in compartment_idx._member_names_:
         compartment = np.array(sol[compartment_idx[command]])
@@ -1222,6 +1227,13 @@ def get_timeline_from_solution_with_command(
         compartment = np.array(sol[compartment_idx["S"]])[
             :, :, :, :, w_idx[command]
         ]
+    # plot incidence, which is the diff of the C compartment.
+    elif command.lower().strip() == "incidence":
+        compartment = np.array(sol[compartment_idx["C"]])
+        compartment = np.sum(
+            compartment, axis=tuple(range(1, compartment.ndim))
+        )
+        return is_close_v(np.diff(compartment))
     # assuming explicit compartment, will explode if passed incorrect input
     else:
         compartment_slice = command[1:].strip()
@@ -1242,11 +1254,6 @@ def get_timeline_from_solution_with_command(
                 "Please review `utils/get_timeline_from_solution_with_command()` documentation"
             )
             return np.zeros(sol[compartment_idx["S"]].shape[0])
-
-    def is_close(x):
-        return 0 if np.isclose(x, 0.0) else x
-
-    is_close_v = np.vectorize(is_close)
     dimensions_to_sum_over = tuple(range(1, compartment.ndim))
     return is_close_v(np.sum(compartment, axis=dimensions_to_sum_over))
 

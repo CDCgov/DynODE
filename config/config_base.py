@@ -51,7 +51,7 @@ class ConfigBase:
         # R0 values of each strain, from oldest to newest. Including R0 for introduced strains
         self.STRAIN_SPECIFIC_R0 = jnp.array([1.2, 1.8, 3.0])  # R0s
         # days after model initialization when new strains are externally introduced
-        self.INTRODUCTION_TIMES = [120]
+        self.INTRODUCTION_TIMES = [60]
         # the percentage of the total population as a float who are externally introduced with the new strain.
         self.INTRODUCTION_PERCENTAGE = 0.01
         # mask of what age bins to introduce external infected populations as.
