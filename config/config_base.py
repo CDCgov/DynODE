@@ -176,6 +176,23 @@ class ConfigBase:
                 t, loc=introduced_time, scale=2
             )
 
+        # Vaccination modeling, using cubic splines to model vax uptake in the population stratified by age and current vax shot.
+        self.BASE_VAX_KNOTS = jnp.array(
+            [
+                ([0.05, 0.1667, 0.3333, 0.5, 0.6667, 0.8333],)
+                * (self.MAX_VAX_COUNT + 1)
+            ]
+            * self.NUM_AGE_GROUPS
+        )
+
+        self.BASE_VAX_COEFS = jnp.array(
+            [
+                ([-924.97, 197.96, -54.31, 25.03, -18.44, 14.12],)
+                * (self.MAX_VAX_COUNT + 1)
+            ]
+            * self.NUM_AGE_GROUPS
+        )
+
         def base_equation(t):
             return (3.265 * t) - (78.505 * t**2) + (768.17 * t**3) - 0.0127
 
@@ -183,7 +200,7 @@ class ConfigBase:
             indicators = jnp.where(t > knots, t - knots, 0)
             return jnp.sum(indicators**3 * coefficients, axis=-1)
 
-        def vax_function(t, knots, coefficients):
+        def VAX_FUNCTION(t, knots, coefficients):
             """
             Returns the value of a cubic spline with knots and coefficients evaluated on day `t` for each age_bin x vax history combination.
             Cubic spline equation f(t) = a + bt + ct^2 + dt^3 + sum_i_len(knots) {coef[i] * (t-knots[i])^3 * I(t > knots[i]) }
@@ -209,6 +226,7 @@ class ConfigBase:
             knots = conditional_knots(t / 878.0, knots, coefficients)
             return base + knots
 
+        self.VAX_FUNCTION = VAX_FUNCTION
         # number of previous infection histories depends on the number of strains being tested.
         # can be either infected or not infected by each strain.
         self.NUM_PREV_INF_HIST = 2**self.NUM_STRAINS

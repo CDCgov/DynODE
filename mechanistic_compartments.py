@@ -286,7 +286,7 @@ class BasicMechanisticModel:
         vaccination_rates: jnp.array()
             jnp.array(shape=(self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
         """
-        return self.VAX_MODEL_PARAMS * jnp.exp(-self.VAX_MODEL_PARAMS * t)
+        return self.VAX_FUNCTION(t, self.BASE_VAX_KNOTS, self.BASE_VAX_COEFS)
 
     def incidence(
         self,
