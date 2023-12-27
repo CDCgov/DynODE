@@ -312,7 +312,9 @@ class BasicMechanisticModel:
         vaccination_rates: jnp.array()
             jnp.array(shape=(self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
         """
-        return self.VAX_FUNCTION(t, self.BASE_VAX_KNOTS, self.BASE_VAX_COEFS)
+        return self.VAX_FUNCTION(
+            t, self.VAX_MODEL_KNOTS, self.VAX_MODEL_PARAMETERS
+        )
 
     def incidence(
         self,
@@ -881,9 +883,7 @@ class BasicMechanisticModel:
         age_bins = len(parameters["age_group"].unique())
         vax_bins = len(parameters["vaccination"].unique())
         # change this if you start using higher degree polynomials to fit vax model
-        polynomial_degree = 5
-        # add another to the degree dimensino for the intercept
-        polynomial_intercept = 1
+        num_parameters = len(parameters.columns) - 2
         assert age_bins == self.NUM_AGE_GROUPS, (
             "the number of age bins in your model does not match the input vaccination parameters, "
             + "please provide your own vaccination parameters that match, or adjust your age bins"
@@ -893,23 +893,16 @@ class BasicMechanisticModel:
             "the number of vaccination counts in your model does not match the input vaccination parameters, "
             + "please provide your own vaccination parameters that match, or adjust your age bins"
         )
-        vax_parameters = np.zeros(
-            (age_bins, vax_bins, polynomial_degree + polynomial_intercept)
-        )
-        vax_functions = np.empty((age_bins, vax_bins), dtype=np.dtype(object))
+        vax_parameters = np.zeros((age_bins, vax_bins, num_parameters))
         for row in parameters.itertuples():
-            _, age_group, vaccination, _ = row[0:4]
-            intersect_and_ts = row[4:]  # len(ts) = polynomial_degree + 1
+            _, age_group, vaccination = row[0:3]
+            intersect_and_ts = row[3:]
             age_group_idx = self.AGE_GROUP_IDX[age_group]
             vax_idx = vaccination - 1
             vax_parameters[age_group_idx, vax_idx, :] = np.array(
                 intersect_and_ts
             )
-            vax_functions[age_group_idx, vax_idx] = np.polynomial.Polynomial(
-                intersect_and_ts
-            )
-        self.VAX_MODEL_PARAMETERS = vax_parameters
-        self.VAX_MODEL_FUNCTIONS = vax_functions
+        self.VAX_MODEL_PARAMETERS = jnp.array(vax_parameters)
 
     def to_json(self, file):
         """

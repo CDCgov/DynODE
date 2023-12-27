@@ -27,7 +27,7 @@ class ConfigBase:
         self.DEMOGRAPHIC_DATA = "data/demographic-data/"
         self.SEROLOGICAL_DATA = "data/serological-data/"
         self.SIM_DATA = "data/abm_population.csv"
-        self.VAX_MODEL_DATA = "data/vax_model_poly_fits.csv"
+        self.VAX_MODEL_DATA = "data/spline_fits.csv"
         self.SAVE_PATH = "output/"
         # model initialization date DO NOT CHANGE
         self.INIT_DATE = datetime.date(2022, 2, 11)
@@ -185,28 +185,45 @@ class ConfigBase:
             )
 
         # Vaccination modeling, using cubic splines to model vax uptake in the population stratified by age and current vax shot.
-        self.BASE_VAX_KNOTS = jnp.array(
-            [
-                ([0.05, 0.1667, 0.3333, 0.5, 0.6667, 0.8333],)
-                * (self.MAX_VAX_COUNT + 1)
-            ]
-            * self.NUM_AGE_GROUPS
-        )
-
-        self.BASE_VAX_COEFS = jnp.array(
-            [
-                ([-924.97, 197.96, -54.31, 25.03, -18.44, 14.12],)
-                * (self.MAX_VAX_COUNT + 1)
-            ]
-            * self.NUM_AGE_GROUPS
-        )
-
-        def base_equation(t):
-            return (3.265 * t) - (78.505 * t**2) + (768.17 * t**3) - 0.0127
+        def base_equation(t, coefficients):
+            """
+            the base of a spline equation, without knots, follows a simple cubic formula
+            a + bt + ct^2 + dt^3. This is a vectorized version of this equation which takes in
+            a matrix of `a` values, as well as a marix of `b`, `c`, and `d` coefficients.
+            PARAMETERS
+            ----------
+            t: jax.tracer array
+                a jax tracer containing within it the time in days since model simulation start
+            intercepts: jnp.array()
+                intercepts of each cubic spline base equation for all combinations of age bin and vax history
+                intercepts.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1)
+            coefficients: jnp.array()
+                coefficients of each cubic spline base equation for all combinations of age bin and vax history
+                coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, 3)
+            """
+            return jnp.sum(
+                coefficients
+                * jnp.array([1, t, t**2, t**3])[
+                    jnp.newaxis, jnp.newaxis, :
+                ],
+                axis=-1,
+            )
 
         def conditional_knots(t, knots, coefficients):
             indicators = jnp.where(t > knots, t - knots, 0)
             return jnp.sum(indicators**3 * coefficients, axis=-1)
+
+        # days of separation between each knot
+        self.VAX_MODEL_KNOT_SEPARATION = 7
+        self.VAX_MODEL_KNOTS = jnp.array(
+            list(
+                range(
+                    self.VAX_MODEL_KNOT_SEPARATION,
+                    449,
+                    self.VAX_MODEL_KNOT_SEPARATION,
+                )
+            )
+        )
 
         def VAX_FUNCTION(t, knots, coefficients):
             """
@@ -221,17 +238,20 @@ class ConfigBase:
                 a jax tracer containing within it the time in days since model simulation start
             knots: jnp.array()
                 knot locations of each cubic spline for all combinations of age bin and vax history
-                knots.shape=(NUM_AGE_GROUPS, MAX_VAX_COUTNT + 1, # knots in each spline)
+                knots.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline)
             coefficients: jnp.array()
-                knot coefficients of each cubic spline for all combinations of age bin and vax history
-                coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUTNT + 1, # knots in each spline)
+                knot coefficients of each cubic spline for all combinations of age bin and vax history.
+                including first 4 coefficients for the base equation.
+                coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline + 4)
 
             Returns
             ----------
             jnp.array() containing the proportion of individuals in each age x vax combination that will be vaccinated during this time step.
             """
-            base = base_equation(t / 878.0)
-            knots = conditional_knots(t / 878.0, knots, coefficients)
+            base = base_equation(t, coefficients.at[:, :, 0:4].get())
+            knots = conditional_knots(
+                t, knots, coefficients.at[:, :, 4:].get()
+            )
             return base + knots
 
         self.VAX_FUNCTION = VAX_FUNCTION
