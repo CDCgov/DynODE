@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import warnings
 from enum import EnumMeta
 from functools import partial
 
@@ -16,6 +17,8 @@ from jax.random import PRNGKey
 from jax.scipy.stats.norm import pdf
 from numpyro import distributions as Dist
 from numpyro.infer import MCMC, NUTS
+from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 
 import utils
 from config.config_base import ConfigBase as config
@@ -505,7 +508,7 @@ class BasicMechanisticModel:
     def plot_diffrax_solution(
         self,
         sol: Solution,
-        plot_commands: list[str] = ["s", "e", "i", "c"],
+        plot_commands: list[str] = ["S", "E", "I", "C"],
         save_path: str = None,
         log_scale: bool = False,
     ):
@@ -523,6 +526,11 @@ class BasicMechanisticModel:
         save_path : str, optional
             if `save_path = None` do not save figure to output directory. Otherwise save to relative path `save_path`
             attaching meta data of the self object.
+
+        Returns
+        ----------
+        fig, ax : matplotlib.Figure/axis object
+            objects containing the matplotlib figure and axis for further modifications if needed.
         """
         plot_commands = [x.strip() for x in plot_commands]
         sol = sol.ys
@@ -554,9 +562,17 @@ class BasicMechanisticModel:
         if log_scale:
             ax.set_yscale("log")
         if save_path:
-            fig.savefig(save_path)
-            with open(save_path + "_meta.json", "w") as meta:
-                self.to_json(meta)
+            metadata = PngInfo()
+            if self.GIT_REPO.is_dirty():
+                warnings.warn(
+                    """\n Uncommitted Changes Warning: In order to ensure replicability of your image,
+                    please commit/push your changes so that the commit
+                    hash may be saved in the meta data of this image, along with config parameters. \n
+                    Reproducibility is pivotal to science!"""
+                )
+            for key, val in self.__dict__.items():
+                metadata.add_text(key, str(val))
+            fig.savefig(save_path, pil_kwargs={"pnginfo": metadata})
         return fig, ax
 
     def plot_initial_serology(self, save_path=None, show=True):
@@ -613,9 +629,10 @@ class BasicMechanisticModel:
         if show:
             fig.show()
         if save_path:
-            fig.savefig(save_path)
-            with open(save_path + "_meta.json", "w") as meta:
-                self.to_json(meta)
+            metadata = PngInfo()
+            for key, val in self.__dict__.items():
+                metadata.add_text(key, str(val))
+            fig.savefig(save_path, pil_kwargs={"pnginfo": metadata})
         return fig, ax
 
     def load_immune_history_via_serology(self):
@@ -633,6 +650,7 @@ class BasicMechanisticModel:
             the proportions of the total population for each age bin defined as waning, or within x `self.WANING_TIME`s of infection. where x is the waning compartment
             has a shape of (`self.NUM_AGE_GROUPS`, `self.NUM_PREV_INF_HIST`, `self.MAX_VAX_COUNT + 1`, `self.NUM_WANING_COMPARTMENTS`)
         """
+        warnings.warn("DEPRECATED WARNING: function is deprecated")
         sero_path = (
             self.SEROLOGICAL_DATA
             + "Nationwide_Commercial_Laboratory_Seroprevalence_Survey_20231018.csv"
@@ -738,6 +756,7 @@ class BasicMechanisticModel:
             proportion of INIT_INFECTION_DIST that falls into infected compartment, formatted into the omicron strain.
             INIT_INFECTED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
         """
+        warnings.warn("DEPRECATED WARNING: function is deprecated")
         # base infection distribution on the currently freshly recovered individuals.
         # TODO this is a problem because we dont know if those in 0 waning are there due to nat
         # infection or there due to vaccination. So what we will do is pick those who are infected with omicron
@@ -924,7 +943,10 @@ class BasicMechanisticModel:
                     res = "error not serializable"
                 return res
 
-        return json.dump(self.__dict__, file, indent=4, cls=CustomEncoder)
+        if file:
+            return json.dump(self.__dict__, file, indent=4, cls=CustomEncoder)
+        else:  # if given empty file, just return JSON string
+            return json.dumps(self.__dict__, indent=4, cls=CustomEncoder)
 
 
 def build_basic_mechanistic_model(config: config):
@@ -935,5 +957,57 @@ def build_basic_mechanistic_model(config: config):
     ----------
     config : ConfigBase
         a configuration object of type `ConfigBase` or inherits from `ConfigBase`
+
+    Returns
+    ----------
+    BasicMechanisticModel with parameters from the config file.
     """
     return BasicMechanisticModel(**config.__dict__)
+
+
+def build_model_from_figure(im_path: str, backup_config: config):
+    """
+    A builder function meant to take in an image and associated meta data and reconstruct the model that generated the image.
+    Using a backup config file to fill in any missing parameters if they exist.
+
+    Note: if you wish to ensure full reproducibility you must also revert your repository to the commit hash printed by this function.
+
+    Parameters
+    ----------
+    im_path: str
+        path to image you wish to copy model parameters from
+
+    backup_config: config
+        a config file, ideally config_base, from which types are infered, and missing parameters are filled in.
+
+    Returns
+    ----------
+    BasicMechanisticModel with parameters from the meta data of the image. Returns None if meta data does not exist.
+    """
+    im = Image.open(im_path)
+    metadata = im.text
+    if not metadata:
+        print(
+            "image passed does not contain metadata, unable to recreate associated model"
+        )
+        return None
+    if not metadata["GIT_HASH"]:
+        print(
+            "metadata does not contain git hash, code associated with this image irretrievable"
+        )
+    else:
+        print("git hash of the config: " + str(backup_config.GIT_HASH))
+        print("git hash of the figure: " + metadata["GIT_HASH"])
+        print(
+            "if these values dont line up, you may get errors or unexpected behavior."
+        )
+    image_config = backup_config.__dict__
+    for key, val in metadata.items():
+        if key in backup_config.__dict__:
+            obj_type = type(backup_config.__dict__[key])
+            if not isinstance(val, obj_type):
+                val = obj_type(val)
+            image_config[key] = val
+    # cast to config obj so assert_valid_values can catch any obviously wrong params
+    image_config = config(image_config)
+    return BasicMechanisticModel(**image_config)

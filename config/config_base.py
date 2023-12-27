@@ -1,7 +1,9 @@
 import datetime
 import os
+import subprocess
 from enum import IntEnum
 
+import git
 import jax.numpy as jnp
 from jax.scipy.stats.norm import pdf
 
@@ -121,6 +123,12 @@ class ConfigBase:
 
         # now update all parameters from kwargs, overriding the defaults if they are explicitly set
         self.__dict__.update(kwargs)
+        self.GIT_HASH = (
+            subprocess.check_output(["git", "rev-parse", "HEAD"])
+            .decode("ascii")
+            .strip()
+        )
+        self.GIT_REPO = git.Repo()
         # some config params rely on other config params which may have just changed!
         # set those config params below now that everything is updated to a possible scenario.
         self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
@@ -173,7 +181,7 @@ class ConfigBase:
             dist_idx = self.NUM_STRAINS - introduced_strain_idx - 1
             # use a normal PDF with std dv
             self.EXTERNAL_I_DISTRIBUTIONS[dist_idx] = lambda t: pdf(
-                t, loc=introduced_time, scale=2
+                t, loc=introduced_time, scale=7
             )
 
         # Vaccination modeling, using cubic splines to model vax uptake in the population stratified by age and current vax shot.
