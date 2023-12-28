@@ -1203,14 +1203,18 @@ def get_timeline_from_solution_with_command(
 
     Returns
     ----------
-    a slice of the `sol` object collapsed into the first dimension of the command selected.
+    tuple(jnp.array, str):
+        a slice of the `sol` object collapsed into the first dimension of the command selected.
     eg: return.shape = sol[0].shape[0] since all first dimensions in sol are equal normally.
+        label: a string with the label of the new line,
+    this helps with interpretability as commands sometimes lack necessary context
     """
 
     def is_close(x):
         return 0 if np.isclose(x, 0.0) else x
 
     is_close_v = np.vectorize(is_close)
+    label = command
     # plot whole compartment
     if command in compartment_idx._member_names_:
         compartment = np.array(sol[compartment_idx[command]])
@@ -1222,6 +1226,7 @@ def get_timeline_from_solution_with_command(
             exposed[:, :, :, :, strain_idx[command]]
             + infected[:, :, :, :, strain_idx[command]]
         )
+        label = "E + I : " + label
     # plot members of a wane compartment
     elif command in w_idx._member_names_:
         compartment = np.array(sol[compartment_idx["S"]])[
@@ -1233,7 +1238,8 @@ def get_timeline_from_solution_with_command(
         compartment = np.sum(
             compartment, axis=tuple(range(1, compartment.ndim))
         )
-        return is_close_v(np.diff(compartment))
+        label = "I : " + label
+        return is_close_v(np.diff(compartment)), label
     # assuming explicit compartment, will explode if passed incorrect input
     else:
         compartment_slice = command[1:].strip()
@@ -1253,9 +1259,10 @@ def get_timeline_from_solution_with_command(
             print(
                 "Please review `utils/get_timeline_from_solution_with_command()` documentation"
             )
-            return np.zeros(sol[compartment_idx["S"]].shape[0])
+            return np.zeros(sol[compartment_idx["S"]].shape[0]), "Error"
     dimensions_to_sum_over = tuple(range(1, compartment.ndim))
-    return is_close_v(np.sum(compartment, axis=dimensions_to_sum_over))
+    # compartment = np.nan_to_num(compartment, copy=True, nan=0.0)
+    return is_close_v(np.sum(compartment, axis=dimensions_to_sum_over)), label
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

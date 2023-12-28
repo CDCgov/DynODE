@@ -1,7 +1,10 @@
 import datetime
 import os
+import subprocess
 from enum import IntEnum
 
+import git
+import jax
 import jax.numpy as jnp
 from jax.scipy.stats.norm import pdf
 
@@ -25,6 +28,7 @@ class ConfigBase:
         self.DEMOGRAPHIC_DATA = "data/demographic-data/"
         self.SEROLOGICAL_DATA = "data/serological-data/"
         self.SIM_DATA = "data/abm_population.csv"
+        self.VAX_MODEL_DATA = "data/spline_fits.csv"
         self.SAVE_PATH = "output/"
         # model initialization date DO NOT CHANGE
         self.INIT_DATE = datetime.date(2022, 2, 11)
@@ -101,6 +105,7 @@ class ConfigBase:
         self.INIT_EXPOSED_DIST = None
         self.INIT_IMMUNE_HISTORY = None
         self.INIT_INFECTED_DIST = None
+        self.VAX_MODEL_PARAMS = None
         # indexes ENUM for readability in code
         self.IDX = IntEnum("idx", ["S", "E", "I", "C"], start=0)
         self.S_AXIS_IDX = IntEnum(
@@ -119,6 +124,12 @@ class ConfigBase:
 
         # now update all parameters from kwargs, overriding the defaults if they are explicitly set
         self.__dict__.update(kwargs)
+        self.GIT_HASH = (
+            subprocess.check_output(["git", "rev-parse", "HEAD"])
+            .decode("ascii")
+            .strip()
+        )
+        self.GIT_REPO = git.Repo()
         # some config params rely on other config params which may have just changed!
         # set those config params below now that everything is updated to a possible scenario.
         self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
@@ -126,6 +137,7 @@ class ConfigBase:
             str(self.AGE_LIMITS[i - 1]) + "-" + str(self.AGE_LIMITS[i] - 1)
             for i in range(1, len(self.AGE_LIMITS))
         ] + [str(self.AGE_LIMITS[-1]) + "+"]
+        self.AGE_GROUP_IDX = IntEnum("age", self.AGE_GROUP_STRS, start=0)
 
         self.NUM_STRAINS = len(self.STRAIN_SPECIFIC_R0)
 
@@ -170,16 +182,86 @@ class ConfigBase:
             dist_idx = self.NUM_STRAINS - introduced_strain_idx - 1
             # use a normal PDF with std dv
             self.EXTERNAL_I_DISTRIBUTIONS[dist_idx] = lambda t: pdf(
-                t, loc=introduced_time, scale=2
+                t, loc=introduced_time, scale=7
             )
 
+        # Vaccination modeling, using cubic splines to model vax uptake in the population stratified by age and current vax shot.
+        def base_equation(t, coefficients):
+            """
+            the base of a spline equation, without knots, follows a simple cubic formula
+            a + bt + ct^2 + dt^3. This is a vectorized version of this equation which takes in
+            a matrix of `a` values, as well as a marix of `b`, `c`, and `d` coefficients.
+            PARAMETERS
+            ----------
+            t: jax.tracer array
+                a jax tracer containing within it the time in days since model simulation start
+            intercepts: jnp.array()
+                intercepts of each cubic spline base equation for all combinations of age bin and vax history
+                intercepts.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1)
+            coefficients: jnp.array()
+                coefficients of each cubic spline base equation for all combinations of age bin and vax history
+                coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, 3)
+            """
+            # we are taking the derivative of the base equation, so t^2 becomes 2t
+            # and t^3 becomes 3t^2, drop the intercept
+            return jnp.sum(
+                coefficients
+                * jnp.array([0, 1, 2 * t, 3 * t**2])[
+                    jnp.newaxis, jnp.newaxis, :
+                ],
+                axis=-1,
+            )
+
+        def conditional_knots(t, knots, coefficients):
+            indicators = jnp.where(t > knots, t - knots, 0)
+            # multiply coefficients by 3 since we taking derivative of cubic spline.
+            return jnp.sum(indicators**2 * (3 * coefficients), axis=-1)
+
+        # days of separation between each knot
+        self.VAX_MODEL_KNOT_SEPARATION = 7
+        self.VAX_MODEL_KNOTS = jnp.array(
+            list(
+                range(
+                    self.VAX_MODEL_KNOT_SEPARATION,
+                    449,
+                    self.VAX_MODEL_KNOT_SEPARATION,
+                )
+            )
+        )
+
+        def VAX_FUNCTION(t, knots, coefficients):
+            """
+            Returns the value of a cubic spline with knots and coefficients evaluated on day `t` for each age_bin x vax history combination.
+            Cubic spline equation f(t) = a + bt + ct^2 + dt^3 + sum_i_len(knots) {coef[i] * (t-knots[i])^3 * I(t > knots[i]) }
+
+            Where coef/knots[i] is the i'th index of each array. and the I() function is an indicator variable 1 or 0.
+
+            PARAMETERS
+            ----------
+            t: jax.tracer array
+                a jax tracer containing within it the time in days since model simulation start
+            knots: jnp.array()
+                knot locations of each cubic spline for all combinations of age bin and vax history
+                knots.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline)
+            coefficients: jnp.array()
+                knot coefficients of each cubic spline for all combinations of age bin and vax history.
+                including first 4 coefficients for the base equation.
+                coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline + 4)
+
+            Returns
+            ----------
+            jnp.array() containing the proportion of individuals in each age x vax combination that will be vaccinated during this time step.
+            """
+            base = base_equation(t, coefficients.at[:, :, 0:4].get())
+            knots = conditional_knots(
+                t, knots, coefficients.at[:, :, 4:].get()
+            )
+            return jax.nn.relu(base + knots)
+
+        self.VAX_FUNCTION = VAX_FUNCTION
         # number of previous infection histories depends on the number of strains being tested.
         # can be either infected or not infected by each strain.
         self.NUM_PREV_INF_HIST = 2**self.NUM_STRAINS
-
-        self.VAX_MODEL_PARAMS = 0.2 * jnp.ones(
-            (self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)
-        )
         # Check that no values are incongruent with one another
         self.assert_valid_values()
 
@@ -201,6 +283,12 @@ class ConfigBase:
         )
         assert os.path.exists(self.SEROLOGICAL_DATA), (
             "%s is not a valid path" % self.SEROLOGICAL_DATA
+        )
+        assert os.path.exists(self.SIM_DATA), (
+            "%s is not a valid path" % self.SIM_DATA
+        )
+        assert os.path.exists(self.VAX_MODEL_DATA), (
+            "%s is not a valid path" % self.VAX_MODEL_DATA
         )
         assert self.MINIMUM_AGE >= 0, "no negative minimum ages, lowest is 0"
         assert (
