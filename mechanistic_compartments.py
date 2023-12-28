@@ -513,6 +513,8 @@ class BasicMechanisticModel:
         plot_commands: list[str] = ["S", "E", "I", "C"],
         save_path: str = None,
         log_scale: bool = False,
+        fig: plt.figure = None,
+        ax: plt.axis = None,
     ):
         """
         plots a run from diffeqsolve() with `plot_commands` returning figure and axis.
@@ -528,6 +530,10 @@ class BasicMechanisticModel:
         save_path : str, optional
             if `save_path = None` do not save figure to output directory. Otherwise save to relative path `save_path`
             attaching meta data of the self object.
+        fig: matplotlib.pyplot.figure
+            if this plot is part of a larger subplots, pass the figure object here, otherwise one is created
+        ax: matplotlib.pyplot.axis
+            if this plot is part of a larger subplots, pass the specific axis object here, otherwise one is created
 
         Returns
         ----------
@@ -536,9 +542,13 @@ class BasicMechanisticModel:
         """
         plot_commands = [x.strip() for x in plot_commands]
         sol = sol.ys
-        fig, ax = plt.subplots(1)
+        if fig is None or ax is None:
+            fig, ax = plt.subplots(1)
+            ax.set_title(
+                "Population count by compartment across all ages and strains"
+            )
         for command in plot_commands:
-            timeline = utils.get_timeline_from_solution_with_command(
+            timeline, label = utils.get_timeline_from_solution_with_command(
                 sol,
                 self.IDX,
                 self.W_IDX,
@@ -552,14 +562,10 @@ class BasicMechanisticModel:
             ax.plot(
                 x_axis,
                 timeline,
-                label=command,
+                label=label,
             )
-        fig.legend()
-        ax.set_title(
-            "Population count by compartment across all ages and strains"
-        )
         ax.tick_params(axis="x", labelrotation=45)
-        ax.set_xlabel("Days since scenario start")
+        ax.legend()
         ax.set_ylabel("Population Count")
         if log_scale:
             ax.set_yscale("log")

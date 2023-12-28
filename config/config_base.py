@@ -4,6 +4,7 @@ import subprocess
 from enum import IntEnum
 
 import git
+import jax
 import jax.numpy as jnp
 from jax.scipy.stats.norm import pdf
 
@@ -201,9 +202,11 @@ class ConfigBase:
                 coefficients of each cubic spline base equation for all combinations of age bin and vax history
                 coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, 3)
             """
+            # we are taking the derivative of the base equation, so t^2 becomes 2t
+            # and t^3 becomes 3t^2, drop the intercept
             return jnp.sum(
                 coefficients
-                * jnp.array([1, t, t**2, t**3])[
+                * jnp.array([0, 1, 2 * t, 3 * t**2])[
                     jnp.newaxis, jnp.newaxis, :
                 ],
                 axis=-1,
@@ -211,7 +214,8 @@ class ConfigBase:
 
         def conditional_knots(t, knots, coefficients):
             indicators = jnp.where(t > knots, t - knots, 0)
-            return jnp.sum(indicators**3 * coefficients, axis=-1)
+            # multiply coefficients by 3 since we taking derivative of cubic spline.
+            return jnp.sum(indicators**2 * (3 * coefficients), axis=-1)
 
         # days of separation between each knot
         self.VAX_MODEL_KNOT_SEPARATION = 7
@@ -252,7 +256,7 @@ class ConfigBase:
             knots = conditional_knots(
                 t, knots, coefficients.at[:, :, 4:].get()
             )
-            return base + knots
+            return jax.nn.relu(base + knots)
 
         self.VAX_FUNCTION = VAX_FUNCTION
         # number of previous infection histories depends on the number of strains being tested.
