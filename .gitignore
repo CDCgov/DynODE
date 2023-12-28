@@ -53,6 +53,7 @@ testing.py
 !output/base_model_initial_immune_distribution.png_meta.json
 !misc/scenarios_seip_model_diagram_cdc_blue.png
 !requirements.txt
+!data/spline_fits.csv
 
 #####
 # Python
