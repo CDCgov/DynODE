@@ -1238,7 +1238,7 @@ def get_timeline_from_solution_with_command(
         compartment = np.sum(
             compartment, axis=tuple(range(1, compartment.ndim))
         )
-        label = "I : " + label
+        label = "E : " + label
         return is_close_v(np.diff(compartment)), label
     # assuming explicit compartment, will explode if passed incorrect input
     else:

@@ -593,11 +593,14 @@ class BasicMechanisticModel:
             x_axis = [
                 self.INIT_DATE + datetime.timedelta(days=day) for day in days
             ]
-            ax.plot(
-                x_axis,
-                timeline,
-                label=label,
-            )
+            if command == "incidence":
+                ax.scatter(x_axis, timeline, label=label, s=1)
+            else:
+                ax.plot(
+                    x_axis,
+                    timeline,
+                    label=label,
+                )
         ax.tick_params(axis="x", labelrotation=45)
         ax.legend()
         ax.set_ylabel("Population Count")
