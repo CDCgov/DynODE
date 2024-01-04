@@ -5,14 +5,20 @@ import warnings
 from enum import EnumMeta
 from functools import partial
 
-import diffrax
 import jax.config
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import numpyro
 import pandas as pd
-from diffrax import ODETerm, PIDController, SaveAt, Solution
+from diffrax import (
+    ODETerm,
+    PIDController,
+    SaveAt,
+    Solution,
+    Tsit5,
+    diffeqsolve,
+)
 from jax import jit
 from jax.random import PRNGKey
 from jax.scipy.stats.norm import pdf
@@ -494,11 +500,11 @@ class BasicMechanisticModel:
         term = ODETerm(
             lambda t, state, parameters: model(state, t, parameters)
         )
-        solver = diffrax.Tsit5()
+        solver = Tsit5()
         t0 = 0.0
         dt0 = 1.0
         saveat = SaveAt(ts=jnp.linspace(t0, tf, int(tf) + 1))
-        solution = diffrax.diffeqsolve(
+        solution = diffeqsolve(
             term,
             solver,
             t0,
