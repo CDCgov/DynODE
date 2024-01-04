@@ -259,6 +259,11 @@ class ConfigBase:
             return jax.nn.relu(base + knots)
 
         self.VAX_FUNCTION = VAX_FUNCTION
+
+        # times at which the beta value in transmission dynamics may need to be adjusted
+        self.BETA_TIMES = jnp.array([0.0, 120.0, 150])
+        # coefficients that the beta value will be multiplied with at time t in BETA_TIMES
+        self.BETA_COEFICIENTS = jnp.array([1.0, 1.0, 1.0])
         # number of previous infection histories depends on the number of strains being tested.
         # can be either infected or not infected by each strain.
         self.NUM_PREV_INF_HIST = 2**self.NUM_STRAINS

@@ -59,10 +59,12 @@ def seip_ode(state, t, parameters):
         jnp.zeros(i.shape),
         jnp.zeros(c.shape),
     )
+    beta_coef = p.BETA_COEF(t)
     # CALCULATING SUCCESSFULL INFECTIONS OF (partially) SUSCEPTIBLE INDIVIDUALS
     force_of_infection = (
         (
             p.BETA
+            * beta_coef
             * jnp.einsum("ab,bijk->ak", p.CONTACT_MATRIX, i + p.EXTERNAL_I(t))
         ).transpose()
         / p.POPULATION

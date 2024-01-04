@@ -5,13 +5,14 @@ import warnings
 from enum import EnumMeta
 from functools import partial
 
+import diffrax
 import jax.config
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import numpyro
 import pandas as pd
-from diffrax import ODETerm, SaveAt, Solution, Tsit5, diffeqsolve
+from diffrax import ODETerm, PIDController, SaveAt, Solution
 from jax import jit
 from jax.random import PRNGKey
 from jax.scipy.stats.norm import pdf
@@ -128,7 +129,7 @@ class BasicMechanisticModel:
         https://docs.kidger.site/diffrax/api/terms/#diffrax.ODETerm
 
         for example functions f() in charge of disease dynamics see the model_odes folder.
-        if sample=True, and no sample_dist_dict supplied, omicron strain beta and waning protections are automatically sampled.
+        if sample=True, and no sample_dist_dict supplied, infectious period and BA1.1 introduction time are automatically sampled.
 
         Parameters
         ----------
@@ -144,7 +145,6 @@ class BasicMechanisticModel:
         """
         args = {
             "CONTACT_MATRIX": self.CONTACT_MATRIX,
-            "VACCINATION_RATE": self.VACCINATION_RATE,
             "POPULATION": self.POPULATION,
             "NUM_STRAINS": self.NUM_STRAINS,
             "NUM_AGE_GROUPS": self.NUM_AGE_GROUPS,
@@ -159,17 +159,18 @@ class BasicMechanisticModel:
             # otherwise, we simply sample infectious period and introduction times by default
             if not sample_dist_dict:
                 sample_dist_dict = {
+                    # warning: decreasing floor of INFECTIOUS_PERIOD causes more steps to be taken by solvers
                     "INFECTIOUS_PERIOD": Dist.TruncatedNormal(
-                        loc=10, scale=2, low=0
+                        loc=10, scale=2, low=1.0
                     ),
                 }
-                # introduction times are used by a different function, external_i, which is just in time compiled
+                # introduction times are used by a different function, self.external_i, which is just in time compiled
                 # thus we set it as a part of self, rather than in args dict.
                 # if sampling is needed then
                 self.INTRODUCTION_TIMES_SAMPLE = [
                     numpyro.sample(
                         "INTRODUCTION_TIME_{}".format(i),
-                        Dist.TruncatedNormal(loc=intro_time, scale=20, low=0),
+                        Dist.TruncatedNormal(loc=intro_time, scale=20, low=10),
                     )
                     for i, intro_time in enumerate(self.INTRODUCTION_TIMES)
                 ]
@@ -234,6 +235,7 @@ class BasicMechanisticModel:
                 "WANING_RATES": waning_rates,
                 "EXTERNAL_I": partial(self.external_i),
                 "VACCINATION_RATES": self.vaccination_rate,
+                "BETA_COEF": self.beta_coef,
             }
         )
         return args
@@ -315,6 +317,25 @@ class BasicMechanisticModel:
         return self.VAX_FUNCTION(
             t, self.VAX_MODEL_KNOTS, self.VAX_MODEL_PARAMETERS
         )
+
+    def beta_coef(self, t):
+        """Returns a coefficient for the beta value for cases of seasonal forcing or external impacts
+        onto beta not direclty measured in the model. EG: masking mandates or holidays.
+        Currently implemented via an array search with timings BETA_TIMES and coefficients BETA_COEFICIENTS
+
+        Parameters
+        ----------
+        t: float as Traced<ShapedArray(float32[])>
+            current time in the model, due to the just-in-time nature of Jax this float value may be contained within a
+            traced array of shape () and size 1. Thus no explicit comparison should be done on "t".
+
+        Returns:
+        coefficient with which BETA can be multiplied with to externally increase or decrease the value to account for measures or seasonal forcing.
+        """
+        # this is basically a smart lookup function that works with JAX just in time compilation
+        return self.BETA_COEFICIENTS[
+            jnp.maximum(0, jnp.searchsorted(self.BETA_TIMES, t) - 1)
+        ]
 
     def incidence(
         self,
@@ -473,11 +494,11 @@ class BasicMechanisticModel:
         term = ODETerm(
             lambda t, state, parameters: model(state, t, parameters)
         )
-        solver = Tsit5()
+        solver = diffrax.Tsit5()
         t0 = 0.0
-        dt0 = 0.1
+        dt0 = 1.0
         saveat = SaveAt(ts=jnp.linspace(t0, tf, int(tf) + 1))
-        solution = diffeqsolve(
+        solution = diffrax.diffeqsolve(
             term,
             solver,
             t0,
@@ -487,8 +508,15 @@ class BasicMechanisticModel:
             args=self.get_args(
                 sample=sample, sample_dist_dict=sample_dist_dict
             ),
+            # discontinuities due to beta manipulation specified as jump_ts
+            stepsize_controller=PIDController(
+                rtol=1e-3,
+                atol=1e-8,
+                jump_ts=list(self.BETA_TIMES),
+            ),
             saveat=saveat,
-            max_steps=10000,  # allows for arbitrarily large time scales
+            # higher for large time scales / rapid changes
+            max_steps=int(10e6),
         )
         self.solution = solution
         save_path = (
