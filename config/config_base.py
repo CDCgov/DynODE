@@ -4,9 +4,7 @@ import subprocess
 from enum import IntEnum
 
 import git
-import jax
 import jax.numpy as jnp
-from jax.scipy.stats.norm import pdf
 
 
 class ConfigBase:
@@ -54,6 +52,7 @@ class ConfigBase:
         # R0 values of each strain, from oldest to newest. Including R0 for introduced strains
         self.STRAIN_SPECIFIC_R0 = jnp.array([1.2, 1.8, 3.0])  # R0s
         # days after model initialization when new strains are externally introduced
+        # place in increasing order for each newly introduced strain.
         self.INTRODUCTION_TIMES = [60]
         # the percentage of the total population as a float who are externally introduced with the new strain.
         self.INTRODUCTION_PERCENTAGE = 0.01
@@ -79,14 +78,6 @@ class ConfigBase:
                 [0.49, 0.7, 1.0],  # BA1.1
             ]
         )
-        # TODO fix this to use SxS matrix to inform this.
-        # self.CROSSIMMUNITY_MATRIX = jnp.array(
-        #     [
-        #         [0, 0.5, 0.7, 0.8, 0.8, 0.8, 0.8, 0.8],  # delta
-        #         [0, 0.3, 0.5, 0.7, 0.8, 0.8, 0.8, 0.8],  # omicron
-        #         [0, 0.1, 0.3, 0.5, 0.7, 0.7, 0.8, 0.8],  # BA1.1
-        #     ]
-        # )  # TODO what do we do about delta challenging someone with prev omi2 exposure?
         # the protection afforded by different numbers of vaccinations from infection.
         # non-omicron vs omicron, stratified by vaccine count, 0, 1, 2+ shots. 0 = fully susceptible, 1 = fully immune.
         # TODO SOURCE?
@@ -97,15 +88,26 @@ class ConfigBase:
                 [0, 0.14, 0.28],  # BA1.1
             ]
         )
-        # setting the following to None will get the model to initialize them from demographic/abm data
+        # setting the following to None will get the model to initialize them from demographic/abm/vax data
+        # proportions of total pop in each age bin
         self.INITIAL_POPULATION_FRACTIONS = None
+        # relative immune escape for a challenging strain against each immune history in the model.
         self.CROSSIMMUNITY_MATRIX = None
+        # age x age contact matrix
         self.CONTACT_MATRIX = None
+        # distribution of how new infections are stratified sum=1
         self.INIT_INFECTION_DIST = None
+        # distribution of currently exposed not yet infectious individuals at model init time
         self.INIT_EXPOSED_DIST = None
-        self.INIT_IMMUNE_HISTORY = None
+        # distribution of currently infectious individuals at model init time
         self.INIT_INFECTED_DIST = None
+        # matrix stratified by age bin, immune hist, vax, waning. Where proportions within an single age bin sum to 1.
+        # proportions of people within that age bin who belong to each strata of immune history, vaccination, and waning.
+        self.INIT_IMMUNE_HISTORY = None
+        # spline coefficients for vaccine splines
         self.VAX_MODEL_PARAMS = None
+        # distributions for introduction of externally infected individuals into model for each strain.
+        self.EXTERNAL_I_DISTRIBUTIONS = None
         # indexes ENUM for readability in code
         self.IDX = IntEnum("idx", ["S", "E", "I", "C"], start=0)
         self.S_AXIS_IDX = IntEnum(
@@ -140,6 +142,7 @@ class ConfigBase:
         self.AGE_GROUP_IDX = IntEnum("age", self.AGE_GROUP_STRS, start=0)
 
         self.NUM_STRAINS = len(self.STRAIN_SPECIFIC_R0)
+        self.NUM_INTRODUCED_STRAINS = len(self.INTRODUCTION_TIMES)
 
         # enum for marking waning indexes, improving readability
         self.W_IDX = IntEnum(
@@ -165,100 +168,6 @@ class ConfigBase:
             self.STRAIN_NAMES,
             start=0,
         )
-
-        # we need some functions to model external infected persons interacting with the population
-        # these functions should take some time in days
-        # summing over all days should equal 1.0. While the MechanisticModel itself decides the total
-        # number of external infected individuals over all timepoints.
-        def zero_function(_):
-            return 0
-
-        self.EXTERNAL_I_DISTRIBUTIONS = [
-            zero_function for _ in range(self.NUM_STRAINS)
-        ]
-        for introduced_strain_idx, introduced_time in enumerate(
-            self.INTRODUCTION_TIMES
-        ):
-            dist_idx = self.NUM_STRAINS - introduced_strain_idx - 1
-            # use a normal PDF with std dv
-            self.EXTERNAL_I_DISTRIBUTIONS[dist_idx] = lambda t: pdf(
-                t, loc=introduced_time, scale=7
-            )
-
-        # Vaccination modeling, using cubic splines to model vax uptake in the population stratified by age and current vax shot.
-        def base_equation(t, coefficients):
-            """
-            the base of a spline equation, without knots, follows a simple cubic formula
-            a + bt + ct^2 + dt^3. This is a vectorized version of this equation which takes in
-            a matrix of `a` values, as well as a marix of `b`, `c`, and `d` coefficients.
-            PARAMETERS
-            ----------
-            t: jax.tracer array
-                a jax tracer containing within it the time in days since model simulation start
-            intercepts: jnp.array()
-                intercepts of each cubic spline base equation for all combinations of age bin and vax history
-                intercepts.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1)
-            coefficients: jnp.array()
-                coefficients of each cubic spline base equation for all combinations of age bin and vax history
-                coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, 3)
-            """
-            # we are taking the derivative of the base equation, so t^2 becomes 2t
-            # and t^3 becomes 3t^2, drop the intercept
-            return jnp.sum(
-                coefficients
-                * jnp.array([0, 1, 2 * t, 3 * t**2])[
-                    jnp.newaxis, jnp.newaxis, :
-                ],
-                axis=-1,
-            )
-
-        def conditional_knots(t, knots, coefficients):
-            indicators = jnp.where(t > knots, t - knots, 0)
-            # multiply coefficients by 3 since we taking derivative of cubic spline.
-            return jnp.sum(indicators**2 * (3 * coefficients), axis=-1)
-
-        # days of separation between each knot
-        self.VAX_MODEL_KNOT_SEPARATION = 7
-        self.VAX_MODEL_KNOTS = jnp.array(
-            list(
-                range(
-                    self.VAX_MODEL_KNOT_SEPARATION,
-                    449,
-                    self.VAX_MODEL_KNOT_SEPARATION,
-                )
-            )
-        )
-
-        def VAX_FUNCTION(t, knots, coefficients):
-            """
-            Returns the value of a cubic spline with knots and coefficients evaluated on day `t` for each age_bin x vax history combination.
-            Cubic spline equation f(t) = a + bt + ct^2 + dt^3 + sum_i_len(knots) {coef[i] * (t-knots[i])^3 * I(t > knots[i]) }
-
-            Where coef/knots[i] is the i'th index of each array. and the I() function is an indicator variable 1 or 0.
-
-            PARAMETERS
-            ----------
-            t: jax.tracer array
-                a jax tracer containing within it the time in days since model simulation start
-            knots: jnp.array()
-                knot locations of each cubic spline for all combinations of age bin and vax history
-                knots.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline)
-            coefficients: jnp.array()
-                knot coefficients of each cubic spline for all combinations of age bin and vax history.
-                including first 4 coefficients for the base equation.
-                coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline + 4)
-
-            Returns
-            ----------
-            jnp.array() containing the proportion of individuals in each age x vax combination that will be vaccinated during this time step.
-            """
-            base = base_equation(t, coefficients.at[:, :, 0:4].get())
-            knots = conditional_knots(
-                t, knots, coefficients.at[:, :, 4:].get()
-            )
-            return jax.nn.relu(base + knots)
-
-        self.VAX_FUNCTION = VAX_FUNCTION
 
         # times at which the beta value in transmission dynamics may need to be adjusted
         self.BETA_TIMES = jnp.array([0.0, 120.0, 150])

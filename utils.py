@@ -1,11 +1,15 @@
 import datetime
 import glob
+import json
 import os
+from enum import IntEnum
 
+import jax.numpy as jnp
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
 import pandas as pd
+from jax.nn import relu
 
 pd.options.mode.chained_assignment = None
 
@@ -45,6 +49,74 @@ def sample_waning_protections(waning_protect_means):
         )
         waning_rates.append(waning_protection)
     return waning_rates
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# SPLINE FUNCTIONS
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+# Vaccination modeling, using cubic splines to model vax uptake in the population stratified by age and current vax shot.
+def base_equation(t, coefficients):
+    """
+    the base of a spline equation, without knots, follows a simple cubic formula
+    a + bt + ct^2 + dt^3. This is a vectorized version of this equation which takes in
+    a matrix of `a` values, as well as a marix of `b`, `c`, and `d` coefficients.
+    PARAMETERS
+    ----------
+    t: jax.tracer array
+        a jax tracer containing within it the time in days since model simulation start
+    intercepts: jnp.array()
+        intercepts of each cubic spline base equation for all combinations of age bin and vax history
+        intercepts.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1)
+    coefficients: jnp.array()
+        coefficients of each cubic spline base equation for all combinations of age bin and vax history
+        coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, 3)
+    """
+    # we are taking the derivative of the base equation, so t^2 becomes 2t
+    # and t^3 becomes 3t^2, drop the intercept
+    return jnp.sum(
+        coefficients
+        * jnp.array([0, 1, 2 * t, 3 * t**2])[jnp.newaxis, jnp.newaxis, :],
+        axis=-1,
+    )
+
+
+def conditional_knots(t, knots, coefficients):
+    indicators = jnp.where(t > knots, t - knots, 0)
+    # multiply coefficients by 3 since we taking derivative of cubic spline.
+    return jnp.sum(indicators**2 * (3 * coefficients), axis=-1)
+
+
+# days of separation between each knot
+
+
+def VAX_FUNCTION(t, knots, coefficients):
+    """
+    Returns the value of a cubic spline with knots and coefficients evaluated on day `t` for each age_bin x vax history combination.
+    Cubic spline equation f(t) = a + bt + ct^2 + dt^3 + sum_i_len(knots) {coef[i] * (t-knots[i])^3 * I(t > knots[i]) }
+
+    Where coef/knots[i] is the i'th index of each array. and the I() function is an indicator variable 1 or 0.
+
+    PARAMETERS
+    ----------
+    t: jax.tracer array
+        a jax tracer containing within it the time in days since model simulation start
+    knots: jnp.array()
+        knot locations of each cubic spline for all combinations of age bin and vax history
+        knots.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline)
+    coefficients: jnp.array()
+        knot coefficients of each cubic spline for all combinations of age bin and vax history.
+        including first 4 coefficients for the base equation.
+        coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline + 4)
+
+    Returns
+    ----------
+    jnp.array() containing the proportion of individuals in each age x vax combination that will be vaccinated during this time step.
+    """
+    base = base_equation(t, coefficients.at[:, :, 0:4].get())
+    knots = conditional_knots(t, knots, coefficients.at[:, :, 4:].get())
+    return relu(base + knots)
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1078,7 +1150,7 @@ def init_infections_from_abm(
 ):
     """
     A function that uses ABM state data to inform initial infections and distribute them across infected and exposed compartments
-    according to the ratio of exposed_to_infectious time and infectious_period time.
+    according to the ratio of exposed to infectious individuals found in the abm at model initialization date.
     Returns proportions of new infections belonging to each strata, all attributed to STRAIN_IDX.omicron as that was the dominant
     strain during the initialization date.
 
@@ -1238,8 +1310,12 @@ def get_timeline_from_solution_with_command(
         compartment = np.sum(
             compartment, axis=tuple(range(1, compartment.ndim))
         )
+        compartment = np.diff(compartment)
+        compartment_weekly = is_close_v(
+            np.add.reduceat(compartment, np.arange(0, len(compartment), 7))
+        )
         label = "E : " + label
-        return is_close_v(np.diff(compartment)), label
+        return compartment_weekly, label
     # assuming explicit compartment, will explode if passed incorrect input
     else:
         compartment_slice = command[1:].strip()
@@ -1263,6 +1339,32 @@ def get_timeline_from_solution_with_command(
     dimensions_to_sum_over = tuple(range(1, compartment.ndim))
     # compartment = np.nan_to_num(compartment, copy=True, nan=0.0)
     return is_close_v(np.sum(compartment, axis=dimensions_to_sum_over)), label
+
+
+def from_json(j_str):
+    """
+    Given a JSON string returned from BasicMechanisticModel.to_json()
+    """
+    j = json.loads(j_str)
+    model_dict = {}
+    for key, param in j.items():
+        # if we specify a special type as a dict, lets cast it to that type
+        if isinstance(param, dict) and "type" in param.keys():
+            param_type = param["type"]
+            param_val = param["val"]
+            if param_type == "date":
+                param_val = datetime.datetime.strptime(param_val, "%d-%m-%y")
+            elif param_type == "jax":
+                param_val = jnp.array(param_val)
+            elif param_type == "enum":
+                enum_vals = [x.split(".")[-1] for x in param_val.keys()]
+                enum_name = [x.split(".")[0] for x in param_val.keys()][0]
+                param_val = IntEnum(enum_name, enum_vals, start=0)
+            elif param_type == "sol":
+                param_val = np.array(param_val)
+            param = param_val
+        model_dict[key] = param
+    return model_dict
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
