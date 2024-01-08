@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import subprocess
 import warnings
 from enum import EnumMeta
 from functools import partial
@@ -56,6 +57,7 @@ class BasicMechanisticModel:
 
         # grab all parameters passed from config
         self.__dict__.update(kwargs)
+        self.config_file = kwargs
 
         # GENERATE CROSS IMMUNITY MATRIX with protection from STRAIN_INTERACTIONS most recent infected strain.
         if not self.CROSSIMMUNITY_MATRIX:
@@ -80,12 +82,15 @@ class BasicMechanisticModel:
         # stratify initial infections appropriately across age, hist, vax counts
         if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
             self.load_init_infection_infected_and_exposed_dist_via_abm()
+        # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax, strain)
 
         if self.VAX_MODEL_PARAMS is None:
             self.load_vaccination_model()
-        # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax, strain)
-        # self.INIT_INFECTED_DIST.shape = (age, hist, num_vax, strain)
-        # self.INIT_EXPOSED_DIST.shape = (age, hist, num_vax, strain)
+        # loads params used in self.vaccination_rate()
+
+        if self.EXTERNAL_I_DISTRIBUTIONS is None:
+            self.load_external_i_distributions()
+        # loads params used in self.external_i()
 
         initial_infectious_count = (
             self.INITIAL_INFECTIONS * self.INIT_INFECTED_DIST
@@ -281,8 +286,8 @@ class BasicMechanisticModel:
             ):
                 dist_idx = self.NUM_STRAINS - introduced_strain_idx - 1
                 # use a normal PDF with std dv
-                external_i_distributions[dist_idx] = lambda t: pdf(
-                    t, loc=introduced_time_sampler, scale=2
+                external_i_distributions[dist_idx] = partial(
+                    pdf, loc=introduced_time_sampler, scale=7
                 )
         introduction_age_mask = jnp.where(
             jnp.array(self.INTRODUCTION_AGE_MASK),
@@ -320,7 +325,7 @@ class BasicMechanisticModel:
         vaccination_rates: jnp.array()
             jnp.array(shape=(self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
         """
-        return self.VAX_FUNCTION(
+        return utils.VAX_FUNCTION(
             t, self.VAX_MODEL_KNOTS, self.VAX_MODEL_PARAMETERS
         )
 
@@ -414,9 +419,9 @@ class BasicMechanisticModel:
     def infer(
         self,
         model,
-        incidence,
+        incidence: list,
         sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
-        negbin=True,
+        negbin: bool = True,
     ):
         """
         Runs inference given some observed incidence and a model of transmission dynamics.
@@ -590,6 +595,9 @@ class BasicMechanisticModel:
                 command,
             )
             days = list(range(len(timeline)))
+            # incidence is aggregated weekly, so our array increases 7 days at a time
+            if command == "incidence":
+                days = [day * 7 for day in days]
             x_axis = [
                 self.INIT_DATE + datetime.timedelta(days=day) for day in days
             ]
@@ -615,12 +623,11 @@ class BasicMechanisticModel:
                     hash may be saved in the meta data of this image, along with config parameters. \n
                     Reproducibility is pivotal to science!"""
                 )
-            for key, val in self.__dict__.items():
-                metadata.add_text(key, str(val))
+            metadata.add_text("model", self.to_json())
             fig.savefig(save_path, pil_kwargs={"pnginfo": metadata})
         return fig, ax
 
-    def plot_initial_serology(self, save_path=None, show=True):
+    def plot_initial_serology(self, save_path: str = None, show: bool = True):
         """
         plots a stacked bar chart representation of the initial immune compartments of the model.
 
@@ -873,14 +880,14 @@ class BasicMechanisticModel:
         Updates
         ----------
         `self.INIT_INFECTION_DIST`: jnp.array(int)
-            populates values using seroprevalence to produce a distribution of how new infections are
-            stratified by age bin. INIT_INFECTION_DIST.shape = (self.NUM_AGE_GROUPS,) and sum(self.INIT_INFECTION_DIST) = 1.0
+            populates values using abm to produce a distribution of how new infections are
+            stratified by age bin, vax, immune_history, and strain strata. All new infections are classified in STRAIN_IDX.omicron
         `self.INIT_EXPOSED_DIST`: jnp.array(int)
-            proportion of INIT_INFECTION_DIST that falls into exposed compartment, formatted into the omicron strain.
-            INIT_EXPOSED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
+            proportion of INIT_INFECTION_DIST that falls into exposed compartment,
+            stratified by age bin, vax, immune_history, and strain strata. All new exposures are classified in STRAIN_IDX.omicron
         `self.INIT_INFECTED_DIST`: jnp.array(int)
-            proportion of INIT_INFECTION_DIST that falls into infected compartment, formatted into the omicron strain.
-            INIT_INFECTED_DIST.shape = (self.NUM_AGE_GROUPS, self.NUM_STRAINS)
+            proportion of INIT_INFECTION_DIST that falls into infected compartment,
+            stratified by age bin, vax, immune_history, and strain strata. All new infected are classified in STRAIN_IDX.omicron
         `self.INITIAL_INFECTIONS`: float
             if `INITIAL_INFECTIONS` is not specified in the config, will use the proportion of the total population
             that is exposed or infected in the abm, multiplied by the population size, for the models number of infections.
@@ -921,6 +928,7 @@ class BasicMechanisticModel:
     def load_vaccination_model(self):
         """
         loads parameters of a polynomial spline vaccination model stratified on age bin and current vaccination status.
+        also loads in the spline knot locations.
         """
         parameters = pd.read_csv(self.VAX_MODEL_DATA)
         age_bins = len(parameters["age_group"].unique())
@@ -946,43 +954,102 @@ class BasicMechanisticModel:
                 intersect_and_ts
             )
         self.VAX_MODEL_PARAMETERS = jnp.array(vax_parameters)
+        self.VAX_MODEL_KNOT_SEPARATION = 7
+        self.VAX_MODEL_KNOTS = jnp.array(
+            list(
+                range(
+                    self.VAX_MODEL_KNOT_SEPARATION,
+                    449,
+                    self.VAX_MODEL_KNOT_SEPARATION,
+                )
+            )
+        )
 
-    def to_json(self, file):
+    def load_external_i_distributions(self):
         """
-        a simple method which takes self.__dict__ and dumps it into `file`.
+        a function that loads external_i_distributions array into the model.
+        this list of functions dictate the number of infected individuals EXTERNAL TO THE POPULATION are introduced at a particular timestep.
+
+        each function within this list must be differentiable at all input values `t`>=0 and return some value such that
+        sum(f(t)) forall t>=0 = 1.0. By default we use a normal PDF to approximate this value.
+
+        Updates
+        ----------
+        EXTERNAL_I_DISTRIBUTIONS: list[func(jac_tracer(float))->float]
+        updates each strain to have its own introduction function, centered around the corresponding introduction time in self.INTRODUCTION_TIMES
+        historical strains, which are introduced before model initialization are given the zero function f(_) -> 0.
+        """
+
+        def zero_function(_):
+            return 0
+
+        self.EXTERNAL_I_DISTRIBUTIONS = [
+            zero_function for _ in range(self.NUM_STRAINS)
+        ]
+        for introduced_strain_idx, introduced_time in enumerate(
+            self.INTRODUCTION_TIMES
+        ):
+            # earlier introduced strains earlier will be placed closer to historical strains (0 and 1)
+            dist_idx = (
+                self.NUM_STRAINS
+                - self.NUM_INTRODUCED_STRAINS
+                + introduced_strain_idx
+            )
+            # use a normal PDF with std dv
+            self.EXTERNAL_I_DISTRIBUTIONS[dist_idx] = partial(
+                pdf, loc=introduced_time, scale=7
+            )
+
+    def to_json(self, file=None):
+        """
+        a simple method which takes self.config_file and dumps it into `file`.
         this method effectively deals with nested numpy and jax arrays
         which are normally not JSON serializable and cause errors.
+        Also able to return a string representation of the model JSON if `file` is None
 
         Parameters
         ----------
-        `file`: TextIOWrapper
-            a file object that can be written to, usually the result of a call like open("file.txt") as f
+        `file`: TextIOWrapper | None
+            a file object that can be written to, usually the result of a call like open("file.txt")
+
+        Returns
+        ----------
+        None if file object is passed as parameter, str of JSON otherwise.
         """
 
         # define a custom encoder so that things like Enums, numpy arrays,
-        # and Diffrax.Solution objects can be JSON serializable
+        # and Diffrax.Solution objects can be JSON serializable.
+        # Wrap everything in a dict with the object type inside.
         class CustomEncoder(json.JSONEncoder):
             def default(self, obj):
                 if isinstance(obj, np.ndarray) or isinstance(obj, jnp.ndarray):
-                    return obj.tolist()
+                    return {"type": "jax", "val": obj.tolist()}
                 if isinstance(obj, EnumMeta):
                     return {
-                        str(e): idx for e, idx in zip(obj, range(len(obj)))
+                        "type": "enum",
+                        "val": {
+                            str(e): idx for e, idx in zip(obj, range(len(obj)))
+                        },
                     }
                 if isinstance(obj, Solution):
-                    return obj.ys
+                    return {"type": "sol", "val": obj.ys}
                 if isinstance(obj, datetime.date):
-                    return obj.strftime("%d-%m-%y")
+                    return {"type": "date", "val": obj.strftime("%d-%m-%y")}
                 try:
-                    res = json.JSONEncoder.default(self, obj)
+                    res = {
+                        "type": "default",
+                        "val": json.JSONEncoder.default(self, obj),
+                    }
                 except TypeError:
                     res = "error not serializable"
                 return res
 
         if file:
-            return json.dump(self.__dict__, file, indent=4, cls=CustomEncoder)
+            return json.dump(
+                self.config_file, file, indent=4, cls=CustomEncoder
+            )
         else:  # if given empty file, just return JSON string
-            return json.dumps(self.__dict__, indent=4, cls=CustomEncoder)
+            return json.dumps(self.config_file, indent=4, cls=CustomEncoder)
 
 
 def build_basic_mechanistic_model(config: config):
@@ -1001,10 +1068,9 @@ def build_basic_mechanistic_model(config: config):
     return BasicMechanisticModel(**config.__dict__)
 
 
-def build_model_from_figure(im_path: str, backup_config: config):
+def build_model_from_figure(im_path: str):
     """
     A builder function meant to take in an image and associated meta data and reconstruct the model that generated the image.
-    Using a backup config file to fill in any missing parameters if they exist.
 
     Note: if you wish to ensure full reproducibility you must also revert your repository to the commit hash printed by this function.
 
@@ -1013,37 +1079,37 @@ def build_model_from_figure(im_path: str, backup_config: config):
     im_path: str
         path to image you wish to copy model parameters from
 
-    backup_config: config
-        a config file, ideally config_base, from which types are infered, and missing parameters are filled in.
-
     Returns
     ----------
     BasicMechanisticModel with parameters from the meta data of the image. Returns None if meta data does not exist.
     """
     im = Image.open(im_path)
     metadata = im.text
-    if not metadata:
+    if not metadata or not metadata["model"]:
         print(
-            "image passed does not contain metadata, unable to recreate associated model"
+            "image passed does not contain metadata or is incorrect format, unable to recreate associated model"
         )
         return None
-    if not metadata["GIT_HASH"]:
+    metadata = metadata["model"]
+    image_config = config(**utils.from_json(metadata))
+    if not hasattr(image_config, "GIT_HASH"):
         print(
             "metadata does not contain git hash, code associated with this image irretrievable"
         )
     else:
-        print("git hash of the config: " + str(backup_config.GIT_HASH))
-        print("git hash of the figure: " + metadata["GIT_HASH"])
-        print(
-            "if these values dont line up, you may get errors or unexpected behavior."
+        cur_git_hash = (
+            subprocess.check_output(["git", "rev-parse", "HEAD"])
+            .decode("ascii")
+            .strip()
         )
-    image_config = backup_config.__dict__
-    for key, val in metadata.items():
-        if key in backup_config.__dict__:
-            obj_type = type(backup_config.__dict__[key])
-            if not isinstance(val, obj_type):
-                val = obj_type(val)
-            image_config[key] = val
-    # cast to config obj so assert_valid_values can catch any obviously wrong params
-    image_config = config(image_config)
-    return BasicMechanisticModel(**image_config)
+        print("current git hash of codebase: " + str(cur_git_hash))
+        print("git hash of the figure: " + image_config.GIT_HASH)
+        if str(cur_git_hash) == image_config.GIT_HASH:
+            print(
+                "You are on the correct git branch! Be wary of uncommitted changes in the repo at the time of image creation impacting figures."
+            )
+        else:
+            print(
+                "these git commit hashes dont line up, you may get errors or unexpected behavior, please checkout the commit of the figure"
+            )
+    return BasicMechanisticModel(**image_config.__dict__)

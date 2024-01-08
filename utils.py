@@ -1,11 +1,15 @@
 import datetime
 import glob
+import json
 import os
+from enum import IntEnum
 
+import jax.numpy as jnp
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
 import pandas as pd
+from jax.nn import relu
 
 pd.options.mode.chained_assignment = None
 
@@ -48,11 +52,85 @@ def sample_waning_protections(waning_protect_means):
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# SPLINE FUNCTIONS
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+# Vaccination modeling, using cubic splines to model vax uptake in the population stratified by age and current vax shot.
+def base_equation(t, coefficients):
+    """
+    the base of a spline equation, without knots, follows a simple cubic formula
+    a + bt + ct^2 + dt^3. This is a vectorized version of this equation which takes in
+    a matrix of `a` values, as well as a marix of `b`, `c`, and `d` coefficients.
+    PARAMETERS
+    ----------
+    t: jax.tracer array
+        a jax tracer containing within it the time in days since model simulation start
+    intercepts: jnp.array()
+        intercepts of each cubic spline base equation for all combinations of age bin and vax history
+        intercepts.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1)
+    coefficients: jnp.array()
+        coefficients of each cubic spline base equation for all combinations of age bin and vax history
+        coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, 3)
+    """
+    # we are taking the derivative of the base equation, so t^2 becomes 2t
+    # and t^3 becomes 3t^2, drop the intercept
+    return jnp.sum(
+        coefficients
+        * jnp.array([0, 1, 2 * t, 3 * t**2])[jnp.newaxis, jnp.newaxis, :],
+        axis=-1,
+    )
+
+
+def conditional_knots(t, knots, coefficients):
+    indicators = jnp.where(t > knots, t - knots, 0)
+    # multiply coefficients by 3 since we taking derivative of cubic spline.
+    return jnp.sum(indicators**2 * (3 * coefficients), axis=-1)
+
+
+# days of separation between each knot
+
+
+def VAX_FUNCTION(
+    t, knots: jnp.ndarray[float], coefficients: jnp.ndarray[float]
+) -> float:
+    """
+    Returns the value of a derived cubic spline with knots and coefficients evaluated on day `t` for each age_bin x vax history combination.
+    Cubic spline equation:
+
+    f(t) = a + bt + ct^2  + \sum_{i}^{len(knots)}(coef_{i} * 3(t-knots_{i})^2 * I(t > knots_{i}))
+
+    Where coef/knots[i] is the i'th index of each array. and the I() function is an indicator variable 1 or 0.
+
+    Parameters
+    ----------
+    t: jax.tracer array
+        a jax tracer containing within it the time in days since model simulation start
+    knots: jnp.array()
+        knot locations of each cubic spline for all combinations of age bin and vax history
+        knots.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline)
+    coefficients: jnp.array()
+        knot coefficients of each cubic spline for all combinations of age bin and vax history.
+        including first 4 coefficients for the base equation.
+        coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline + 4)
+
+    Returns
+    ----------
+    jnp.array() containing the proportion of individuals in each age x vax combination that will be vaccinated during this time step.
+    """
+    base = base_equation(t, coefficients.at[:, :, 0:4].get())
+    knots = conditional_knots(t, knots, coefficients.at[:, :, 4:].get())
+    return relu(base + knots)
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # INDEXING FUNCTIONS
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
-def new_immune_state(current_state, exposed_strain, num_strains):
+def new_immune_state(
+    current_state: int, exposed_strain: int, num_strains: int
+) -> int:
     """a method using BITWISE OR to determine a new immune state position given
     current state and the exposing strain
 
@@ -61,26 +139,25 @@ def new_immune_state(current_state, exposed_strain, num_strains):
     current_state: int
         int representing the current state of the individual or group being exposed to a strain
     exposed_strain: int
-        int representing the strain exposed to the individuals in state `current_state`
+        int representing the strain exposed to the individuals in state `current_state`.
         expects that `0 <= exposed_strain <= num_strains - 1`
     num_strains: int
         number of strains in the model
-    Examples
+
+    Example
     ----------
     num_strains = 2, possible states are:
     00(no exposure), 1(exposed to strain 0 only), 2(exposed to strain 1 only), 3(exposed to both)
 
-    exposed strains are transformed by this function into:
-    exposing strain = 0 -> represented by 01. exposed_strain = 1 -> represented by 10.
-
-    current state | exposed strain -> new state -> int(new state)
-    00 | 01 -> 01 -> 1 no previous exposure, now exposed to strain 0.
-    01 | 01 -> 01 -> 1 exposed to strain 0 already, no change in state
-    01 | 10 -> 11 -> 3 exposed to strain 0 prev, now exposed to both
-    10 | 01 -> 11 -> 3 exposed to strain 1 prev, now exposed to both
-    10 | 10 -> 10 -> 2 exposed to strain 1 already, no change in state
-    11 | 01 -> 11 -> 3 exposed to both already, no change in state
-    11 | 10 -> 11 -> 3 exposed to both already, no change in state
+    new_immune_state(current_state, exposed_strain): new_state (explanation)
+    new_immune_state(0, 0): 1 (no previous exposure, now exposed to strain 0)
+    new_immune_state(0, 1): 2 (no previous exposure, now exposed to strain 1)
+    new_immune_state(1, 0): 1 (exposed to strain 0 already, no change in state)
+    new_immune_state(2, 1): 2 (exposed to strain 1 already, no change in state)
+    new_immune_state(1, 1): 3 (exposed to strain 0 prev, now exposed to both)
+    new_immune_state(2, 0): 3 (exposed to strain 1 prev, now exposed to both)
+    new_immune_state(3, 0): 3 (exposed to both already, no change in state)
+    new_immune_state(3, 1): 3 (exposed to both already, no change in state)
     """
     assert (
         exposed_strain >= 0 and exposed_strain <= num_strains - 1
@@ -101,15 +178,14 @@ def new_immune_state(current_state, exposed_strain, num_strains):
     return int(new_state, 2)
 
 
-def all_immune_states_with(strain, num_strains):
+def all_immune_states_with(strain: int, num_strains: int):
     """
     a function returning all of the immune states which contain an exposure to `strain`
 
     Parameters
     ----------
     strain: int
-        int representing the strain that the returns states are exposed to
-        expects that `0 <= strain <= num_strains - 1`
+        int representing the exposed to strain, expects that `0 <= strain <= num_strains - 1`
     num_strains: int
         number of strains in the model
 
@@ -122,7 +198,9 @@ def all_immune_states_with(strain, num_strains):
     in a simple model where num_strains = 2 the following is returned.
     Reminder: state = 0 (no exposure),
     state = 1/2 (exposure to strain 0/1 respectively), state=3 (exposed to both)
+
     all_immune_states_with(0, 2) -> [1, 3]
+
     all_immune_states_with(1, 2) -> [2, 3]
     """
     # represent all possible states as binary
@@ -140,15 +218,14 @@ def all_immune_states_with(strain, num_strains):
     return filtered_states
 
 
-def all_immune_states_without(strain, num_strains):
+def all_immune_states_without(strain: int, num_strains: int):
     """
     function returning all of the immune states which DO NOT contain an exposure to `strain`
 
     Parameters
     ----------
     strain: int
-        int representing the strain that the returns states are NOT exposed to
-        expects that `0 <= strain <= num_strains - 1`
+        int representing the NOT exposed to strain, expects that `0 <= strain <= num_strains - 1`
     num_strains: int
         number of strains in the model
 
@@ -161,16 +238,18 @@ def all_immune_states_without(strain, num_strains):
     in a simple model where num_strains = 2 the following is returned.
     Reminder: state = 0 (no exposure),
     state = 1/2 (exposure to strain 0/1 respectively), state=3 (exposed to both)
-    all_immune_states_with(0, 2) -> [0, 2]
-    all_immune_states_with(1, 2) -> [0, 1]
+
+    all_immune_states_without(strain = 0, num_strains = 2) -> [0, 2]
+
+    all_immune_states_without(strain = 1, num_strains = 2) -> [0, 1]
     """
     all_states = list(range(2**num_strains))
     states_with_strain = all_immune_states_with(strain, num_strains)
     # return set difference of all states and states including strain
-    return set(all_states) - set(states_with_strain)
+    return list(set(all_states) - set(states_with_strain))
 
 
-def find_age_bin(age, age_limits):
+def find_age_bin(age: int, age_limits: list[int]) -> int:
     """
     Given an age, return the age bin it belongs to in the age limits array
 
@@ -195,7 +274,7 @@ def find_age_bin(age, age_limits):
     return current_bin
 
 
-def find_vax_bin(vax_shots, max_doses):
+def find_vax_bin(vax_shots: int, max_doses: int) -> int:
     """
     Given a number of vaccinations, returns the bin it belongs to given the maximum doses ceiling
 
@@ -208,16 +287,25 @@ def find_vax_bin(vax_shots, max_doses):
 
     Returns
     ----------
-    The index of the vax bin, assuming 0 is 0 vaccinations and max_doses = any vaccinations equal to or more than max_doses
+    The index of the vax bin, min(vax_shots, max_doses)
     """
     return min(vax_shots, max_doses)
 
 
-def convert_hist(strains, STRAIN_IDX, num_strains):
+def convert_hist(
+    strains: list[str], STRAIN_IDX: IntEnum, num_strains: int
+) -> int:
     """
     a function that transforms a comma separated list of strains and transform them into an immune history state.
-    num_strains and STRAIN_IDX are often initalized in configuration files and may include less strains than those included in
-    `strains`. Any unrecognized strain strings inside of `strains` do not contiribute to the returned state.
+    Any unrecognized strain strings inside of `strains` do not contiribute to the returned state.
+
+    Example
+    ----------
+    strains: "alpha, delta, omicron"
+    STRAIN_IDX: delta=0, omicron=1
+    num_strains: 2
+
+    method will ignore alpha infection as it is not in STRAIN_IDX, returning state=3, indicating infection with both delta and omicron.
 
     Parameters
     ----------
@@ -226,20 +314,17 @@ def convert_hist(strains, STRAIN_IDX, num_strains):
     STRAIN_IDX: intEnum
         an enum containing the name of each strain and its associated strain index, as initialized by ConfigBase.
     num_strains:
-        the number of _tracked_ strains in the model. This may be less than or equal to the unique number of strains in `strains`
+        the number of _tracked_ strains in the model.
 
     """
     state = 0
     for strain in filter(None, strains.split(",")):
-        if strain.lower() in STRAIN_IDX._member_map_:
-            strain_idx = STRAIN_IDX[strain.lower()]
-        else:
-            strain_idx = 0
+        strain_idx = convert_strain(strain, STRAIN_IDX)
         state = new_immune_state(state, strain_idx, num_strains)
     return state
 
 
-def convert_strain(strain, STRAIN_IDX):
+def convert_strain(strain: str, STRAIN_IDX: IntEnum) -> int:
     """
     given a text description of a string, return the correct strain index as specified by the STRAIN_IDX enum.
     If strain is not found in STRAIN_IDX, return 0 (the oldest strain included in the model)
@@ -261,7 +346,7 @@ def convert_strain(strain, STRAIN_IDX):
         return 0  # return oldest strain if not included
 
 
-def find_waning_compartment(TSLIE, waning_times):
+def find_waning_compartment(TSLIE: int, waning_times: list[int]) -> int:
     """
     Given a TSLIE (time since last immunogenetic event) in days, returns the waning compartment index of the event.
 
@@ -271,6 +356,10 @@ def find_waning_compartment(TSLIE, waning_times):
         the number of days since the initialization of the model that the immunogenetic event occured (this could be vaccination or infection).
     waning_times: list(int)
         the number of days an individual stays in each waning compartment, ending in zero as the last compartment does not wane.
+
+    Returns
+    ----------
+    index of the waning compartment that an event belongs, to if that event happened `TSLIE` days in the past.
     """
     current_bin = 0
     for wane_time in waning_times:
@@ -283,7 +372,9 @@ def find_waning_compartment(TSLIE, waning_times):
     return current_bin - 1
 
 
-def strain_interaction_to_cross_immunity(num_strains, strain_interactions):
+def strain_interaction_to_cross_immunity(
+    num_strains: int, strain_interactions: np.ndarray
+) -> np.ndarray:
     """
     a function which takes a strain_interactions matrix, which is of shape (num_strains, num_strains)
     and returns a cross immunity matrix of shape (num_strains, 2**num_strains) representing the immunity
@@ -354,11 +445,15 @@ def strain_interaction_to_cross_immunity(num_strains, strain_interactions):
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
-def generate_yearly_age_bins_from_limits(age_limits):
+def generate_yearly_age_bins_from_limits(age_limits: list) -> list[list[int]]:
     """
-    given age limits, generates age bins with each year contained in that bin up to 85 years old exclusvive
-    for example given age_limits = [0, 5, 10, 15 ... 80]
+    given age limits, generates age bins with each year contained in that bin up to 85 years old exclusive
+
+    Example
+    ----------
+    age_limits = [0, 5, 10, 15 ... 80]
     returns [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14]... [80, 81, 82, 83, 84]]
+
     Parameters
     ----------
     age_limits: list(int):
@@ -375,13 +470,12 @@ def generate_yearly_age_bins_from_limits(age_limits):
 
 
 def load_age_demographics(
-    path,
-    regions,
-    age_limits,
-):
+    path: str,
+    regions: list[str],
+    age_limits: list[int],
+) -> dict[str:list]:
     """Returns normalized proportions of each agebin as defined by age_limits for the regions given.
     Does this by searching for age demographics data in path.
-
 
     Parameters
     ----------
@@ -612,13 +706,13 @@ def prep_serology_data(
 
 
 def prep_abm_data(
-    abm_population,
-    max_vax_count,
-    age_limits,
-    waning_times,
-    num_strains,
-    STRAIN_IDXs,
-):
+    abm_population: pd.DataFrame,
+    max_vax_count: int,
+    age_limits: list[int],
+    waning_times: list[int],
+    num_strains: int,
+    STRAIN_IDXs: IntEnum,
+) -> pd.DataFrame:
     """
     A helper function called by past_immune_dist_from_abm() that takes as input a path to some abm data with schema specified by the README,
     and applies transformations to the table, adding some columns so individuals within the ABM data are able to be placed
@@ -985,15 +1079,15 @@ def past_immune_dist_from_serology_demographics(
 
 
 def past_immune_dist_from_abm(
-    abm_path,
-    num_age_groups,
-    age_limits,
-    max_vax_count,
-    waning_times,
-    num_waning_compartments,
-    num_strains,
-    STRAIN_IDXs,
-):
+    abm_path: str,
+    num_age_groups: int,
+    age_limits: list[int],
+    max_vax_count: int,
+    waning_times: list[int],
+    num_waning_compartments: int,
+    num_strains: int,
+    STRAIN_IDXs: IntEnum,
+) -> np.ndarray:
     """
     A function used to initialize susceptible and partially susceptible distributions for a model via ABM (agent based model) data.
     Given a path to an ABM state as CSV (schema for this data specified in README), read in dataframe, bin individuals according
@@ -1068,17 +1162,17 @@ def past_immune_dist_from_abm(
 
 
 def init_infections_from_abm(
-    abm_path,
-    num_age_groups,
-    age_limits,
-    max_vax_count,
-    waning_times,
-    num_strains,
-    STRAIN_IDXs,
-):
+    abm_path: str,
+    num_age_groups: int,
+    age_limits: list[int],
+    max_vax_count: int,
+    waning_times: list[int],
+    num_strains: int,
+    STRAIN_IDXs: IntEnum,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
     """
     A function that uses ABM state data to inform initial infections and distribute them across infected and exposed compartments
-    according to the ratio of exposed_to_infectious time and infectious_period time.
+    according to the ratio of exposed to infectious individuals found in the abm at model initialization date.
     Returns proportions of new infections belonging to each strata, all attributed to STRAIN_IDX.omicron as that was the dominant
     strain during the initialization date.
 
@@ -1105,9 +1199,13 @@ def init_infections_from_abm(
 
     Returns
     ----------
-    (infections, exposed, infected): tuple of np.arrays
+    (infections, exposed, infected, proportion_infected)
+
     infections = exposed + infected
-    representing the proportions of each initial infection belonging to each strata, meaning sum(infections) == 1.
+
+    proportion_infected = % of total pop infected or exposed.
+
+    Each np.ndarray represents the proportions of each initial infection belonging to each strata, meaning sum(infections) == 1.
     All numpy arrays stratified by age, immune history, vaccination, and infecting strain (always omicron).
     """
     num_immune_hist = 2**num_strains
@@ -1170,7 +1268,11 @@ def init_infections_from_abm(
 
 
 def get_timeline_from_solution_with_command(
-    sol, compartment_idx, w_idx, strain_idx, command
+    sol: tuple[jnp.array],
+    compartment_idx: IntEnum,
+    w_idx: IntEnum,
+    strain_idx: IntEnum,
+    command: str,
 ):
     """
     A function designed to execute `command` over a `sol` object, returning a timeline after `command` is used to select a certain view of `sol`
@@ -1238,8 +1340,12 @@ def get_timeline_from_solution_with_command(
         compartment = np.sum(
             compartment, axis=tuple(range(1, compartment.ndim))
         )
+        compartment = np.diff(compartment)
+        compartment_weekly = is_close_v(
+            np.add.reduceat(compartment, np.arange(0, len(compartment), 7))
+        )
         label = "E : " + label
-        return is_close_v(np.diff(compartment)), label
+        return compartment_weekly, label
     # assuming explicit compartment, will explode if passed incorrect input
     else:
         compartment_slice = command[1:].strip()
@@ -1263,6 +1369,32 @@ def get_timeline_from_solution_with_command(
     dimensions_to_sum_over = tuple(range(1, compartment.ndim))
     # compartment = np.nan_to_num(compartment, copy=True, nan=0.0)
     return is_close_v(np.sum(compartment, axis=dimensions_to_sum_over)), label
+
+
+def from_json(j_str):
+    """
+    Given a JSON string returned from BasicMechanisticModel.to_json()
+    """
+    j = json.loads(j_str)
+    model_dict = {}
+    for key, param in j.items():
+        # if we specify a special type as a dict, lets cast it to that type
+        if isinstance(param, dict) and "type" in param.keys():
+            param_type = param["type"]
+            param_val = param["val"]
+            if param_type == "date":
+                param_val = datetime.datetime.strptime(param_val, "%d-%m-%y")
+            elif param_type == "jax":
+                param_val = jnp.array(param_val)
+            elif param_type == "enum":
+                enum_vals = [x.split(".")[-1] for x in param_val.keys()]
+                enum_name = [x.split(".")[0] for x in param_val.keys()][0]
+                param_val = IntEnum(enum_name, enum_vals, start=0)
+            elif param_type == "sol":
+                param_val = np.array(param_val)
+            param = param_val
+        model_dict[key] = param
+    return model_dict
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1447,7 +1579,6 @@ def load_demographic_data(
         and community settings data) and data on the population of the region
         by age group
     """
-    print("Loading demography data...")
     # Get the paths to the 3 files we need
     path_to_settings_data = demographics_path + "contact_matrices"
     path_to_population_data = (
