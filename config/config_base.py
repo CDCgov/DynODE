@@ -28,6 +28,7 @@ class ConfigBase:
         self.SIM_DATA = "data/abm_population.csv"
         self.VAX_MODEL_DATA = "data/spline_fits.csv"
         self.SAVE_PATH = "output/"
+        self.HOSP_PATH = "data/hospital_220213_220108.csv"
         # model initialization date DO NOT CHANGE
         self.INIT_DATE = datetime.date(2022, 2, 11)
         self.MINIMUM_AGE = 0

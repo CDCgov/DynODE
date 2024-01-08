@@ -54,6 +54,7 @@ testing.py
 !misc/scenarios_seip_model_diagram_cdc_blue.png
 !requirements.txt
 !data/spline_fits.csv
+!data/hospital_220213_220108.csv
 
 #####
 # Python
