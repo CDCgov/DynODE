@@ -419,9 +419,9 @@ class BasicMechanisticModel:
     def infer(
         self,
         model,
-        incidence,
+        incidence: list,
         sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
-        negbin=True,
+        negbin: bool = True,
     ):
         """
         Runs inference given some observed incidence and a model of transmission dynamics.
@@ -595,6 +595,7 @@ class BasicMechanisticModel:
                 command,
             )
             days = list(range(len(timeline)))
+            # incidence is aggregated weekly, so our array increases 7 days at a time
             if command == "incidence":
                 days = [day * 7 for day in days]
             x_axis = [
@@ -623,12 +624,10 @@ class BasicMechanisticModel:
                     Reproducibility is pivotal to science!"""
                 )
             metadata.add_text("model", self.to_json())
-            # for key, val in self.__dict__.items():
-            #     metadata.add_text(key, str(val))
             fig.savefig(save_path, pil_kwargs={"pnginfo": metadata})
         return fig, ax
 
-    def plot_initial_serology(self, save_path=None, show=True):
+    def plot_initial_serology(self, save_path: str = None, show: bool = True):
         """
         plots a stacked bar chart representation of the initial immune compartments of the model.
 
@@ -1003,7 +1002,7 @@ class BasicMechanisticModel:
 
     def to_json(self, file=None):
         """
-        a simple method which takes self.__dict__ and dumps it into `file`.
+        a simple method which takes self.config_file and dumps it into `file`.
         this method effectively deals with nested numpy and jax arrays
         which are normally not JSON serializable and cause errors.
         Also able to return a string representation of the model JSON if `file` is None
@@ -1011,7 +1010,7 @@ class BasicMechanisticModel:
         Parameters
         ----------
         `file`: TextIOWrapper | None
-            a file object that can be written to, usually the result of a call like open("file.txt") as f
+            a file object that can be written to, usually the result of a call like open("file.txt")
 
         Returns
         ----------
@@ -1072,7 +1071,6 @@ def build_basic_mechanistic_model(config: config):
 def build_model_from_figure(im_path: str):
     """
     A builder function meant to take in an image and associated meta data and reconstruct the model that generated the image.
-    Using a backup config file to fill in any missing parameters if they exist.
 
     Note: if you wish to ensure full reproducibility you must also revert your repository to the commit hash printed by this function.
 
@@ -1080,9 +1078,6 @@ def build_model_from_figure(im_path: str):
     ----------
     im_path: str
         path to image you wish to copy model parameters from
-
-    backup_config: config
-        a config file, ideally config_base, from which types are infered, and missing parameters are filled in.
 
     Returns
     ----------
@@ -1115,6 +1110,6 @@ def build_model_from_figure(im_path: str):
             )
         else:
             print(
-                "these git commit hashes dont line up, you may get errors or unexpected behavior, please checkout the commit used."
+                "these git commit hashes dont line up, you may get errors or unexpected behavior, please checkout the commit of the figure"
             )
     return BasicMechanisticModel(**image_config.__dict__)
