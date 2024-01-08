@@ -82,15 +82,15 @@ class BasicMechanisticModel:
         # stratify initial infections appropriately across age, hist, vax counts
         if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
             self.load_init_infection_infected_and_exposed_dist_via_abm()
+        # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax, strain)
 
         if self.VAX_MODEL_PARAMS is None:
             self.load_vaccination_model()
+        # loads params used in self.vaccination_rate()
 
         if self.EXTERNAL_I_DISTRIBUTIONS is None:
             self.load_external_i_distributions()
-        # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax, strain)
-        # self.INIT_INFECTED_DIST.shape = (age, hist, num_vax, strain)
-        # self.INIT_EXPOSED_DIST.shape = (age, hist, num_vax, strain)
+        # loads params used in self.external_i()
 
         initial_infectious_count = (
             self.INITIAL_INFECTIONS * self.INIT_INFECTED_DIST
@@ -1109,7 +1109,12 @@ def build_model_from_figure(im_path: str):
         )
         print("current git hash of codebase: " + str(cur_git_hash))
         print("git hash of the figure: " + image_config.GIT_HASH)
-        print(
-            "if these values dont line up, you may get errors or unexpected behavior."
-        )
+        if str(cur_git_hash) == image_config.GIT_HASH:
+            print(
+                "You are on the correct git branch! Be wary of uncommitted changes in the repo at the time of image creation impacting figures."
+            )
+        else:
+            print(
+                "these git commit hashes dont line up, you may get errors or unexpected behavior, please checkout the commit used."
+            )
     return BasicMechanisticModel(**image_config.__dict__)

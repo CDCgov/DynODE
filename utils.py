@@ -1549,7 +1549,6 @@ def load_demographic_data(
         and community settings data) and data on the population of the region
         by age group
     """
-    print("Loading demography data...")
     # Get the paths to the 3 files we need
     path_to_settings_data = demographics_path + "contact_matrices"
     path_to_population_data = (
