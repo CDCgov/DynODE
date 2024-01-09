@@ -1,18 +1,17 @@
 # %%
-import pandas as pd
 import jax.config
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 import numpyro
-import matplotlib.pyplot as plt
+import pandas as pd
+from inference import infer_model
+from jax.random import PRNGKey
+from numpyro.infer import MCMC, NUTS
 
 from config.config_base import ConfigBase
 from mechanistic_compartments import build_basic_mechanistic_model
 from model_odes.seip_model import seip_ode
-from inference import infer_model
-
-from jax.random import PRNGKey
-from numpyro.infer import MCMC, NUTS
 
 # Use 4 cores
 numpyro.set_host_device_count(5)

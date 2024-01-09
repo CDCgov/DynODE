@@ -1,5 +1,4 @@
 from itertools import product
-import jax
 
 import jax.numpy as jnp
 
