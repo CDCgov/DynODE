@@ -522,12 +522,12 @@ class BasicMechanisticModel:
             # discontinuities due to beta manipulation specified as jump_ts
             stepsize_controller=PIDController(
                 rtol=1e-3,
-                atol=1e-8,
+                atol=1e-6,
                 jump_ts=list(self.BETA_TIMES),
             ),
             saveat=saveat,
             # higher for large time scales / rapid changes
-            max_steps=int(10e6),
+            max_steps=int(1e6),
         )
         self.solution = solution
         save_path = (
