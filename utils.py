@@ -91,9 +91,7 @@ def conditional_knots(t, knots, coefficients):
 # days of separation between each knot
 
 
-def VAX_FUNCTION(
-    t, knots: jnp.ndarray[float], coefficients: jnp.ndarray[float]
-) -> float:
+def VAX_FUNCTION(t, knots: jnp.ndarray, coefficients: jnp.ndarray) -> float:
     """
     Returns the value of a derived cubic spline with knots and coefficients evaluated on day `t` for each age_bin x vax history combination.
     Cubic spline equation:
