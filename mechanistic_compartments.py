@@ -84,7 +84,7 @@ class BasicMechanisticModel:
             self.load_init_infection_infected_and_exposed_dist_via_abm()
         # self.INIT_INFECTION_DIST.shape = (age, hist, num_vax, strain)
 
-        if self.VAX_MODEL_PARAMS is None:
+        if self.VAX_MODEL_KNOTS is None:
             self.load_vaccination_model()
         # loads params used in self.vaccination_rate()
 
@@ -325,8 +325,13 @@ class BasicMechanisticModel:
         vaccination_rates: jnp.array()
             jnp.array(shape=(self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
         """
-        return utils.VAX_FUNCTION(
-            t, self.VAX_MODEL_KNOTS, self.VAX_MODEL_PARAMETERS
+        return jnp.exp(
+            utils.VAX_FUNCTION(
+                t,
+                self.VAX_MODEL_KNOT_LOCATIONS,
+                self.VAX_MODEL_BASE_EQUATIONS,
+                self.VAX_MODEL_KNOTS,
+            )
         )
 
     def beta_coef(self, t):
@@ -932,9 +937,8 @@ class BasicMechanisticModel:
         """
         parameters = pd.read_csv(self.VAX_MODEL_DATA)
         age_bins = len(parameters["age_group"].unique())
-        vax_bins = len(parameters["vaccination"].unique())
+        vax_bins = len(parameters["dose"].unique())
         # change this if you start using higher degree polynomials to fit vax model
-        num_parameters = len(parameters.columns) - 2
         assert age_bins == self.NUM_AGE_GROUPS, (
             "the number of age bins in your model does not match the input vaccination parameters, "
             + "please provide your own vaccination parameters that match, or adjust your age bins"
@@ -944,26 +948,28 @@ class BasicMechanisticModel:
             "the number of vaccination counts in your model does not match the input vaccination parameters, "
             + "please provide your own vaccination parameters that match, or adjust your age bins"
         )
-        vax_parameters = np.zeros((age_bins, vax_bins, num_parameters))
+        vax_knots = np.zeros((age_bins, vax_bins, self.VAX_MODEL_NUM_KNOTS))
+        vax_knot_locations = np.zeros(
+            (age_bins, vax_bins, self.VAX_MODEL_NUM_KNOTS)
+        )
+        vax_base_equations = np.zeros((age_bins, vax_bins, 4))  # always 4
         for row in parameters.itertuples():
             _, age_group, vaccination = row[0:3]
-            intersect_and_ts = row[3:]
+            intersect_and_ts = row[3:7]
+            knot_coefficients = row[7 : 7 + self.VAX_MODEL_NUM_KNOTS]
+            knot_locations = row[7 + self.VAX_MODEL_NUM_KNOTS :]
             age_group_idx = self.AGE_GROUP_IDX[age_group]
             vax_idx = vaccination - 1
-            vax_parameters[age_group_idx, vax_idx, :] = np.array(
+            vax_base_equations[age_group_idx, vax_idx, :] = np.array(
                 intersect_and_ts
             )
-        self.VAX_MODEL_PARAMETERS = jnp.array(vax_parameters)
-        self.VAX_MODEL_KNOT_SEPARATION = 7
-        self.VAX_MODEL_KNOTS = jnp.array(
-            list(
-                range(
-                    self.VAX_MODEL_KNOT_SEPARATION,
-                    449,
-                    self.VAX_MODEL_KNOT_SEPARATION,
-                )
+            vax_knots[age_group_idx, vax_idx, :] = np.array(knot_coefficients)
+            vax_knot_locations[age_group_idx, vax_idx, :] = np.array(
+                knot_locations
             )
-        )
+        self.VAX_MODEL_KNOTS = jnp.array(vax_knots)
+        self.VAX_MODEL_KNOT_LOCATIONS = jnp.array(vax_knot_locations)
+        self.VAX_MODEL_BASE_EQUATIONS = jnp.array(vax_base_equations)
 
     def load_external_i_distributions(self):
         """

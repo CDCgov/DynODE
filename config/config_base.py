@@ -25,8 +25,9 @@ class ConfigBase:
         self.REGIONS = ["United States"]
         self.DEMOGRAPHIC_DATA = "data/demographic-data/"
         self.SEROLOGICAL_DATA = "data/serological-data/"
-        self.SIM_DATA = "data/abm_population.csv"
+        self.SIM_DATA = "data/abm-data/abm_population.csv"
         self.VAX_MODEL_DATA = "data/spline_fits.csv"
+        self.VAX_MODEL_NUM_KNOTS = 18
         self.SAVE_PATH = "output/"
         self.HOSP_PATH = "data/hospital_220213_220108.csv"
         # model initialization date DO NOT CHANGE
@@ -105,8 +106,10 @@ class ConfigBase:
         # matrix stratified by age bin, immune hist, vax, waning. Where proportions within an single age bin sum to 1.
         # proportions of people within that age bin who belong to each strata of immune history, vaccination, and waning.
         self.INIT_IMMUNE_HISTORY = None
-        # spline coefficients for vaccine splines
-        self.VAX_MODEL_PARAMS = None
+        # spline coefficients/knots for vaccine splines
+        self.VAX_MODEL_KNOTS = None
+        self.VAX_MODEL_KNO_LOCATIONS = None
+        self.VAX_MODEL_BASE_EQUATIONS = None
         # distributions for introduction of externally infected individuals into model for each strain.
         self.EXTERNAL_I_DISTRIBUTIONS = None
         # indexes ENUM for readability in code

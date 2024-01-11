@@ -9,7 +9,6 @@ import numpy as np
 import numpyro
 import numpyro.distributions as dist
 import pandas as pd
-from jax.nn import relu
 
 pd.options.mode.chained_assignment = None
 
@@ -73,11 +72,9 @@ def base_equation(t, coefficients):
         coefficients of each cubic spline base equation for all combinations of age bin and vax history
         coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, 3)
     """
-    # we are taking the derivative of the base equation, so t^2 becomes 2t
-    # and t^3 becomes 3t^2, drop the intercept
     return jnp.sum(
         coefficients
-        * jnp.array([0, 1, 2 * t, 3 * t**2])[jnp.newaxis, jnp.newaxis, :],
+        * jnp.array([1, t, t**2, t**3])[jnp.newaxis, jnp.newaxis, :],
         axis=-1,
     )
 
@@ -85,18 +82,23 @@ def base_equation(t, coefficients):
 def conditional_knots(t, knots, coefficients):
     indicators = jnp.where(t > knots, t - knots, 0)
     # multiply coefficients by 3 since we taking derivative of cubic spline.
-    return jnp.sum(indicators**2 * (3 * coefficients), axis=-1)
+    return jnp.sum(indicators**3 * coefficients, axis=-1)
 
 
 # days of separation between each knot
 
 
-def VAX_FUNCTION(t, knots: jnp.ndarray, coefficients: jnp.ndarray) -> float:
+def VAX_FUNCTION(
+    t,
+    knot_locations: jnp.ndarray,
+    base_equations: jnp.ndarray,
+    knot_coefficients: jnp.ndarray,
+) -> float:
     """
     Returns the value of a derived cubic spline with knots and coefficients evaluated on day `t` for each age_bin x vax history combination.
     Cubic spline equation:
 
-    f(t) = a + bt + ct^2  + \sum_{i}^{len(knots)}(coef_{i} * 3(t-knots_{i})^2 * I(t > knots_{i}))
+    f(t) = a + bt + ct^2 + dt^3 + \sum_{i}^{len(knots)}(knot_coefficients_{i} * (t-knot_locations_{i})^3 * I(t > knot_locations_{i}))
 
     Where coef/knots[i] is the i'th index of each array. and the I() function is an indicator variable 1 or 0.
 
@@ -104,10 +106,13 @@ def VAX_FUNCTION(t, knots: jnp.ndarray, coefficients: jnp.ndarray) -> float:
     ----------
     t: jax.tracer array
         a jax tracer containing within it the time in days since model simulation start
-    knots: jnp.array()
+    knot_locations: jnp.ndarray
         knot locations of each cubic spline for all combinations of age bin and vax history
         knots.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline)
-    coefficients: jnp.array()
+    base_equations" jnp.ndarray
+        the base equation coefficients (a + bt + ct^2 + dt^3) of each cubic spline for all combinations of age bin and vax history
+        knots.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, 4)
+    knot_coefficients: jnp.ndarray
         knot coefficients of each cubic spline for all combinations of age bin and vax history.
         including first 4 coefficients for the base equation.
         coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline + 4)
@@ -116,9 +121,9 @@ def VAX_FUNCTION(t, knots: jnp.ndarray, coefficients: jnp.ndarray) -> float:
     ----------
     jnp.array() containing the proportion of individuals in each age x vax combination that will be vaccinated during this time step.
     """
-    base = base_equation(t, coefficients.at[:, :, 0:4].get())
-    knots = conditional_knots(t, knots, coefficients.at[:, :, 4:].get())
-    return relu(base + knots)
+    base = base_equation(t, base_equations)
+    knots = conditional_knots(t, knot_locations, knot_coefficients)
+    return base + knots
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
