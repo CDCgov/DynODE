@@ -252,6 +252,36 @@ def all_immune_states_without(strain: int, num_strains: int):
     return list(set(all_states) - set(states_with_strain))
 
 
+def get_strains_exposed_to(state: int, num_strains: int):
+    """
+    Returns a list of integers representing the strains a given individual was exposed to in order to end up in state `state`.
+    Says nothing of the order at which an individual was exposed to those strains, list returned sorted increasing.
+
+    Parameters
+    -----------
+    state: int
+        the state a given individual is in, as dicated by a single or series of exposures to strains.
+        state dynamics determined by `new_immune_state()`
+    num_strains: int
+        the total number of strains in the model, used to determin total size of state space.
+
+    Returns
+    -----------
+        list[int] representing the strains the individual in `state` was exposed to, sorted increasing.
+    """
+    state_binary = format(state, "b")
+    # prepend 0s if needed.
+    if len(state_binary) < num_strains:
+        state_binary = "0" * (num_strains - len(state_binary)) + state_binary
+    state_binary_lst = list(state_binary)[::-1]
+    # if val == 1 in the binary, that means that state was exposed to that strain.
+    # strain is marked by the index of each 1 in the list.
+    strains_exposed_by = [
+        i for i in range(len(state_binary_lst)) if state_binary_lst[i] == "1"
+    ]
+    return strains_exposed_by
+
+
 def find_age_bin(age: int, age_limits: list[int]) -> int:
     """
     Given an age, return the age bin it belongs to in the age limits array

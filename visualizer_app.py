@@ -24,13 +24,26 @@ age_dict = {
 }
 # index for all category
 age_dict["All"] = list(range(model.NUM_AGE_GROUPS))
-vaccination_strings = ["0", "1", "2+"]
+vaccination_strings = [str(vax) for vax in range(model.MAX_VAX_COUNT + 1)]
+vaccination_strings[-1] = vaccination_strings[-1] + "+"
+# vaccination_strings = ["0", "1", "2+"]
+immune_states = list(range(model.NUM_PREV_INF_HIST))
+# giving a custom string to the no prior exposure state
 immune_state_strings = [
     "No Prior Exposure",
-    "pre-omicron only",
-    "omicron only",
-    "both",
 ]
+# skip 0 due to custom tag
+for state in immune_states[1:]:
+    immune_state_string = ""
+    # build up strain exposure history
+    for exposed_strain in utils.get_strains_exposed_to(
+        state, model.NUM_STRAINS
+    ):
+        immune_state_string = (
+            immune_state_string + model.STRAIN_NAMES[exposed_strain] + " + "
+        )
+    # cut the last " + " via :-3
+    immune_state_strings.append(immune_state_string[:-3])
 compartment_choices = [
     "Susceptible",
     "Exposed",
@@ -88,7 +101,7 @@ def heatmap(input, fig, ax):
         or len(input.age_bin()) == 0
         or len(input.display()) == 0
     ):
-        return None
+        return fig, ax
     compartment_selections = input.compartment()
     compartment = compartment_dict[compartment_selections[0]]
     compartment = np.sum(compartment, axis=-1)  # sum across wane/strain
@@ -119,7 +132,7 @@ def heatmap(input, fig, ax):
         compartment, linewidth=0.5, ax=ax, annot=True, fmt=format_string
     )
     heatmap.set_xticklabels(vaccination_strings)
-    heatmap.tick_params(axis="y", labelrotation=45)
+    heatmap.tick_params(axis="y", labelrotation=0)
     heatmap.set_yticklabels(immune_state_strings)
     heatmap.set_xlabel("Vaccination Count")
     heatmap.set_ylabel("Immune History")
@@ -137,6 +150,8 @@ def waning_in_population(input, fig, ax):
         len(compartment_names) == 0
         or len(compartment_names) > 1
         or compartment_names[0] != "Susceptible"
+        or len(input.age_bin()) == 0
+        or len(input.display()) == 0
     ):
         return fig, ax  # this plot only works on the Suceptible compartment
     age_selections = input.age_bin()
@@ -147,13 +162,14 @@ def waning_in_population(input, fig, ax):
             break
         else:
             age_bin.append(age_dict[age])
-    age_strings = [model.AGE_GROUP_STRS[abin] for abin in age_bin]
-    compartment = s_compartment[age_bin, :, :, :]
+    # sort in order for stacked bar chart
+    age_bin.sort()
+    age_strings = model.AGE_GROUP_STRS
+
+    compartment = s_compartment.copy()
     if input.display() == "Proportion":
         compartment = compartment / np.sum(compartment)
-    # if we only looking at one age bin we still want a separate dimension so code dont break
-    if len(age_bin) == 1:
-        compartment.reshape([1] + list(compartment.shape))
+
     immune_compartments = [
         compartment[:, :, :, w_idx] for w_idx in model.W_IDX
     ]
@@ -163,20 +179,20 @@ def waning_in_population(input, fig, ax):
     age_to_immunity_slice = {}
     # for each age group, plot its number of persons in each immune compartment
     # stack the bars on top of one another by summing the previous age groups underneath
-    for age_idx, age_group in zip(age_bin, age_strings):
-        age_to_immunity_slice[age_group] = np.sum(
+    for age_idx in age_bin:
+        age_to_immunity_slice[age_idx] = np.sum(
             immune_compartments[:, age_idx, :, :], axis=(-1, -2)
+        )
+        # stacked barchart effect, stack all *currently selected* bars.
+        bottom = sum(
+            [age_to_immunity_slice.get(x, 0) for x in range(0, age_idx)]
         )
         ax.bar(
             x_axis,
-            age_to_immunity_slice[age_group],
-            label=age_group,
-            bottom=sum(
-                [age_to_immunity_slice[x] for x in age_strings[0:age_idx]]
-            ),
+            age_to_immunity_slice[age_idx],
+            label=age_strings[age_idx],
+            bottom=bottom,
         )
-    # props = {"rotation": 25, "size": 7}
-    # plt.setp(ax.get_xticklabels(), **props)
     ax.legend()
     ax.tick_params(axis="x", labelrotation=25)
     ax.set_title("Initial Population Immunity level by waning compartment")
