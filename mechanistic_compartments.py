@@ -60,7 +60,7 @@ class BasicMechanisticModel:
         self.config_file = kwargs
 
         # GENERATE CROSS IMMUNITY MATRIX with protection from STRAIN_INTERACTIONS most recent infected strain.
-        if not self.CROSSIMMUNITY_MATRIX:
+        if self.CROSSIMMUNITY_MATRIX is None:
             self.build_cross_immunity_matrix()
         # if not given, load population fractions based on observed census data into self
         if not self.INITIAL_POPULATION_FRACTIONS:
