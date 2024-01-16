@@ -12,38 +12,45 @@ def infer_model(incidence, model: BasicMechanisticModel):
     m = copy.deepcopy(model)
 
     # Parameters
-    with numpyro.plate("num_strains", 3):
+    with numpyro.plate("num_strains", 2):
         excess_r0 = numpyro.sample("excess_r0", dist.Beta(1, 9)) * 9
         r0 = numpyro.deterministic("r0", 1 + excess_r0)
 
-    inf_period_scale = numpyro.sample(
-        "inf_period_scale",
-        dist.Beta(4, 6),
-    )
-    infectious_period = numpyro.deterministic(
-        "INFECTIOUS_PERIOD", 3 + inf_period_scale * 17
-    )
+    # inf_period_scale = numpyro.sample(
+    #     "inf_period_scale",
+    #     dist.Beta(4, 6),
+    # )
+    # infectious_period = numpyro.deterministic(
+    #     "INFECTIOUS_PERIOD", 3 + inf_period_scale * 17
+    # )
 
-    intro_time_scale = numpyro.sample("intro_time_scale", dist.Beta(3, 9))
+    intro_time_scale = numpyro.sample("intro_time_scale", dist.Beta(2, 18))
     introduction_time = numpyro.deterministic(
         "INTRO_TIME", intro_time_scale * 100
     )
-    # introduction_perc = numpyro.sample("INTRO_PERCENTAGE", dist.Beta(0.1, 10))
 
-    m.STRAIN_SPECIFIC_R0 = r0
-    m.INFECTIOUS_PERIOD = infectious_period
+    m.STRAIN_SPECIFIC_R0 = jnp.append(jnp.array([1.5]), r0)
     m.INTRODUCTION_TIMES_SAMPLE = [introduction_time]
-    # m.INTRODUCTION_PERCENTAGE = introduction_perc
 
     sol = m.run(seip_ode, tf=len(incidence))
-    model_incidence = jnp.sum(sol.ys[3], axis=(2, 3, 4))
-    model_incidence = jnp.diff(model_incidence, axis=0)
+    model_incidence = jnp.sum(sol.ys[3], axis=4)
+    model_incidence_0 = jnp.diff(model_incidence[:, :, 0, 0], axis=0)
+
+    model_incidence_1 = jnp.sum(model_incidence, axis=(2, 3))
+    model_incidence_1 = jnp.diff(model_incidence_1, axis=0)
+    model_incidence_1 -= model_incidence_0
 
     with numpyro.plate("num_age", 4):
-        ihr = numpyro.sample("ihr", dist.Beta(0.1, 10))
+        ihr = numpyro.sample("ihr", dist.Beta(1, 9))
+
+    ihr_mult = numpyro.sample("ihr_mult", dist.Beta(1, 9))
+
+    sim_incidence = (
+        model_incidence_0 * ihr + model_incidence_1 * ihr * ihr_mult
+    )
 
     numpyro.sample(
         "incidence",
-        dist.Poisson(model_incidence * ihr),
+        dist.Poisson(sim_incidence),
         obs=incidence,
     )
