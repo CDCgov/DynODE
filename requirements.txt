@@ -326,7 +326,7 @@ stack-data==0.6.2
 
 starlette==0.33.0
 
-streamlit==1.26.0
+streamlit==1.30.0
 
 tenacity==8.2.3
 
