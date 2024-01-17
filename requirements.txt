@@ -82,7 +82,7 @@ fastjsonschema==2.17.1
 
 filelock==3.12.3
 
-fonttools==4.42.0
+fonttools==4.43.0
 
 fqdn==1.5.1
 
