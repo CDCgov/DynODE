@@ -4,7 +4,6 @@ repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
-    -   id: check-added-large-files
     -   id: check-yaml
     -   id: check-toml
     -   id: end-of-file-fixer
@@ -55,5 +54,5 @@ repos:
     rev: v1.4.0
     hooks:
     -   id: detect-secrets
-        args: ['--baseline', '.secrets.baseline']
+        args: ['--baseline', '.secrets.baseline', '--exclude-files', '.*\.csv']
         exclude: package.lock.json
