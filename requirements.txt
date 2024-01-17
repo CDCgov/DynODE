@@ -246,7 +246,7 @@ ptyprocess==0.7.0
 
 pure-eval==0.2.2
 
-pyarrow==13.0.0
+pyarrow==14.0.1
 
 pycparser==2.21
 
