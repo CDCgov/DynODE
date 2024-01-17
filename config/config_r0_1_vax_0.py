@@ -13,7 +13,7 @@ class ConfigScenario(ConfigBase):
     def __init__(self) -> None:
         self.SCENARIO_NAME = "R0 = 1, No Vaccination Scenario"
         # set scenario parameters here
-        self.STRAIN_SPECIFIC_R0 = jnp.array([1.0, 1.0])
+        self.STRAIN_SPECIFIC_R0 = jnp.array([1.0, 1.0, 1.0])
         self.VACCINATION_RATE = 0
         # pass all modified scenario params to the base constructor to set the others.
         super().__init__(**self.__dict__)
