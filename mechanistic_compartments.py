@@ -92,41 +92,8 @@ class BasicMechanisticModel:
             self.load_external_i_distributions()
         # loads params used in self.external_i()
 
-        initial_infectious_count = (
-            self.INITIAL_INFECTIONS * self.INIT_INFECTED_DIST
-        )
-        initial_infectious_count_ages = jnp.sum(
-            initial_infectious_count,
-            axis=(
-                self.I_AXIS_IDX.hist,
-                self.I_AXIS_IDX.vax,
-                self.I_AXIS_IDX.strain,
-            ),
-        )
-        initial_exposed_count = (
-            self.INITIAL_INFECTIONS * self.INIT_EXPOSED_DIST
-        )
-        initial_exposed_count_ages = jnp.sum(
-            initial_exposed_count,
-            axis=(
-                self.I_AXIS_IDX.hist,
-                self.I_AXIS_IDX.vax,
-                self.I_AXIS_IDX.strain,
-            ),
-        )
-        # suseptible / partial susceptible = Total population - infected - exposed
-        initial_suseptible_count = (
-            self.POPULATION
-            - initial_infectious_count_ages
-            - initial_exposed_count_ages
-        )[:, np.newaxis, np.newaxis, np.newaxis] * self.INIT_IMMUNE_HISTORY
-
-        self.INITIAL_STATE = (
-            initial_suseptible_count,  # s
-            initial_exposed_count,  # e
-            initial_infectious_count,  # i
-            jnp.zeros(initial_exposed_count.shape),  # c
-        )
+        # load initial state using INIT_IMMUNE_HISTORY, INIT_INFECTED_DIST, and INIT_EXPOSED_DIST
+        self.INITIAL_STATE = self.load_initial_state(self.INITIAL_INFECTIONS)
 
         self.solution = None
 
@@ -188,6 +155,9 @@ class BasicMechanisticModel:
             # either using the default sample_dist_dict, or the one provided by the user
             # transform these distributions into numpyro samples.
             for key, item in sample_dist_dict.items():
+                # if user wants to sample model initial infections, do that outside of get_args()
+                if key == "INITIAL_INFECTIONS":
+                    continue
                 # sometimes you may want to sample the elements of a list, like R0 for strains
                 # check for that here:
                 if isinstance(item, list):
@@ -230,6 +200,9 @@ class BasicMechanisticModel:
                 "SIGMA", 1 / args["EXPOSED_TO_INFECTIOUS"]
             )
         )
+        if "INITIAL_INFECTIONS" in args.keys():
+            # modifies initial state inplace, as it is not an arg passed into the ode.
+            self.load_initial_state(args["INITIAL_INFECTIONS"])
         # since our last waning time is zero to account for last compartment never waning
         # we include an if else statement to catch a division by zero error here.
         waning_rates = [
@@ -514,13 +487,25 @@ class BasicMechanisticModel:
         t0 = 0.0
         dt0 = 1.0
         saveat = SaveAt(ts=jnp.linspace(t0, tf, int(tf) + 1))
+        # if the user wants to sample model initial infections, do it here
+        initial_state = (
+            self.load_initial_state(
+                numpyro.sample(
+                    "INITIAL_INFECTIONS",
+                    sample_dist_dict["INITIAL_INFECTIONS"],
+                )
+            )
+            if "INITIAL_INFECTIONS" in sample_dist_dict.keys()
+            else self.INITIAL_STATE
+        )
+
         solution = diffeqsolve(
             term,
             solver,
             t0,
             tf,
             dt0,
-            self.INITIAL_STATE,
+            initial_state,
             args=self.get_args(
                 sample=sample, sample_dist_dict=sample_dist_dict
             ),
@@ -1005,6 +990,62 @@ class BasicMechanisticModel:
             self.EXTERNAL_I_DISTRIBUTIONS[dist_idx] = partial(
                 pdf, loc=introduced_time, scale=7
             )
+
+    def load_initial_state(self, initial_infections: float):
+        """
+        a function which takes a number of initial infections, disperses them across infectious and exposed compartments
+        according to the INIT_INFECTED_DIST and INIT_EXPOSED_DIST distributions, then subtracts both those populations from the total population and
+        places the remaining individuals in the susceptible compartment, distributed according to the INIT_IMMUNE_HISTORY distribution.
+
+        Parameters
+        ----------
+        initial_infections: the number of infections to disperse between infectious and exposed compartments.
+
+        Requires
+        ----------
+        the following variables be loaded into self:
+        INIT_INFECTED_DIST: loaded in config or via load_init_infection_infected_and_exposed_dist_via_abm()
+        INIT_EXPOSED_DIST: loaded in config or via load_init_infection_infected_and_exposed_dist_via_abm()
+        INIT_IMMUNE_HISTORY: loaded in config or via load_immune_history_via_abm().
+
+        Returns
+        ----------
+        INITIAL_STATE: tuple(jnp.ndarray)
+            a tuple of len 4 representing the S, E, I, and C compartment population counts after model initialization.
+        """
+        # create population distribution using INIT_INFECTED_DIST, then sum them for later use
+        initial_infectious_count = initial_infections * self.INIT_INFECTED_DIST
+        initial_infectious_count_ages = jnp.sum(
+            initial_infectious_count,
+            axis=(
+                self.I_AXIS_IDX.hist,
+                self.I_AXIS_IDX.vax,
+                self.I_AXIS_IDX.strain,
+            ),
+        )
+        # create population distribution using INIT_EXPOSED_DIST, then sum them for later use
+        initial_exposed_count = initial_infections * self.INIT_EXPOSED_DIST
+        initial_exposed_count_ages = jnp.sum(
+            initial_exposed_count,
+            axis=(
+                self.I_AXIS_IDX.hist,
+                self.I_AXIS_IDX.vax,
+                self.I_AXIS_IDX.strain,
+            ),
+        )
+        # suseptible / partial susceptible = Total population - infected_count - exposed_count
+        initial_suseptible_count = (
+            self.POPULATION
+            - initial_infectious_count_ages
+            - initial_exposed_count_ages
+        )[:, np.newaxis, np.newaxis, np.newaxis] * self.INIT_IMMUNE_HISTORY
+        # cumulative count always starts at zero
+        return (
+            initial_suseptible_count,  # s
+            initial_exposed_count,  # e
+            initial_infectious_count,  # i
+            jnp.zeros(initial_exposed_count.shape),  # c
+        )
 
     def to_json(self, file=None):
         """
