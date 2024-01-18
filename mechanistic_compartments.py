@@ -155,6 +155,7 @@ class BasicMechanisticModel:
             # either using the default sample_dist_dict, or the one provided by the user
             # transform these distributions into numpyro samples.
             for key, item in sample_dist_dict.items():
+                # if user wants to sample model initial infections, do that outside of get_args()
                 if key == "INITIAL_INFECTIONS":
                     continue
                 # sometimes you may want to sample the elements of a list, like R0 for strains
@@ -486,6 +487,7 @@ class BasicMechanisticModel:
         t0 = 0.0
         dt0 = 1.0
         saveat = SaveAt(ts=jnp.linspace(t0, tf, int(tf) + 1))
+        # if the user wants to sample model initial infections, do it here
         initial_state = (
             self.load_initial_state(
                 numpyro.sample(
@@ -1006,11 +1008,12 @@ class BasicMechanisticModel:
         INIT_EXPOSED_DIST: loaded in config or via load_init_infection_infected_and_exposed_dist_via_abm()
         INIT_IMMUNE_HISTORY: loaded in config or via load_immune_history_via_abm().
 
-        Modifies
+        Returns
         ----------
         INITIAL_STATE: tuple(jnp.ndarray)
             a tuple of len 4 representing the S, E, I, and C compartment population counts after model initialization.
         """
+        # create population distribution using INIT_INFECTED_DIST, then sum them for later use
         initial_infectious_count = initial_infections * self.INIT_INFECTED_DIST
         initial_infectious_count_ages = jnp.sum(
             initial_infectious_count,
@@ -1020,6 +1023,7 @@ class BasicMechanisticModel:
                 self.I_AXIS_IDX.strain,
             ),
         )
+        # create population distribution using INIT_EXPOSED_DIST, then sum them for later use
         initial_exposed_count = initial_infections * self.INIT_EXPOSED_DIST
         initial_exposed_count_ages = jnp.sum(
             initial_exposed_count,
@@ -1029,13 +1033,13 @@ class BasicMechanisticModel:
                 self.I_AXIS_IDX.strain,
             ),
         )
-        # suseptible / partial susceptible = Total population - infected - exposed
+        # suseptible / partial susceptible = Total population - infected_count - exposed_count
         initial_suseptible_count = (
             self.POPULATION
             - initial_infectious_count_ages
             - initial_exposed_count_ages
         )[:, np.newaxis, np.newaxis, np.newaxis] * self.INIT_IMMUNE_HISTORY
-        # self.INITIAL_STATE =
+        # cumulative count always starts at zero
         return (
             initial_suseptible_count,  # s
             initial_exposed_count,  # e
