@@ -446,7 +446,8 @@ class BasicMechanisticModel:
         sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
         save_path: str = "model_run.png",
         plot_commands: list[str] = ["S", "E", "I", "C"],
-        log_scale: bool = False,
+        log_scale: bool = None,
+        summarize: bool = True,
     ):
         """
         Takes parameters from self and applies them to some disease dynamics modeled in `model`
@@ -522,29 +523,74 @@ class BasicMechanisticModel:
         )  # dont set a save path if we dont want to save
 
         if show or save:
-            fig, ax = self.plot_diffrax_solution(
-                solution,
-                plot_commands=plot_commands,
-                save_path=save_path,
-                log_scale=log_scale,
-            )
+            # summary plot has all functionality.
+            if summarize:
+                fig, ax = self.summarize_diffrax_solution(
+                    solution, plot_commands=plot_commands, save_path=save_path
+                )
+            # if user wants specific plot, we can give that to them too
+            else:
+                if "strain_prevalence" in plot_commands:
+                    fig, ax = self.plot_strain_prevalence(
+                        solution,
+                        plot_commands=plot_commands,
+                        save_path=save_path,
+                    )
+                else:
+                    fig, ax = self.plot_diffrax_solution(
+                        solution,
+                        plot_commands=plot_commands,
+                        save_path=save_path,
+                        log_scale=log_scale,
+                    )
             if show:
                 plt.show()
 
         return solution
+
+    def summarize_diffrax_solution(
+        self,
+        sol: Solution,
+        plot_commands: list[str] = ["S", "E", "I", "C"],
+        save_path: str = None,
+    ):
+        fig, axs = plt.subplots(2, 2, figsize=(8, 9))
+        # plot commands with unlogged y axis
+        fig, axs[0][0] = self.plot_diffrax_solution(
+            sol, plot_commands, log_scale=False, fig=fig, ax=axs[0][0]
+        )
+        # plot commands with logged y axis
+        fig, axs[1][0] = self.plot_diffrax_solution(
+            sol, plot_commands, log_scale=True, fig=fig, ax=axs[1][0]
+        )
+        # strain prevalence chart over the same x axis, no plot commands.
+        fig, axs[0][1] = self.plot_strain_prevalence(
+            sol, fig=fig, ax=axs[0][1]
+        )
+        # incidence scatter plot, unlogged y axis
+        fig, axs[1][1] = self.plot_diffrax_solution(
+            sol, ["incidence"], log_scale=False, fig=fig, ax=axs[1][1]
+        )
+
+        fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+        # save if user passes str save_path
+        self.save_plot(save_path, fig)
+        return fig, axs
 
     def plot_diffrax_solution(
         self,
         sol: Solution,
         plot_commands: list[str] = ["S", "E", "I", "C"],
         save_path: str = None,
-        log_scale: bool = False,
+        log_scale: bool = None,
         fig: plt.figure = None,
         ax: plt.axis = None,
     ):
         """
         plots a run from diffeqsolve() with `plot_commands` returning figure and axis.
         If `save_path` is not None will save figure to that path attached with meta data in `meta_data`.
+
+        if log_scale is unspecified, plots both logged and unlogged y axis of the `plot_commands` supplied.
 
         Parameters
         ----------
@@ -556,6 +602,9 @@ class BasicMechanisticModel:
         save_path : str, optional
             if `save_path = None` do not save figure to output directory. Otherwise save to relative path `save_path`
             attaching meta data of the self object.
+        log_scale : bool, optional
+            whether or not to exclusively show the log or unlogged version of the plot, by default include both
+            in a stacked subplot.
         fig: matplotlib.pyplot.figure
             if this plot is part of a larger subplots, pass the figure object here, otherwise one is created
         ax: matplotlib.pyplot.axis
@@ -567,12 +616,29 @@ class BasicMechanisticModel:
             objects containing the matplotlib figure and axis for further modifications if needed.
         """
         plot_commands = [x.strip() for x in plot_commands]
-        sol = sol.ys
         if fig is None or ax is None:
-            fig, ax = plt.subplots(1)
-            ax.set_title(
-                "Population count by compartment across all ages and strains"
+            fig, ax = plt.subplots(
+                2 if log_scale is None else 1, figsize=(8, 9)
             )
+            # plotting both logged and unlogged is recursive calls
+            if log_scale is None:
+                fig, ax[0] = self.plot_diffrax_solution(
+                    sol,
+                    plot_commands,
+                    log_scale=False,
+                    fig=fig,
+                    ax=ax[0],
+                )
+                fig, ax[1] = self.plot_diffrax_solution(
+                    sol,
+                    plot_commands,
+                    log_scale=True,
+                    fig=fig,
+                    ax=ax[1],
+                )
+                # clear plot commands since everything was done recursively
+                plot_commands = []
+        sol = sol.ys
         for command in plot_commands:
             timeline, label = utils.get_timeline_from_solution_with_command(
                 sol,
@@ -589,18 +655,169 @@ class BasicMechanisticModel:
                 self.INIT_DATE + datetime.timedelta(days=day) for day in days
             ]
             if command == "incidence":
+                # plot both logged and unlogged version by default
+                timeline = np.log(timeline) if log_scale else timeline
                 ax.scatter(x_axis, timeline, label=label, s=1)
-            else:
+            else:  # all other commands plot lines
                 ax.plot(
                     x_axis,
                     timeline,
                     label=label,
                 )
+        # plotting both plots, dont want to have text overlap.
+        if log_scale is None:
+            fig.tight_layout()
+        # dont want to set title again if we did it recursively above
+        if log_scale is not None:
+            ax.set_title(
+                "Population count by compartment across all ages and strains",
+                fontsize=8,
+            )
+            ax.tick_params(axis="x", labelrotation=45)
+            ax.legend()
+            ax.set_ylabel("Population Count", fontsize=8)
+        if log_scale:  # if single plot, user wants logged or not
+            ax.set_yscale("log")
+        # save if user passes str save_path
+        self.save_plot(save_path, fig)
+        return fig, ax
+
+    def plot_strain_prevalence(
+        self,
+        sol: Solution,
+        save_path: str = None,
+        fig: plt.figure = None,
+        ax: plt.axis = None,
+    ):
+        """
+        Function that plots only strain prevalence by day. Follows similar schema to `plot_diffrax_solution()` but takes no plot commands.
+        If `save_path` is not None will save figure to that path attached with meta data in `meta_data`.
+
+        Parameters
+        ----------
+        sol : difrax.Solution
+            object containing ODE run as described by https://docs.kidger.site/diffrax/api/solution/
+        save_path : str, optional
+            if `save_path = None` do not save figure to output directory. Otherwise save to relative path `save_path`
+            attaching meta data of the self object.
+        fig: matplotlib.pyplot.figure
+            if this plot is part of a larger subplots, pass the figure object here, otherwise one is created
+        ax: matplotlib.pyplot.axis
+            if this plot is part of a larger subplots, pass the specific axis object here, otherwise one is created
+
+        Returns
+        ----------
+        fig, ax : matplotlib.Figure/axis object
+            objects containing the matplotlib figure and axis for further modifications if needed.
+        """
+        if fig is None or ax is None:
+            fig, ax = plt.subplots(1, figsize=(8, 9))
+        sol = sol.ys
+        (
+            strain_prevalence_arr,
+            labels,
+        ) = utils.get_timeline_from_solution_with_command(
+            sol,
+            self.IDX,
+            self.W_IDX,
+            self.STRAIN_IDX,
+            "strain_prevalence",
+        )
+        # create x axis by using the number of days in the array
+        days = list(range(len(strain_prevalence_arr[0])))
+        x_axis = [
+            self.INIT_DATE + datetime.timedelta(days=day) for day in days
+        ]
+        ax.stackplot(
+            x_axis, *strain_prevalence_arr, labels=labels, baseline="zero"
+        )
+        ax.set_title(
+            "Strain Prevalence (proportion of current infectious/exposed by strain)",
+            fontsize=8,
+        )
         ax.tick_params(axis="x", labelrotation=45)
         ax.legend()
-        ax.set_ylabel("Population Count")
-        if log_scale:
-            ax.set_yscale("log")
+        ax.set_ylabel("Proportion of infected population", fontsize=8)
+        self.save_plot(save_path, fig)
+        return fig, ax
+
+    def plot_initial_serology(
+        self, save_path: str = None, show: bool = True, fig=None, ax=None
+    ):
+        """
+        plots a stacked bar chart representation of the initial immune compartments of the model.
+
+        Parameters
+        ----------
+        save_path: {str, None}, optional
+            the save path to which to save the figure, None implies figure will not be saved.
+        show: {Boolean, None}, optional
+            Whether or not to show the figure using plt.show() defaults to True.
+        fig: matplotlib.pyplot.figure
+            if this plot is part of a larger subplots, pass the figure object here, otherwise one is created
+        ax: matplotlib.pyplot.axis
+            if this plot is part of a larger subplots, pass the specific axis object here, otherwise one is created
+
+        Returns
+        ----------
+        fig, ax : matplotlib.Figure/axis object
+            objects containing the matplotlib figure and axis for further modifications if needed.
+        """
+        if fig is None or ax is None:
+            fig, ax = plt.subplots(1, figsize=(8, 9))
+        s_compartment = self.INITIAL_STATE[0]
+        # swap dimensions so waning compartments in first dim
+        immune_compartments = np.moveaxis(
+            s_compartment, [self.S_AXIS_IDX.wane], [0]
+        )
+        # reverse for plot readability since we read left to right
+        immune_compartments = immune_compartments[::-1]
+        x_axis = ["W" + str(int(idx)) for idx in self.W_IDX][::-1]
+        age_to_immunity_slice = {}
+        # for each age group, plot its number of persons in each immune compartment
+        # stack the bars on top of one another by summing the previous age groups underneath
+        for age_idx in range(self.NUM_AGE_GROUPS):
+            age_to_immunity_slice[age_idx] = np.sum(
+                immune_compartments[:, age_idx, :, :], axis=(-1, -2)
+            )
+            # stacked barchart effect, stack all *currently selected* bars.
+            bottom = sum(
+                [age_to_immunity_slice.get(x, 0) for x in range(0, age_idx)]
+            )
+            ax.bar(
+                x_axis,
+                age_to_immunity_slice[age_idx],
+                label=self.AGE_GROUP_STRS[age_idx],
+                bottom=bottom,
+            )
+        props = {"rotation": 25, "size": 7}
+        plt.setp(ax.get_xticklabels(), **props)
+        ax.legend()
+        ax.set_title("Initial Population Immunity level by waning compartment")
+        ax.set_xlabel("Immune Compartment")
+        ax.set_ylabel("Population Count, all strains")
+        if show:
+            fig.show()
+        self.save_plot(save_path, fig)
+        return fig, ax
+
+    def save_plot(self, save_path, fig):
+        """
+        saves a matplotlib figure in `fig` to `save_path` if save_path is not None. Will fail if path is not writeable.
+        Attaches model metadata to image to ensure reproducibility.
+
+        Parameters
+        ----------
+        save_path: {str, None}, optional
+            the save path to which to save the figure, None implies figure will not be saved.
+
+        fig: matplotlib.pyplot.figure
+            figure you are trying to save
+
+        Returns
+        ----------
+        None
+        """
         if save_path:
             metadata = PngInfo()
             if self.GIT_REPO.is_dirty():
@@ -612,67 +829,6 @@ class BasicMechanisticModel:
                 )
             metadata.add_text("model", self.to_json())
             fig.savefig(save_path, pil_kwargs={"pnginfo": metadata})
-        return fig, ax
-
-    def plot_initial_serology(self, save_path: str = None, show: bool = True):
-        """
-        plots a stacked bar chart representation of the initial immune compartments of the model.
-
-        Parameters
-        ----------
-        save_path: {str, None}, optional
-            the save path to which to save the figure, None implies figure will not be saved.
-        show: {Boolean, None}, optional
-            Whether or not to show the figure using plt.show() defaults to True.
-
-        Returns
-        -----------
-        fig: matplotlib.figure.Figure
-            Matplotlib Figure containing the generated plot
-        ax: matplotlib.axes._axes.Axes
-            Matplotlib axes containing data on the generated plot.
-        """
-        # combine them together into one matrix, multiply by pop counts
-        immune_compartments = [
-            self.INIT_IMMUNE_HISTORY[:, :, :, w_idx] for w_idx in self.W_IDX
-        ]
-        immune_compartments_populations = self.POPULATION * immune_compartments
-        # reverse for plot readability since we read left to right
-        immune_compartments_populations = immune_compartments_populations[::-1]
-        x_axis = ["W" + str(int(idx)) for idx in self.W_IDX][::-1]
-        age_to_immunity_slice = {}
-        # for each age group, plot its number of persons in each immune compartment
-        # stack the bars on top of one another by summing the previous age groups underneath
-        fig, ax = plt.subplots(1)
-        for idx, age_group in enumerate(self.AGE_GROUP_STRS):
-            age_to_immunity_slice[age_group] = immune_compartments_populations[
-                :, idx
-            ]
-            ax.bar(
-                x_axis,
-                age_to_immunity_slice[age_group],
-                label=age_group,
-                bottom=sum(
-                    [
-                        age_to_immunity_slice[x]
-                        for x in self.AGE_GROUP_STRS[0:idx]
-                    ]
-                ),
-            )
-        props = {"rotation": 25, "size": 7}
-        plt.setp(ax.get_xticklabels(), **props)
-        ax.legend()
-        ax.set_title("Initial Population Immunity level by waning compartment")
-        ax.set_xlabel("Immune Compartment")
-        ax.set_ylabel("Population Count, all strains")
-        if show:
-            fig.show()
-        if save_path:
-            metadata = PngInfo()
-            for key, val in self.__dict__.items():
-                metadata.add_text(key, str(val))
-            fig.savefig(save_path, pil_kwargs={"pnginfo": metadata})
-        return fig, ax
 
     def load_immune_history_via_serology(self):
         """
