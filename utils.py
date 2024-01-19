@@ -1379,6 +1379,29 @@ def get_timeline_from_solution_with_command(
         )
         label = "E : " + label
         return compartment_weekly, label
+    # plot strain prevalence, proportion of all current infections by strain over time.
+    elif command.lower().strip() == "strain_prevalence":
+        exposed = np.array(sol[compartment_idx["E"]])
+        infected = np.array(sol[compartment_idx["I"]])
+        all_cur_infected = is_close_v(exposed + infected)
+        strain_proportions = []
+        # normalize each strain, getting its proportion of all infected at that time point
+        # strains sum to 1 for each given time point
+        for strain in strain_idx._member_names_:
+            strain_proportions.append(
+                np.nan_to_num(all_cur_infected[:, :, :, :, strain_idx[strain]])
+            )
+        # sum all three strains together for normalization purposes
+        all_cur_infected = np.sum(all_cur_infected, axis=-1)
+        dimensions_to_sum_over = tuple(range(1, strain_proportions[0].ndim))
+        strain_proportions_summed = [
+            np.sum(strain_proportion_timeline, axis=dimensions_to_sum_over)
+            / np.sum(all_cur_infected, axis=dimensions_to_sum_over)
+            for strain_proportion_timeline in strain_proportions
+        ]
+        labels = [str(strain) for strain in strain_idx._member_names_]
+        return strain_proportions_summed, labels
+
     # assuming explicit compartment, will explode if passed incorrect input
     else:
         compartment_slice = command[1:].strip()
