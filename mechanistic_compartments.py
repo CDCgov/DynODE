@@ -200,9 +200,6 @@ class BasicMechanisticModel:
                 "SIGMA", 1 / args["EXPOSED_TO_INFECTIOUS"]
             )
         )
-        if "INITIAL_INFECTIONS" in args.keys():
-            # modifies initial state inplace, as it is not an arg passed into the ode.
-            self.load_initial_state(args["INITIAL_INFECTIONS"])
         # since our last waning time is zero to account for last compartment never waning
         # we include an if else statement to catch a division by zero error here.
         waning_rates = [
