@@ -55,6 +55,7 @@ testing.py
 !requirements.txt
 !data/spline_fits.csv
 !data/hospitalization-data/hospital_220213_220108.csv
+!output/example_output_summary_slide.png
 
 #####
 # Python
