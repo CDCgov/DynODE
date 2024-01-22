@@ -1439,15 +1439,19 @@ def from_json(j_str):
             param_type = param["type"]
             param_val = param["val"]
             if param_type == "date":
-                param_val = datetime.datetime.strptime(param_val, "%d-%m-%y")
+                param_val = datetime.datetime.strptime(
+                    param_val, "%d-%m-%y"
+                ).date()
             elif param_type == "jax":
                 param_val = jnp.array(param_val)
             elif param_type == "enum":
                 enum_vals = [x.split(".")[-1] for x in param_val.keys()]
                 enum_name = [x.split(".")[0] for x in param_val.keys()][0]
                 param_val = IntEnum(enum_name, enum_vals, start=0)
-            elif param_type == "sol":
-                param_val = np.array(param_val)
+            elif param_type == "state":
+                param_val = tuple(
+                    jnp.array(compartment["val"]) for compartment in param_val
+                )
             param = param_val
         model_dict[key] = param
     return model_dict

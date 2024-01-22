@@ -1231,8 +1231,12 @@ class BasicMechanisticModel:
                             str(e): idx for e, idx in zip(obj, range(len(obj)))
                         },
                     }
+                # if we get a solution object, save the final-state only
                 if isinstance(obj, Solution):
-                    return {"type": "sol", "val": obj.ys}
+                    return {
+                        "type": "state",
+                        "val": tuple(y[-1] for y in obj.ys),
+                    }
                 if isinstance(obj, datetime.date):
                     return {"type": "date", "val": obj.strftime("%d-%m-%y")}
                 try:
@@ -1244,6 +1248,9 @@ class BasicMechanisticModel:
                     res = "error not serializable"
                 return res
 
+        # lets save the final state of the model if it has been run
+        if hasattr(self, "solution"):
+            self.config_file["final_state"] = self.solution
         if file:
             return json.dump(
                 self.config_file, file, indent=4, cls=CustomEncoder
