@@ -63,12 +63,12 @@ class ConfigBase:
         self.INTRODUCTION_AGE_MASK = [False, True, False, False]
         # number of compartments individuals wane through the moment of recovery.
         # there is no explicit "recovered" compartment.
-        self.NUM_WANING_COMPARTMENTS = 4
+        self.NUM_WANING_COMPARTMENTS = 5
         # the % protection from reinfection offered to individuals in each waning compartment.
         # TODO SOURCE?
-        self.WANING_PROTECTIONS = jnp.array([1.0, 0.985, 0.985, 0])
+        self.WANING_PROTECTIONS = jnp.array([1.0, 0.942, 0.942, 0.942, 0.0])
         # WANING_TIMES in days for each waning compartment, ends in 0 as last compartment does not wane
-        self.WANING_TIMES = [21, 142, 142, 0]
+        self.WANING_TIMES = [131, 134, 112, 81, 0]
         # TODO use priors informed by https://www.sciencedirect.com/science/article/pii/S2352396423002992
         # the protection afforded by different immune histories from infection.
         # non-omicron vs omicron, stratified by immune history. 0 = fully susceptible, 1 = fully immune.
