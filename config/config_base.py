@@ -76,8 +76,8 @@ class ConfigBase:
         self.STRAIN_INTERACTIONS = jnp.array(
             [
                 [1.0, 0.7, 0.49],  # delta
-                [0.7, 1.0, 0.7],  # omi
-                [0.49, 0.7, 1.0],  # BA1.1
+                [0.7, 1.0, 0.7],  # omicron
+                [0.49, 0.7, 1.0],  # BA2/BA5
             ]
         )
         # the protection afforded by different numbers of vaccinations from infection.
@@ -86,8 +86,8 @@ class ConfigBase:
         self.VAX_EFF_MATRIX = jnp.array(
             [
                 [0, 0.34, 0.68],  # delta
-                [0, 0.24, 0.48],  # omicron1
-                [0, 0.14, 0.28],  # BA1.1
+                [0, 0.24, 0.48],  # omicron
+                [0, 0.14, 0.28],  # BA2/BA5
             ]
         )
         # setting the following to None will get the model to initialize them from demographic/abm/vax data
@@ -161,10 +161,11 @@ class ConfigBase:
             "alpha",
             "delta",
             "omicron",
-            "BA1.1",
+            "BA2/BA5",
         ]
         # it often does not make sense to differentiate between wildtype and alpha, so combine strains here
         self.STRAIN_NAMES = all_strains[5 - self.NUM_STRAINS :]
+        self.STRAIN_NAMES[0] = "pre-" + self.STRAIN_NAMES[1]
         # in each compartment that is strain stratified we use strain indexes to improve readability.
         # omicron will always be index=2 if num_strains >= 3. In a two strain model we must combine alpha and delta together.
         self.STRAIN_IDX = IntEnum(

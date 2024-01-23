@@ -9,6 +9,7 @@ from functools import partial
 import jax.config
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 import numpyro
 import pandas as pd
@@ -446,6 +447,7 @@ class BasicMechanisticModel:
         sample_dist_dict: dict[str, numpyro.distributions.Distribution] = {},
         save_path: str = "model_run.png",
         plot_commands: list[str] = ["S", "E", "I", "C"],
+        plot_labels: list[str] = ["S", "E", "I", "C"],
         log_scale: bool = None,
         summarize: bool = True,
     ):
@@ -473,6 +475,9 @@ class BasicMechanisticModel:
             relative or absolute path where to save an image and its metadata if `save=True`
         `plot_commands`: list(str)
             a list of compartments to plot, strings must match those specified in self.IDX or self.W_IDX.
+        plot_labels: list(str), optional
+            labels to give to the lines plotted by each plot_command. These will appear in the legend of the figure.
+            If not specified will default behavior to plot commands themselves.
 
         Returns
         ----------
@@ -526,7 +531,10 @@ class BasicMechanisticModel:
             # summary plot has all functionality.
             if summarize:
                 fig, ax = self.summarize_diffrax_solution(
-                    solution, plot_commands=plot_commands, save_path=save_path
+                    solution,
+                    plot_commands=plot_commands,
+                    save_path=save_path,
+                    plot_labels=plot_labels,
                 )
             # if user wants specific plot, we can give that to them too
             else:
@@ -534,12 +542,14 @@ class BasicMechanisticModel:
                     fig, ax = self.plot_strain_prevalence(
                         solution,
                         plot_commands=plot_commands,
+                        plot_labels=plot_labels,
                         save_path=save_path,
                     )
                 else:
                     fig, ax = self.plot_diffrax_solution(
                         solution,
                         plot_commands=plot_commands,
+                        plot_labels=plot_labels,
                         save_path=save_path,
                         log_scale=log_scale,
                     )
@@ -552,16 +562,27 @@ class BasicMechanisticModel:
         self,
         sol: Solution,
         plot_commands: list[str] = ["S", "E", "I", "C"],
+        plot_labels: list[str] = ["S", "E", "I", "C"],
         save_path: str = None,
     ):
         fig, axs = plt.subplots(2, 2, figsize=(8, 9))
         # plot commands with unlogged y axis
         fig, axs[0][0] = self.plot_diffrax_solution(
-            sol, plot_commands, log_scale=False, fig=fig, ax=axs[0][0]
+            sol,
+            plot_commands,
+            plot_labels,
+            log_scale=False,
+            fig=fig,
+            ax=axs[0][0],
         )
         # plot commands with logged y axis
         fig, axs[1][0] = self.plot_diffrax_solution(
-            sol, plot_commands, log_scale=True, fig=fig, ax=axs[1][0]
+            sol,
+            plot_commands,
+            plot_labels,
+            log_scale=True,
+            fig=fig,
+            ax=axs[1][0],
         )
         # strain prevalence chart over the same x axis, no plot commands.
         fig, axs[0][1] = self.plot_strain_prevalence(
@@ -581,6 +602,7 @@ class BasicMechanisticModel:
         self,
         sol: Solution,
         plot_commands: list[str] = ["S", "E", "I", "C"],
+        plot_labels: list[str] = None,
         save_path: str = None,
         log_scale: bool = None,
         fig: plt.figure = None,
@@ -599,6 +621,9 @@ class BasicMechanisticModel:
         plot_commands : list(str), optional
             commands to the plotter on which populations to show, may be compartment titles, strain names, waning compartments, or explicit numpy slices!
             see utils/get_timeline_from_solution_with_command() for more in depth explanation of commands.
+        plot_labels: list(str), optional
+            labels to give to the lines plotted by each plot_command. These will appear in the legend of the figure.
+            If not specified will default behavior to plot commands themselves.
         save_path : str, optional
             if `save_path = None` do not save figure to output directory. Otherwise save to relative path `save_path`
             attaching meta data of the self object.
@@ -639,7 +664,7 @@ class BasicMechanisticModel:
                 # clear plot commands since everything was done recursively
                 plot_commands = []
         sol = sol.ys
-        for command in plot_commands:
+        for idx, command in enumerate(plot_commands):
             timeline, label = utils.get_timeline_from_solution_with_command(
                 sol,
                 self.IDX,
@@ -647,10 +672,12 @@ class BasicMechanisticModel:
                 self.STRAIN_IDX,
                 command,
             )
+            # if we explicitly set plot_labels, override the default ones.
+            label = plot_labels[idx] if plot_labels is not None else label
             days = list(range(len(timeline)))
             # incidence is aggregated weekly, so our array increases 7 days at a time
-            if command == "incidence":
-                days = [day * 7 for day in days]
+            # if command == "incidence":
+            #     days = [day * 7 for day in days]
             x_axis = [
                 self.INIT_DATE + datetime.timedelta(days=day) for day in days
             ]
@@ -669,10 +696,6 @@ class BasicMechanisticModel:
             fig.tight_layout()
         # dont want to set title again if we did it recursively above
         if log_scale is not None:
-            ax.set_title(
-                "Population count by compartment across all ages and strains",
-                fontsize=8,
-            )
             ax.tick_params(axis="x", labelrotation=45)
             ax.legend()
             ax.set_ylabel("Population Count", fontsize=8)
@@ -685,6 +708,7 @@ class BasicMechanisticModel:
     def plot_strain_prevalence(
         self,
         sol: Solution,
+        plot_labels=None,
         save_path: str = None,
         fig: plt.figure = None,
         ax: plt.axis = None,
@@ -697,6 +721,9 @@ class BasicMechanisticModel:
         ----------
         sol : difrax.Solution
             object containing ODE run as described by https://docs.kidger.site/diffrax/api/solution/
+        plot_labels: list(str), optional
+            labels to give to the lines plotted by each strain. These will appear in the legend of the figure.
+            If not specified will default behavior to the strain names.
         save_path : str, optional
             if `save_path = None` do not save figure to output directory. Otherwise save to relative path `save_path`
             attaching meta data of the self object.
@@ -723,17 +750,14 @@ class BasicMechanisticModel:
             self.STRAIN_IDX,
             "strain_prevalence",
         )
+        plot_labels = labels if plot_labels is None else plot_labels
         # create x axis by using the number of days in the array
         days = list(range(len(strain_prevalence_arr[0])))
         x_axis = [
             self.INIT_DATE + datetime.timedelta(days=day) for day in days
         ]
         ax.stackplot(
-            x_axis, *strain_prevalence_arr, labels=labels, baseline="zero"
-        )
-        ax.set_title(
-            "Strain Prevalence (proportion of current infectious/exposed by strain)",
-            fontsize=8,
+            x_axis, *strain_prevalence_arr, labels=plot_labels, baseline="zero"
         )
         ax.tick_params(axis="x", labelrotation=45)
         ax.legend()
@@ -793,13 +817,94 @@ class BasicMechanisticModel:
         props = {"rotation": 25, "size": 7}
         plt.setp(ax.get_xticklabels(), **props)
         ax.legend()
-        ax.set_title("Initial Population Immunity level by waning compartment")
         ax.set_xlabel("Immune Compartment")
         ax.set_ylabel("Population Count, all strains")
         if show:
             fig.show()
         self.save_plot(save_path, fig)
         return fig, ax
+
+    def plot_initial_heatmap(self, show=False, save_path=None):
+        """
+        a function that uses seaborn to plot a heatmap explaining the proportions of the susceptible compartment
+        that fall into each hist x vax strata upon model initialization.
+
+        Note
+        ----------
+        This function, unlike the rest of the plotting code, does not take a fig, ax object.
+        Because of a design decision in seaborn, it is not possible to plot seaborn plots within matplotlib.subplots.
+        see here: https://stackoverflow.com/a/47664533 for explanation....
+
+        Parameters
+        ----------
+        save_path: {str, None}, optional
+            the save path to which to save the figure, None implies figure will not be saved.
+        show: {Boolean, None}, optional
+            Whether or not to show the figure using plt.show() defaults to True.
+        """
+        vaccination_strings = [
+            str(vax) for vax in range(self.MAX_VAX_COUNT + 1)
+        ]
+        vaccination_strings[-1] = vaccination_strings[-1] + "+"
+        # build up immune state str representation
+        immune_state_strings = [
+            "no prior infection",
+        ]
+        immune_states = list(range(self.NUM_PREV_INF_HIST))
+        # skip 0 due to custom tag
+        for state in immune_states[1:]:
+            immune_state_string = ""
+            # build up strain exposure history
+            exposed_strains = utils.get_strains_exposed_to(
+                state, self.NUM_STRAINS
+            )
+            exposed_strains_str = [
+                self.STRAIN_NAMES[strain] for strain in exposed_strains
+            ]
+            immune_state_string = " + ".join(exposed_strains_str)
+            immune_state_strings.append(immune_state_string)
+        compartment = np.sum(
+            self.INITIAL_STATE[self.IDX.S],
+            axis=(self.S_AXIS_IDX.age, self.S_AXIS_IDX.wane),
+        )
+        # turn into proportions to sum to 1
+        compartment = pd.DataFrame(compartment / np.sum(compartment))
+        g = sns.jointplot(
+            data=compartment,
+            legend=None,
+        )
+        g.ax_marg_y.cla()
+        g.ax_marg_x.cla()
+        heatmap = sns.heatmap(
+            compartment.to_numpy(),
+            linewidth=0.5,
+            ax=g.ax_joint,
+            annot=True,
+            fmt="0.1%",
+            cbar=False,
+        )
+        g.ax_marg_y.barh(
+            np.arange(0.5, self.NUM_PREV_INF_HIST),
+            np.sum(compartment.to_numpy(), axis=1),
+            color="grey",
+        )
+        g.ax_marg_x.bar(
+            np.arange(0.5, self.MAX_VAX_COUNT + 1),
+            np.sum(compartment.to_numpy(), axis=0),
+            color="grey",
+        )
+        g.ax_joint.set_yticklabels(immune_state_strings)
+        g.ax_joint.tick_params(axis="y", labelrotation=0)
+        g.ax_joint.set_xticklabels(vaccination_strings)
+        g.ax_marg_x.tick_params(axis="x", bottom=False, labelbottom=False)
+        g.ax_marg_y.tick_params(axis="y", left=False, labelleft=False)
+        # remove ticks showing the heights of the histograms
+        g.ax_marg_x.tick_params(axis="y", left=False, labelleft=False)
+        g.ax_marg_y.tick_params(axis="x", bottom=False, labelbottom=False)
+        if show:
+            plt.show()
+        self.save_plot(save_path, g.fig)
+        return g.fig, g.ax_joint
 
     def save_plot(self, save_path, fig):
         """
