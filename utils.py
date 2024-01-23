@@ -1374,11 +1374,11 @@ def get_timeline_from_solution_with_command(
             compartment, axis=tuple(range(1, compartment.ndim))
         )
         compartment = np.diff(compartment)
-        compartment_weekly = is_close_v(
-            np.add.reduceat(compartment, np.arange(0, len(compartment), 7))
+        compartment_daily = is_close_v(
+            np.add.reduceat(compartment, np.arange(0, len(compartment), 1))
         )
         label = "E : " + label
-        return compartment_weekly, label
+        return compartment_daily, label
     # plot strain prevalence, proportion of all current infections by strain over time.
     elif command.lower().strip() == "strain_prevalence":
         exposed = np.array(sol[compartment_idx["E"]])

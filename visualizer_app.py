@@ -30,7 +30,7 @@ vaccination_strings[-1] = vaccination_strings[-1] + "+"
 immune_states = list(range(model.NUM_PREV_INF_HIST))
 # giving a custom string to the no prior exposure state
 immune_state_strings = [
-    "No Prior Exposure",
+    "no prior infection",
 ]
 # skip 0 due to custom tag
 for state in immune_states[1:]:
@@ -120,7 +120,6 @@ def heatmap(input, fig, ax):
             break
         else:
             age_bin.append(age_dict[age])
-    # age_bin = age_dict[input.age_bin()[0]]
     compartment = compartment[age_bin, :, :]
     if isinstance(age_bin, list):
         compartment = np.sum(compartment, axis=0)
@@ -136,11 +135,11 @@ def heatmap(input, fig, ax):
     heatmap.set_yticklabels(immune_state_strings)
     heatmap.set_xlabel("Vaccination Count")
     heatmap.set_ylabel("Immune History")
-    heatmap.set_title(
-        "Population of "
-        + "+".join(compartment_selections)
-        + " compartment(s) stratified by immune hist and vaccination"
+    title = (
+        "+".join(compartment_selections)
+        + "  compartment(s) stratified by immune hist and vaccination"
     )
+    heatmap.set_title(title)
     return fig, ax
 
 
