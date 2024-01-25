@@ -875,7 +875,7 @@ class BasicMechanisticModel:
         )
         g.ax_marg_y.cla()
         g.ax_marg_x.cla()
-        heatmap = sns.heatmap(
+        sns.heatmap(
             compartment.to_numpy(),
             linewidth=0.5,
             ax=g.ax_joint,
