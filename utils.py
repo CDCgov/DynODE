@@ -254,7 +254,7 @@ def all_immune_states_without(strain: int, num_strains: int):
 
 def get_strains_exposed_to(state: int, num_strains: int):
     """
-    Returns a list of integers representing the strains a given individual was exposed to in order to end up in state `state`.
+    Returns a list of integers representing the strains a given individual was exposed to end up in state `state`.
     Says nothing of the order at which an individual was exposed to those strains, list returned sorted increasing.
 
     Parameters
@@ -280,6 +280,59 @@ def get_strains_exposed_to(state: int, num_strains: int):
         i for i in range(len(state_binary_lst)) if state_binary_lst[i] == "1"
     ]
     return strains_exposed_by
+
+
+def combine_strains(from_strain: int, to_strain: int, num_strains: int):
+    """
+    given a strain `from_strain` and `to_strain` returns a mapping of all immune states before and after strains are combined.
+
+    Example
+    -----------
+    in a basic 2 strain model you have the following immune states:
+    0-> no exposure, 1 -> strain 0 exposure, 2-> strain 1 exposure, 3-> exposure to both
+
+    calling `combine_strains(1, 0, 2)` will combine strains 0 and 1 returning
+    `{0:0, 1:1, 2:1, 3:1}`, because there is no functional difference strain 0 and 1 the immune state space becomes binary.
+
+    Parameters
+    ----------
+    from_strain: int
+        the strain index representing the strain being collapsed, whos references will be rerouted.
+    to_strain: int
+        the strain index representing the strain being joined with to_strain, typically the ancestral or 0 index.
+
+    Returns
+    -----------
+    dict[int:int] mapping from immune state -> immune state before and after `from_strain` is combined with `to_strain`.
+    """
+
+    # create a helper function so we can pass old strains and have it auto-convert.
+    def translate_strain(strain_in):
+        if strain_in == from_strain:
+            return to_strain
+        elif strain_in > from_strain:
+            return strain_in - 1
+        return strain_in
+
+    # maps old immune state to new immune state
+    immune_state_converter = {0: 0}  # 0 -> 0 always
+    # go through each state, break apart into strain hist, use `translate_strain`, recreate a new state
+    for immune_state in range(2**num_strains):
+        old_strains_in_state = get_strains_exposed_to(
+            immune_state, num_strains
+        )
+        collapsed_strains_in_state = [
+            translate_strain(strain) for strain in old_strains_in_state
+        ]
+        new_state = 0  # init at no exposures
+        # build new state with the collapsed strain indexes, one at a time
+        for new_strain in collapsed_strains_in_state:
+            # expose new_state to the redefined strain definitions
+            new_state = new_immune_state(new_state, new_strain, num_strains)
+        # all individuals in `immune_state` before strain definition collapse
+        # are now in `new_state`
+        immune_state_converter[immune_state] = new_state
+    return immune_state_converter
 
 
 def find_age_bin(age: int, age_limits: list[int]) -> int:
