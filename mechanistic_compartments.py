@@ -1403,38 +1403,24 @@ class BasicMechanisticModel:
         """
         from_strain_idx = self.STRAIN_IDX[from_strain]
         to_strain_idx = self.STRAIN_IDX[to_strain]
-        immune_state_converter = utils.combine_strains(
+        immune_state_converter, strain_converter = utils.combined_strains_mapping(
             from_strain_idx,
             to_strain_idx,
             self.NUM_STRAINS,
         )
         return_state = []
         for idx, compartment in enumerate(self.INITIAL_STATE):
-            # create a zerod copy of compartment to fill with new definitions
-            strain_combined_compartment = np.zeros(compartment.shape)
-            for immune_state in range(self.NUM_PREV_INF_HIST):
-                # after strain combining immune_state moves to `new_state`
-                new_state = immune_state_converter[immune_state]
-                # += because multiple `immune_states` can flow into one `new_state`
-                strain_combined_compartment[:, new_state, :, :] += compartment[
-                    :, immune_state, :, :
-                ]
-            # if we are dealing with E/I/C we need to rearrange infected axis
-            if idx != self.IDX.S:
-                for strain in range(self.NUM_STRAINS):
-                    # now we have combined two strains, we have a void we need to fill
-                    # shift all strains > `from_strain` 1 left
-                    if strain == from_strain_idx:  # combine
-                        strain_combined_compartment[
-                            :, :, :, to_strain_idx
-                        ] += strain_combined_compartment[:, :, :, strain]
-                    elif strain > from_strain_idx:  # shift left
-                        strain_combined_compartment[
-                            :, :, :, strain - 1
-                        ] = strain_combined_compartment[:, :, :, strain]
-                strain_combined_compartment[:, :, :, -1] = 0
-                # else do nothing since we are in the right spot
+            # we dont have a strain axis if are in the S compartment, otherwise we do
+            strain_axis = idx != self.IDX.S
+            strain_combined_compartment = utils.combine_strains(
+                compartment,
+                immune_state_converter,
+                strain_converter,
+                self.NUM_STRAINS,
+                strain_axis=strain_axis,
+            )
             return_state.append(strain_combined_compartment)
+
         # people who are actively infected with `from_strain` need to be combined together as well
         self.INITIAL_STATE = tuple(return_state)
         self.config_file = new_config
