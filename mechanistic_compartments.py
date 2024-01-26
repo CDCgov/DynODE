@@ -9,7 +9,6 @@ from functools import partial
 import jax.config
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
 import numpyro
 import pandas as pd
