@@ -59,6 +59,9 @@ class BasicMechanisticModel:
         # grab all parameters passed from config
         self.__dict__.update(kwargs)
         self.config_file = kwargs
+        if not hasattr(self, "INTRODUCTION_SCALE"):
+            self.INTRODUCTION_SCALE = 10
+        # default to 10 for introduction std dev
 
         # GENERATE CROSS IMMUNITY MATRIX with protection from STRAIN_INTERACTIONS most recent infected strain.
         if self.CROSSIMMUNITY_MATRIX is None:
@@ -88,10 +91,6 @@ class BasicMechanisticModel:
         if self.VAX_MODEL_KNOTS is None:
             self.load_vaccination_model()
         # loads params used in self.vaccination_rate()
-
-        if self.INTRODUCTION_SCALE is None:
-            self.INTRODUCTION_SCALE = 10
-        # set default introduction std dev as 10
 
         if self.EXTERNAL_I_DISTRIBUTIONS is None:
             self.load_external_i_distributions()
