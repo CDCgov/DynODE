@@ -105,7 +105,7 @@ dat_agegroup <- bind_rows(dat_pedia, dat_adult_grouped) |>
   mutate(incidence = new_admission / population * 1e5) # per 100000
 
 dat_agegroup_subset <- dat_agegroup |>
-  filter(date >= ymd("2022-02-13"), date <= ymd("2022-10-29")) |>
+  filter(date >= ymd("2022-02-20"), date <= ymd("2022-10-29")) |>
   mutate(
     week = epiweek(date)
   ) |>
@@ -127,7 +127,7 @@ dat_agegroup_weekly <- dat_agegroup_subset |>
 
 # Plot
 dat_agegroup |>
-  filter(date >= ymd("2022-02-12"), date <= ymd("2022-10-29")) |>
+  filter(date >= ymd("2022-02-20"), date <= ymd("2022-11-05")) |>
   ggplot() +
   geom_line(aes(x = date, y = incidence, colour = agegroup)) +
   theme_bw()
@@ -144,4 +144,4 @@ dat_agegroup_weekly |>
 # Output
 dat_agegroup_subset |>
   select(-population) |>
-  data.table::fwrite("./data/hospital_220213_220108.csv")
+  data.table::fwrite("./data/hospitalization-data/hospital_220220_221105.csv")

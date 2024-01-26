@@ -13,6 +13,7 @@ import seaborn as sns
 import numpy as np
 import numpyro
 import pandas as pd
+import seaborn as sns
 from diffrax import (
     ODETerm,
     PIDController,
@@ -59,9 +60,12 @@ class BasicMechanisticModel:
         # grab all parameters passed from config
         self.__dict__.update(kwargs)
         self.config_file = kwargs
+        if not hasattr(self, "INTRODUCTION_SCALE"):
+            self.INTRODUCTION_SCALE = 10
+        # default to 10 for introduction std dev
 
         # GENERATE CROSS IMMUNITY MATRIX with protection from STRAIN_INTERACTIONS most recent infected strain.
-        if not self.CROSSIMMUNITY_MATRIX:
+        if self.CROSSIMMUNITY_MATRIX is None:
             self.build_cross_immunity_matrix()
         # if not given, load population fractions based on observed census data into self
         if not self.INITIAL_POPULATION_FRACTIONS:
@@ -258,7 +262,9 @@ class BasicMechanisticModel:
                 dist_idx = self.NUM_STRAINS - introduced_strain_idx - 1
                 # use a normal PDF with std dv
                 external_i_distributions[dist_idx] = partial(
-                    pdf, loc=introduced_time_sampler, scale=7
+                    pdf,
+                    loc=introduced_time_sampler,
+                    scale=self.INTRODUCTION_SCALE,
                 )
         introduction_age_mask = jnp.where(
             jnp.array(self.INTRODUCTION_AGE_MASK),
@@ -515,12 +521,12 @@ class BasicMechanisticModel:
             # discontinuities due to beta manipulation specified as jump_ts
             stepsize_controller=PIDController(
                 rtol=1e-3,
-                atol=1e-8,
+                atol=1e-6,
                 jump_ts=list(self.BETA_TIMES),
             ),
             saveat=saveat,
             # higher for large time scales / rapid changes
-            max_steps=int(10e6),
+            max_steps=int(1e6),
         )
         self.solution = solution
         save_path = (
@@ -1246,7 +1252,7 @@ class BasicMechanisticModel:
             )
             # use a normal PDF with std dv
             self.EXTERNAL_I_DISTRIBUTIONS[dist_idx] = partial(
-                pdf, loc=introduced_time, scale=7
+                pdf, loc=introduced_time, scale=self.INTRODUCTION_SCALE
             )
 
     def load_initial_state(self, initial_infections: float):
