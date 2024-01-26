@@ -1,4 +1,5 @@
 # %%
+import copy
 import jax.config
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
@@ -32,27 +33,36 @@ plt.show()
 
 # %%
 # Config to US population sizes
-pop = 328239523
-init_inf_prop = 0.04
+pop = 3.28e8
+init_inf_prop = 0.03
 intro_perc = 0.02
 cb = ConfigBase(
     POP_SIZE=pop,
+    INFECTIOUS_PERIOD=7.0,
     INITIAL_INFECTIONS=init_inf_prop * pop,
     INTRODUCTION_PERCENTAGE=intro_perc,
-    INTRODUCTION_TIMES=[10],
+    INTRODUCTION_SCALE=10,
+    NUM_WANING_COMPARTMENTS=5,
 )
-cb.STRAIN_SPECIFIC_R0 = jnp.array([1.5, 2.0, 2.5])
 model = build_basic_mechanistic_model(cb)
+model.VAX_EFF_MATRIX = jnp.array(
+    [
+        [0, 0.29, 0.58],  # delta
+        [0, 0.24, 0.48],  # omicron1
+        [0, 0.19, 0.38],  # BA1.1
+    ]
+)
+
 
 # %%
 # MCMC specifications for "cold run"
 nuts = NUTS(
     infer_model,
     dense_mass=True,
-    max_tree_depth=6,
+    max_tree_depth=7,
     init_strategy=numpyro.infer.init_to_median(),
     target_accept_prob=0.80,
-    find_heuristic_step_size=True,
+    # find_heuristic_step_size=True,
 )
 mcmc = MCMC(
     nuts,
@@ -63,9 +73,15 @@ mcmc = MCMC(
 )
 
 # %%
-mcmc.warmup(
-    rng_key=PRNGKey(8811965),
-    collect_warmup=True,
+# mcmc.warmup(
+#     rng_key=PRNGKey(8811967),
+#     collect_warmup=True,
+#     incidence=obs_incidence,
+#     model=model,
+# )
+
+mcmc.run(
+    rng_key=PRNGKey(8811968),
     incidence=obs_incidence,
     model=model,
 )
@@ -75,36 +91,74 @@ samp = mcmc.get_samples(group_by_chain=True)
 fig, axs = plt.subplots(2, 2)
 axs[0, 0].set_title("Intro Time")
 axs[0, 0].plot(np.transpose(samp["INTRO_TIME"]))
-# axs[0, 1].set_title("Infectious Period")
-# axs[0, 1].plot(np.transpose(samp["INFECTIOUS_PERIOD"]))
+axs[0, 1].set_title("Intro Percentage")
+axs[0, 1].plot(np.transpose(samp["INTRO_PERC"]))
 axs[1, 0].set_title("R02")
-axs[1, 0].plot(np.transpose(samp["r0"][:, :, 0]))
+axs[1, 0].plot(np.transpose(samp["r0_2"]))
 axs[1, 1].set_title("R03")
-axs[1, 1].plot(np.transpose(samp["r0"][:, :, 1]), label=range(1, 6))
+axs[1, 1].plot(np.transpose(samp["r0_3"]), label=range(1, 6))
 fig.legend()
 plt.show()
 
 # %%
 # Take median of runs and check if fit is good
-fitted_medians = {k: jnp.median(v[-1,], axis=0) for k, v in samp.items()}
+fitted_medians = {k: jnp.median(v[:, -1], axis=0) for k, v in samp.items()}
 cb1 = ConfigBase(
     POP_SIZE=pop,
-    INITIAL_INFECTIONS=init_inf_prop * pop,
-    INTRODUCTION_PERCENTAGE=intro_perc,
+    INFECTIOUS_PERIOD=7.0,
+    INITIAL_INFECTIONS=fitted_medians["INITIAL_INFECTIONS"],
+    INTRODUCTION_PERCENTAGE=fitted_medians["INTRO_PERC"],
     INTRODUCTION_TIMES=[fitted_medians["INTRO_TIME"]],
+    INTRODUCTION_SCALE=fitted_medians["INTRO_SCALE"],
+    NUM_WANING_COMPARTMENTS=5,
 )
-cb1.STRAIN_SPECIFIC_R0 = jnp.append(jnp.array([1.5]), fitted_medians["r0"])
+cb1.STRAIN_SPECIFIC_R0 = jnp.append(
+    jnp.array([1.2]),
+    jnp.append(fitted_medians["r0_2"], fitted_medians["r0_3"]),
+)
 model1 = build_basic_mechanistic_model(cb1)
+imm = fitted_medians["imm_factor"]
 ihr1 = fitted_medians["ihr"]
-ihr_protect1 = fitted_medians["ihr_protect"]
+ihr_mult = fitted_medians["ihr_mult"]
+model1.CROSSIMMUNITY_MATRIX = jnp.array(
+    [
+        [
+            0.0,  # 000
+            1.0,  # 001
+            1.0,  # 010
+            1.0,  # 011
+            1.0,  # 100
+            1.0,  # 101
+            1.0,  # 110
+            1.0,  # 111
+        ],
+        [0.0, imm, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        [
+            0.0,
+            imm**2,
+            imm,
+            imm,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+        ],
+    ]
+)
+model1.VAX_EFF_MATRIX = jnp.array(
+    [
+        [0, 0.29, 0.58],  # delta
+        [0, 0.24, 0.48],  # omicron1
+        [0, 0.19, 0.38],  # BA1.1
+    ]
+)
 
 solution1 = model1.run(
     seip_ode,
     tf=250,
-    # tf=len(obs_incidence) - 1,
     show=True,
     save=False,
-    plot_commands=["S[:, 0, :, :]", "BA1.1", "omicron", "delta"],
+    # plot_commands=["S[:, 0, :, :]", "BA1.1", "omicron", "delta"],
     log_scale=True,
 )
 
@@ -115,9 +169,7 @@ model_incidence_1 = jnp.sum(model_incidence, axis=(2, 3))
 model_incidence_1 = jnp.diff(model_incidence_1, axis=0)
 model_incidence_1 -= model_incidence_0
 
-sim_incidence = (
-    model_incidence_0 * ihr1 + model_incidence_1 * ihr1 * ihr_protect1
-)
+sim_incidence = model_incidence_0 * ihr1 + model_incidence_1 * ihr1 * ihr_mult
 
 colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]
 fig, ax = plt.subplots(1)
@@ -132,124 +184,14 @@ fig.legend()
 ax.set_title("Observed vs fitted")
 plt.show()
 
-
 # %%
-# Only run these sections if not getting good convergence
-# Using last state of MCMC and samples to initialize the actual run
-adapt_state = getattr(mcmc.last_state, "adapt_state")
-step_sizes = getattr(adapt_state, "step_size")
-inv_mass_matrices = getattr(adapt_state, "inverse_mass_matrix")
-samp = mcmc.get_samples(group_by_chain=True)
+# Check covariance matrix
+samp_all = copy.deepcopy(mcmc.get_samples(group_by_chain=False))
+ihr_dict = {
+    "ihr_" + str(i): v for i, v in enumerate(jnp.transpose(samp_all["ihr"]))
+}
+del samp_all["ihr"]
+samp_all.update(ihr_dict)
 
-# %%
-# sel_ind = 5
-# init_dict = {k: jnp.median(v[sel_ind,], axis=0) for k, v in samp.items()}
-# init_step = step_sizes[sel_ind]
-init_dict = {k: jnp.median(v[-1], axis=0) for k, v in samp.items()}
-init_step = jnp.median(step_sizes)
-sel_ind = np.argmin(np.where(step_sizes == init_step))
-init_inv_mass = {k: v[sel_ind,] for k, v in inv_mass_matrices.items()}
-
-# %%
-# "Actual run"
-nuts = NUTS(
-    infer_model,
-    step_size=init_step,
-    inverse_mass_matrix=init_inv_mass,
-    dense_mass=True,
-    max_tree_depth=6,
-    init_strategy=numpyro.infer.init_to_value(values=init_dict),
-    target_accept_prob=0.70,
-    # find_heuristic_step_size=True,
-    # regularize_mass_matrix=False,
-)
-mcmc = MCMC(
-    nuts,
-    num_warmup=1000,
-    num_samples=1000,
-    num_chains=5,
-    progress_bar=True,
-)
-
-# %%
-# Warm up (separating this so it's easy to diagnose)
-mcmc.warmup(
-    rng_key=PRNGKey(8811975),
-    collect_warmup=True,
-    incidence=obs_incidence,
-    model=model,
-)
-
-# %%
-# Actual sampling from actual run
-mcmc.run(
-    rng_key=PRNGKey(8811964),
-    incidence=obs_incidence,
-    model=model,
-)
-
-# %%
-# Output and trace plots
-mcmc.print_summary(exclude_deterministic=False)
-samp = mcmc.get_samples(group_by_chain=True)
-
-# %%
-fig, axs = plt.subplots(2, 2)
-axs[0, 0].set_title("Intro Time")
-axs[0, 0].plot(np.transpose(samp["INTRO_TIME"]))
-# axs[0, 1].set_title("Infectious Period")
-# axs[0, 1].plot(np.transpose(samp["INFECTIOUS_PERIOD"]))
-axs[1, 0].set_title("R02")
-axs[1, 0].plot(np.transpose(samp["r0"][:, :, 0]))
-axs[1, 1].set_title("R03")
-axs[1, 1].plot(np.transpose(samp["r0"][:, :, 1]), label=range(1, 6))
-fig.legend()
-plt.show()
-
-# %%
-# Compare fitted medians with observed data
-fitted_medians = {k: jnp.median(v, axis=(0, 1)) for k, v in samp.items()}
-cb1 = ConfigBase(
-    POP_SIZE=pop,
-    INITIAL_INFECTIONS=init_inf_prop * pop,
-    INTRODUCTION_PERCENTAGE=intro_perc,
-    INTRODUCTION_TIMES=[fitted_medians["INTRO_TIME"]],
-)
-cb1.STRAIN_SPECIFIC_R0 = jnp.append(jnp.array([1.5]), fitted_medians["r0"])
-model1 = build_basic_mechanistic_model(cb1)
-ihr1 = fitted_medians["ihr"]
-ihr_protect1 = fitted_medians["ihr_protect"]
-
-solution1 = model1.run(
-    seip_ode,
-    tf=250,
-    # tf=len(obs_incidence) - 1,
-    show=True,
-    save=False,
-    plot_commands=["S[:, 0, :, :]", "BA1.1", "omicron", "delta"],
-    log_scale=True,
-)
-
-model_incidence = jnp.sum(solution1.ys[3], axis=4)
-model_incidence_0 = jnp.diff(model_incidence[:, :, 0, 0], axis=0)
-
-model_incidence_1 = jnp.sum(model_incidence, axis=(2, 3))
-model_incidence_1 = jnp.diff(model_incidence_1, axis=0)
-model_incidence_1 -= model_incidence_0
-
-sim_incidence = (
-    model_incidence_0 * ihr1 + model_incidence_1 * ihr1 * ihr_protect1
-)
-
-colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]
-fig, ax = plt.subplots(1)
-ax.set_prop_cycle(cycler(color=colors))
-ax.plot(sim_incidence, label=["0-17", "18-49", "50-64", "65+"])
-ax.plot(
-    obs_incidence,
-    label=["0-17 (obs)", "18-49 (obs)", "50-64 (obs)", "65+ (obs)"],
-    linestyle="dashed",
-)
-fig.legend()
-ax.set_title("Observed vs fitted")
-plt.show()
+samp_df = pd.DataFrame(samp_all)
+samp_df.corr()
