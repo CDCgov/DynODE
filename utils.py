@@ -407,6 +407,9 @@ def combine_strains(
                 ] += strain_combined_compartment.swapaxes(0, strain_dim)[
                     strain
                 ]
+                # once we moved individuals with this strain into the correct compartment, we zero it out.
+                # otherwise we have doubled the population.
+                strain_combined_compartment.swapaxes(0, strain_dim)[strain] = 0
         # finally zero out the spaces left behind after the shuffle
         # use swapaxis to grab an arbitrary dimension of the array, ignoring ordering bugs
         strain_combined_compartment.swapaxes(0, strain_dim)[list(zero_out)] = 0

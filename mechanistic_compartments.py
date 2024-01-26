@@ -606,6 +606,7 @@ class BasicMechanisticModel:
         plot_labels: list[str] = None,
         save_path: str = None,
         log_scale: bool = None,
+        start_date: datetime.date = None,
         fig: plt.figure = None,
         ax: plt.axis = None,
     ):
@@ -631,6 +632,8 @@ class BasicMechanisticModel:
         log_scale : bool, optional
             whether or not to exclusively show the log or unlogged version of the plot, by default include both
             in a stacked subplot.
+        start_date : date, optional
+            the start date of the x axis of the plot. Defaults to model.INIT_DATE + model.DAYS_AFTER_INIT_DATE
         fig: matplotlib.pyplot.figure
             if this plot is part of a larger subplots, pass the figure object here, otherwise one is created
         ax: matplotlib.pyplot.axis
@@ -641,6 +644,11 @@ class BasicMechanisticModel:
         fig, ax : matplotlib.Figure/axis object
             objects containing the matplotlib figure and axis for further modifications if needed.
         """
+        # default start date is based on the model INIT date and in the case of epochs, days after initialization
+        if start_date is None:
+            start_date = self.INIT_DATE + datetime.timedelta(
+                days=self.DAYS_AFTER_INIT_DATE
+            )
         plot_commands = [x.strip() for x in plot_commands]
         if fig is None or ax is None:
             fig, ax = plt.subplots(
@@ -677,9 +685,7 @@ class BasicMechanisticModel:
             label = plot_labels[idx] if plot_labels is not None else label
             days = list(range(len(timeline)))
             x_axis = [
-                self.INIT_DATE
-                + datetime.timedelta(days=day + self.DAYS_AFTER_INIT_DATE)
-                for day in days
+                start_date + datetime.timedelta(days=day) for day in days
             ]
             if command == "incidence":
                 # plot both logged and unlogged version by default
@@ -1403,7 +1409,10 @@ class BasicMechanisticModel:
         """
         from_strain_idx = self.STRAIN_IDX[from_strain]
         to_strain_idx = self.STRAIN_IDX[to_strain]
-        immune_state_converter, strain_converter = utils.combined_strains_mapping(
+        (
+            immune_state_converter,
+            strain_converter,
+        ) = utils.combined_strains_mapping(
             from_strain_idx,
             to_strain_idx,
             self.NUM_STRAINS,
