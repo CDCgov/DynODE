@@ -258,7 +258,7 @@ class BasicMechanisticModel:
                 dist_idx = self.NUM_STRAINS - introduced_strain_idx - 1
                 # use a normal PDF with std dv
                 external_i_distributions[dist_idx] = partial(
-                    pdf, loc=introduced_time_sampler, scale=7
+                    pdf, loc=introduced_time_sampler, scale=self.INTRODUCTION_SCALE
                 )
         introduction_age_mask = jnp.where(
             jnp.array(self.INTRODUCTION_AGE_MASK),
@@ -1246,7 +1246,7 @@ class BasicMechanisticModel:
             )
             # use a normal PDF with std dv
             self.EXTERNAL_I_DISTRIBUTIONS[dist_idx] = partial(
-                pdf, loc=introduced_time, scale=7
+                pdf, loc=introduced_time, scale=self.INTRODUCTION_SCALE
             )
 
     def load_initial_state(self, initial_infections: float):
