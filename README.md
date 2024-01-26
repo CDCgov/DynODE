@@ -33,11 +33,11 @@ In order to run this model and get basic results follow these steps:
 
 Here is an example script of a basic run of 100 days without inference of parameters, saving the simulation as an image to output/example.png:
 ```
-from model_odes.seir_model_v5 import seirw_ode
+from model_odes.seip_model import seip_model
 from mechanistic_compartments import build_basic_mechanistic_model
 from config.config_base import ConfigBase
 
-solution = build_basic_mechanistic_model(ConfigBase()).run(seirw_ode, tf=100.0, show=True, save=True, save_path="output/example.png")
+solution = build_basic_mechanistic_model(ConfigBase()).run(seip_model, tf=100.0, show=True, save=True, save_path="output/example.png")
 ```
 
 To create your own scenario, and modify parameters such as strain R0 and vaccination rate follow these steps:
@@ -49,11 +49,11 @@ To create your own scenario, and modify parameters such as strain R0 and vaccina
 5. Run almost the same script as above, replacing your ConfigBase import with ConfigScenario.
 
 ```
-from model_odes.seir_model_v5 import seirw_ode
+from model_odes.seip_model import seip_model
 from mechanistic_compartments import build_basic_mechanistic_model
 from config.config_scenario_example import ConfigScenario
 
-solution = build_basic_mechanistic_model(ConfigScenario()).run(seirw_ode, tf=100.0, show=True, save=True, save_path="output/example_scenario.png")
+solution = build_basic_mechanistic_model(ConfigScenario()).run(seip_model, tf=100.0, show=True, save=True, save_path="output/example_scenario.png")
 ```
 
 Before you go about running your own experiments it is best to understand how the model is initialized. Rather than looking through the model matricies yourself, the Scenarios team has created a Shiny application allowing for easy data visualization of the model's initial state!
