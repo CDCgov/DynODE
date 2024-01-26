@@ -9,10 +9,10 @@ from functools import partial
 import jax.config
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import seaborn as sns
 import numpy as np
 import numpyro
 import pandas as pd
+import seaborn as sns
 from diffrax import (
     ODETerm,
     PIDController,
@@ -258,7 +258,9 @@ class BasicMechanisticModel:
                 dist_idx = self.NUM_STRAINS - introduced_strain_idx - 1
                 # use a normal PDF with std dv
                 external_i_distributions[dist_idx] = partial(
-                    pdf, loc=introduced_time_sampler, scale=self.INTRODUCTION_SCALE
+                    pdf,
+                    loc=introduced_time_sampler,
+                    scale=self.INTRODUCTION_SCALE,
                 )
         introduction_age_mask = jnp.where(
             jnp.array(self.INTRODUCTION_AGE_MASK),
