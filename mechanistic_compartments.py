@@ -89,6 +89,10 @@ class BasicMechanisticModel:
             self.load_vaccination_model()
         # loads params used in self.vaccination_rate()
 
+        if self.INTRODUCTION_SCALE is None:
+            self.INTRODUCTION_SCALE = 10
+        # set default introduction std dev as 10
+
         if self.EXTERNAL_I_DISTRIBUTIONS is None:
             self.load_external_i_distributions()
         # loads params used in self.external_i()
