@@ -519,7 +519,7 @@ class BasicMechanisticModel:
             ),
             # discontinuities due to beta manipulation specified as jump_ts
             stepsize_controller=PIDController(
-                rtol=1e-3,
+                rtol=1e-5,
                 atol=1e-6,
                 jump_ts=list(self.BETA_TIMES),
             ),
