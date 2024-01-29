@@ -65,7 +65,7 @@ class BasicMechanisticModel:
 
         # GENERATE CROSS IMMUNITY MATRIX with protection from STRAIN_INTERACTIONS most recent infected strain.
         if self.CROSSIMMUNITY_MATRIX is None:
-            self.build_cross_immunity_matrix()
+            self.load_cross_immunity_matrix()
         # if not given, load population fractions based on observed census data into self
         if not self.INITIAL_POPULATION_FRACTIONS:
             self.load_initial_population_fractions()
