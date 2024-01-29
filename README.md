@@ -9,11 +9,16 @@
 
 This repository is for the design and implementation of a Scenarios forecasting model, built by the Scenarios team within CFA-Predict.
 
-This code aims to combine a number of different codebases to forecast different covid scenarios with a Compartmental Mechanistic ODE model modeling multiple competing covid variants. The aim of this model is to provide enough flexibility for its users to explore a variety of scenarios, but also making certain design decisions that allow for fast computation and fitting as well as code readability.
+Currently, we aim to use this code to forecast different disease tranmission scenarios with a compartmental mechanistic ODE model.  This model is under development with transmission of SARS-CoV-2 as our primary focus.  We plan to apply this model to the transmission of other respiratory viruses such as influenza and RSV.  We aim to provide enough flexibility for the code users to explore a variety of scenarios, but also making certain design decisions that allow for fast computation and fitting as well as code readability.
+
+[//]: # (This code aims to combine a number of different codebases to forecast different covid scenarios with a Compartmental Mechanistic ODE model modeling multiple competing covid variants. The aim of this model is to provide enough flexibility for its users to explore a variety of scenarios, but also making certain design decisions that allow for fast computation and fitting as well as code readability.)
+
 
 What this model is:
 
-a compartmental mechanistic ODE model capible of dynamic age binning, waning, vaccination scenarios, introduction of new variants, transmission structures, and timing estimation. TODO
+a compartmental mechanistic ODE model that accounts for age structure, immunity history, vaccination, immunity waning and multiple variants.
+
+[//]: # (capable of dynamic age binning, waning, vaccination scenarios, introduction of new variants, transmission structures, and timing estimation. TODO)
 
 What this model is not:
 
@@ -33,11 +38,11 @@ In order to run this model and get basic results follow these steps:
 
 Here is an example script of a basic run of 100 days without inference of parameters, saving the simulation as an image to output/example.png:
 ```
-from model_odes.seir_model_v5 import seirw_ode
+from model_odes.seip_model import seip_model
 from mechanistic_compartments import build_basic_mechanistic_model
 from config.config_base import ConfigBase
 
-solution = build_basic_mechanistic_model(ConfigBase()).run(seirw_ode, tf=100.0, show=True, save=True, save_path="output/example.png")
+solution = build_basic_mechanistic_model(ConfigBase()).run(seip_model, tf=100.0, show=True, save=True, save_path="output/example.png")
 ```
 
 To create your own scenario, and modify parameters such as strain R0 and vaccination rate follow these steps:
@@ -49,11 +54,11 @@ To create your own scenario, and modify parameters such as strain R0 and vaccina
 5. Run almost the same script as above, replacing your ConfigBase import with ConfigScenario.
 
 ```
-from model_odes.seir_model_v5 import seirw_ode
+from model_odes.seip_model import seip_model
 from mechanistic_compartments import build_basic_mechanistic_model
 from config.config_scenario_example import ConfigScenario
 
-solution = build_basic_mechanistic_model(ConfigScenario()).run(seirw_ode, tf=100.0, show=True, save=True, save_path="output/example_scenario.png")
+solution = build_basic_mechanistic_model(ConfigScenario()).run(seip_model, tf=100.0, show=True, save=True, save_path="output/example_scenario.png")
 ```
 
 Before you go about running your own experiments it is best to understand how the model is initialized. Rather than looking through the model matricies yourself, the Scenarios team has created a Shiny application allowing for easy data visualization of the model's initial state!
@@ -61,7 +66,7 @@ Simply run `visualizer_app.py` and navigate to http://localhost:8000/ and play w
 
 ## Data Sources
 
-The model is fed the following data sources:
+The model (as described in the example script) is fed the following data sources:
 1. data/demographic-data/contact_matricies : contact matricies sourced from work done by Dina Minstry's past work in this [Github Project](https://github.com/mobs-lab/mixing-patterns).
 2. data/serological-data/* : serology data sourced from: [data.cdc.gov](https://data.cdc.gov/Laboratory-Surveillance/Nationwide-Commercial-Laboratory-Seroprevalence-Su/d2tw-32xv)
 3. data/sim_data_*.sqlite: ABM data sourced from Tom Hladish's work found [here](https://github.com/tjhladish/covid-abm)
@@ -81,7 +86,7 @@ Thomas Hladish, Lead Data Scientist, utx5@cdc.gov, CDC/IOD/ORR/CFA
 
 Ariel Shurygin, Data Scientist, uva5@cdc.gov, CDC/IOD/ORR/CFA
 
-Ben Kok Toh, Data Scientist, tjk3@cdc.gov, CDC/IOD/ORR/CFA
+Kok Ben Toh, Data Scientist, tjk3@cdc.gov, CDC/IOD/ORR/CFA
 
 Michael Batista, Data Scientist, upi8@cdc.gov, CDC/IOD/ORR/CFA
 
