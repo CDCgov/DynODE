@@ -32,6 +32,9 @@ class ConfigBase:
         self.HOSP_PATH = "data/hospital_220213_220108.csv"
         # model initialization date DO NOT CHANGE
         self.INIT_DATE = datetime.date(2022, 2, 11)
+        # if running epochs, this value will be number of days after the INIT_DATE the current epoch begins
+        # 0 if you are initializing.
+        self.DAYS_AFTER_INIT_DATE = 0
         self.MINIMUM_AGE = 0
         # age limits for each age bin in the model, begining with minimum age
         # values are exclusive in upper bound. so [0,18) means 0-17, 18+
@@ -128,6 +131,15 @@ class ConfigBase:
         self.MCMC_PROGRESS_BAR = True
         self.MODEL_RAND_SEED = 8675309
 
+        # this are all the strains currently supported, historical and future
+        self.all_strains_supported = [
+            "wildtype",
+            "alpha",
+            "delta",
+            "omicron",
+            "BA2/BA5",
+        ]
+
         # now update all parameters from kwargs, overriding the defaults if they are explicitly set
         self.__dict__.update(kwargs)
         self.GIT_HASH = (
@@ -154,17 +166,8 @@ class ConfigBase:
             ["W" + str(idx) for idx in range(self.NUM_WANING_COMPARTMENTS)],
             start=0,
         )
-
-        # this are all the strains currently supported, historical and future
-        all_strains = [
-            "wildtype",
-            "alpha",
-            "delta",
-            "omicron",
-            "BA2/BA5",
-        ]
         # it often does not make sense to differentiate between wildtype and alpha, so combine strains here
-        self.STRAIN_NAMES = all_strains[5 - self.NUM_STRAINS :]
+        self.STRAIN_NAMES = self.all_strains_supported[-self.NUM_STRAINS :]
         self.STRAIN_NAMES[0] = "pre-" + self.STRAIN_NAMES[1]
         # in each compartment that is strain stratified we use strain indexes to improve readability.
         # omicron will always be index=2 if num_strains >= 3. In a two strain model we must combine alpha and delta together.

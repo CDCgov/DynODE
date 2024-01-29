@@ -65,7 +65,7 @@ class BasicMechanisticModel:
 
         # GENERATE CROSS IMMUNITY MATRIX with protection from STRAIN_INTERACTIONS most recent infected strain.
         if self.CROSSIMMUNITY_MATRIX is None:
-            self.build_cross_immunity_matrix()
+            self.load_cross_immunity_matrix()
         # if not given, load population fractions based on observed census data into self
         if not self.INITIAL_POPULATION_FRACTIONS:
             self.load_initial_population_fractions()
@@ -303,7 +303,7 @@ class BasicMechanisticModel:
         """
         return jnp.exp(
             utils.VAX_FUNCTION(
-                t,
+                t + self.DAYS_AFTER_INIT_DATE,
                 self.VAX_MODEL_KNOT_LOCATIONS,
                 self.VAX_MODEL_BASE_EQUATIONS,
                 self.VAX_MODEL_KNOTS,
@@ -528,6 +528,7 @@ class BasicMechanisticModel:
             max_steps=int(1e6),
         )
         self.solution = solution
+        self.solution_final_state = tuple(y[-1] for y in solution.ys)
         save_path = (
             save_path if save else None
         )  # dont set a save path if we dont want to save
@@ -610,6 +611,7 @@ class BasicMechanisticModel:
         plot_labels: list[str] = None,
         save_path: str = None,
         log_scale: bool = None,
+        start_date: datetime.date = None,
         fig: plt.figure = None,
         ax: plt.axis = None,
     ):
@@ -635,6 +637,8 @@ class BasicMechanisticModel:
         log_scale : bool, optional
             whether or not to exclusively show the log or unlogged version of the plot, by default include both
             in a stacked subplot.
+        start_date : date, optional
+            the start date of the x axis of the plot. Defaults to model.INIT_DATE + model.DAYS_AFTER_INIT_DATE
         fig: matplotlib.pyplot.figure
             if this plot is part of a larger subplots, pass the figure object here, otherwise one is created
         ax: matplotlib.pyplot.axis
@@ -645,6 +649,11 @@ class BasicMechanisticModel:
         fig, ax : matplotlib.Figure/axis object
             objects containing the matplotlib figure and axis for further modifications if needed.
         """
+        # default start date is based on the model INIT date and in the case of epochs, days after initialization
+        if start_date is None:
+            start_date = self.INIT_DATE + datetime.timedelta(
+                days=self.DAYS_AFTER_INIT_DATE
+            )
         plot_commands = [x.strip() for x in plot_commands]
         if fig is None or ax is None:
             fig, ax = plt.subplots(
@@ -680,11 +689,8 @@ class BasicMechanisticModel:
             # if we explicitly set plot_labels, override the default ones.
             label = plot_labels[idx] if plot_labels is not None else label
             days = list(range(len(timeline)))
-            # incidence is aggregated weekly, so our array increases 7 days at a time
-            # if command == "incidence":
-            #     days = [day * 7 for day in days]
             x_axis = [
-                self.INIT_DATE + datetime.timedelta(days=day) for day in days
+                start_date + datetime.timedelta(days=day) for day in days
             ]
             if command == "incidence":
                 # plot both logged and unlogged version by default
@@ -1162,12 +1168,13 @@ class BasicMechanisticModel:
         if self.INITIAL_INFECTIONS is None:
             self.INITIAL_INFECTIONS = self.POP_SIZE * proportion_infected
 
-    def build_cross_immunity_matrix(self):
+    def load_cross_immunity_matrix(self):
         """
         Loads the Crossimmunity matrix given the strain interactions matrix.
         Strain interactions matrix is a matrix of shape (num_strains, num_strains) representing the relative immune escape risk
         of those who are being challenged by a strain in dim 0 but have recovered from a strain in dim 1.
         Neither the strain interactions matrix nor the crossimmunity matrix take into account waning.
+
         Updates
         ----------
         self.CROSSIMMUNITY_MATRIX:
@@ -1367,6 +1374,78 @@ class BasicMechanisticModel:
             )
         else:  # if given empty file, just return JSON string
             return json.dumps(self.config_file, indent=4, cls=CustomEncoder)
+
+    def collapse_strains(
+        self,
+        from_strain: str,
+        to_strain: str,
+        new_config: config,
+    ):
+        """
+        Modifies `self` such that all infections, infection histories, and enums that refer to the strain in `from_strain`
+        now point to `to_strain`. Number of strains are preserved, shifting all strain indexes left by 1
+        to make space for this new most-recent strain. New config is loaded to update strain specific values and indexes.
+
+        Example
+        ----------
+        self.STRAIN_IDX["delta"] -> 0
+        self.STRAIN_IDX["omicron"] -> 1
+        self.STRAIN_IDX["BA2/BA5"] -> 2
+        self.collapse_strains("omicron", "delta") #collapses omicron and delta strains
+        self.STRAIN_IDX["delta"] -> 0
+        self.STRAIN_IDX["omicron"] -> *0*
+        self.STRAIN_IDX["BA2/BA5"] -> *1*
+        self.STRAIN_IDX[_] -> *2*
+
+        Parameters
+        ----------
+        from_strain: str
+            the strain name of the strain being collapsed, whos references will be rerouted.
+        to_strain: str
+            the strain name of the strain being joined with from_strain, typically the oldest strain.
+
+        Modifies
+        ----------
+        self.INITIAL_STATE
+            all compartments within initial state will be modified with new initial states
+            whos infection histories line up with the collapse strains and the new state.
+
+        all parameters within `new_config` will be used to override parameters within `self`
+        """
+        from_strain_idx = self.STRAIN_IDX[from_strain]
+        to_strain_idx = self.STRAIN_IDX[to_strain]
+        (
+            immune_state_converter,
+            strain_converter,
+        ) = utils.combined_strains_mapping(
+            from_strain_idx,
+            to_strain_idx,
+            self.NUM_STRAINS,
+        )
+        return_state = []
+        for idx, compartment in enumerate(self.INITIAL_STATE):
+            # we dont have a strain axis if are in the S compartment, otherwise we do
+            strain_axis = idx != self.IDX.S
+            strain_combined_compartment = utils.combine_strains(
+                compartment,
+                immune_state_converter,
+                strain_converter,
+                self.NUM_STRAINS,
+                strain_axis=strain_axis,
+            )
+            return_state.append(strain_combined_compartment)
+
+        # people who are actively infected with `from_strain` need to be combined together as well
+        self.INITIAL_STATE = tuple(return_state)
+        self.config_file = new_config
+        # use the new config to update things like STRAIN_IDX enum and strain_interactions matrix.
+        self.__dict__.update(**new_config.__dict__)
+        # end with some minor update tasks because our init_date likely changed
+        # along with our strain_interactions matrix
+        self.load_cross_immunity_matrix()
+        self.load_vaccination_model()
+        self.load_external_i_distributions()
+        self.load_contact_matrix()
 
 
 def build_basic_mechanistic_model(config: config):

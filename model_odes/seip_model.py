@@ -126,22 +126,6 @@ def seip_ode(state, t, parameters):
     # slice across age, strain, and wane. vaccination updates the vax column and also moves all to w0.
     # ex: diagonal movement from 1 shot in 4th waning compartment to 2 shots 0 waning compartment      s[:, 0, 1, 3] -> s[:, 0, 2, 0]
     vax_counts = s * p.VACCINATION_RATES(t)[:, jnp.newaxis, :, jnp.newaxis]
-
-    # for vaccine_count in range(p.MAX_VAX_COUNT + 1):
-    #     # num of people who had vaccine_count shots and then are getting 1 more
-    #     s_vax_count = vax_counts[:, :, vaccine_count, :]
-    #     # people who just got vaccinated/recovered wont get another shot for at least 1 waning compartment time.
-    #     s_vax_count = s_vax_count.at[:, :, 0].set(0)
-    #     # sum all the people getting vaccines, across waning bins since they will be put in w0
-    #     vax_gained = jnp.sum(s_vax_count, axis=(-1))
-    #     # if people already at the max counted vaccinations, dont move them, only update waning
-    #     if vaccine_count == p.MAX_VAX_COUNT:
-    #         ds = ds.at[:, :, vaccine_count, 0].add(vax_gained)
-    #     else:  # increment num_vaccines by 1, waning reset
-    #         ds = ds.at[:, :, vaccine_count + 1, 0].add(vax_gained)
-    #     # we moved everyone into their correct compartment, now remove them from their starting position
-    #     ds = ds.at[:, :, vaccine_count, :].add(-s_vax_count)
-
     vax_counts = vax_counts.at[:, :, :, 0].set(0)
     vax_gained = jnp.sum(vax_counts, axis=(-1))
     ds = ds.at[:, :, p.MAX_VAX_COUNT, 0].add(vax_gained[:, :, p.MAX_VAX_COUNT])
