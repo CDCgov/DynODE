@@ -509,8 +509,10 @@ def combine_epochs(
             )
             current_solution = total_timeline_state[idx]
             if current_solution:  # if we have one to merge with
+                # skip first row since current_solution[-1] == epoch_solution[0]
+                # since it is used as initialization
                 current_solution = np.concatenate(
-                    [current_solution, epoch_solution], axis=(0)
+                    [current_solution, epoch_solution[1:]], axis=(0)
                 )
             else:
                 total_timeline_state[idx] = epoch_solution
@@ -518,7 +520,7 @@ def combine_epochs(
     for compartment_idx in range(num_compartments_per_solution):
         epoch_solution = epoch_solutions[-1][compartment_idx]
         total_timeline_state[compartment_idx] = np.concatenate(
-            [total_timeline_state[compartment_idx], epoch_solution],
+            [total_timeline_state[compartment_idx], epoch_solution[1:]],
             axis=(0),
         )
 
