@@ -9,11 +9,16 @@
 
 This repository is for the design and implementation of a Scenarios forecasting model, built by the Scenarios team within CFA-Predict.
 
-This code aims to combine a number of different codebases to forecast different covid scenarios with a Compartmental Mechanistic ODE model modeling multiple competing covid variants. The aim of this model is to provide enough flexibility for its users to explore a variety of scenarios, but also making certain design decisions that allow for fast computation and fitting as well as code readability.
+Currently, we aim to use this code to forecast different disease tranmission scenarios with a compartmental mechanistic ODE model.  This model is under development with transmission of SARS-CoV-2 as our primary focus.  We plan to apply this model to the transmission of other respiratory viruses such as influenza and RSV.  We aim to provide enough flexibility for the code users to explore a variety of scenarios, but also making certain design decisions that allow for fast computation and fitting as well as code readability.
+
+[//]: # (This code aims to combine a number of different codebases to forecast different covid scenarios with a Compartmental Mechanistic ODE model modeling multiple competing covid variants. The aim of this model is to provide enough flexibility for its users to explore a variety of scenarios, but also making certain design decisions that allow for fast computation and fitting as well as code readability.)
+
 
 What this model is:
 
-a compartmental mechanistic ODE model capible of dynamic age binning, waning, vaccination scenarios, introduction of new variants, transmission structures, and timing estimation. TODO
+a compartmental mechanistic ODE model that accounts for age structure, immunity history, vaccination, immunity waning and multiple variants.
+
+[//]: # (capable of dynamic age binning, waning, vaccination scenarios, introduction of new variants, transmission structures, and timing estimation. TODO)
 
 What this model is not:
 
@@ -61,7 +66,7 @@ Simply run `visualizer_app.py` and navigate to http://localhost:8000/ and play w
 
 ## Data Sources
 
-The model is fed the following data sources:
+The model (as described in the example script) is fed the following data sources:
 1. data/demographic-data/contact_matricies : contact matricies sourced from work done by Dina Minstry's past work in this [Github Project](https://github.com/mobs-lab/mixing-patterns).
 2. data/serological-data/* : serology data sourced from: [data.cdc.gov](https://data.cdc.gov/Laboratory-Surveillance/Nationwide-Commercial-Laboratory-Seroprevalence-Su/d2tw-32xv)
 3. data/sim_data_*.sqlite: ABM data sourced from Tom Hladish's work found [here](https://github.com/tjhladish/covid-abm)
@@ -81,7 +86,7 @@ Thomas Hladish, Lead Data Scientist, utx5@cdc.gov, CDC/IOD/ORR/CFA
 
 Ariel Shurygin, Data Scientist, uva5@cdc.gov, CDC/IOD/ORR/CFA
 
-Ben Kok Toh, Data Scientist, tjk3@cdc.gov, CDC/IOD/ORR/CFA
+Kok Ben Toh, Data Scientist, tjk3@cdc.gov, CDC/IOD/ORR/CFA
 
 Michael Batista, Data Scientist, upi8@cdc.gov, CDC/IOD/ORR/CFA
 
