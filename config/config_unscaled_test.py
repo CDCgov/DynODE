@@ -1,4 +1,4 @@
-from config.config_base import ConfigBase
+from config_base import ConfigBase
 
 
 class ConfigScenario(ConfigBase):
