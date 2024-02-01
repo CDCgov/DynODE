@@ -1,0 +1,75 @@
+{
+    "INITALIZER_NAME": "base scenario",
+    "REGIONS": [
+        "United States"
+    ],
+    "DEMOGRAPHIC_DATA_PATH": "data/demographic-data/",
+    "SEROLOGICAL_DATA_PATH": "data/serological-data/",
+    "SIM_DATA_PATH": "data/abm-data/abm_population.csv",
+    "SAVE_PATH": "output/",
+    "HOSP_PATH": "data/hospital_220213_220108.csv",
+    "INIT_DATE": {
+        "type": "date",
+        "val": "2022-02-11"
+    },
+    "DAYS_AFTER_INIT_DATE": 0,
+    "MINIMUM_AGE": 0,
+    "AGE_LIMITS": [
+        0,
+        18,
+        50,
+        65
+    ],
+    "POP_SIZE": 10000,
+    "NUM_STRAINS": 3,
+    "MAX_VAX_COUNT": 2,
+    "NUM_WANING_COMPARTMENTS": 5,
+    "WANING_TIMES": [
+        131,
+        134,
+        112,
+        81,
+        0
+    ],
+    "INITIAL_INFECTIONS": null,
+    "INITIAL_POPULATION_FRACTIONS": null,
+    "INIT_EXPOSED_DIST": null,
+    "INIT_INFECTED_DIST": null,
+    "INIT_IMMUNE_HISTORY": null,
+    "COMPARTMENT_IDXS": {
+        "type": "enum",
+        "val": [
+            "S",
+            "E",
+            "I",
+            "C"
+        ]
+    },
+    "S_AXIS_IDX": {
+        "type": "enum",
+        "val": [
+            "age",
+            "hist",
+            "vax",
+            "wane"
+        ]
+    },
+    "I_AXIS_IDX": {
+        "type": "enum",
+        "val": [
+            "age",
+            "hist",
+            "vax",
+            "strain"
+        ]
+    },
+    "STRAIN_IDX": {
+        "type": "enum",
+        "val": [
+            "delta",
+            "omicron",
+            "BA2/BA5"
+        ]
+    },
+    "GIT_HASH": null
+}

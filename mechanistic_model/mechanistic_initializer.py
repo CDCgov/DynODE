@@ -7,10 +7,14 @@ to produce an initial state representing some analyzed population
 from abc import ABC, abstractmethod
 
 
-class mechanistic_initializer(ABC):
+class MechanisticInitializer(ABC):
     @abstractmethod
     def __init__(self, initializer_config):
         self.INITIAL_STATE
+        pass
+
+    @abstractmethod
+    def assert_valid_configuration(self):
         pass
 
     def get_initial_state(self):

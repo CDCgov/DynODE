@@ -7,17 +7,24 @@ from numpyro.infer import MCMC, NUTS
 from functools import partial
 import jax.numpy as jnp
 import jax
+import utils
+import pandas as pd
+from jax.scipy.stats.norm import pdf
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
 
 
-class mechanistic_runner:
+class MechanisticRunner:
     def __init__(self, initial_state, model, **kwargs):
         self.__dict__.update(kwargs)
         self.runtime_config = kwargs
         self.INITIAL_STATE = initial_state
         self.model = model
+        self.load_cross_immunity_matrix()
+        self.load_vaccination_model()
+        self.load_external_i_distributions()
+        self.load_contact_matrix()
 
     def get_args(
         self,
@@ -229,3 +236,114 @@ class mechanistic_runner:
         return self.BETA_COEFICIENTS[
             jnp.maximum(0, jnp.searchsorted(self.BETA_TIMES, t) - 1)
         ]
+
+    def load_cross_immunity_matrix(self):
+        """
+        Loads the Crossimmunity matrix given the strain interactions matrix.
+        Strain interactions matrix is a matrix of shape (num_strains, num_strains) representing the relative immune escape risk
+        of those who are being challenged by a strain in dim 0 but have recovered from a strain in dim 1.
+        Neither the strain interactions matrix nor the crossimmunity matrix take into account waning.
+
+        Updates
+        ----------
+        self.CROSSIMMUNITY_MATRIX:
+            updates this matrix to shape (self.NUM_STRAINS, self.NUM_PREV_INF_HIST) containing the relative immune escape
+            values for each challenging strain compared to each prior immune history in the model.
+        """
+        self.CROSSIMMUNITY_MATRIX = utils.strain_interaction_to_cross_immunity(
+            self.NUM_STRAINS, self.STRAIN_INTERACTIONS
+        )
+
+    def load_vaccination_model(self):
+        """
+        loads parameters of a polynomial spline vaccination model stratified on age bin and current vaccination status.
+        also loads in the spline knot locations.
+        """
+        parameters = pd.read_csv(self.VAX_MODEL_DATA)
+        age_bins = len(parameters["age_group"].unique())
+        vax_bins = len(parameters["dose"].unique())
+        # change this if you start using higher degree polynomials to fit vax model
+        assert age_bins == self.NUM_AGE_GROUPS, (
+            "the number of age bins in your model does not match the input vaccination parameters, "
+            + "please provide your own vaccination parameters that match, or adjust your age bins"
+        )
+
+        assert vax_bins == self.MAX_VAX_COUNT + 1, (
+            "the number of vaccination counts in your model does not match the input vaccination parameters, "
+            + "please provide your own vaccination parameters that match, or adjust your age bins"
+        )
+        vax_knots = np.zeros((age_bins, vax_bins, self.VAX_MODEL_NUM_KNOTS))
+        vax_knot_locations = np.zeros(
+            (age_bins, vax_bins, self.VAX_MODEL_NUM_KNOTS)
+        )
+        vax_base_equations = np.zeros((age_bins, vax_bins, 4))  # always 4
+        for row in parameters.itertuples():
+            _, age_group, vaccination = row[0:3]
+            intersect_and_ts = row[3:7]
+            knot_coefficients = row[7 : 7 + self.VAX_MODEL_NUM_KNOTS]
+            knot_locations = row[7 + self.VAX_MODEL_NUM_KNOTS :]
+            age_group_idx = self.AGE_GROUP_IDX[age_group]
+            vax_idx = vaccination - 1
+            vax_base_equations[age_group_idx, vax_idx, :] = np.array(
+                intersect_and_ts
+            )
+            vax_knots[age_group_idx, vax_idx, :] = np.array(knot_coefficients)
+            vax_knot_locations[age_group_idx, vax_idx, :] = np.array(
+                knot_locations
+            )
+        self.VAX_MODEL_KNOTS = jnp.array(vax_knots)
+        self.VAX_MODEL_KNOT_LOCATIONS = jnp.array(vax_knot_locations)
+        self.VAX_MODEL_BASE_EQUATIONS = jnp.array(vax_base_equations)
+
+    def load_external_i_distributions(self):
+        """
+        a function that loads external_i_distributions array into the model.
+        this list of functions dictate the number of infected individuals EXTERNAL TO THE POPULATION are introduced at a particular timestep.
+
+        each function within this list must be differentiable at all input values `t`>=0 and return some value such that
+        sum(f(t)) forall t>=0 = 1.0. By default we use a normal PDF to approximate this value.
+
+        Updates
+        ----------
+        EXTERNAL_I_DISTRIBUTIONS: list[func(jac_tracer(float))->float]
+        updates each strain to have its own introduction function, centered around the corresponding introduction time in self.INTRODUCTION_TIMES
+        historical strains, which are introduced before model initialization are given the zero function f(_) -> 0.
+        """
+
+        def zero_function(_):
+            return 0
+
+        self.EXTERNAL_I_DISTRIBUTIONS = [
+            zero_function for _ in range(self.NUM_STRAINS)
+        ]
+        for introduced_strain_idx, introduced_time in enumerate(
+            self.INTRODUCTION_TIMES
+        ):
+            # earlier introduced strains earlier will be placed closer to historical strains (0 and 1)
+            dist_idx = (
+                self.NUM_STRAINS
+                - self.NUM_INTRODUCED_STRAINS
+                + introduced_strain_idx
+            )
+            # use a normal PDF with std dv
+            self.EXTERNAL_I_DISTRIBUTIONS[dist_idx] = partial(
+                pdf, loc=introduced_time, scale=self.INTRODUCTION_SCALE
+            )
+
+    def load_contact_matrix(self):
+        """
+        a wrapper function that loads a contact matrix for the USA based on mixing paterns data found here:
+        https://github.com/mobs-lab/mixing-patterns
+
+        Updates
+        ----------
+        `self.CONTACT_MATRIX` : numpy.ndarray
+            a matrix of shape (self.NUM_AGE_GROUPS, self.NUM_AGE_GROUPS) with each value representing TODO
+        """
+        self.CONTACT_MATRIX = utils.load_demographic_data(
+            self.DEMOGRAPHIC_DATA,
+            self.REGIONS,
+            self.NUM_AGE_GROUPS,
+            self.MINIMUM_AGE,
+            self.AGE_LIMITS,
+        )["United States"]["avg_CM"]
