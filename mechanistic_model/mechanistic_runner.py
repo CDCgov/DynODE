@@ -15,6 +15,7 @@ from diffrax import (
 from functools import partial
 import jax.numpy as jnp
 import jax
+from jax.random import PRNGKey
 import utils
 import pandas as pd
 import numpy as np
@@ -270,7 +271,7 @@ class MechanisticRunner:
         mcmc.run(
             rng_key=PRNGKey(self.MCMC_PRNGKEY),
             incidence=incidence,
-            model=model,
+            model=self.model,
             negbin=negbin,
             sample_dist_dict=sample_dist_dict,
         )
@@ -279,7 +280,7 @@ class MechanisticRunner:
     @partial(jax.jit, static_argnums=(0))
     def external_i(self, t):
         """
-        Given some time t, returns jnp.array of shape self.INITIAL_STATE[self.COMPARTMENT_IDXS.I] representing external infected persons
+        Given some time t, returns jnp.array of shape self.INITIAL_STATE[self.COMPARTMENT_IDX.I] representing external infected persons
         interacting with the population. it does so by calling some function f_s(t) for each strain s.
 
         MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t.
@@ -293,12 +294,12 @@ class MechanisticRunner:
         Returns
         -----------
         external_i_compartment: jnp.array()
-            jnp.array(shape=(self.INITIAL_STATE[self.COMPARTMENT_IDXS.I].shape)) of external individuals to the system
+            jnp.array(shape=(self.INITIAL_STATE[self.COMPARTMENT_IDX.I].shape)) of external individuals to the system
             interacting with susceptibles within the system, used to impact force of infection.
         """
         # set up our return value
         external_i_compartment = jnp.zeros(
-            self.INITIAL_STATE[self.COMPARTMENT_IDXS.I].shape
+            self.INITIAL_STATE[self.COMPARTMENT_IDX.I].shape
         )
         # default from the config
         external_i_distributions = self.EXTERNAL_I_DISTRIBUTIONS
@@ -525,7 +526,7 @@ class MechanisticRunner:
                         ),
                     )
                     for compartment in self.INITIAL_STATE[
-                        : self.COMPARTMENT_IDXS.C
+                        : self.COMPARTMENT_IDX.C
                     ]
                 ]
             ),

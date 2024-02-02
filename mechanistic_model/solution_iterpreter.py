@@ -9,31 +9,42 @@ import json
 import numpy as np
 import jax.numpy as jnp
 from enum import EnumMeta
+from config.config_parser import ConfigParser
+import utils
 
 
-class solution_iterpreter:
-    def __init__(self, solution, runner_parameters):
+class SolutionInterpreter:
+    def __init__(self, solution, solution_parameters, global_variables):
+        if isinstance(solution_parameters, str):
+            solution_parameters = ConfigParser(
+                solution_parameters
+            ).get_config()
+
+        if isinstance(global_variables, str):
+            global_variables = ConfigParser(global_variables).get_config()
+
+        self.__dict__.update(global_variables)
+        self.__dict__.update(solution_parameters)
         self.solution = solution
-        self.runner_params = runner_parameters
+        self.solution_parameters = solution_parameters
         self.pyplot_theme = None  # TODO set a consistent theme
 
     def set_default_plot_commands(self, plot_commands):
         """
         Where applicable, the solution interpreter will plot the given plot_commands by default.
         """
-        self.plot_commands = plot_commands
+        self.PLOT_COMMANDS = plot_commands
 
     def summarize_solution(
         self,
-        sol: Solution,
         plot_commands: list[str] = ["S", "E", "I", "C"],
         plot_labels: list[str] = ["S", "E", "I", "C"],
         save_path: str = None,
     ):
         fig, axs = plt.subplots(2, 2, figsize=(8, 9))
         # plot commands with unlogged y axis
-        fig, axs[0][0] = self.plot_diffrax_solution(
-            sol,
+        fig, axs[0][0] = self.plot_solution(
+            self.solution.ys,
             plot_commands,
             plot_labels,
             log_scale=False,
@@ -41,8 +52,8 @@ class solution_iterpreter:
             ax=axs[0][0],
         )
         # plot commands with logged y axis
-        fig, axs[1][0] = self.plot_diffrax_solution(
-            sol,
+        fig, axs[1][0] = self.plot_solution(
+            self.solution.ys,
             plot_commands,
             plot_labels,
             log_scale=True,
@@ -51,11 +62,15 @@ class solution_iterpreter:
         )
         # strain prevalence chart over the same x axis, no plot commands.
         fig, axs[0][1] = self.plot_strain_prevalence(
-            sol, fig=fig, ax=axs[0][1]
+            self.solution.ys, fig=fig, ax=axs[0][1]
         )
         # incidence scatter plot, unlogged y axis
         fig, axs[1][1] = self.plot_diffrax_solution(
-            sol, ["incidence"], log_scale=False, fig=fig, ax=axs[1][1]
+            self.solution.ys,
+            ["incidence"],
+            log_scale=False,
+            fig=fig,
+            ax=axs[1][1],
         )
 
         fig.tight_layout(rect=[0, 0.03, 1, 0.95])
@@ -109,9 +124,7 @@ class solution_iterpreter:
         """
         # default start date is based on the model INIT date and in the case of epochs, days after initialization
         if start_date is None:
-            start_date = self.INIT_DATE + datetime.timedelta(
-                days=self.DAYS_AFTER_INIT_DATE
-            )
+            start_date = self.INIT_DATE
         plot_commands = [x.strip() for x in plot_commands]
         if fig is None or ax is None:
             fig, ax = plt.subplots(
@@ -139,7 +152,7 @@ class solution_iterpreter:
         for idx, command in enumerate(plot_commands):
             timeline, label = utils.get_timeline_from_solution_with_command(
                 sol,
-                self.IDX,
+                self.COMPARTMENT_IDX,
                 self.W_IDX,
                 self.STRAIN_IDX,
                 command,
@@ -214,7 +227,7 @@ class solution_iterpreter:
             labels,
         ) = utils.get_timeline_from_solution_with_command(
             sol,
-            self.IDX,
+            self.COMPARTMENT_IDX,
             self.W_IDX,
             self.STRAIN_IDX,
             "strain_prevalence",

@@ -24,7 +24,7 @@
         81,
         0
     ],
-    "COMPARTMENT_IDXS": {
+    "COMPARTMENT_IDX": {
         "__type__": "enum",
         "__val__": [
             "S",
