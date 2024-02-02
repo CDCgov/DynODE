@@ -6,6 +6,7 @@ based on the values of provided ones.
 import os
 import json
 import numpy as np
+import jax.numpy as jnp
 from enum import IntEnum
 from numpyro import distributions
 import datetime
@@ -24,6 +25,7 @@ class ConfigParser:
             "distributions.Normal": lambda mean, sd: distributions.Normal(
                 mean, sd
             ),
+            "numpy": lambda lst: jnp.array(lst),
         }
         # all JSON objects are passed to self.cast_type
         self.config = json.load(
@@ -37,16 +39,16 @@ class ConfigParser:
         # return_dict = {}
         if isinstance(val, dict):
             # check if this is a complex type object, return parsed version
-            if "type" in val.keys() and "val" in val.keys():
-                return self.complex_type(val["val"], val["type"])
+            if "__type__" in val.keys() and "__val__" in val.keys():
+                return self.complex_type(val["__type__"], val["__val__"])
             # else json object_hook recurses for us
-        # base case primitative types, list, str, int, float
+        # # base case primitative types, list, str, int, float
         if isinstance(val, list):
-            return np.array(val)
-        else:  # if not list or dict, its one of the other primitive types
+            return jnp.array(val)
+        else:  # if not dict, its one of the other primitive types
             return val
 
-    def complex_type(self, val, type):
+    def complex_type(self, type, val):
         """
         parses complex type objects and returns the correct python objects according to the mapping described in TYPE_DICT.
         raises a type error if a type is passed that is not covered in TYPE_DICT.

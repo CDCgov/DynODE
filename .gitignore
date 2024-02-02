@@ -56,8 +56,8 @@ testing.py
 !data/spline_fits.csv
 !data/hospitalization-data/hospital_220213_220108.csv
 !output/example_output_summary_slide.png
-!config/config_initializer_covid.json
-!config/config_runner_covid.json
+!config/*.json
+
 
 #####
 # Python

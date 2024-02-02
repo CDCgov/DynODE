@@ -7,7 +7,7 @@ import os
 
 
 class CovidInitializer(MechanisticInitializer):
-    def __init__(self, config_initializer):
+    def __init__(self, config_initializer, global_variables):
         """
         initialize a basic abstract mechanistic model for covid19 case prediction.
         Should not be constructed directly, use build_basic_mechanistic_model() with a config file
@@ -16,7 +16,11 @@ class CovidInitializer(MechanisticInitializer):
         if isinstance(config_initializer, str):
             config_initializer = ConfigParser(config_initializer).get_config()
 
-        # grab all parameters passed from config
+        if isinstance(global_variables, str):
+            global_variables = ConfigParser(global_variables).get_config()
+
+        # grab all parameters passed from global and initializer configs
+        self.__dict__.update(global_variables)
         self.__dict__.update(config_initializer)
         self.assert_valid_configuration()
         self.set_downstream_parameters()
@@ -186,9 +190,6 @@ class CovidInitializer(MechanisticInitializer):
         )
 
     def assert_valid_configuration(self):
-        assert os.path.exists(self.SAVE_PATH), (
-            "%s is not a valid path" % self.SAVE_PATH
-        )
         assert os.path.exists(self.DEMOGRAPHIC_DATA_PATH), (
             "%s is not a valid path" % self.DEMOGRAPHIC_DATA
         )
@@ -235,11 +236,3 @@ class CovidInitializer(MechanisticInitializer):
             assert (
                 sum(self.INITIAL_POPULATION_FRACTIONS) == 1.0
             ), "population fractions must sum to 1"
-
-        if self.INIT_INFECTION_DIST:
-            assert self.INIT_INFECTION_DIST.shape == (
-                self.NUM_AGE_GROUPS,
-            ), "INIT_INFECTION_DIST must be of shape %s, received %s" % (
-                str((self.NUM_AGE_GROUPS,)),
-                str(self.INIT_INFECTION_DIST.shape),
-            )

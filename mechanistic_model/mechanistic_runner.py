@@ -4,23 +4,41 @@ The following is a class which runs a series of ODE equations, performs inferenc
 import numpyro
 from numpyro import distributions as Dist
 from numpyro.infer import MCMC, NUTS
+from diffrax import (
+    ODETerm,
+    PIDController,
+    SaveAt,
+    Solution,
+    Tsit5,
+    diffeqsolve,
+)
 from functools import partial
 import jax.numpy as jnp
 import jax
 import utils
 import pandas as pd
+import numpy as np
 from jax.scipy.stats.norm import pdf
+from config.config_parser import ConfigParser
+from enum import IntEnum
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
 
 
 class MechanisticRunner:
-    def __init__(self, initial_state, model, **kwargs):
-        self.__dict__.update(kwargs)
-        self.runtime_config = kwargs
+    def __init__(self, initial_state, model, runner_config, global_variables):
+        if isinstance(runner_config, str):
+            runner_config = ConfigParser(runner_config).get_config()
+
+        if isinstance(global_variables, str):
+            global_variables = ConfigParser(global_variables).get_config()
+
+        self.__dict__.update(global_variables)
+        self.__dict__.update(runner_config)
         self.INITIAL_STATE = initial_state
         self.model = model
+        self.set_downstream_parameters()
         self.load_cross_immunity_matrix()
         self.load_vaccination_model()
         self.load_external_i_distributions()
@@ -36,28 +54,154 @@ class MechanisticRunner:
         https://docs.kidger.site/diffrax/api/terms/#diffrax.ODETerm
 
         for example functions f() in charge of disease dynamics see the model_odes folder.
-        TODO change this  TODO if sample=True, and no sample_dist_dict supplied, infectious period and BA1.1 introduction time are automatically sampled.
 
         Parameters
         ----------
         `sample`: boolean
             whether or not to sample key parameters, used when model is being run in MCMC and parameters are being infered
         `sample_dist_dict`: dict(str:numpyro.distribution)
-            a dictionary of parameters to sample, if empty, defaults will be sampled and rest are left at values specified in config.
+            a dictionary of parameters to sample.
             follows format "parameter_name":numpyro.Distributions.dist(). DO NOT pass numpyro.sample() objects to the dictionary.
 
         Returns
         ----------
-        dict{str: Object}: A dictionary where key value pairs are used as parameters by an ODE model, things like R0 or contact matricies.
+        dict{str: Object}: A dictionary where key value pairs are used as parameters by an ODE model
         """
-        pass
+        # get counts of the initial state compartments by age bin.
+        # ignore the C compartment since it is just house keeping
+        args = {
+            "CONTACT_MATRIX": self.CONTACT_MATRIX,
+            "POPULATION": self.POPULATION,
+            "NUM_STRAINS": self.NUM_STRAINS,
+            "NUM_AGE_GROUPS": self.NUM_AGE_GROUPS,
+            "NUM_WANING_COMPARTMENTS": self.NUM_WANING_COMPARTMENTS,
+            "WANING_PROTECTIONS": self.WANING_PROTECTIONS,
+            "MAX_VAX_COUNT": self.MAX_VAX_COUNT,
+            "CROSSIMMUNITY_MATRIX": self.CROSSIMMUNITY_MATRIX,
+            "VAX_EFF_MATRIX": self.VAX_EFF_MATRIX,
+        }
+        if sample:
+            # if user provides parameters and distributions they wish to sample, sample those
+            # otherwise, we simply sample infectious period and introduction times by default
+            if not sample_dist_dict:
+                raise "Sample = True but not sample_dist_dict provided"
+            # either using the default sample_dist_dict, or the one provided by the user
+            # transform these distributions into numpyro samples.
+            for key, item in sample_dist_dict.items():
+                # if user wants to sample model initial infections, do that outside of get_args()
+                if key == "INITIAL_INFECTIONS":
+                    continue
+                # sometimes you may want to sample the elements of a list, like R0 for strains
+                # check for that here:
+                if isinstance(item, list):
+                    # build up a list of samples
+                    sample_list = jnp.zeros(shape=(len(item),))
+                    for i, dist in enumerate(item):
+                        # sometimes people pass a mixture of static and sampled values. check for numbers
+                        if isinstance(dist, (int, float)) and not isinstance(
+                            dist, bool
+                        ):
+                            sample = numpyro.deterministic(
+                                key + "_" + str(i), dist
+                            )
+                        else:
+                            sample = numpyro.sample(key + "_" + str(i), dist)
+                        sample_list = sample_list.at[i].set(sample)
+                    args[key] = sample_list
+                else:
+                    args[key] = numpyro.sample(key, item)
+
+        # lets quickly update any values that depend on other parameters which may or may not be sampled.
+        # set defaults if they are not in args aka not sampled.
+        r0 = args.get("R0", self.STRAIN_R0s)
+        infectious_period = args.get(
+            "INFECTIOUS_PERIOD", self.INFECTIOUS_PERIOD
+        )
+        if "INFECTIOUS_PERIOD" in args or "R0" in args:
+            beta = numpyro.deterministic("BETA", r0 / infectious_period)
+        else:
+            beta = r0 / infectious_period
+        gamma = (
+            1 / self.INFECTIOUS_PERIOD
+            if "INFECTIOUS_PERIOD" not in args
+            else numpyro.deterministic("gamma", 1 / args["INFECTIOUS_PERIOD"])
+        )
+        sigma = (
+            1 / self.EXPOSED_TO_INFECTIOUS
+            if "EXPOSED_TO_INFECTIOUS" not in args
+            else numpyro.deterministic(
+                "SIGMA", 1 / args["EXPOSED_TO_INFECTIOUS"]
+            )
+        )
+        # since our last waning time is zero to account for last compartment never waning
+        # we include an if else statement to catch a division by zero error here.
+        waning_rates = [
+            1 / waning_time if waning_time > 0 else 0
+            for waning_time in self.WANING_TIMES
+        ]
+        # add final parameters, if your model expects added parameters, add them here
+        args = dict(
+            args,
+            **{
+                "BETA": beta,
+                "SIGMA": sigma,
+                "GAMMA": gamma,
+                "WANING_RATES": waning_rates,
+                "EXTERNAL_I": partial(self.external_i),
+                "VACCINATION_RATES": self.vaccination_rate,
+                "BETA_COEF": self.beta_coef,
+            }
+        )
+        return args
 
     def run(
+        self,
         tf: int = 100,
         sample: bool = False,
         sample_dist_dict: dict[str, Dist.Distribution] = {},
     ):
-        pass
+        term = ODETerm(
+            lambda t, state, parameters: self.model(state, t, parameters)
+        )
+        solver = Tsit5()
+        t0 = 0.0
+        dt0 = 1.0
+        saveat = SaveAt(ts=jnp.linspace(t0, tf, int(tf) + 1))
+        # if the user wants to sample model initial infections, do it here
+        # initial_state = (
+        #     self.load_initial_state(
+        #         numpyro.sample(
+        #             "INITIAL_INFECTIONS",
+        #             sample_dist_dict["INITIAL_INFECTIONS"],
+        #         )
+        #     )
+        #     if "INITIAL_INFECTIONS" in sample_dist_dict.keys()
+        #     else self.INITIAL_STATE
+        # )
+        initial_state = self.INITIAL_STATE
+
+        solution = diffeqsolve(
+            term,
+            solver,
+            t0,
+            tf,
+            dt0,
+            initial_state,
+            args=self.get_args(
+                sample=sample, sample_dist_dict=sample_dist_dict
+            ),
+            # discontinuities due to beta manipulation specified as jump_ts
+            stepsize_controller=PIDController(
+                rtol=1e-5,
+                atol=1e-6,
+                jump_ts=list(self.BETA_TIMES),
+            ),
+            saveat=saveat,
+            # higher for large time scales / rapid changes
+            max_steps=int(1e6),
+        )
+        self.solution = solution
+        return solution
 
     def incidence(
         self,
@@ -135,7 +279,7 @@ class MechanisticRunner:
     @partial(jax.jit, static_argnums=(0))
     def external_i(self, t):
         """
-        Given some time t, returns jnp.array of shape self.INITIAL_STATE[self.IDX.I] representing external infected persons
+        Given some time t, returns jnp.array of shape self.INITIAL_STATE[self.COMPARTMENT_IDXS.I] representing external infected persons
         interacting with the population. it does so by calling some function f_s(t) for each strain s.
 
         MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t.
@@ -149,12 +293,12 @@ class MechanisticRunner:
         Returns
         -----------
         external_i_compartment: jnp.array()
-            jnp.array(shape=(self.INITIAL_STATE[self.IDX.I].shape)) of external individuals to the system
+            jnp.array(shape=(self.INITIAL_STATE[self.COMPARTMENT_IDXS.I].shape)) of external individuals to the system
             interacting with susceptibles within the system, used to impact force of infection.
         """
         # set up our return value
         external_i_compartment = jnp.zeros(
-            self.INITIAL_STATE[self.IDX.I].shape
+            self.INITIAL_STATE[self.COMPARTMENT_IDXS.I].shape
         )
         # default from the config
         external_i_distributions = self.EXTERNAL_I_DISTRIBUTIONS
@@ -208,15 +352,14 @@ class MechanisticRunner:
         vaccination_rates: jnp.array()
             jnp.array(shape=(self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
         """
-        pass
-        # return jnp.exp(
-        #     utils.VAX_FUNCTION(
-        #         t + self.DAYS_AFTER_INIT_DATE,
-        #         self.VAX_MODEL_KNOT_LOCATIONS,
-        #         self.VAX_MODEL_BASE_EQUATIONS,
-        #         self.VAX_MODEL_KNOTS,
-        #     )
-        # )
+        return jnp.exp(
+            utils.VAX_FUNCTION(
+                t,
+                self.VAX_MODEL_KNOT_LOCATIONS,
+                self.VAX_MODEL_BASE_EQUATIONS,
+                self.VAX_MODEL_KNOTS,
+            )
+        )
 
     def beta_coef(self, t):
         """Returns a coefficient for the beta value for cases of seasonal forcing or external impacts
@@ -341,9 +484,50 @@ class MechanisticRunner:
             a matrix of shape (self.NUM_AGE_GROUPS, self.NUM_AGE_GROUPS) with each value representing TODO
         """
         self.CONTACT_MATRIX = utils.load_demographic_data(
-            self.DEMOGRAPHIC_DATA,
+            self.DEMOGRAPHIC_DATA_PATH,
             self.REGIONS,
             self.NUM_AGE_GROUPS,
             self.MINIMUM_AGE,
             self.AGE_LIMITS,
         )["United States"]["avg_CM"]
+
+    def set_downstream_parameters(self):
+        """A special function to set parameters that depend on the lengths / values of other parameters given in the config"""
+        self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
+
+        self.AGE_GROUP_STRS = [
+            str(self.AGE_LIMITS[i - 1]) + "-" + str(self.AGE_LIMITS[i] - 1)
+            for i in range(1, len(self.AGE_LIMITS))
+        ] + [str(self.AGE_LIMITS[-1]) + "+"]
+
+        self.AGE_GROUP_IDX = IntEnum("age", self.AGE_GROUP_STRS, start=0)
+
+        self.W_IDX = IntEnum(
+            "w_idx",
+            ["W" + str(idx) for idx in range(self.NUM_WANING_COMPARTMENTS)],
+            start=0,
+        )
+
+        self.NUM_INTRODUCED_STRAINS = (
+            len(self.INTRODUCTION_TIMES)
+            if hasattr(self, "INTRODUCTION_TIMES")
+            else 0
+        )
+        self.POPULATION = np.sum(
+            np.array(
+                [
+                    np.sum(
+                        compartment,
+                        axis=(
+                            self.S_AXIS_IDX.hist,
+                            self.S_AXIS_IDX.vax,
+                            self.S_AXIS_IDX.wane,
+                        ),
+                    )
+                    for compartment in self.INITIAL_STATE[
+                        : self.COMPARTMENT_IDXS.C
+                    ]
+                ]
+            ),
+            axis=(0),
+        )
