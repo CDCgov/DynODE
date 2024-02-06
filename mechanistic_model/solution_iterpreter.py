@@ -2,31 +2,32 @@
 The following class interprets Solution results into digestible figures 
 and is responsible for ensuring reproducibility and replicability of model outputs.
 """
+
 from diffrax import Solution
 import matplotlib.pyplot as plt
-from datetime import datetime
+import datetime
 import json
 import numpy as np
 import jax.numpy as jnp
 from enum import EnumMeta
-from config.config_parser import ConfigParser
+from config.config import Config
 import utils
+from PIL.PngImagePlugin import PngInfo
+import warnings
+from enum import IntEnum
 
 
 class SolutionInterpreter:
-    def __init__(self, solution, solution_parameters, global_variables):
-        if isinstance(solution_parameters, str):
-            solution_parameters = ConfigParser(
-                solution_parameters
-            ).get_config()
-
-        if isinstance(global_variables, str):
-            global_variables = ConfigParser(global_variables).get_config()
-
-        self.__dict__.update(global_variables)
-        self.__dict__.update(solution_parameters)
+    def __init__(
+        self, solution, solution_parameters_path, global_variables_path
+    ):
+        config = Config(global_variables_path).add_file(
+            solution_parameters_path
+        )
+        # grab all parameters passed from global and initializer configs
+        # TODO, move away from loading config into self
+        self.__dict__.update(**config.__dict__)
         self.solution = solution
-        self.solution_parameters = solution_parameters
         self.pyplot_theme = None  # TODO set a consistent theme
 
     def set_default_plot_commands(self, plot_commands):
@@ -34,6 +35,23 @@ class SolutionInterpreter:
         Where applicable, the solution interpreter will plot the given plot_commands by default.
         """
         self.PLOT_COMMANDS = plot_commands
+
+    def set_downstream_parameters(self):
+        """A special function to set parameters that depend on the lengths / values of other parameters given in the config"""
+        self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
+
+        self.AGE_GROUP_STRS = [
+            str(self.AGE_LIMITS[i - 1]) + "-" + str(self.AGE_LIMITS[i] - 1)
+            for i in range(1, len(self.AGE_LIMITS))
+        ] + [str(self.AGE_LIMITS[-1]) + "+"]
+
+        self.AGE_GROUP_IDX = IntEnum("age", self.AGE_GROUP_STRS, start=0)
+
+        self.W_IDX = IntEnum(
+            "w_idx",
+            ["W" + str(idx) for idx in range(self.NUM_WANING_COMPARTMENTS)],
+            start=0,
+        )
 
     def summarize_solution(
         self,
@@ -44,7 +62,7 @@ class SolutionInterpreter:
         fig, axs = plt.subplots(2, 2, figsize=(8, 9))
         # plot commands with unlogged y axis
         fig, axs[0][0] = self.plot_solution(
-            self.solution.ys,
+            # self.solution.ys,
             plot_commands,
             plot_labels,
             log_scale=False,
@@ -53,7 +71,7 @@ class SolutionInterpreter:
         )
         # plot commands with logged y axis
         fig, axs[1][0] = self.plot_solution(
-            self.solution.ys,
+            # self.solution.ys,
             plot_commands,
             plot_labels,
             log_scale=True,
@@ -61,12 +79,13 @@ class SolutionInterpreter:
             ax=axs[1][0],
         )
         # strain prevalence chart over the same x axis, no plot commands.
-        fig, axs[0][1] = self.plot_strain_prevalence(
-            self.solution.ys, fig=fig, ax=axs[0][1]
-        )
+        # fig, axs[0][1] = self.plot_strain_prevalence(
+        #     self.solution.ys, fig=fig, ax=axs[0][1]
+        # )
+        fig, axs[0][1] = self.plot_strain_prevalence(fig=fig, ax=axs[0][1])
         # incidence scatter plot, unlogged y axis
-        fig, axs[1][1] = self.plot_diffrax_solution(
-            self.solution.ys,
+        fig, axs[1][1] = self.plot_solution(
+            # self.solution.ys,
             ["incidence"],
             log_scale=False,
             fig=fig,
@@ -126,21 +145,20 @@ class SolutionInterpreter:
         if start_date is None:
             start_date = self.INIT_DATE
         plot_commands = [x.strip() for x in plot_commands]
+        sol = self.solution.ys
         if fig is None or ax is None:
             fig, ax = plt.subplots(
                 2 if log_scale is None else 1, figsize=(8, 9)
             )
             # plotting both logged and unlogged is recursive calls
             if log_scale is None:
-                fig, ax[0] = self.plot_diffrax_solution(
-                    sol,
+                fig, ax[0] = self.plot_solution(
                     plot_commands,
                     log_scale=False,
                     fig=fig,
                     ax=ax[0],
                 )
-                fig, ax[1] = self.plot_diffrax_solution(
-                    sol,
+                fig, ax[1] = self.plot_solution(
                     plot_commands,
                     log_scale=True,
                     fig=fig,
@@ -148,7 +166,7 @@ class SolutionInterpreter:
                 )
                 # clear plot commands since everything was done recursively
                 plot_commands = []
-        sol = sol.ys
+        # sol = sol.ys
         for idx, command in enumerate(plot_commands):
             timeline, label = utils.get_timeline_from_solution_with_command(
                 sol,
@@ -189,7 +207,7 @@ class SolutionInterpreter:
 
     def plot_strain_prevalence(
         self,
-        sol: Solution,
+        # sol: Solution,
         plot_labels=None,
         save_path: str = None,
         fig: plt.figure = None,
@@ -221,7 +239,7 @@ class SolutionInterpreter:
         """
         if fig is None or ax is None:
             fig, ax = plt.subplots(1, figsize=(8, 9))
-        sol = sol.ys
+        sol = self.solution.ys
         (
             strain_prevalence_arr,
             labels,
@@ -291,7 +309,7 @@ class SolutionInterpreter:
         """
         if save_path:
             metadata = PngInfo()
-            if self.GIT_REPO.is_dirty():
+            if self.LOCAL_REPO.is_dirty():
                 warnings.warn(
                     """\n Uncommitted Changes Warning: In order to ensure replicability of your image,
                     please commit/push your changes so that the commit

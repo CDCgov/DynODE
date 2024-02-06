@@ -1,6 +1,7 @@
 """
 The following is a class which runs a series of ODE equations, performs inference, and returns Solution objects for analysis.
 """
+
 import numpyro
 from numpyro import distributions as Dist
 from numpyro.infer import MCMC, NUTS
@@ -20,7 +21,7 @@ import utils
 import pandas as pd
 import numpy as np
 from jax.scipy.stats.norm import pdf
-from config.config_parser import ConfigParser
+from config.config import Config
 from enum import IntEnum
 
 numpyro.set_host_device_count(4)
@@ -28,18 +29,18 @@ jax.config.update("jax_enable_x64", True)
 
 
 class MechanisticRunner:
-    def __init__(self, initial_state, model, runner_config, global_variables):
-        if isinstance(runner_config, str):
-            runner_config = ConfigParser(runner_config).get_config()
 
-        if isinstance(global_variables, str):
-            global_variables = ConfigParser(global_variables).get_config()
-
-        self.__dict__.update(global_variables)
-        self.__dict__.update(runner_config)
+    def __init__(
+        self, initial_state, model, runner_config_path, global_variables_path
+    ):
+        config = Config(global_variables_path).add_file(runner_config_path)
+        # grab all parameters passed from global and initializer configs
+        # TODO, move away from loading config into self
+        self.__dict__.update(**config.__dict__)
         self.INITIAL_STATE = initial_state
         self.model = model
-        self.set_downstream_parameters()
+        # get population counts for each age bin
+        self.retrieve_population_counts()
         self.load_cross_immunity_matrix()
         self.load_vaccination_model()
         self.load_external_i_distributions()
@@ -231,7 +232,44 @@ class MechanisticRunner:
         ----------
         List of arrays of incidence (one per time step).
         """
-        pass
+        solution = self.run(
+            sample=True,
+            sample_dist_dict=sample_dist_dict,
+            tf=len(incidence),
+        )
+        # add 1 to idxs because we are straified by time in the solution object
+        # sum down to just time x age bins
+        model_incidence = jnp.sum(
+            solution.ys[self.COMPARTMENT_IDX.C],
+            axis=(
+                self.I_AXIS_IDX.hist + 1,
+                self.I_AXIS_IDX.vax + 1,
+                self.I_AXIS_IDX.strain + 1,
+            ),
+        )
+        # axis = 0 because we take diff across time
+        model_incidence = jnp.diff(model_incidence, axis=0)
+
+        # sample infection hospitalization rate here
+        with numpyro.plate("num_age", self.NUM_AGE_GROUPS):
+            ihr = numpyro.sample("ihr", Dist.Beta(0.5, 10))
+
+        # scale model_incidence w ihr and apply Poisson or NB observation model
+        if negbin:
+            k = numpyro.sample("k", Dist.HalfCauchy(1.0))
+            numpyro.sample(
+                "incidence",
+                Dist.NegativeBinomial2(
+                    mean=model_incidence * ihr, concentration=k
+                ),
+                obs=incidence,
+            )
+        else:
+            numpyro.sample(
+                "incidence",
+                Dist.Poisson(model_incidence * ihr),
+                obs=incidence,
+            )
 
     def infer(
         self,
@@ -255,6 +293,11 @@ class MechanisticRunner:
             follows format "parameter_name":numpyro.Distributions.dist(). DO NOT pass numpyro.sample() objects to the dictionary.
         `timesteps`: int
             number of timesteps over which you wish to infer over, must match len(`incidence`)
+
+        Returns
+        -----------
+        numpyro.infer.MCMC object userd to sample parameters.
+        This can be used to print summaries, pass along covariance matrices, or query posterier distributions
         """
         mcmc = MCMC(
             NUTS(
@@ -271,11 +314,11 @@ class MechanisticRunner:
         mcmc.run(
             rng_key=PRNGKey(self.MCMC_PRNGKEY),
             incidence=incidence,
-            model=self.model,
             negbin=negbin,
             sample_dist_dict=sample_dist_dict,
         )
         mcmc.print_summary()
+        return mcmc
 
     @partial(jax.jit, static_argnums=(0))
     def external_i(self, t):
@@ -380,6 +423,30 @@ class MechanisticRunner:
         return self.BETA_COEFICIENTS[
             jnp.maximum(0, jnp.searchsorted(self.BETA_TIMES, t) - 1)
         ]
+
+    def retrieve_population_counts(self):
+        """
+        A wrapper function which takes retrieves the age stratified population counts across all the INITIAL_STATE compartments
+        (minus the book-keeping C compartment.)
+        """
+        self.POPULATION = np.sum(  # sum together S+E+I compartments
+            np.array(
+                [
+                    np.sum(
+                        compartment,
+                        axis=(
+                            self.S_AXIS_IDX.hist,
+                            self.S_AXIS_IDX.vax,
+                            self.S_AXIS_IDX.wane,
+                        ),
+                    )  # sum over all but age bin axis
+                    for compartment in self.INITIAL_STATE[
+                        : self.COMPARTMENT_IDX.C
+                    ]  # avoid summing the book-keeping C compartment
+                ]
+            ),
+            axis=(0),  # sum across compartments, keep age bins
+        )
 
     def load_cross_immunity_matrix(self):
         """

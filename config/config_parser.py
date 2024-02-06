@@ -3,6 +3,7 @@ this class acts as a wrapper around the JSON config files,
 casting to appropriate types as well as creating additional variables 
 based on the values of provided ones.
 """
+
 import os
 import json
 import numpy as np

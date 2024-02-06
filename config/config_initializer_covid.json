@@ -7,6 +7,5 @@
     "INITIAL_POPULATION_FRACTIONS": null,
     "INIT_EXPOSED_DIST": null,
     "INIT_INFECTED_DIST": null,
-    "INIT_IMMUNE_HISTORY": null,
-    "GIT_HASH": null
+    "INIT_IMMUNE_HISTORY": null
 }

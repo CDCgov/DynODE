@@ -1,4 +1,5 @@
 from mechanistic_model.mechanistic_initializer import MechanisticInitializer
+from config.config import Config
 from configparser import ConfigParser
 import utils
 from enum import IntEnum
@@ -7,23 +8,17 @@ import os
 
 
 class CovidInitializer(MechanisticInitializer):
-    def __init__(self, config_initializer, global_variables):
+    def __init__(self, config_initializer_path, global_variables_path):
         """
         initialize a basic abstract mechanistic model for covid19 case prediction.
         Should not be constructed directly, use build_basic_mechanistic_model() with a config file
         """
-        # if user passes us path, create a ConfigParser and parse it, we also accept dicts.
-        if isinstance(config_initializer, str):
-            config_initializer = ConfigParser(config_initializer).get_config()
-
-        if isinstance(global_variables, str):
-            global_variables = ConfigParser(global_variables).get_config()
-
+        config = Config(global_variables_path).add_file(
+            config_initializer_path
+        )
         # grab all parameters passed from global and initializer configs
-        self.__dict__.update(global_variables)
-        self.__dict__.update(config_initializer)
-        self.assert_valid_configuration()
-        self.set_downstream_parameters()
+        # TODO, move away from loading config into self
+        self.__dict__.update(**config.__dict__)
 
         # if not given, load population fractions based on observed census data into self
         if self.INITIAL_POPULATION_FRACTIONS is None:
