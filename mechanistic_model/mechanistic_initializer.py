@@ -1,7 +1,7 @@
 """
-The following abstract class defines a mechanistic_initializer, 
-which is used by mechanistic_runner instances to initialize the state on which ODEs will be run. 
-mechanistic_initializers will often be tasked with reading, parsing, and combining data sources 
+The following abstract class defines a mechanistic_initializer,
+which is used by mechanistic_runner instances to initialize the state on which ODEs will be run.
+mechanistic_initializers will often be tasked with reading, parsing, and combining data sources
 to produce an initial state representing some analyzed population
 """
 from abc import ABC, abstractmethod

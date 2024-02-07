@@ -1,9 +1,9 @@
-from mechanistic_model.mechanistic_runner import MechanisticRunner
-from config.config import Config
-import pytest
 import jax.numpy as jnp
+import pytest
+
+from config.config import Config
+from mechanistic_model.mechanistic_runner import MechanisticRunner
 from model_odes.seip_model import seip_ode
-import json
 
 CONFIG_GLOBAL_PATH = "tests/test_config_global.json"
 RUNNER_CONFIG_PATH = "tests/test_config_runner.json"

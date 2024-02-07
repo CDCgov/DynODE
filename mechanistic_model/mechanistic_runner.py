@@ -2,34 +2,33 @@
 The following is a class which runs a series of ODE equations, performs inference, and returns Solution objects for analysis.
 """
 
+from functools import partial
+
+import jax
+import jax.numpy as jnp
+import numpy as np
 import numpyro
-from numpyro import distributions as Dist
-from numpyro.infer import MCMC, NUTS
-from diffrax import (
+import pandas as pd
+from diffrax import (  # Solution,
     ODETerm,
     PIDController,
     SaveAt,
-    Solution,
     Tsit5,
     diffeqsolve,
 )
-from functools import partial
-import jax.numpy as jnp
-import jax
 from jax.random import PRNGKey
-import utils
-import pandas as pd
-import numpy as np
 from jax.scipy.stats.norm import pdf
+from numpyro import distributions as Dist
+from numpyro.infer import MCMC, NUTS
+
+import utils
 from config.config import Config
-from enum import IntEnum
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
 
 
 class MechanisticRunner:
-
     def __init__(
         self, initial_state, model, runner_config_path, global_variables_path
     ):

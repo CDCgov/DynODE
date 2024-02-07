@@ -1,20 +1,21 @@
 """
-The following class interprets Solution results into digestible figures 
+The following class interprets Solution results into digestible figures
 and is responsible for ensuring reproducibility and replicability of model outputs.
 """
 
-from diffrax import Solution
-import matplotlib.pyplot as plt
 import datetime
 import json
-import numpy as np
-import jax.numpy as jnp
-from enum import EnumMeta
-from config.config import Config
-import utils
-from PIL.PngImagePlugin import PngInfo
 import warnings
-from enum import IntEnum
+from enum import EnumMeta, IntEnum
+
+import jax.numpy as jnp
+import matplotlib.pyplot as plt
+import numpy as np
+from diffrax import Solution
+from PIL.PngImagePlugin import PngInfo
+
+import utils
+from config.config import Config
 
 
 class SolutionInterpreter:

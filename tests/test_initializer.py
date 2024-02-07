@@ -1,6 +1,6 @@
 import pytest
-from mechanistic_model.covid_initializer import CovidInitializer
 
+from mechanistic_model.covid_initializer import CovidInitializer
 
 CONFIG_GLOBAL_PATH = "tests/test_config_global.json"
 INITIALIZER_CONFIG_PATH = "tests/test_config_initializer.json"

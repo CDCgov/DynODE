@@ -1,17 +1,16 @@
 """
-this class acts as a wrapper around the JSON config files, 
-casting to appropriate types as well as creating additional variables 
+this class acts as a wrapper around the JSON config files,
+casting to appropriate types as well as creating additional variables
 based on the values of provided ones.
 """
 
-import os
-import json
-import numpy as np
-import jax.numpy as jnp
-from enum import IntEnum
-from numpyro import distributions
 import datetime
-from functools import partial
+import json
+import os
+from enum import IntEnum
+
+import jax.numpy as jnp
+from numpyro import distributions
 
 
 class ConfigParser:

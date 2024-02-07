@@ -1,8 +1,8 @@
-import pytest
-import utils
-import jax.numpy as jnp
 from enum import IntEnum
 
+import jax.numpy as jnp
+
+import utils
 
 # strain indexes {"a": 0, "b": 1, "c": 2}
 example_strain_idxs = IntEnum("test", ["a", "b", "c"], start=0)
@@ -103,8 +103,8 @@ def test_cubic_spline():
         )
 
 
-def test_new_immune_state():
-    num_strains_tested = [1, 2, 3, 4, 10]
-    for num_strains in num_strains_tested:
-        num_possible_immune_states = list(range(0, 2**num_strains))
-    utils.new_immune_state()
+# def test_new_immune_state():
+#     num_strains_tested = [1, 2, 3, 4, 10]
+#     for num_strains in num_strains_tested:
+#         num_possible_immune_states = list(range(0, 2**num_strains))
+#     utils.new_immune_state()

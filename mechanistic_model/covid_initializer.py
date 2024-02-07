@@ -1,10 +1,10 @@
-from mechanistic_model.mechanistic_initializer import MechanisticInitializer
-from config.config import Config
-from configparser import ConfigParser
-import utils
-from enum import IntEnum
-import jax.numpy as jnp
 import os
+
+import jax.numpy as jnp
+
+import utils
+from config.config import Config
+from mechanistic_model.mechanistic_initializer import MechanisticInitializer
 
 
 class CovidInitializer(MechanisticInitializer):

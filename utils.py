@@ -98,7 +98,7 @@ def evaluate_cubic_spline(
     Returns the value of a cubic spline with knots and coefficients evaluated on day `t` for each age_bin x vax history combination.
     Cubic spline equation:
 
-    f(t) = a + bt + ct^2 + dt^3 + \sum_{i}^{len(knots)}(knot_coefficients_{i} * (t-knot_locations_{i})^3 * I(t > knot_locations_{i}))
+    f(t) = a + bt + ct^2 + dt^3 + sum_{i}^{len(knots)}(knot_coefficients_{i} * (t-knot_locations_{i})^3 * I(t > knot_locations_{i}))
 
     Where coef/knots[i] is the i'th index of each array. and the I() function is an indicator variable 1 or 0.
 
@@ -1132,9 +1132,11 @@ def imply_immune_history_dist_from_strains(
     for strain in range(0, num_historical_strains):
         # fill in single strain immune state first. no repeated exposures yet.
         single_strain_state = new_immune_state(0, strain, num_strains)
-        immune_history_dist[:, single_strain_state, 0, :] = (  # TODO remove 0
-            strain_exposure_dist[:, strain, :]
-        )
+        immune_history_dist[
+            :, single_strain_state, 0, :
+        ] = strain_exposure_dist[
+            :, strain, :
+        ]  # TODO remove 0
         # now grab individuals from previous states and infect 1/2 of them with this strain
         multi_strain_states = []
         for prev_state in immune_states:

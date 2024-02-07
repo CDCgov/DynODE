@@ -1,9 +1,10 @@
-from config.config_parser import ConfigParser
-from enum import IntEnum
-import numpy as np
 import os
 import subprocess
+from enum import IntEnum
+
 import git
+
+from config.config_parser import ConfigParser
 
 
 class Config:
