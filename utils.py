@@ -88,14 +88,14 @@ def conditional_knots(t, knots, coefficients):
 # days of separation between each knot
 
 
-def VAX_FUNCTION(
+def evaluate_cubic_spline(
     t,
     knot_locations: jnp.ndarray,
     base_equations: jnp.ndarray,
     knot_coefficients: jnp.ndarray,
 ) -> float:
     """
-    Returns the value of a derived cubic spline with knots and coefficients evaluated on day `t` for each age_bin x vax history combination.
+    Returns the value of a cubic spline with knots and coefficients evaluated on day `t` for each age_bin x vax history combination.
     Cubic spline equation:
 
     f(t) = a + bt + ct^2 + dt^3 + \sum_{i}^{len(knots)}(knot_coefficients_{i} * (t-knot_locations_{i})^3 * I(t > knot_locations_{i}))
@@ -273,6 +273,7 @@ def get_strains_exposed_to(state: int, num_strains: int):
     # prepend 0s if needed.
     if len(state_binary) < num_strains:
         state_binary = "0" * (num_strains - len(state_binary)) + state_binary
+    # inverse order since index 0 will be at the end of the str after prepending 0s
     state_binary_lst = list(state_binary)[::-1]
     # if val == 1 in the binary, that means that state was exposed to that strain.
     # strain is marked by the index of each 1 in the list.
@@ -570,9 +571,7 @@ def find_vax_bin(vax_shots: int, max_doses: int) -> int:
     return min(vax_shots, max_doses)
 
 
-def convert_hist(
-    strains: list[str], STRAIN_IDX: IntEnum, num_strains: int
-) -> int:
+def convert_hist(strains: str, STRAIN_IDX: IntEnum, num_strains: int) -> int:
     """
     a function that transforms a comma separated list of strains and transform them into an immune history state.
     Any unrecognized strain strings inside of `strains` do not contiribute to the returned state.
@@ -639,6 +638,7 @@ def find_waning_compartment(TSLIE: int, waning_times: list[int]) -> int:
     ----------
     index of the waning compartment that an event belongs, to if that event happened `TSLIE` days in the past.
     """
+    # possible with cumulative sum, but this solution still O(N) and more interpretable
     current_bin = 0
     for wane_time in waning_times:
         if TSLIE - wane_time < 0:
@@ -908,9 +908,11 @@ def prep_serology_data(
     serology["collection_start"] = pd.to_datetime(
         [
             # edge case Date = Dec 27, 2021 - Jan 29, 2022 need years
-            date.split("-")[0].strip() + "," + year
-            if len(date.split(",")) == 2
-            else date.split("-")[0].strip()
+            (
+                date.split("-")[0].strip() + "," + year
+                if len(date.split(",")) == 2
+                else date.split("-")[0].strip()
+            )
             for date, year in zip(
                 serology["Date Range of Specimen Collection"], years
             )
@@ -1130,9 +1132,9 @@ def imply_immune_history_dist_from_strains(
     for strain in range(0, num_historical_strains):
         # fill in single strain immune state first. no repeated exposures yet.
         single_strain_state = new_immune_state(0, strain, num_strains)
-        immune_history_dist[
-            :, single_strain_state, 0, :  # TODO remove 0
-        ] = strain_exposure_dist[:, strain, :]
+        immune_history_dist[:, single_strain_state, 0, :] = (  # TODO remove 0
+            strain_exposure_dist[:, strain, :]
+        )
         # now grab individuals from previous states and infect 1/2 of them with this strain
         multi_strain_states = []
         for prev_state in immune_states:

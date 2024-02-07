@@ -69,23 +69,6 @@ class CovidInitializer(MechanisticInitializer):
             self.STRAIN_IDX,
         )
 
-    def set_downstream_parameters(self):
-        """A special function to set parameters that depend on the lengths / values of other parameters given in the config"""
-        self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
-
-        self.AGE_GROUP_STRS = [
-            str(self.AGE_LIMITS[i - 1]) + "-" + str(self.AGE_LIMITS[i] - 1)
-            for i in range(1, len(self.AGE_LIMITS))
-        ] + [str(self.AGE_LIMITS[-1]) + "+"]
-
-        self.AGE_GROUP_IDX = IntEnum("age", self.AGE_GROUP_STRS, start=0)
-
-        self.W_IDX = IntEnum(
-            "w_idx",
-            ["W" + str(idx) for idx in range(self.NUM_WANING_COMPARTMENTS)],
-            start=0,
-        )
-
     def load_init_infection_infected_and_exposed_dist_via_abm(self):
         """
         loads the inital infection distribution by age, then separates infections into an

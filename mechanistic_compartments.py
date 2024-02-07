@@ -302,7 +302,7 @@ class BasicMechanisticModel:
             jnp.array(shape=(self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
         """
         return jnp.exp(
-            utils.VAX_FUNCTION(
+            utils.evaluate_cubic_spline(
                 t + self.DAYS_AFTER_INIT_DATE,
                 self.VAX_MODEL_KNOT_LOCATIONS,
                 self.VAX_MODEL_BASE_EQUATIONS,

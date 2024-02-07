@@ -383,7 +383,8 @@ class MechanisticRunner:
         representing the age / vax history stratified vaccination rates for an additional vaccine. Used by transmission models
         to determine vaccination rates at a particular time step.
 
-        MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t.
+        MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t. If you want a piecewise implementation of vax rates must declare jump points
+        in the MCMC object.
 
         Parameters
         ----------
@@ -397,7 +398,7 @@ class MechanisticRunner:
             jnp.array(shape=(self.NUM_AGE_GROUPS, self.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
         """
         return jnp.exp(
-            utils.VAX_FUNCTION(
+            utils.evaluate_cubic_spline(
                 t,
                 self.VAX_MODEL_KNOT_LOCATIONS,
                 self.VAX_MODEL_BASE_EQUATIONS,
@@ -558,44 +559,3 @@ class MechanisticRunner:
             self.MINIMUM_AGE,
             self.AGE_LIMITS,
         )["United States"]["avg_CM"]
-
-    def set_downstream_parameters(self):
-        """A special function to set parameters that depend on the lengths / values of other parameters given in the config"""
-        self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
-
-        self.AGE_GROUP_STRS = [
-            str(self.AGE_LIMITS[i - 1]) + "-" + str(self.AGE_LIMITS[i] - 1)
-            for i in range(1, len(self.AGE_LIMITS))
-        ] + [str(self.AGE_LIMITS[-1]) + "+"]
-
-        self.AGE_GROUP_IDX = IntEnum("age", self.AGE_GROUP_STRS, start=0)
-
-        self.W_IDX = IntEnum(
-            "w_idx",
-            ["W" + str(idx) for idx in range(self.NUM_WANING_COMPARTMENTS)],
-            start=0,
-        )
-
-        self.NUM_INTRODUCED_STRAINS = (
-            len(self.INTRODUCTION_TIMES)
-            if hasattr(self, "INTRODUCTION_TIMES")
-            else 0
-        )
-        self.POPULATION = np.sum(
-            np.array(
-                [
-                    np.sum(
-                        compartment,
-                        axis=(
-                            self.S_AXIS_IDX.hist,
-                            self.S_AXIS_IDX.vax,
-                            self.S_AXIS_IDX.wane,
-                        ),
-                    )
-                    for compartment in self.INITIAL_STATE[
-                        : self.COMPARTMENT_IDX.C
-                    ]
-                ]
-            ),
-            axis=(0),
-        )
