@@ -3,10 +3,7 @@
     "REGIONS": [
         "United States"
     ],
-    "INIT_DATE": {
-        "__type__": "date",
-        "__val__": "2022-02-11"
-    },
+    "INIT_DATE": "2022-02-11",
     "MINIMUM_AGE": 0,
     "AGE_LIMITS": [
         0,
@@ -24,40 +21,27 @@
         81,
         0
     ],
-    "COMPARTMENT_IDX": {
-        "__type__": "enum",
-        "__val__": [
-            "S",
-            "E",
-            "I",
-            "C"
-        ]
-    },
-    "S_AXIS_IDX": {
-        "__type__": "enum",
-        "__val__": [
-            "age",
-            "hist",
-            "vax",
-            "wane"
-        ]
-    },
-    "I_AXIS_IDX": {
-        "__type__": "enum",
-        "__val__": [
-            "age",
-            "hist",
-            "vax",
-            "strain"
-        ]
-    },
-    "STRAIN_IDX": {
-        "__type__": "enum",
-        "__val__": [
-            "delta",
-            "omicron",
-            "BA2/BA5"
-        ]
-    },
-    "GIT_HASH": null
+    "COMPARTMENT_IDX": [
+        "S",
+        "E",
+        "I",
+        "C"
+    ],
+    "S_AXIS_IDX": [
+        "age",
+        "hist",
+        "vax",
+        "wane"
+    ],
+    "I_AXIS_IDX": [
+        "age",
+        "hist",
+        "vax",
+        "strain"
+    ],
+    "STRAIN_IDX": [
+        "delta",
+        "omicron",
+        "BA2/BA5"
+    ]
 }

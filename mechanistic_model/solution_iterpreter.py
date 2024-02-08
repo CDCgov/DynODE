@@ -6,7 +6,7 @@ and is responsible for ensuring reproducibility and replicability of model outpu
 import datetime
 import json
 import warnings
-from enum import EnumMeta, IntEnum
+from enum import EnumMeta
 
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
@@ -36,23 +36,6 @@ class SolutionInterpreter:
         Where applicable, the solution interpreter will plot the given plot_commands by default.
         """
         self.PLOT_COMMANDS = plot_commands
-
-    def set_downstream_parameters(self):
-        """A special function to set parameters that depend on the lengths / values of other parameters given in the config"""
-        self.NUM_AGE_GROUPS = len(self.AGE_LIMITS)
-
-        self.AGE_GROUP_STRS = [
-            str(self.AGE_LIMITS[i - 1]) + "-" + str(self.AGE_LIMITS[i] - 1)
-            for i in range(1, len(self.AGE_LIMITS))
-        ] + [str(self.AGE_LIMITS[-1]) + "+"]
-
-        self.AGE_GROUP_IDX = IntEnum("age", self.AGE_GROUP_STRS, start=0)
-
-        self.W_IDX = IntEnum(
-            "w_idx",
-            ["W" + str(idx) for idx in range(self.NUM_WANING_COMPARTMENTS)],
-            start=0,
-        )
 
     def summarize_solution(
         self,
@@ -172,7 +155,7 @@ class SolutionInterpreter:
             timeline, label = utils.get_timeline_from_solution_with_command(
                 sol,
                 self.COMPARTMENT_IDX,
-                self.W_IDX,
+                self.WANE_IDX,
                 self.STRAIN_IDX,
                 command,
             )
@@ -247,7 +230,7 @@ class SolutionInterpreter:
         ) = utils.get_timeline_from_solution_with_command(
             sol,
             self.COMPARTMENT_IDX,
-            self.W_IDX,
+            self.WANE_IDX,
             self.STRAIN_IDX,
             "strain_prevalence",
         )

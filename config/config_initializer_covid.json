@@ -3,9 +3,5 @@
     "SEROLOGICAL_DATA_PATH": "data/serological-data/",
     "SIM_DATA_PATH": "data/abm-data/abm_population.csv",
     "POP_SIZE": 10000,
-    "INITIAL_INFECTIONS": null,
-    "INITIAL_POPULATION_FRACTIONS": null,
-    "INIT_EXPOSED_DIST": null,
-    "INIT_INFECTED_DIST": null,
-    "INIT_IMMUNE_HISTORY": null
+    "INITIAL_INFECTIONS": 320
 }

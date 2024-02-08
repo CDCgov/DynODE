@@ -20,20 +20,24 @@ class CovidInitializer(MechanisticInitializer):
         # TODO, move away from loading config into self
         self.__dict__.update(**config.__dict__)
 
+        # TODO, move away from NULL configs and just make users override the functions to generate the default params
         # if not given, load population fractions based on observed census data into self
-        if self.INITIAL_POPULATION_FRACTIONS is None:
+        if not hasattr(self, "INITIAL_POPULATION_FRACTIONS"):
             self.load_initial_population_fractions()
 
         self.POPULATION = self.POP_SIZE * self.INITIAL_POPULATION_FRACTIONS
         # self.POPULATION.shape = (NUM_AGE_GROUPS,)
 
-        if self.INIT_IMMUNE_HISTORY is None:
+        if not hasattr(self, "INIT_IMMUNE_HISTORY"):
             self.load_immune_history_via_abm()
         # self.INIT_IMMUNE_HISTORY.shape = (age, hist, num_vax, waning)
 
         # disperse inital infections across infected and exposed compartments based on gamma / sigma ratio.
         # stratify initial infections appropriately across age, hist, vax counts
-        if self.INIT_INFECTED_DIST is None or self.INIT_EXPOSED_DIST is None:
+        if not (
+            hasattr(self, "INIT_INFECTED_DIST")
+            and hasattr(self, "INIT_EXPOSED_DIST")
+        ):
             self.load_init_infection_infected_and_exposed_dist_via_abm()
 
         # load initial state using INIT_IMMUNE_HISTORY, INIT_INFECTED_DIST, and INIT_EXPOSED_DIST
