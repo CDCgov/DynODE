@@ -67,20 +67,32 @@ class Config:
         """
         checks the soundness of parameters passed into Config. Does not check for the existence of certain key parameters
         """
-        for validator in PARAMETERS:
-            key = validator["name"]
-            # validator requires multiple params checked against eachother
-            if isinstance(key, list):
-                contained_within_config = [hasattr(self, k) for k in key]
-                if all(contained_within_config):
+        for param in PARAMETERS:
+            key = param["name"]
+            validator_funcs = param.get("validate", False)
+            # check to make sure the key/keys are all in the config
+            key_in_config = (
+                all([hasattr(self, k) for k in key])
+                if isinstance(key, list)
+                else hasattr(self, key)
+            )
+            # if there are validators to test, and the key is found in our config, lets test them
+            if validator_funcs and key_in_config:
+                # ensure type is list
+                if not isinstance(validator_funcs, list):
+                    validator_funcs = [validator_funcs]
+                # mutiple keys need to be tested against eachother
+                if isinstance(key, list):
                     vals = [getattr(self, k) for k in key]
-                    validator["validate"](key, vals)
-            # just one param being tested
-            else:
-                if hasattr(self, key):
-                    validator["validate"](key, getattr(self, key))
+                else:  # single key being tested
+                    vals = getattr(self, key)
+                # val_func() throws assert errors if incongruence arrises
+                [val_func(key, vals) for val_func in validator_funcs]
 
 
+#############################################################################
+#######################DOWNSTREAM/VALIDATION FUNCTIONS#######################
+#############################################################################
 def set_downstream_age_variables(conf, _):
     """
     given AGE_LIMITS, set downstream variables from there
@@ -155,8 +167,10 @@ def compare_geq(keys, vals):
 
 
 def test_type(key, val, tested_type):
-    assert isinstance(val, tested_type), "%s must be an %s, found %s"(
-        key, str(tested_type), str(type(val))
+    assert isinstance(val, tested_type), "%s must be an %s, found %s" % (
+        key,
+        str(tested_type),
+        str(type(val)),
     )
 
 
@@ -183,19 +197,30 @@ def test_shape(keys, vals):
 
 
 def test_ascending(key, lst):
-    assert all(
-        [wane_time >= 1 for wane_time in lst[:-1]]
-    ), "Can not have waning time less than 1 day, time is in days if you meant to put months"
+    assert all([lst[idx - 1] < lst[idx] for idx in range(1, len(lst))]), (
+        "%s must be placed in increasing order" % key
+    )
 
 
 def test_zero(key, val):
     assert val == 0, "value in %s must be zero" % key
 
 
-def do_nothing(key, val):
-    return key, val
-
-
+#############################################################################
+###############################PARAMETERS####################################
+#############################################################################
+"""
+PARAMETERS:
+A list of possible parameters contained within any Config file that a model may be expected to read in.
+name: the parameter name as written in the JSON config or a list of parameter names.
+      if isinstance(name, list) all parameter names must be present before any other sections are executed.
+validate: a single function, or list of functions, each with a signature of f(str, obj) -> None
+          that raise assertion errors if their conditions are not met.
+type: If the parameter type is a non-json primative type, specify a function that takes in the nearest JSON primative type and does
+      the type conversion. E.G: np.array recieves a JSON primative (list) and returns a numpy array.
+downstream: if receiving this parameter kicks off downstream parameters to be modified or created, a function which takes the Config()
+            class is accepted to modify/create the downstream parameters.
+"""
 PARAMETERS = [
     {
         "name": "SAVE_PATH",
@@ -254,18 +279,10 @@ PARAMETERS = [
     },
     {
         "name": "WANING_TIMES",
-        "validate": lambda key, vals: [
-            test_positive(key, val) for val in vals[:-1]
-        ],
-    },
-    {
-        "name": "WANING_TIMES",
-        "validate": lambda key, vals: test_zero(key, vals[-1]),
-    },
-    {
-        "name": "WANING_TIMES",
-        "validate": lambda key, vals: [
-            test_type(key, val, int) for val in vals
+        "validate": [
+            lambda key, vals: [test_positive(key, val) for val in vals[:-1]],
+            lambda key, vals: test_zero(key, vals[-1]),
+            lambda key, vals: [test_type(key, val, int) for val in vals],
         ],
     },
     {
@@ -348,27 +365,27 @@ PARAMETERS = [
     },
     {
         "name": "INIT_DATE",
-        "validate": do_nothing,
+        # "validate": do_nothing,
         "type": lambda s: datetime.datetime.strptime(s, "%Y-%m-%d"),
     },
     {
         "name": "COMPARTMENT_IDX",
-        "validate": do_nothing,
+        # "validate": do_nothing,
         "type": lambda lst: IntEnum("enum", lst, start=0),
     },
     {
         "name": "S_AXIS_IDX",
-        "validate": do_nothing,
+        # "validate": do_nothing,
         "type": lambda lst: IntEnum("enum", lst, start=0),
     },
     {
         "name": "I_AXIS_IDX",
-        "validate": do_nothing,
+        # "validate": do_nothing,
         "type": lambda lst: IntEnum("enum", lst, start=0),
     },
     {
         "name": "STRAIN_IDX",
-        "validate": do_nothing,
+        # "validate": do_nothing,
         "type": lambda lst: IntEnum("enum", lst, start=0),
     },
 ]
