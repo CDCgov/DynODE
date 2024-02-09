@@ -9,12 +9,11 @@ initializer = CovidInitializer(INITIALIZER_CONFIG_PATH, CONFIG_GLOBAL_PATH)
 
 
 def test_invalid_paths_raise():
-    with pytest.raises(AssertionError):
+    with pytest.raises(FileNotFoundError):
         CovidInitializer("random_broken_path", CONFIG_GLOBAL_PATH),
-    with pytest.raises(AssertionError):
+    with pytest.raises(FileNotFoundError):
         CovidInitializer(INITIALIZER_CONFIG_PATH, "random_broken_path")
-
-    with pytest.raises(AssertionError):
+    with pytest.raises(FileNotFoundError):
         CovidInitializer("random_broken_path", "random_broken_path2")
 
 

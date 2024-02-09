@@ -33,21 +33,21 @@ ODES = seip_ode
 
 
 def test_invalid_paths_raise():
-    with pytest.raises(AssertionError):
+    with pytest.raises(FileNotFoundError):
         MechanisticRunner(
             fake_initial_state,
             seip_ode,
             "random_broken_path",
             CONFIG_GLOBAL_PATH,
         ),
-    with pytest.raises(AssertionError):
+    with pytest.raises(FileNotFoundError):
         MechanisticRunner(
             fake_initial_state,
             seip_ode,
             RUNNER_CONFIG_PATH,
             "random_broken_path",
         )
-    with pytest.raises(AssertionError):
+    with pytest.raises(FileNotFoundError):
         MechanisticRunner(
             fake_initial_state,
             seip_ode,
