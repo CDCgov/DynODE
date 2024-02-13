@@ -310,6 +310,11 @@ def combined_strains_mapping(
 
     dict[int:int] mapping from strain idx -> strain idx before and after`from_strain` is combined with `to_strain` for all strains.
     """
+    # we do nothing if from_strain is equal to to_strain, we arent collapsing anything there.
+    if from_strain == to_strain:
+        return {x: x for x in range(2**num_strains)}, {
+            x: x for x in range(num_strains)
+        }
 
     # create a helper function so we can pass old strains and have it auto-convert.
     def translate_strain(strain_in):
