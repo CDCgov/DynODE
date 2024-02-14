@@ -10,7 +10,14 @@
         1.8,
         3.0
     ],
-    "INFECTIOUS_PERIOD": 7.0,
+    "INFECTIOUS_PERIOD": {
+        "distribution": "TruncatedNormal",
+        "params": {
+            "loc": 10,
+            "scale": 2,
+            "low": 1.0
+        }
+    },
     "EXPOSED_TO_INFECTIOUS": 3.6,
     "INITIAL_INFECTIONS_SCALE": 1.0,
     "INTRODUCTION_TIMES": [
@@ -75,10 +82,10 @@
         1.0,
         1.0
     ],
-    "MCMC_PRNGKEY": 8675309,
-    "MCMC_NUM_WARMUP": 100,
-    "MCMC_NUM_SAMPLES": 1000,
-    "MCMC_NUM_CHAINS": 4,
-    "MCMC_PROGRESS_BAR": true,
+    "INFERENCE_PRNGKEY": 8675309,
+    "INFERENCE_NUM_WARMUP": 10,
+    "INFERENCE_NUM_SAMPLES": 10,
+    "INFERENCE_NUM_CHAINS": 4,
+    "INFERENCE_PROGRESS_BAR": true,
     "MODEL_RAND_SEED": 8675309
 }

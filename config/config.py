@@ -3,7 +3,7 @@ import json
 import os
 import subprocess
 from enum import IntEnum
-
+import numpyro.distributions as distributions
 import git
 import jax.numpy as jnp
 
@@ -26,15 +26,25 @@ class Config:
         takes a dictionary of config parameters, consults the PARAMETERS global list and attempts to convert the type
         of each parameter whos name matches.
         """
-        for validator in PARAMETERS:
-            key = validator["name"]
-            cast_type = validator.get("type", False)
+        for param in PARAMETERS:
+            key = param["name"]
+            cast_type = param.get("type", False)
             # if this validator needs to be cast
             if cast_type:
                 config_val = config.get(key, False)
                 # make sure we actually have the value in our incoming config
                 if config_val:
                     config[key] = cast_type(config_val)
+        # convert distribution objects correctly
+        for key, val in config.items():
+            if (
+                isinstance(val, dict)
+                and hasattr(val, "distribution")
+                and hasattr(val, "params")
+            ):
+                config[key] = distribution_types[val["distribution"]](
+                    **val["params"]
+                )
         return config
 
     def set_downstream_parameters(self):
@@ -206,6 +216,14 @@ def test_zero(key, val):
     assert val == 0, "value in %s must be zero" % key
 
 
+import numpyro.distributions as distributions
+
+# look at numpyro.distributions, copy over all the distribution names into the dictionary, along with their class constructors.
+distribution_types = {
+    dist_name: distributions.__dict__.get(dist_name)
+    for dist_name in distributions.__all__
+}
+
 #############################################################################
 ###############################PARAMETERS####################################
 #############################################################################
@@ -261,7 +279,7 @@ PARAMETERS = [
     },
     {
         "name": "INFECTIOUS_PERIOD",
-        "validate": test_not_negative,
+        # "validate": test_not_negative,
     },
     {
         "name": "EXPOSED_TO_INFECTIOUS",
