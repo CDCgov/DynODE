@@ -2,28 +2,17 @@
 The following is a class which runs a series of ODE equations, performs inference, and returns Solution objects for analysis.
 """
 
-from functools import partial
-
 import jax
 import jax.numpy as jnp
-import numpy as np
 import numpyro
-import pandas as pd
 from diffrax import (  # Solution,
-    ODETerm,
     ConstantStepSize,
+    ODETerm,
     PIDController,
     SaveAt,
     Tsit5,
     diffeqsolve,
 )
-from jax.random import PRNGKey
-from jax.scipy.stats.norm import pdf
-from numpyro import distributions as Dist
-from numpyro.infer import MCMC, NUTS
-
-import utils
-from config.config import Config
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)

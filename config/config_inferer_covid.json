@@ -9,10 +9,22 @@
         1.2,
         1.8,
         {
-            "distribution": "Beta",
+            "distribution": "TransformedDistribution",
             "params": {
-                "concentration1": 9,
-                "concentration0": 10
+                "base_distribution": {
+                    "distribution": "Beta",
+                    "params": {
+                        "concentration1": 8,
+                        "concentration0": 2
+                    }
+                },
+                "transforms": {
+                    "distribution": "AffineTransform",
+                    "params": {
+                        "loc": 1,
+                        "scale": 1
+                    }
+                }
             }
         }
     ],
@@ -27,7 +39,14 @@
     "EXPOSED_TO_INFECTIOUS": 3.6,
     "INITIAL_INFECTIONS_SCALE": 1.0,
     "INTRODUCTION_TIMES": [
-        60
+        {
+            "distribution": "TruncatedNormal",
+            "params": {
+                "loc": 60,
+                "scale": 20,
+                "low": 10
+            }
+        }
     ],
     "INTRODUCTION_PERCENTAGE": 0.01,
     "INTRODUCTION_SCALE": 10,
@@ -89,8 +108,8 @@
         1.0
     ],
     "INFERENCE_PRNGKEY": 8675309,
-    "INFERENCE_NUM_WARMUP": 10,
-    "INFERENCE_NUM_SAMPLES": 10,
+    "INFERENCE_NUM_WARMUP": 100,
+    "INFERENCE_NUM_SAMPLES": 500,
     "INFERENCE_NUM_CHAINS": 4,
     "INFERENCE_PROGRESS_BAR": true,
     "MODEL_RAND_SEED": 8675309

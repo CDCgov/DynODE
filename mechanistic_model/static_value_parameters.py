@@ -1,14 +1,11 @@
-from mechanistic_model.abstract_parameters import AbstractParameters
-from config.config import Config
-import numpyro
-import numpyro.distributions as Dist
-from functools import partial
-import numpy as np
 import jax.numpy as jnp
+import numpy as np
+
+from config.config import Config
+from mechanistic_model.abstract_parameters import AbstractParameters
 
 
 class StaticValueParameters(AbstractParameters):
-
     def __init__(
         self, INITIAL_STATE, runner_config_path, global_variables_path
     ):
@@ -19,7 +16,7 @@ class StaticValueParameters(AbstractParameters):
         self.retrieve_population_counts()
         self.load_cross_immunity_matrix()
         self.load_vaccination_model()
-        self.load_external_i_distributions()
+        self.load_external_i_distributions(self.INTRODUCTION_TIMES)
         self.load_contact_matrix()
 
     def get_parameters(
@@ -82,7 +79,7 @@ class StaticValueParameters(AbstractParameters):
             }
         )
         for key, val in args.items():
-            if isinstance(val, np.ndarray):
+            if isinstance(val, (np.ndarray, list)):
                 args[key] = jnp.array(val)
 
         return args

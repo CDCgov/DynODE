@@ -3,10 +3,12 @@ import json
 import os
 import subprocess
 from enum import IntEnum
-import numpyro.distributions as distributions
+
 import git
 import jax.numpy as jnp
 import numpy as np
+import numpyro.distributions as distributions
+import numpyro.distributions.transforms as transforms
 
 
 class Config:
@@ -38,16 +40,6 @@ class Config:
                 # make sure we actually have the value in our incoming config
                 if config_val:
                     config[key] = cast_type(config_val)
-        # convert distribution objects correctly
-        # for key, val in config.items():
-        #     if (
-        #         isinstance(val, dict)
-        #         and hasattr(val, "distribution")
-        #         and hasattr(val, "params")
-        #     ):
-        #         config[key] = distribution_types[val["distribution"]](
-        #             **val["params"]
-        #         )
         return config
 
     def set_downstream_parameters(self):
@@ -59,16 +51,15 @@ class Config:
         for validator in PARAMETERS:
             key = validator["name"]
             downstream_function = validator.get("downstream", False)
-            # if the key has no downstream functions, dont bother
+            # if the key has no downstream functions, do nothing
             if downstream_function:
-                # validator requires multiple params checked against eachother
-                if isinstance(key, list):
-                    if all([hasattr(self, k) for k in key]):
-                        downstream_function(self, key)
-                # just one param being tested
-                else:
-                    if hasattr(self, key):
-                        downstream_function(self, key)
+                # turn into list of len(1) if not already
+                if not isinstance(key, list):
+                    key = [key]
+                # dont try to create downstream unless config has all necessary keys
+                if all([hasattr(self, k) for k in key]):
+                    downstream_function(self, key)
+        # take note of the current git hash for reproducibility reasons
         self.GIT_HASH = (
             subprocess.check_output(["git", "rev-parse", "HEAD"])
             .decode("ascii")
@@ -78,68 +69,60 @@ class Config:
 
     def assert_valid_configuration(self):
         """
-        checks the soundness of parameters passed into Config. Does not check for the existence of certain key parameters
+        checks the soundness of parameters passed into Config by referencing the name of parameters passed to the config
+        with the PARAMETERS global variable. If a distribution is passed instead of a value, blindly accepts the distribution.
+
+        Raises assert errors if parameter(s) are incongruent in some way.
         """
         for param in PARAMETERS:
             key = param["name"]
+            # converting to list now makes less if branches, will convert back later
+            key = key if isinstance(key, list) else [key]
             validator_funcs = param.get("validate", False)
-            # check to make sure the key/keys are all in the config
-            key_in_config = (
-                all([hasattr(self, k) for k in key])
-                if isinstance(key, list)
-                else hasattr(self, key)
-            )
-            # if there are validators to test, and the key is found in our config, lets test them
-            if validator_funcs and key_in_config:
-                # ensure type is list
-                if not isinstance(validator_funcs, list):
-                    validator_funcs = [validator_funcs]
-                # mutiple keys need to be tested against eachother
-                if isinstance(key, list):
-                    vals = [getattr(self, k) for k in key]
-                    # can not validate a distribution since it does not have 1 fixed value
-                    distribution_involved = False
-                    for val_for_key in vals:
-                        if isinstance(val_for_key, (list, np.ndarray)):
-                            if any(
-                                [
-                                    issubclass(
-                                        type(val), distributions.Distribution
-                                    )
-                                ]
-                                for val in vals
-                            ):
-                                distribution_involved = True
-                                break
-                        else:
-                            if issubclass(
-                                type(val_for_key), distributions.Distribution
-                            ):
-                                distribution_involved = True
-                                break
-                    if distribution_involved:
-                        continue
-                else:  # single key being tested
-                    vals = getattr(self, key)
-                    # can not validate a distribution since it does not have 1 fixed value
-                    if isinstance(vals, (list, np.ndarray)):
-                        if any(
-                            [
-                                issubclass(
-                                    type(val), distributions.Distribution
-                                )
-                                for val in vals
-                            ]
-                        ):
-                            continue
-                    else:
-                        if issubclass(type(vals), distributions.Distribution):
-                            continue
+            # if there are validators to test, and the key(s) are found in our config, lets test them
+            if validator_funcs and all([hasattr(self, k) for k in key]):
+                validator_funcs = (
+                    validator_funcs
+                    if isinstance(validator_funcs, list)
+                    else [validator_funcs]
+                )
+                # converting to list now makes less if branches, will convert back later
+                vals = [getattr(self, k) for k in key]
+                # can not validate a distribution since it does not have 1 fixed value
+                distribution_involved = False
+                for val in vals:
+                    val_temp = (
+                        val if isinstance(val, (list, np.ndarray)) else [val]
+                    )
+                    if any(
+                        [
+                            issubclass(
+                                type(v),
+                                (
+                                    distributions.Distribution,
+                                    transforms.Transform,
+                                ),
+                            )
+                        ]
+                        for v in val_temp
+                    ):
+                        distribution_involved = True
+                        break
+                if distribution_involved:
+                    continue
                 # val_func() throws assert errors if incongruence arrises
-                [val_func(key, vals) for val_func in validator_funcs]
+                [
+                    (
+                        val_func(key[0], vals[0])
+                        if len(key) == 1  # convert back to floats if needed
+                        else val_func(key, vals)
+                    )
+                    for val_func in validator_funcs
+                ]
 
 
 def distribution_converter(dct):
+    # a distribution is identified by the "distribution" and "params" keys
     if "distribution" in dct.keys() and "params" in dct.keys():
         try:
             if dct["distribution"] in distribution_types.keys():
@@ -147,12 +130,13 @@ def distribution_converter(dct):
             else:
                 raise KeyError(
                     "The distribution name is not found in the available distributions, "
-                    "see distribution names here: https://github.com/pyro-ppl/numpyro/blob/master/numpyro/distributions/__init__.py"
+                    "see distribution names here: https://num.pyro.ai/en/stable/distributions.html#distributions"
                 )
         except Exception as e:
             # reraise the error
             raise Exception(
-                "There was an error parsing the following json as a distribution: {s}"
+                "There was an error parsing the following name as a distribution: %s \n "
+                "see docs to make sure you didnt misspell something: https://num.pyro.ai/en/stable/distributions.html#distributions"
                 % str(dct)
             ) from e
     else:  # do nothing if this isnt a distribution
@@ -279,13 +263,17 @@ def test_zero(key, val):
     assert val == 0, "value in %s must be zero" % key
 
 
-import numpyro.distributions as distributions
-
 # look at numpyro.distributions, copy over all the distribution names into the dictionary, along with their class constructors.
 distribution_types = {
     dist_name: distributions.__dict__.get(dist_name)
     for dist_name in distributions.__all__
 }
+distribution_types.update(
+    **{
+        transform_name: transforms.__dict__.get(transform_name)
+        for transform_name in transforms.__all__
+    }
+)
 
 #############################################################################
 ###############################PARAMETERS####################################

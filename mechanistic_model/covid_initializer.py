@@ -4,7 +4,7 @@ import jax.numpy as jnp
 
 import utils
 from config.config import Config
-from mechanistic_model.mechanistic_initializer import MechanisticInitializer
+from mechanistic_model.abstract_initializer import MechanisticInitializer
 
 
 class CovidInitializer(MechanisticInitializer):

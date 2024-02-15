@@ -1,15 +1,16 @@
-from abc import ABC, abstractmethod
-import jax
+from abc import abstractmethod
 from functools import partial
+
+import jax
 import jax.numpy as jnp
-import utils
-from jax.scipy.stats.norm import pdf
-import pandas as pd
 import numpy as np
+import pandas as pd
+from jax.scipy.stats.norm import pdf
+
+import utils
 
 
 class AbstractParameters:
-
     @abstractmethod
     def __init__(self, parameters_config):
         pass
@@ -47,20 +48,6 @@ class AbstractParameters:
         )
         # default from the config
         external_i_distributions = self.EXTERNAL_I_DISTRIBUTIONS
-        # pick sampled versions or defaults from config
-        if hasattr(self, "INTRODUCTION_TIMES_SAMPLE"):
-            # if we are sampling, sample the introduction times and use it to inform our
-            # external_i_distribution as the mean distribution day.
-            for introduced_strain_idx, introduced_time_sampler in enumerate(
-                self.INTRODUCTION_TIMES_SAMPLE
-            ):
-                dist_idx = self.NUM_STRAINS - introduced_strain_idx - 1
-                # use a normal PDF with std dv
-                external_i_distributions[dist_idx] = partial(
-                    pdf,
-                    loc=introduced_time_sampler,
-                    scale=self.INTRODUCTION_SCALE,
-                )
         introduction_age_mask = jnp.where(
             jnp.array(self.INTRODUCTION_AGE_MASK),
             1,
@@ -209,7 +196,7 @@ class AbstractParameters:
         self.VAX_MODEL_KNOT_LOCATIONS = jnp.array(vax_knot_locations)
         self.VAX_MODEL_BASE_EQUATIONS = jnp.array(vax_base_equations)
 
-    def load_external_i_distributions(self):
+    def load_external_i_distributions(self, introduction_times):
         """
         a function that loads external_i_distributions array into the model.
         this list of functions dictate the number of infected individuals EXTERNAL TO THE POPULATION are introduced at a particular timestep.
@@ -231,7 +218,7 @@ class AbstractParameters:
             zero_function for _ in range(self.NUM_STRAINS)
         ]
         for introduced_strain_idx, introduced_time in enumerate(
-            self.INTRODUCTION_TIMES
+            introduction_times
         ):
             # earlier introduced strains earlier will be placed closer to historical strains (0 and 1)
             dist_idx = (
@@ -258,6 +245,6 @@ class AbstractParameters:
             self.DEMOGRAPHIC_DATA_PATH,
             self.REGIONS,
             self.NUM_AGE_GROUPS,
-            self.MINIMUM_AGE,
+            self.AGE_LIMITS[0],
             self.AGE_LIMITS,
         )["United States"]["avg_CM"]

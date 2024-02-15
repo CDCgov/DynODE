@@ -1,24 +1,13 @@
-from functools import partial
-from mechanistic_model.mechanistic_runner import MechanisticRunner
-from mechanistic_model.abstract_parameters import AbstractParameters
-import jax
 import jax.numpy as jnp
 import numpy as np
 import numpyro
-import pandas as pd
-from diffrax import (  # Solution,
-    ODETerm,
-    PIDController,
-    SaveAt,
-    Tsit5,
-    diffeqsolve,
-)
 from jax.random import PRNGKey
 from numpyro import distributions as Dist
 from numpyro.infer import MCMC, NUTS
 
-import utils
 from config.config import Config
+from mechanistic_model.abstract_parameters import AbstractParameters
+from mechanistic_model.mechanistic_runner import MechanisticRunner
 
 
 class MechanisticInferer(AbstractParameters):
@@ -44,7 +33,6 @@ class MechanisticInferer(AbstractParameters):
         self.retrieve_population_counts()
         self.load_cross_immunity_matrix()
         self.load_vaccination_model()
-        self.load_external_i_distributions()
         self.load_contact_matrix()
 
     def set_infer_algo(self, inferer_type="MCMC"):
@@ -73,7 +61,7 @@ class MechanisticInferer(AbstractParameters):
         Currently expects Hospitalization data and samples IHR using a negative binomial distribution.
         """
         solution = self.runner.run(
-            self.INITIAL_STATE, args=self.get_parameters()
+            self.INITIAL_STATE, args=self.get_parameters(), tf=len(obs_metrics)
         )
         # add 1 to idxs because we are straified by time in the solution object
         # sum down to just time x age bins
@@ -122,22 +110,25 @@ class MechanisticInferer(AbstractParameters):
             "STRAIN_R0s": self.STRAIN_R0s,
             "INFECTIOUS_PERIOD": self.INFECTIOUS_PERIOD,
             "EXPOSED_TO_INFECTIOUS": self.EXPOSED_TO_INFECTIOUS,
+            "INTRODUCTION_TIMES": self.INTRODUCTION_TIMES,
         }
         for key, param in parameters.items():
             if issubclass(type(param), Dist.Distribution):
                 param = numpyro.sample(key, param)
-            elif isinstance(param, np.ndarray):
+            elif isinstance(param, (np.ndarray, list)):
                 param = jnp.array(
                     [
                         (
-                            numpyro.sample(key + "_" + str(i), val)
-                            if issubclass(type(val), Dist.Distribution)
-                            else val
+                            numpyro.sample(key + "_" + str(i), param_lst)
+                            if issubclass(type(param_lst), Dist.Distribution)
+                            else param_lst
                         )
-                        for i, val in enumerate(param)
+                        for i, param_lst in enumerate(param)
                     ]
                 )
             parameters[key] = param
+        # if we are sampling external introductions, we must reload the function
+        self.load_external_i_distributions(parameters["INTRODUCTION_TIMES"])
         beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
         gamma = 1 / parameters["INFECTIOUS_PERIOD"]
         sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]
@@ -157,7 +148,7 @@ class MechanisticInferer(AbstractParameters):
                 "SIGMA": sigma,
                 "GAMMA": gamma,
                 "WANING_RATES": waning_rates,
-                "EXTERNAL_I": partial(self.external_i),
+                "EXTERNAL_I": self.external_i,
                 "VACCINATION_RATES": self.vaccination_rate,
                 "BETA_COEF": self.beta_coef,
             }
@@ -181,9 +172,9 @@ class MechanisticInferer(AbstractParameters):
         an inference object, often numpyro.infer.MCMC object used to infer parameters.
         This can be used to print summaries, pass along covariance matrices, or query posterier distributions
         """
-        infer_obj = self.inference_algo.run(
+        self.inference_algo.run(
             rng_key=PRNGKey(self.INFERENCE_PRNGKEY),
             obs_metrics=obs_metrics,
         )
-        infer_obj.print_summary()
-        return infer_obj
+        self.inference_algo.print_summary()
+        return self.inference_algo
