@@ -107,6 +107,7 @@ class AbstractParameters:
             )
         )
 
+    @partial(jax.jit, static_argnums=(0))
     def beta_coef(self, t):
         """Returns a coefficient for the beta value for cases of seasonal forcing or external impacts
         onto beta not direclty measured in the model. EG: masking mandates or holidays.

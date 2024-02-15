@@ -6,6 +6,7 @@ from enum import IntEnum
 import numpyro.distributions as distributions
 import git
 import jax.numpy as jnp
+import numpy as np
 
 
 class Config:
@@ -14,7 +15,9 @@ class Config:
 
     def add_file(self, config_json_path):
         # adds another config to self.__dict__ and resets downstream parameters again
-        config = json.load(open(config_json_path, "r"))
+        config = json.load(
+            open(config_json_path, "r"), object_hook=distribution_converter
+        )
         config = self.convert_types(config)
         self.__dict__.update(**config)
         self.assert_valid_configuration()
@@ -36,15 +39,15 @@ class Config:
                 if config_val:
                     config[key] = cast_type(config_val)
         # convert distribution objects correctly
-        for key, val in config.items():
-            if (
-                isinstance(val, dict)
-                and hasattr(val, "distribution")
-                and hasattr(val, "params")
-            ):
-                config[key] = distribution_types[val["distribution"]](
-                    **val["params"]
-                )
+        # for key, val in config.items():
+        #     if (
+        #         isinstance(val, dict)
+        #         and hasattr(val, "distribution")
+        #         and hasattr(val, "params")
+        #     ):
+        #         config[key] = distribution_types[val["distribution"]](
+        #             **val["params"]
+        #         )
         return config
 
     def set_downstream_parameters(self):
@@ -94,10 +97,66 @@ class Config:
                 # mutiple keys need to be tested against eachother
                 if isinstance(key, list):
                     vals = [getattr(self, k) for k in key]
+                    # can not validate a distribution since it does not have 1 fixed value
+                    distribution_involved = False
+                    for val_for_key in vals:
+                        if isinstance(val_for_key, (list, np.ndarray)):
+                            if any(
+                                [
+                                    issubclass(
+                                        type(val), distributions.Distribution
+                                    )
+                                ]
+                                for val in vals
+                            ):
+                                distribution_involved = True
+                                break
+                        else:
+                            if issubclass(
+                                type(val_for_key), distributions.Distribution
+                            ):
+                                distribution_involved = True
+                                break
+                    if distribution_involved:
+                        continue
                 else:  # single key being tested
                     vals = getattr(self, key)
+                    # can not validate a distribution since it does not have 1 fixed value
+                    if isinstance(vals, (list, np.ndarray)):
+                        if any(
+                            [
+                                issubclass(
+                                    type(val), distributions.Distribution
+                                )
+                                for val in vals
+                            ]
+                        ):
+                            continue
+                    else:
+                        if issubclass(type(vals), distributions.Distribution):
+                            continue
                 # val_func() throws assert errors if incongruence arrises
                 [val_func(key, vals) for val_func in validator_funcs]
+
+
+def distribution_converter(dct):
+    if "distribution" in dct.keys() and "params" in dct.keys():
+        try:
+            if dct["distribution"] in distribution_types.keys():
+                return distribution_types[dct["distribution"]](**dct["params"])
+            else:
+                raise KeyError(
+                    "The distribution name is not found in the available distributions, "
+                    "see distribution names here: https://github.com/pyro-ppl/numpyro/blob/master/numpyro/distributions/__init__.py"
+                )
+        except Exception as e:
+            # reraise the error
+            raise Exception(
+                "There was an error parsing the following json as a distribution: {s}"
+                % str(dct)
+            ) from e
+    else:  # do nothing if this isnt a distribution
+        return dct
 
 
 #############################################################################
@@ -115,6 +174,10 @@ def set_downstream_age_variables(conf, _):
     ] + [str(conf.AGE_LIMITS[-1]) + "+"]
 
     conf.AGE_GROUP_IDX = IntEnum("age", conf.AGE_GROUP_STRS, start=0)
+
+
+def set_num_waning_compartments(conf, _):
+    conf.NUM_WANING_COMPARTMENTS = len(conf.WANING_TIMES)
 
 
 def set_num_introduced_strains(conf, _):
@@ -288,7 +351,7 @@ PARAMETERS = [
     {
         "name": "STRAIN_SPECIFIC_R0",
         "validate": test_non_empty,
-        "type": jnp.array,
+        "type": np.array,
     },
     {
         "name": "NUM_WANING_COMPARTMENTS",
@@ -302,13 +365,14 @@ PARAMETERS = [
             lambda key, vals: test_zero(key, vals[-1]),
             lambda key, vals: [test_type(key, val, int) for val in vals],
         ],
+        "downstream": set_num_waning_compartments,
     },
     {
         "name": "WANING_PROTECTIONS",
         "validate": lambda key, vals: [
             test_not_negative(key, val) for val in vals
         ],
-        "type": jnp.array,
+        "type": np.array,
     },
     {
         "name": ["NUM_WANING_COMPARTMENTS", "WANING_TIMES"],
@@ -321,7 +385,7 @@ PARAMETERS = [
     {
         "name": "STRAIN_INTERACTIONS",
         "validate": test_non_empty,
-        "type": jnp.array,
+        "type": np.array,
     },
     {
         "name": ["NUM_STRAINS", "STRAIN_INTERACTIONS"],
@@ -344,14 +408,14 @@ PARAMETERS = [
     {
         "name": "VAX_EFF_MATRIX",
         "validate": test_non_empty,
-        "type": jnp.array,
+        "type": np.array,
     },
     {
         "name": "BETA_TIMES",
         "validate": lambda key, lst: [
             test_not_negative(key, beta_time) for beta_time in lst
         ],
-        "type": jnp.array,
+        "type": np.array,
     },
     {
         "name": "BETA_COEFICIENTS",
@@ -365,7 +429,7 @@ PARAMETERS = [
         "validate": lambda key, lst: [
             test_not_negative(key, r0) for r0 in lst
         ],
-        "type": jnp.array,
+        "type": np.array,
     },
     {
         "name": ["NUM_STRAINS", "MAX_VAX_COUNT", "VAX_EFF_MATRIX"],

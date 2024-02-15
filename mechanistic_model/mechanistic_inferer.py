@@ -108,35 +108,50 @@ class MechanisticInferer(AbstractParameters):
         Returns a dictionary of {str:obj} where obj may either be a float value, or a jax tracer (in the case of a sampled value).
         All code which uses values from sample_distributions must use JAX operations to work with these values.
         """
-        parameters = {}
-        for key, param in self.__dict__.items():
-            if isinstance(param, Dist.Distribution):
-                parameters[key] = numpyro.sample(key, param)
-            # elif isinstance(param, list):
-            #     lst = [
-            #         (
-            #             numpyro.sample(x)
-            #             if isinstance(x, Dist.distribution)
-            #             else x
-            #         )
-            #         for x in param
-            #     ]
-            #     lst = jnp.array(lst)
-            #     parameters[key] = lst
-            else:
-                parameters[key] = param
-        beta = self.STRAIN_R0s / self.INFECTIOUS_PERIOD
-        gamma = 1 / self.INFECTIOUS_PERIOD
-        sigma = 1 / self.EXPOSED_TO_INFECTIOUS
+        parameters = {
+            "CONTACT_MATRIX": self.CONTACT_MATRIX,
+            "POPULATION": self.POPULATION,
+            "NUM_STRAINS": self.NUM_STRAINS,
+            "NUM_AGE_GROUPS": self.NUM_AGE_GROUPS,
+            "NUM_WANING_COMPARTMENTS": self.NUM_WANING_COMPARTMENTS,
+            "WANING_PROTECTIONS": self.WANING_PROTECTIONS,
+            "MAX_VAX_COUNT": self.MAX_VAX_COUNT,
+            "CROSSIMMUNITY_MATRIX": self.CROSSIMMUNITY_MATRIX,
+            "VAX_EFF_MATRIX": self.VAX_EFF_MATRIX,
+            "BETA_TIMES": self.BETA_TIMES,
+            "STRAIN_R0s": self.STRAIN_R0s,
+            "INFECTIOUS_PERIOD": self.INFECTIOUS_PERIOD,
+            "EXPOSED_TO_INFECTIOUS": self.EXPOSED_TO_INFECTIOUS,
+        }
+        for key, param in parameters.items():
+            if issubclass(type(param), Dist.Distribution):
+                param = numpyro.sample(key, param)
+            elif isinstance(param, np.ndarray):
+                param = jnp.array(
+                    [
+                        (
+                            numpyro.sample(key + "_" + str(i), val)
+                            if issubclass(type(val), Dist.Distribution)
+                            else val
+                        )
+                        for i, val in enumerate(param)
+                    ]
+                )
+            parameters[key] = param
+        beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
+        gamma = 1 / parameters["INFECTIOUS_PERIOD"]
+        sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]
         # since our last waning time is zero to account for last compartment never waning
         # we include an if else statement to catch a division by zero error here.
-        waning_rates = [
-            1 / waning_time if waning_time > 0 else 0
-            for waning_time in self.WANING_TIMES
-        ]
+        waning_rates = np.array(
+            [
+                1 / waning_time if waning_time > 0 else 0
+                for waning_time in self.WANING_TIMES
+            ]
+        )
         # add final parameters, if your model expects added parameters, add them here
-        args = dict(
-            args,
+        parameters = dict(
+            parameters,
             **{
                 "BETA": beta,
                 "SIGMA": sigma,
@@ -147,6 +162,9 @@ class MechanisticInferer(AbstractParameters):
                 "BETA_COEF": self.beta_coef,
             }
         )
+        for key, val in parameters.items():
+            if isinstance(val, (np.ndarray, list)):
+                parameters[key] = jnp.array(val)
 
         return parameters
 

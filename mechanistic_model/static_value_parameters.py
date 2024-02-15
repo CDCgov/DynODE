@@ -3,6 +3,8 @@ from config.config import Config
 import numpyro
 import numpyro.distributions as Dist
 from functools import partial
+import numpy as np
+import jax.numpy as jnp
 
 
 class StaticValueParameters(AbstractParameters):
@@ -60,10 +62,12 @@ class StaticValueParameters(AbstractParameters):
         sigma = 1 / self.EXPOSED_TO_INFECTIOUS
         # since our last waning time is zero to account for last compartment never waning
         # we include an if else statement to catch a division by zero error here.
-        waning_rates = [
-            1 / waning_time if waning_time > 0 else 0
-            for waning_time in self.WANING_TIMES
-        ]
+        waning_rates = np.array(
+            [
+                1 / waning_time if waning_time > 0 else 0
+                for waning_time in self.WANING_TIMES
+            ]
+        )
         # add final parameters, if your model expects added parameters, add them here
         args = dict(
             args,
@@ -72,9 +76,13 @@ class StaticValueParameters(AbstractParameters):
                 "SIGMA": sigma,
                 "GAMMA": gamma,
                 "WANING_RATES": waning_rates,
-                "EXTERNAL_I": partial(self.external_i),
+                "EXTERNAL_I": self.external_i,
                 "VACCINATION_RATES": self.vaccination_rate,
                 "BETA_COEF": self.beta_coef,
             }
         )
+        for key, val in args.items():
+            if isinstance(val, np.ndarray):
+                args[key] = jnp.array(val)
+
         return args

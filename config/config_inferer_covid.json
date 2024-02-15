@@ -8,7 +8,13 @@
     "STRAIN_R0s": [
         1.2,
         1.8,
-        3.0
+        {
+            "distribution": "Beta",
+            "params": {
+                "concentration1": 9,
+                "concentration0": 10
+            }
+        }
     ],
     "INFECTIOUS_PERIOD": {
         "distribution": "TruncatedNormal",
