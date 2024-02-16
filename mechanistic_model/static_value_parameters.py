@@ -9,14 +9,14 @@ class StaticValueParameters(AbstractParameters):
     def __init__(
         self, INITIAL_STATE, runner_config_path, global_variables_path
     ):
-        self.__dict__ = (
-            Config(global_variables_path).add_file(runner_config_path).__dict__
+        self.config = Config(global_variables_path).add_file(
+            runner_config_path
         )
         self.INITIAL_STATE = INITIAL_STATE
         self.retrieve_population_counts()
         self.load_cross_immunity_matrix()
         self.load_vaccination_model()
-        self.load_external_i_distributions(self.INTRODUCTION_TIMES)
+        self.load_external_i_distributions(self.config.INTRODUCTION_TIMES)
         self.load_contact_matrix()
 
     def get_parameters(
@@ -43,26 +43,26 @@ class StaticValueParameters(AbstractParameters):
         # get counts of the initial state compartments by age bin.
         # ignore the C compartment since it is just house keeping
         args = {
-            "CONTACT_MATRIX": self.CONTACT_MATRIX,
-            "POPULATION": self.POPULATION,
-            "NUM_STRAINS": self.NUM_STRAINS,
-            "NUM_AGE_GROUPS": self.NUM_AGE_GROUPS,
-            "NUM_WANING_COMPARTMENTS": self.NUM_WANING_COMPARTMENTS,
-            "WANING_PROTECTIONS": self.WANING_PROTECTIONS,
-            "MAX_VAX_COUNT": self.MAX_VAX_COUNT,
-            "CROSSIMMUNITY_MATRIX": self.CROSSIMMUNITY_MATRIX,
-            "VAX_EFF_MATRIX": self.VAX_EFF_MATRIX,
-            "BETA_TIMES": self.BETA_TIMES,
+            "CONTACT_MATRIX": self.config.CONTACT_MATRIX,
+            "POPULATION": self.config.POPULATION,
+            "NUM_STRAINS": self.config.NUM_STRAINS,
+            "NUM_AGE_GROUPS": self.config.NUM_AGE_GROUPS,
+            "NUM_WANING_COMPARTMENTS": self.config.NUM_WANING_COMPARTMENTS,
+            "WANING_PROTECTIONS": self.config.WANING_PROTECTIONS,
+            "MAX_VAX_COUNT": self.config.MAX_VAX_COUNT,
+            "CROSSIMMUNITY_MATRIX": self.config.CROSSIMMUNITY_MATRIX,
+            "VAX_EFF_MATRIX": self.config.VAX_EFF_MATRIX,
+            "BETA_TIMES": self.config.BETA_TIMES,
         }
-        beta = self.STRAIN_R0s / self.INFECTIOUS_PERIOD
-        gamma = 1 / self.INFECTIOUS_PERIOD
-        sigma = 1 / self.EXPOSED_TO_INFECTIOUS
+        beta = self.config.STRAIN_R0s / self.config.INFECTIOUS_PERIOD
+        gamma = 1 / self.config.INFECTIOUS_PERIOD
+        sigma = 1 / self.config.EXPOSED_TO_INFECTIOUS
         # since our last waning time is zero to account for last compartment never waning
         # we include an if else statement to catch a division by zero error here.
         waning_rates = np.array(
             [
                 1 / waning_time if waning_time > 0 else 0
-                for waning_time in self.WANING_TIMES
+                for waning_time in self.config.WANING_TIMES
             ]
         )
         # add final parameters, if your model expects added parameters, add them here

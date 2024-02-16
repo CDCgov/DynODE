@@ -1,7 +1,6 @@
 import datetime
 import json
 import os
-import subprocess
 from enum import IntEnum
 
 import git
@@ -31,28 +30,27 @@ class Config:
         takes a dictionary of config parameters, consults the PARAMETERS global list and attempts to convert the type
         of each parameter whos name matches.
         """
-        for param in PARAMETERS:
-            key = param["name"]
-            cast_type = param.get("type", False)
+        for parameter in PARAMETERS:
+            key = parameter["name"]
             # if this validator needs to be cast
-            if cast_type:
-                config_val = config.get(key, False)
+            if "type" in parameter.keys():
+                cast_type = parameter["type"]
                 # make sure we actually have the value in our incoming config
-                if config_val:
-                    config[key] = cast_type(config_val)
+                if key in config.keys():
+                    config[key] = cast_type(config[key])
         return config
 
     def set_downstream_parameters(self):
         """
-        A parameter that checks if a specific parameter exists, then sets any parameters that depend on it.
+        A function that checks if a specific parameter exists, then sets any parameters that depend on it.
 
-        E.g. `NUM_AGE_GROUPS` = len(`AGE_LIMITS`) if `AGE_LIMITS` exists, set `NUM_AGE_GROUPS`
+        E.g, `NUM_AGE_GROUPS` = len(`AGE_LIMITS`) if `AGE_LIMITS` exists, set `NUM_AGE_GROUPS`
         """
-        for validator in PARAMETERS:
-            key = validator["name"]
-            downstream_function = validator.get("downstream", False)
+        for parameter in PARAMETERS:
+            key = parameter["name"]
             # if the key has no downstream functions, do nothing
-            if downstream_function:
+            if "downstream" in parameter.keys():
+                downstream_function = parameter["downstream"]
                 # turn into list of len(1) if not already
                 if not isinstance(key, list):
                     key = [key]
@@ -60,12 +58,8 @@ class Config:
                 if all([hasattr(self, k) for k in key]):
                     downstream_function(self, key)
         # take note of the current git hash for reproducibility reasons
-        self.GIT_HASH = (
-            subprocess.check_output(["git", "rev-parse", "HEAD"])
-            .decode("ascii")
-            .strip()
-        )
         self.LOCAL_REPO = git.Repo()
+        self.GIT_HASH = self.LOCAL_REPO.head.object.hexsha
 
     def assert_valid_configuration(self):
         """
@@ -76,24 +70,16 @@ class Config:
         """
         for param in PARAMETERS:
             key = param["name"]
-            # converting to list now makes less if branches, will convert back later
-            key = key if isinstance(key, list) else [key]
+            key = make_list_if_not(key)
             validator_funcs = param.get("validate", False)
             # if there are validators to test, and the key(s) are found in our config, lets test them
             if validator_funcs and all([hasattr(self, k) for k in key]):
-                validator_funcs = (
-                    validator_funcs
-                    if isinstance(validator_funcs, list)
-                    else [validator_funcs]
-                )
-                # converting to list now makes less if branches, will convert back later
+                validator_funcs = make_list_if_not(validator_funcs)
                 vals = [getattr(self, k) for k in key]
                 # can not validate a distribution since it does not have 1 fixed value
                 distribution_involved = False
                 for val in vals:
-                    val_temp = (
-                        val if isinstance(val, (list, np.ndarray)) else [val]
-                    )
+                    val_temp = make_list_if_not(val)
                     if any(
                         [
                             issubclass(
@@ -119,6 +105,10 @@ class Config:
                     )
                     for val_func in validator_funcs
                 ]
+
+
+def make_list_if_not(obj):
+    return obj if isinstance(obj, (list, np.ndarray)) else [obj]
 
 
 def distribution_converter(dct):
@@ -201,25 +191,18 @@ def test_not_negative(key, value):
 
 
 def age_limit_checks(key, age_limits):
-    assert all(
-        [
-            age_limits[idx] > age_limits[idx - 1]
-            for idx in range(1, len(age_limits))
-        ]
-    ), ("%s must be strictly increasing" % key)
+    test_ascending(key, age_limits)
     assert (
         age_limits[-1] < 85
     ), "age limits can not exceed 84 years of age, the last age bin is implied and does not need to be included"
 
 
 def compare_geq(keys, vals):
-    key1, key2 = keys[0], keys[1]
-    val1, val2 = vals[0], vals[1]
-    assert val1 >= val2, "%s must be >= %s, however got %d >= %d" % (
-        key1,
-        key2,
-        val1,
-        val2,
+    assert vals[0] >= vals[1], "%s must be >= %s, however got %d >= %d" % (
+        keys[0],
+        keys[1],
+        vals[0],
+        vals[1],
     )
 
 
@@ -236,11 +219,9 @@ def test_non_empty(key, val):
 
 
 def test_len(keys, vals):
-    key1, key2 = keys[0], keys[1]
-    len_of_array, array = vals[0], vals[1]
-    assert len_of_array == len(array), "len(%s) must equal to %s" % (
-        key2,
-        key1,
+    assert vals[0] == len(vals[1]), "len(%s) must equal to %s" % (
+        keys[1],
+        keys[0],
     )
 
 
@@ -342,11 +323,6 @@ PARAMETERS = [
         "type": np.array,
     },
     {
-        "name": "NUM_WANING_COMPARTMENTS",
-        "validate": test_positive,
-        "downstream": set_wane_enum,
-    },
-    {
         "name": "WANING_TIMES",
         "validate": [
             lambda key, vals: [test_positive(key, val) for val in vals[:-1]],
@@ -354,6 +330,11 @@ PARAMETERS = [
             lambda key, vals: [test_type(key, val, int) for val in vals],
         ],
         "downstream": set_num_waning_compartments,
+    },
+    {
+        "name": "NUM_WANING_COMPARTMENTS",
+        "validate": test_positive,
+        "downstream": set_wane_enum,
     },
     {
         "name": "WANING_PROTECTIONS",

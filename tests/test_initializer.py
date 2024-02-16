@@ -30,17 +30,17 @@ def test_num_compartments():
 
 def test_initial_state_shape():
     expected_shape_S = (
-        initializer.NUM_AGE_GROUPS,
-        2**initializer.NUM_STRAINS,
-        initializer.MAX_VAX_COUNT + 1,
-        initializer.NUM_WANING_COMPARTMENTS,
+        initializer.config.NUM_AGE_GROUPS,
+        2**initializer.config.NUM_STRAINS,
+        initializer.config.MAX_VAX_COUNT + 1,
+        initializer.config.NUM_WANING_COMPARTMENTS,
     )
 
     expected_shape_rest = (
-        initializer.NUM_AGE_GROUPS,
-        2**initializer.NUM_STRAINS,
-        initializer.MAX_VAX_COUNT + 1,
-        initializer.NUM_STRAINS,
+        initializer.config.NUM_AGE_GROUPS,
+        2**initializer.config.NUM_STRAINS,
+        initializer.config.MAX_VAX_COUNT + 1,
+        initializer.config.NUM_STRAINS,
     )
     s, e, i, c = initializer.get_initial_state()
     assert (

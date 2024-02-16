@@ -22,8 +22,7 @@ class MechanisticRunner:
     def __init__(self, model):
         self.model = model
 
-    def run(self, initial_state, tf: int = 100, args={}):
-        # if we are passed parameters to run, use those, else we go to our defaults.
+    def run(self, initial_state, args, tf: int = 100):
         term = ODETerm(
             lambda t, state, parameters: self.model(state, t, parameters)
         )

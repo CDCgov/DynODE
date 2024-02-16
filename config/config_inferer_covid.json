@@ -21,7 +21,7 @@
                 "transforms": {
                     "distribution": "AffineTransform",
                     "params": {
-                        "loc": 1,
+                        "loc": 2.5,
                         "scale": 1
                     }
                 }

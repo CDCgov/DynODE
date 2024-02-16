@@ -60,7 +60,7 @@ def test_invalid_paths_raise():
 def test_external_i_shape():
     external_i_shape = static_params.external_i(100).shape
     expected_shape = static_params.INITIAL_STATE[
-        static_params.COMPARTMENT_IDX.I
+        static_params.config.COMPARTMENT_IDX.I
     ].shape
     assert (
         external_i_shape == expected_shape
@@ -74,28 +74,28 @@ def test_output_shapes():
     )
     expected_output_shapes = [
         (
-            static_params.NUM_AGE_GROUPS,
-            2**static_params.NUM_STRAINS,
-            static_params.MAX_VAX_COUNT + 1,
-            static_params.NUM_WANING_COMPARTMENTS,
+            static_params.config.NUM_AGE_GROUPS,
+            2**static_params.config.NUM_STRAINS,
+            static_params.config.MAX_VAX_COUNT + 1,
+            static_params.config.NUM_WANING_COMPARTMENTS,
         ),
         (
-            static_params.NUM_AGE_GROUPS,
-            2**static_params.NUM_STRAINS,
-            static_params.MAX_VAX_COUNT + 1,
-            static_params.NUM_STRAINS,
+            static_params.config.NUM_AGE_GROUPS,
+            2**static_params.config.NUM_STRAINS,
+            static_params.config.MAX_VAX_COUNT + 1,
+            static_params.config.NUM_STRAINS,
         ),
         (
-            static_params.NUM_AGE_GROUPS,
-            2**static_params.NUM_STRAINS,
-            static_params.MAX_VAX_COUNT + 1,
-            static_params.NUM_STRAINS,
+            static_params.config.NUM_AGE_GROUPS,
+            2**static_params.config.NUM_STRAINS,
+            static_params.config.MAX_VAX_COUNT + 1,
+            static_params.config.NUM_STRAINS,
         ),
         (
-            static_params.NUM_AGE_GROUPS,
-            2**static_params.NUM_STRAINS,
-            static_params.MAX_VAX_COUNT + 1,
-            static_params.NUM_STRAINS,
+            static_params.config.NUM_AGE_GROUPS,
+            2**static_params.config.NUM_STRAINS,
+            static_params.config.MAX_VAX_COUNT + 1,
+            static_params.config.NUM_STRAINS,
         ),
     ]
     for compartment, expected_shape in zip(

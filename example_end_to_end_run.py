@@ -5,10 +5,11 @@ from mechanistic_model.static_value_parameters import StaticValueParameters
 from model_odes.seip_model import seip_ode
 
 if __name__ == "__main__":
-    GLOBAL_CONFIG_PATH = "config/config_global.json"
-    INITIALIZER_CONFIG_PATH = "config/config_initializer_covid.json"
-    RUNNER_CONFIG_PATH = "config/config_runner_covid.json"
-    INTERPRETER_CONFIG_PATH = "config/config_interpreter_covid.json"
+    config_path = "config/"
+    GLOBAL_CONFIG_PATH = config_path + "config_global.json"
+    INITIALIZER_CONFIG_PATH = config_path + "config_initializer_covid.json"
+    RUNNER_CONFIG_PATH = config_path + "config_runner_covid.json"
+    INTERPRETER_CONFIG_PATH = config_path + "config_interpreter_covid.json"
     # model = build_basic_mechanistic_model(ConfigBase())
     initializer = CovidInitializer(INITIALIZER_CONFIG_PATH, GLOBAL_CONFIG_PATH)
     static_params = StaticValueParameters(
