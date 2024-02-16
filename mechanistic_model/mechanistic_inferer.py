@@ -36,6 +36,9 @@ class MechanisticInferer(AbstractParameters):
         self.load_contact_matrix()
 
     def set_infer_algo(self, inferer_type="MCMC"):
+        """
+        Sets the inferer's inference algorithm and sampler.
+        """
         if inferer_type == "MCMC":
             self.inference_algo = MCMC(
                 NUTS(
@@ -153,6 +156,7 @@ class MechanisticInferer(AbstractParameters):
                 "BETA_COEF": self.beta_coef,
             }
         )
+        # model only expects jax lists, so replace all lists and numpy arrays with lists here.
         for key, val in parameters.items():
             if isinstance(val, (np.ndarray, list)):
                 parameters[key] = jnp.array(val)

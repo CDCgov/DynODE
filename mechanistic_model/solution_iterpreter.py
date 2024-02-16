@@ -63,9 +63,6 @@ class SolutionInterpreter:
             ax=axs[1][0],
         )
         # strain prevalence chart over the same x axis, no plot commands.
-        # fig, axs[0][1] = self.plot_strain_prevalence(
-        #     self.solution.ys, fig=fig, ax=axs[0][1]
-        # )
         fig, axs[0][1] = self.plot_strain_prevalence(fig=fig, ax=axs[0][1])
         # incidence scatter plot, unlogged y axis
         fig, axs[1][1] = self.plot_solution(
