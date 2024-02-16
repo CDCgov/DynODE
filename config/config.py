@@ -44,7 +44,7 @@ class Config:
         """
         A function that checks if a specific parameter exists, then sets any parameters that depend on it.
 
-        E.g, `NUM_AGE_GROUPS` = len(`AGE_LIMITS`) if `AGE_LIMITS` exists, set `NUM_AGE_GROUPS`
+        E.g., `NUM_AGE_GROUPS` = len(`AGE_LIMITS`) if `AGE_LIMITS` exists, set `NUM_AGE_GROUPS`
         """
         for parameter in PARAMETERS:
             key = parameter["name"]
@@ -193,7 +193,7 @@ def test_not_negative(key, value):
 def age_limit_checks(key, age_limits):
     test_ascending(key, age_limits)
     assert (
-        age_limits[-1] < 85
+        age_limits[-1] < MAX_AGE_CENSUS_DATA
     ), "age limits can not exceed 84 years of age, the last age bin is implied and does not need to be included"
 
 
@@ -271,6 +271,7 @@ type: If the parameter type is a non-json primative type, specify a function tha
 downstream: if receiving this parameter kicks off downstream parameters to be modified or created, a function which takes the Config()
             class is accepted to modify/create the downstream parameters.
 """
+MAX_AGE_CENSUS_DATA = 85
 PARAMETERS = [
     {
         "name": "SAVE_PATH",

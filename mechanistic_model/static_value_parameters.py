@@ -42,6 +42,7 @@ class StaticValueParameters(AbstractParameters):
         """
         # get counts of the initial state compartments by age bin.
         # ignore the C compartment since it is just house keeping
+        # TODO abstract this away for code reuse.
         args = {
             "CONTACT_MATRIX": self.config.CONTACT_MATRIX,
             "POPULATION": self.config.POPULATION,

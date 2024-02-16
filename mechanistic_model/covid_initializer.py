@@ -14,7 +14,6 @@ class CovidInitializer(MechanisticInitializer):
         self.config = Config(global_variables_path).add_file(
             config_initializer_path
         )
-        # self.__dict__.update(**config.__dict__)
 
         if not hasattr(self.config, "INITIAL_POPULATION_FRACTIONS"):
             self.load_initial_population_fractions()
@@ -57,7 +56,7 @@ class CovidInitializer(MechanisticInitializer):
         loads the inital infection distribution by age, then separates infections into an
         infected and exposed distributions, to account for people who may not be infectious yet,
         but are part of the initial infections of the model all infections assumed to be omicron.
-        utilizes the ratio between gamma and sigma to determine what proportion of inital infections belong in the
+        utilizes the abm data's infected date to determine what proportion of inital infections belong in the
         exposed (soon to be infectious), and the already infectious compartments.
 
         given that `INIT_INFECTION_DIST` = `INIT_EXPOSED_DIST` + `INIT_INFECTED_DIST`

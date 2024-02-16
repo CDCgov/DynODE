@@ -30,6 +30,9 @@ class MechanisticRunner:
         t0 = 0.0
         dt0 = 1.0
         saveat = SaveAt(ts=jnp.linspace(t0, tf, int(tf) + 1))
+        # jump_ts describe points in time where the model is not fully differentiable
+        # this is often due to piecewise changes in parameter values like Beta
+        # this is why many functions in the runner/params are required to be continuously differentiable.
         stepsize_controller = (
             PIDController(
                 rtol=1e-5,
@@ -48,7 +51,6 @@ class MechanisticRunner:
             dt0,
             initial_state,
             args=args,
-            # discontinuities due to beta manipulation specified as jump_ts
             stepsize_controller=stepsize_controller,
             saveat=saveat,
             # higher for large time scales / rapid changes
