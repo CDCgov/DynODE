@@ -11,9 +11,9 @@ class CovidInitializer(MechanisticInitializer):
         initialize a basic abstract mechanistic model for covid19 case prediction.
         Should not be constructed directly, use build_basic_mechanistic_model() with a config file
         """
-        self.config = Config(global_variables_path).add_file(
-            config_initializer_path
-        )
+        initializer_json = open(config_initializer_path, "r").read()
+        global_json = open(global_variables_path, "r").read()
+        self.config = Config(global_json).add_file(initializer_json)
 
         if not hasattr(self.config, "INITIAL_POPULATION_FRACTIONS"):
             self.load_initial_population_fractions()

@@ -9,9 +9,9 @@ class StaticValueParameters(AbstractParameters):
     def __init__(
         self, INITIAL_STATE, runner_config_path, global_variables_path
     ):
-        self.config = Config(global_variables_path).add_file(
-            runner_config_path
-        )
+        runner_json = open(runner_config_path, "r").read()
+        global_json = open(global_variables_path, "r").read()
+        self.config = Config(global_json).add_file(runner_json)
         self.INITIAL_STATE = INITIAL_STATE
         self.retrieve_population_counts()
         self.load_cross_immunity_matrix()

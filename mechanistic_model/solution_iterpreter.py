@@ -22,9 +22,9 @@ class SolutionInterpreter:
     def __init__(
         self, solution, solution_parameters_path, global_variables_path
     ):
-        config = Config(global_variables_path).add_file(
-            solution_parameters_path
-        )
+        solution_parameters_json = open(solution_parameters_path, "r").read()
+        global_json = open(global_variables_path, "r").read()
+        config = Config(global_json).add_file(solution_parameters_json)
         # grab all parameters passed from global and initializer configs
         # TODO, move away from loading config into self
         self.__dict__.update(**config.__dict__)
