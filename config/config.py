@@ -2,12 +2,14 @@ import datetime
 import json
 import os
 from enum import IntEnum
+from functools import partial
 
 import git
 import jax.numpy as jnp
 import numpy as np
 import numpyro.distributions as distributions
 import numpyro.distributions.transforms as transforms
+from jax.random import PRNGKey
 
 
 class Config:
@@ -89,8 +91,8 @@ class Config:
                                     transforms.Transform,
                                 ),
                             )
+                            for v in val_temp
                         ]
-                        for v in val_temp
                     ):
                         distribution_involved = True
                         break
@@ -116,7 +118,13 @@ def distribution_converter(dct):
     if "distribution" in dct.keys() and "params" in dct.keys():
         try:
             if dct["distribution"] in distribution_types.keys():
-                return distribution_types[dct["distribution"]](**dct["params"])
+                distribution = distribution_types[dct["distribution"]](
+                    **dct["params"]
+                )
+                # numpyro does lazy eval of distributions, if the user passes in invalid parameter values
+                # they wont be caught until runtime, so we sample here to raise an error
+                _ = distribution.sample(PRNGKey(1))
+                return distribution
             else:
                 raise KeyError(
                     "The distribution name is not found in the available distributions, "
@@ -124,9 +132,10 @@ def distribution_converter(dct):
                 )
         except Exception as e:
             # reraise the error
-            raise Exception(
-                "There was an error parsing the following name as a distribution: %s \n "
-                "see docs to make sure you didnt misspell something: https://num.pyro.ai/en/stable/distributions.html#distributions"
+            raise e.__class__(
+                "There was an error parsing the following distribution: %s \n "
+                "see docs to make sure you didnt misspell something: https://num.pyro.ai/en/stable/distributions.html#distributions \n"
+                "or you may have passed incorrect parameters into the distribution"
                 % str(dct)
             ) from e
     else:  # do nothing if this isnt a distribution
@@ -191,7 +200,11 @@ def test_not_negative(key, value):
 
 
 def age_limit_checks(key, age_limits):
+    test_not_negative(key, age_limits[0])
     test_ascending(key, age_limits)
+    assert all(
+        [isinstance(a, int) for a in age_limits]
+    ), "ages must be int, not float"
     assert (
         age_limits[-1] < MAX_AGE_CENSUS_DATA
     ), "age limits can not exceed 84 years of age, the last age bin is implied and does not need to be included"
@@ -207,7 +220,9 @@ def compare_geq(keys, vals):
 
 
 def test_type(key, val, tested_type):
-    assert isinstance(val, tested_type), "%s must be an %s, found %s" % (
+    assert isinstance(val, tested_type) or issubclass(
+        type(val), tested_type
+    ), "%s must be an %s, found %s" % (
         key,
         str(tested_type),
         str(type(val)),
@@ -275,36 +290,39 @@ MAX_AGE_CENSUS_DATA = 85
 PARAMETERS = [
     {
         "name": "SAVE_PATH",
-        "validate": path_checker,
+        "validate": [partial(test_type, tested_type=str), path_checker],
     },
     {
         "name": "DEMOGRAPHIC_DATA_PATH",
-        "validate": path_checker,
+        "validate": [partial(test_type, tested_type=str), path_checker],
     },
     {
         "name": "SEROLOGICAL_DATA_PATH",
-        "validate": path_checker,
+        "validate": [partial(test_type, tested_type=str), path_checker],
     },
     {
         "name": "SIM_DATA_PATH",
-        "validate": path_checker,
+        "validate": [partial(test_type, tested_type=str), path_checker],
     },
     {
         "name": "VAX_MODEL_DATA",
-        "validate": path_checker,
+        "validate": [partial(test_type, tested_type=str), path_checker],
     },
     {
         "name": "AGE_LIMITS",
-        "validate": age_limit_checks,
+        "validate": [partial(test_type, tested_type=list), age_limit_checks],
         "downstream": set_downstream_age_variables,
     },
     {
         "name": "POP_SIZE",
-        "validate": test_positive,
+        "validate": [partial(test_type, tested_type=int), test_positive],
     },
     {
         "name": "INITIAL_INFECTIONS",
-        "validate": test_not_negative,
+        "validate": [
+            partial(test_type, tested_type=(int, float)),
+            test_not_negative,
+        ],
     },
     {
         "name": ["POP_SIZE", "INITIAL_INFECTIONS"],
@@ -312,20 +330,34 @@ PARAMETERS = [
     },
     {
         "name": "INFECTIOUS_PERIOD",
-        # "validate": test_not_negative,
+        "validate": [
+            partial(
+                test_type, tested_type=(int, float, distributions.Distribution)
+            ),
+            test_not_negative,
+        ],
     },
     {
         "name": "EXPOSED_TO_INFECTIOUS",
-        "validate": test_not_negative,
+        "validate": [
+            partial(
+                test_type, tested_type=(int, float, distributions.Distribution)
+            ),
+            test_not_negative,
+        ],
     },
     {
         "name": "STRAIN_SPECIFIC_R0",
-        "validate": test_non_empty,
+        "validate": [
+            partial(test_type, tested_type=np.ndarray),
+            test_non_empty,
+        ],
         "type": np.array,
     },
     {
         "name": "WANING_TIMES",
         "validate": [
+            partial(test_type, tested_type=list),
             lambda key, vals: [test_positive(key, val) for val in vals[:-1]],
             lambda key, vals: test_zero(key, vals[-1]),
             lambda key, vals: [test_type(key, val, int) for val in vals],
@@ -334,7 +366,10 @@ PARAMETERS = [
     },
     {
         "name": "NUM_WANING_COMPARTMENTS",
-        "validate": test_positive,
+        "validate": [
+            partial(test_type, tested_type=int),
+            test_positive,
+        ],
         "downstream": set_wane_enum,
     },
     {
