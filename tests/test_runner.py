@@ -8,7 +8,8 @@ from model_odes.seip_model import seip_ode
 
 CONFIG_GLOBAL_PATH = "tests/test_config_global.json"
 RUNNER_CONFIG_PATH = "tests/test_config_runner.json"
-global_config = Config(CONFIG_GLOBAL_PATH)
+GLOBAL_JSON = open(CONFIG_GLOBAL_PATH, "r").read()
+global_config = Config(GLOBAL_JSON)
 S_SHAPE = (
     global_config.NUM_AGE_GROUPS,
     2**global_config.NUM_STRAINS,

@@ -11,13 +11,13 @@ import numpyro.distributions.transforms as transforms
 
 
 class Config:
-    def __init__(self, config_json_path) -> None:
-        self.add_file(config_json_path)
+    def __init__(self, config_json_str) -> None:
+        self.add_file(config_json_str)
 
-    def add_file(self, config_json_path):
+    def add_file(self, config_json_str):
         # adds another config to self.__dict__ and resets downstream parameters again
-        config = json.load(
-            open(config_json_path, "r"), object_hook=distribution_converter
+        config = json.loads(
+            config_json_str, object_hook=distribution_converter
         )
         config = self.convert_types(config)
         self.__dict__.update(**config)

@@ -24,9 +24,9 @@ class MechanisticInferer(AbstractParameters):
         runner: MechanisticRunner,
         initial_state: tuple,
     ):
-        self.config = Config(global_variables_path).add_file(
-            distributions_path
-        )
+        distributions_json = open(distributions_path, "r").read()
+        global_json = open(global_variables_path, "r").read()
+        self.config = Config(global_json).add_file(distributions_json)
         self.runner = runner
         self.INITIAL_STATE = initial_state
         self.set_infer_algo()
