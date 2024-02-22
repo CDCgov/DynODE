@@ -151,7 +151,57 @@ def test_valid_distribution_infectious_period():
     )
 
 
+def test_valid_nested_distribution_infectious_period():
+    # a basic 1 + N(0,1) distribution
+    input_json = """{"INFECTIOUS_PERIOD": {
+            "distribution": "TransformedDistribution",
+            "params": {
+                "base_distribution": {
+                    "distribution": "Normal",
+                    "params": {
+                        "loc": 0,
+                        "scale": 1
+                    }
+                },
+                "transforms": {
+                    "distribution": "AffineTransform",
+                    "params": {
+                        "loc": 1,
+                        "scale": 1
+                    }
+                }
+            }
+        }}"""
+    c = Config(input_json)
+    assert isinstance(c.INFECTIOUS_PERIOD, dist.TransformedDistribution)
+
+
 def test_invalid_distribution_infectious_period():
     input_json = """{"INFECTIOUS_PERIOD": {"distribution": "Normal", "params": {"loc": 0, "scale":"blah"}}}"""
+    with pytest.raises(TypeError):
+        Config(input_json)
+
+
+def test_invalid_nested_distribution_infectious_period():
+    # a basic 1 + N(0,1) distribution
+    input_json = """{"INFECTIOUS_PERIOD": {
+            "distribution": "TransformedDistribution",
+            "params": {
+                "base_distribution": {
+                    "distribution": "Normal",
+                    "params": {
+                        "loc": 0,
+                        "scale": 1
+                    }
+                },
+                "transforms": {
+                    "distribution": "AffineTransform",
+                    "params": {
+                        "loc": "invalid_input",
+                        "scale": 1
+                    }
+                }
+            }
+        }}"""
     with pytest.raises(TypeError):
         Config(input_json)

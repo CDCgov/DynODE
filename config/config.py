@@ -116,15 +116,20 @@ def make_list_if_not(obj):
 def distribution_converter(dct):
     # a distribution is identified by the "distribution" and "params" keys
     if "distribution" in dct.keys() and "params" in dct.keys():
+        numpyro_dst = dct["distribution"]
+        numpyro_dst_params = dct["params"]
         try:
-            if dct["distribution"] in distribution_types.keys():
-                distribution = distribution_types[dct["distribution"]](
-                    **dct["params"]
+            if numpyro_dst in distribution_types.keys():
+                distribution = distribution_types[numpyro_dst](
+                    **numpyro_dst_params
                 )
                 # numpyro does lazy eval of distributions, if the user passes in invalid parameter values
                 # they wont be caught until runtime, so we sample here to raise an error
                 _ = distribution.sample(PRNGKey(1))
                 return distribution
+            elif numpyro_dst in transform_types.keys():
+                transform = transform_types[numpyro_dst](**numpyro_dst_params)
+                return transform
             else:
                 raise KeyError(
                     "The distribution name is not found in the available distributions, "
@@ -264,12 +269,11 @@ distribution_types = {
     dist_name: distributions.__dict__.get(dist_name)
     for dist_name in distributions.__all__
 }
-distribution_types.update(
-    **{
-        transform_name: transforms.__dict__.get(transform_name)
-        for transform_name in transforms.__all__
-    }
-)
+transform_types = {
+    transform_name: transforms.__dict__.get(transform_name)
+    for transform_name in transforms.__all__
+}
+
 
 #############################################################################
 ###############################PARAMETERS####################################
