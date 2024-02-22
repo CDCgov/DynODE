@@ -1,13 +1,15 @@
+import sys
+
+import jax.numpy as jnp
+import matplotlib.pyplot as plt
+import numpy as np
+
 from mechanistic_model.covid_initializer import CovidInitializer
+from mechanistic_model.mechanistic_inferer import MechanisticInferer
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 from mechanistic_model.solution_iterpreter import SolutionInterpreter
 from mechanistic_model.static_value_parameters import StaticValueParameters
-from mechanistic_model.mechanistic_inferer import MechanisticInferer
 from model_odes.seip_model import seip_ode
-import matplotlib.pyplot as plt
-import sys
-import jax.numpy as jnp
-import numpy as np
 
 if __name__ == "__main__":
     # step 1: define your paths
