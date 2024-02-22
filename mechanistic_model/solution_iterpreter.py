@@ -40,7 +40,7 @@ class SolutionInterpreter:
     def summarize_solution(
         self,
         plot_commands: list[str] = ["S", "E", "I", "C"],
-        plot_labels: list[str] = ["S", "E", "I", "C"],
+        plot_labels: list[str] = None,
         save_path: str = None,
     ):
         fig, axs = plt.subplots(2, 2, figsize=(8, 9))
