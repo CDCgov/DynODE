@@ -2,11 +2,12 @@
 Testing the Config parser, downstream parameters, errors, and appropriate fail safes
 """
 
-import os
-from config.config import Config
-import pytest
 import json
+
 import numpyro.distributions as dist
+import pytest
+
+from config.config import Config
 
 GLOBAL_TEST_CONFIG = "tests/test_config_global.json"
 PATH_VARIABLES = [
