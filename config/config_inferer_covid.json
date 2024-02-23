@@ -19,7 +19,7 @@
                     }
                 },
                 "transforms": {
-                    "distribution": "AffineTransform",
+                    "transform": "AffineTransform",
                     "params": {
                         "loc": 2.5,
                         "scale": 1
