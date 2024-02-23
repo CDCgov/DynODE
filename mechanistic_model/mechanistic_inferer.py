@@ -25,21 +25,30 @@ class MechanisticInferer(AbstractParameters):
         distributions_path: str,
         runner: MechanisticRunner,
         initial_state: tuple,
+        previous_inferer: MCMC = None,
     ):
         distributions_json = open(distributions_path, "r").read()
         global_json = open(global_variables_path, "r").read()
         self.config = Config(global_json).add_file(distributions_json)
         self.runner = runner
         self.INITIAL_STATE = initial_state
-        self.set_infer_algo()
+        self.set_infer_algo(previous_inferer=previous_inferer)
         self.retrieve_population_counts()
         self.load_cross_immunity_matrix()
         self.load_vaccination_model()
         self.load_contact_matrix()
 
-    def set_infer_algo(self, inferer_type="mcmc"):
+    def set_infer_algo(self, previous_inferer=None, inferer_type="mcmc"):
         """
         Sets the inferer's inference algorithm and sampler.
+        If passed a previous inferer of the same inferer_type, uses posteriors to aid in the definition of new priors.
+        This does require special configuration parameters to aid in transition between sequential inferers.
+
+        Parameters
+        ----------
+        previous_inferer: None, numpyro.infer.MCMC
+            the inferer algorithm of the previous sequential call to inferer.infer
+            use posteriors in this previous call to help define the priors in the current call.
         """
         supported_infer_algos = ["mcmc"]
         if inferer_type.lower().strip() not in supported_infer_algos:
@@ -61,6 +70,15 @@ class MechanisticInferer(AbstractParameters):
                 num_chains=self.config.INFERENCE_NUM_CHAINS,
                 progress_bar=self.config.INFERENCE_PROGRESS_BAR,
             )
+            if previous_inferer is not None:
+                # may want to look into this here:
+                # https://num.pyro.ai/en/stable/mcmc.html#id7
+                assert isinstance(
+                    previous_inferer, MCMC
+                ), "the previous inferer is not of the same type."
+                self.inference_algo.post_warmup_state = (
+                    previous_inferer.last_state
+                )
 
     def likelihood(self, obs_metrics):
         """
@@ -68,6 +86,15 @@ class MechanisticInferer(AbstractParameters):
         under a set of parameter distributions sampled by self.inference_algo.
 
         Currently expects hospitalization data and samples IHR using a negative binomial distribution.
+
+        Parameters
+        -----------
+        obs_metrics: jnp.ndarray
+            the observed metrics on which likelihood is calculated. Usually synthetic or empirical data.
+
+        Returns
+        -----------
+        None
         """
         solution = self.runner.run(
             self.INITIAL_STATE, args=self.get_parameters(), tf=len(obs_metrics)
