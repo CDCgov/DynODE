@@ -318,7 +318,7 @@ name: the parameter name as written in the JSON config or a list of parameter na
       if isinstance(name, list) all parameter names must be present before any other sections are executed.
 validate: a single function, or list of functions, each with a signature of f(str, obj) -> None
           that raise assertion errors if their conditions are not met.
-          Note: ALL validators must pass for Config to except the parameter
+          Note: ALL validators must pass for Config to accept the parameter
           For the case of test_type, the type of the parameter may be ANY of the tested_type dtypes.
 type: If the parameter type is a non-json primative type, specify a function that takes in the nearest JSON primative type and does
       the type conversion. E.G: np.array recieves a JSON primative (list) and returns a numpy array.
