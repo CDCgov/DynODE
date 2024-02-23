@@ -7,7 +7,7 @@ import json
 import numpyro.distributions as dist
 import pytest
 
-from config.config import Config
+from config.config import Config, ConfigParserError
 
 GLOBAL_TEST_CONFIG = "tests/test_config_global.json"
 PATH_VARIABLES = [
@@ -165,7 +165,7 @@ def test_valid_nested_distribution_infectious_period():
                     }
                 },
                 "transforms": {
-                    "distribution": "AffineTransform",
+                    "transform": "AffineTransform",
                     "params": {
                         "loc": 1,
                         "scale": 1
@@ -179,7 +179,7 @@ def test_valid_nested_distribution_infectious_period():
 
 def test_invalid_distribution_infectious_period():
     input_json = """{"INFECTIOUS_PERIOD": {"distribution": "Normal", "params": {"loc": 0, "scale":"blah"}}}"""
-    with pytest.raises(TypeError):
+    with pytest.raises(ConfigParserError):
         Config(input_json)
 
 
@@ -196,7 +196,7 @@ def test_invalid_nested_distribution_infectious_period():
                     }
                 },
                 "transforms": {
-                    "distribution": "AffineTransform",
+                    "transform": "AffineTransform",
                     "params": {
                         "loc": "invalid_input",
                         "scale": 1
@@ -204,5 +204,5 @@ def test_invalid_nested_distribution_infectious_period():
                 }
             }
         }}"""
-    with pytest.raises(TypeError):
+    with pytest.raises(ConfigParserError):
         Config(input_json)

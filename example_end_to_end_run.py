@@ -77,5 +77,6 @@ if __name__ == "__main__":
         )
         # plot the 4 compartments summed across all age bins and immunity status
         fig, ax = interpreter.summarize_solution()
-        print("Please see output/example_end_to_end_run.png for your plot!")
-        plt.savefig("output/example_end_to_end_run.png")
+        save_path = "output/example_end_to_end_run.png"
+        print("Please see %s for your plot!" % save_path)
+        plt.savefig(save_path)

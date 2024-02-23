@@ -114,12 +114,32 @@ def make_list_if_not(obj):
 
 
 def distribution_converter(dct):
-'''Converts the distribution as specified in JSON config file into a numpyro distribution object'''
-    # a distribution is identified by the "distribution" and "params" keys
-    if "distribution" in dct.keys() and "params" in dct.keys():
-        numpyro_dst = dct["distribution"]
-        numpyro_dst_params = dct["params"]
-        try:
+    """
+    Converts a distribution or transform as specified in JSON config file into
+    a numpyro distribution/transform object.
+    This function is called as a part of json.loads(object_hook=distribution_converter)
+    meaning it executes on EVERY JSON object within a JSON string,
+    recursively from innermost nested outwards.
+
+
+    a distribution is identified by the `distribution` and `params` keys inside of a json object
+    while a transform is identified by the `transform` and `params` keys inside of a json object
+
+    PARAMETERS
+    ----------
+    `dct`: dict
+        A dictionary representing any JSON object that is passed into `Config`.
+        Including nested JSON objects which are executed from deepest nested outwards.
+
+    Returns
+    -----------
+    dict or numpyro.distributions object. If `distribution_converter` identifies that dct is a valid JSON representation of a
+    numpyro distribution or transform, it will return it. Otherwise it returns dct unmodified.
+    """
+    try:
+        if "distribution" in dct.keys() and "params" in dct.keys():
+            numpyro_dst = dct["distribution"]
+            numpyro_dst_params = dct["params"]
             if numpyro_dst in distribution_types.keys():
                 distribution = distribution_types[numpyro_dst](
                     **numpyro_dst_params
@@ -128,24 +148,34 @@ def distribution_converter(dct):
                 # they wont be caught until runtime, so we sample here to raise an error
                 _ = distribution.sample(PRNGKey(1))
                 return distribution
-            elif numpyro_dst in transform_types.keys():
-                transform = transform_types[numpyro_dst](**numpyro_dst_params)
+            else:
+                raise KeyError(
+                    "The distribution name was not found in the available distributions, "
+                    "see distribution names here: https://num.pyro.ai/en/stable/distributions.html#distributions"
+                )
+        elif "transform" in dct.keys() and "params" in dct.keys():
+            numpyro_transform = dct["transform"]
+            numpyro_transform_params = dct["params"]
+            if numpyro_transform in transform_types.keys():
+                transform = transform_types[numpyro_transform](
+                    **numpyro_transform_params
+                )
                 return transform
             else:
                 raise KeyError(
-                    "The distribution name is not found in the available distributions, "
-                    "see distribution names here: https://num.pyro.ai/en/stable/distributions.html#distributions"
+                    "The transform name was not found in the available transformations, "
+                    "see transform names here: https://num.pyro.ai/en/stable/distributions.html#transforms"
                 )
-        except Exception as e:
-            # reraise the error
-            raise e.__class__(
-                "There was an error parsing the following distribution: %s \n "
-                "see docs to make sure you didnt misspell something: https://num.pyro.ai/en/stable/distributions.html#distributions \n"
-                "or you may have passed incorrect parameters into the distribution"
-                % str(dct)
-            ) from e
-    else:  # do nothing if this isnt a distribution
-        return dct
+    except Exception as e:
+        # reraise the error
+        raise ConfigParserError(
+            "There was an error parsing the following distribution/transformation: %s \n "
+            "see docs to make sure you didnt misspell something: https://num.pyro.ai/en/stable/distributions.html#distributions \n"
+            "or you may have passed incorrect parameters types/names into the distribution"
+            % str(dct)
+        ) from e
+    # do nothing if this isnt a distribution or transform
+    return dct
 
 
 #############################################################################
@@ -211,9 +241,11 @@ def age_limit_checks(key, age_limits):
     assert all(
         [isinstance(a, int) for a in age_limits]
     ), "ages must be int, not float because census age data is specified as int"
-    assert (
-        age_limits[-1] < MAX_AGE_CENSUS_DATA
-    ), "age limits can not exceed " + str(MAX_AGE_CENSUS_DATA) + " years of age, the last age bin is implied and does not need to be included"
+    assert age_limits[-1] < MAX_AGE_CENSUS_DATA, (
+        "age limits can not exceed "
+        + str(MAX_AGE_CENSUS_DATA)
+        + " years of age, the last age bin is implied and does not need to be included"
+    )
 
 
 def compare_geq(keys, vals):
@@ -286,10 +318,15 @@ name: the parameter name as written in the JSON config or a list of parameter na
       if isinstance(name, list) all parameter names must be present before any other sections are executed.
 validate: a single function, or list of functions, each with a signature of f(str, obj) -> None
           that raise assertion errors if their conditions are not met.
+          Note: ALL validators must pass for Config to except the parameter
+          For the case of test_type, the type of the parameter may be ANY of the tested_type dtypes.
 type: If the parameter type is a non-json primative type, specify a function that takes in the nearest JSON primative type and does
       the type conversion. E.G: np.array recieves a JSON primative (list) and returns a numpy array.
 downstream: if receiving this parameter kicks off downstream parameters to be modified or created, a function which takes the Config()
             class is accepted to modify/create the downstream parameters.
+
+Note about partial(), the partial function creates an anonymous function, taking a named function as input as well as some
+key word arguments. This allows us to pre-specify certain arguments, and allow the parser to pass in the needed ones at runtime.
 """
 MAX_AGE_CENSUS_DATA = 85
 PARAMETERS = [
@@ -481,3 +518,7 @@ PARAMETERS = [
         "type": lambda lst: IntEnum("enum", lst, start=0),
     },
 ]
+
+
+class ConfigParserError(Exception):
+    pass
