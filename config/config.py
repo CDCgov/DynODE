@@ -114,6 +114,7 @@ def make_list_if_not(obj):
 
 
 def distribution_converter(dct):
+'''Converts the distribution as specified in JSON config file into a numpyro distribution object'''
     # a distribution is identified by the "distribution" and "params" keys
     if "distribution" in dct.keys() and "params" in dct.keys():
         numpyro_dst = dct["distribution"]
@@ -209,10 +210,10 @@ def age_limit_checks(key, age_limits):
     test_ascending(key, age_limits)
     assert all(
         [isinstance(a, int) for a in age_limits]
-    ), "ages must be int, not float"
+    ), "ages must be int, not float because census age data is specified as int"
     assert (
         age_limits[-1] < MAX_AGE_CENSUS_DATA
-    ), "age limits can not exceed 84 years of age, the last age bin is implied and does not need to be included"
+    ), "age limits can not exceed " + str(MAX_AGE_CENSUS_DATA) + " years of age, the last age bin is implied and does not need to be included"
 
 
 def compare_geq(keys, vals):

@@ -21,7 +21,7 @@ if __name__ == "__main__":
     INITIALIZER_CONFIG_PATH = config_path + "config_initializer_covid.json"
     # defines the running variables, strain R0s, external strain introductions etc.
     RUNNER_CONFIG_PATH = config_path + "config_runner_covid.json"
-    # defines __distributions__ that act like priors to infer runner variables.
+    # defines prior __distributions__ for inferring runner variables.
     INFERER_CONFIG_PATH = config_path + "config_inferer_covid.json"
     # defines how the solution should be viewed, what slices examined, how to save.
     INTERPRETER_CONFIG_PATH = config_path + "config_interpreter_covid.json"
@@ -47,7 +47,7 @@ if __name__ == "__main__":
         ihr = [0.002, 0.004, 0.008, 0.06]
         model_incidence = jnp.sum(solution.ys[3], axis=(2, 3, 4))
         model_incidence = jnp.diff(model_incidence, axis=0)
-        rng = np.random.default_rng(seed=8675399)
+        rng = np.random.default_rng(seed=8675309)
         m = np.asarray(model_incidence) * ihr
         k = 10.0
         p = k / (k + m)
