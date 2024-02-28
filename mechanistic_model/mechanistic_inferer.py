@@ -76,9 +76,9 @@ class MechanisticInferer(AbstractParameters):
                 assert isinstance(
                     previous_inferer, MCMC
                 ), "the previous inferer is not of the same type."
-                self.inference_algo.post_warmup_state = (
-                    previous_inferer.last_state
-                )
+                # self.inference_algo.post_warmup_state = (
+                #     previous_inferer.last_state
+                # )
 
     def likelihood(self, obs_metrics):
         """
@@ -170,6 +170,14 @@ class MechanisticInferer(AbstractParameters):
             parameters[key] = param
         return parameters
 
+    def sample_from_multivariate_normal(self, parameters):
+        posterior_samples = self.previous_inferer.get_samples()
+        posterior_means = {
+            parameter_name: np.mean(posterior_samples[parameter_name])
+            for parameter_name in posterior_samples
+        }
+        return posterior_means
+
     def get_parameters(self):
         """
         Goes through the parameters passed to the inferer, if they are distributions, it samples them.
@@ -197,6 +205,8 @@ class MechanisticInferer(AbstractParameters):
             "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
             "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
         }
+        # if self.previous_inferer is not None:
+        #     parameters = self.sample_from_multivariate_normal(parameters)
         parameters = self.sample_if_distribution(parameters)
         beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
         gamma = 1 / parameters["INFECTIOUS_PERIOD"]
