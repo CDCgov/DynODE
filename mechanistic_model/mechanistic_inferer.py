@@ -1,10 +1,14 @@
+import warnings
+
 import jax.numpy as jnp
 import numpy as np
 import numpyro
 from jax.random import PRNGKey
 from numpyro import distributions as Dist
+from numpyro.diagnostics import summary
 from numpyro.infer import MCMC, NUTS
 
+import utils
 from config.config import Config
 from mechanistic_model.abstract_parameters import AbstractParameters
 from mechanistic_model.mechanistic_runner import MechanisticRunner
@@ -23,20 +27,21 @@ class MechanisticInferer(AbstractParameters):
         distributions_path: str,
         runner: MechanisticRunner,
         initial_state: tuple,
-        previous_inferer: MCMC = None,
+        prior_inferer: MCMC = None,
     ):
         distributions_json = open(distributions_path, "r").read()
         global_json = open(global_variables_path, "r").read()
         self.config = Config(global_json).add_file(distributions_json)
         self.runner = runner
         self.INITIAL_STATE = initial_state
-        self.set_infer_algo(previous_inferer=previous_inferer)
+        self.set_posteriors_if_exist(prior_inferer)
+        self.set_infer_algo(prior_inferer=prior_inferer)
         self.retrieve_population_counts()
         self.load_cross_immunity_matrix()
         self.load_vaccination_model()
         self.load_contact_matrix()
 
-    def set_infer_algo(self, previous_inferer=None, inferer_type="mcmc"):
+    def set_infer_algo(self, prior_inferer=None, inferer_type="mcmc"):
         """
         Sets the inferer's inference algorithm and sampler.
         If passed a previous inferer of the same inferer_type, uses posteriors to aid in the definition of new priors.
@@ -44,7 +49,7 @@ class MechanisticInferer(AbstractParameters):
 
         Parameters
         ----------
-        previous_inferer: None, numpyro.infer.MCMC
+        prior_inferer: None, numpyro.infer.MCMC
             the inferer algorithm of the previous sequential call to inferer.infer
             use posteriors in this previous call to help define the priors in the current call.
         """
@@ -68,15 +73,12 @@ class MechanisticInferer(AbstractParameters):
                 num_chains=self.config.INFERENCE_NUM_CHAINS,
                 progress_bar=self.config.INFERENCE_PROGRESS_BAR,
             )
-            if previous_inferer is not None:
+            if prior_inferer is not None:
                 # may want to look into this here:
                 # https://num.pyro.ai/en/stable/mcmc.html#id7
                 assert isinstance(
-                    previous_inferer, MCMC
+                    prior_inferer, MCMC
                 ), "the previous inferer is not of the same type."
-                # self.inference_algo.post_warmup_state = (
-                #     previous_inferer.last_state
-                # )
 
     def likelihood(self, obs_metrics):
         """
@@ -124,6 +126,69 @@ class MechanisticInferer(AbstractParameters):
             obs=obs_metrics,
         )
 
+    def set_posteriors_if_exist(
+        self, prior_inferer: MCMC, posterior_transforms={}
+    ):
+        """
+        Given a prior_inferer object look at its samples, check to make sure that
+        each parameter sampled has converging chains, then calculate the mean of
+        each of the parameters samples, as well as the covariance between all of the parameter
+        posterior distributions. These posteriors will be used as priors in the current run.
+        """
+        if prior_inferer is not None:
+            # get all the samples from each chain run in previous inference
+            samples = prior_inferer.get_samples(group_by_chain=True)
+            # flatten any parameters that are created via numpyro.plate
+            # these parameters add a dimensions to `samples` values, and mess with things
+            samples = utils.flatten_list_parameters(samples)
+            dropped_chains = []
+            if hasattr(self.config, "DROP_CHAINS"):
+                dropped_chains = self.config.DROP_CHAINS
+            # if user specified they want certain chain indexes dropped, do that
+            samples = utils.drop_sample_chains(samples, dropped_chains)
+            # create a summary of these chains to calculate divergence of chains etc
+            sample_summaries = summary(samples)
+            # do some sort of testing to ensure the chains are properly converging.
+            # lets all flatten all the samples from all chains together
+            samples_array_flattened = None
+            for sample in samples.keys():
+                sample_summary = sample_summaries[sample]
+                divergent_chains = False
+                if sample_summary["r_hat"] > 1.05:
+                    warnings.warn(
+                        "WARNING: the inferer has detected divergent chains in the %s parameter "
+                        "being passed as input into this epoch. "
+                        "Diverging chains can cause summary posterior distributions to not "
+                        "accurately reflect the true posterior distribution "
+                        "you may use the DROP_CHAINS configuration parameter to "
+                        "drop the offending chain " % str(sample),
+                        RuntimeWarning,
+                    )
+                    divergent_chains = True
+                # now we add the parameter in flattened form for later
+                if samples_array_flattened is None:
+                    samples_array_flattened = [samples[sample].flatten()]
+                else:
+                    samples_array_flattened = np.concatenate(
+                        (samples_array_flattened, [samples[sample].flatten()]),
+                        axis=0,
+                    )
+            # if we have divergent chains, warn and show them to the user
+            if divergent_chains:
+                utils.plot_sample_chains(samples)
+            # samples_array_flattened is now of shape (P, N*M)
+            # for P parameters, N samples per chain and M chains per parameter
+            self.prior_inferer_particle_means = np.mean(
+                samples_array_flattened, axis=1
+            )
+            self.prior_inferer_particle_cov = np.cov(samples_array_flattened)
+            samples.prior_inferer_param_names = list(samples.keys())
+            self.cholesky_triangle_matrix = jnp.linalg.cholesky(
+                self.prior_inferer_particle_cov
+            )
+
+        return None
+
     def sample_if_distribution(self, parameters):
         """
         given a dictionary of keys and parameters, searches through all keys
@@ -146,14 +211,6 @@ class MechanisticInferer(AbstractParameters):
                 )
             parameters[key] = param
         return parameters
-
-    def sample_from_multivariate_normal(self, parameters):
-        posterior_samples = self.previous_inferer.get_samples()
-        posterior_means = {
-            parameter_name: np.mean(posterior_samples[parameter_name])
-            for parameter_name in posterior_samples
-        }
-        return posterior_means
 
     def get_parameters(self):
         """
@@ -179,7 +236,7 @@ class MechanisticInferer(AbstractParameters):
             "EXPOSED_TO_INFECTIOUS": self.config.EXPOSED_TO_INFECTIOUS,
             "INTRODUCTION_TIMES": self.config.INTRODUCTION_TIMES,
         }
-        # if self.previous_inferer is not None:
+        # if self.prior_inferer is not None:
         #     parameters = self.sample_from_multivariate_normal(parameters)
         parameters = self.sample_if_distribution(parameters)
         # if we are sampling external introductions, we must reload the function
