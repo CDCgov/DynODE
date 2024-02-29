@@ -5,6 +5,7 @@ import os
 from enum import IntEnum
 
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
@@ -721,6 +722,86 @@ def strain_interaction_to_cross_immunity(
                     challenging_strain, highest_immunity_strain
                 ]
     return crossimmunity_matrix
+
+
+def drop_sample_chains(samples: dict, dropped_chain_vals: list):
+    """
+    a function, given a dictionary which is the result of a call to `mcmc.get_samples()`
+    drops specified chains from the posterior samples. This is usually done when a single or multiple
+    chains do not converge with the other chains. This ensures that this divergent chain does not
+    impact posterior distributions meant to summarize the posterior samples.
+
+    Parameters
+    -----------
+    `samples`: dict{str: list}
+        a dictionary where parameter names are keys and samples are a list.
+        In the case of M chains and N samples per chain, the list will be of shape MxN
+        with one row per chain, each containing N samples.
+
+    `dropped_chain_vals`: list
+        a list of indexes (rows in the MxN grouped samples list) to be dropped,
+        if the list is empty no chains are dropped.
+
+    Returns
+    ----------
+    dict{str: list} a copy of the samples dictionary with chains in `dropped_chain_vals` dropped
+    """
+    # Create a new dictionary to store the filtered samples
+    filtered_dict = {}
+
+    # Iterate over the keys (parameter names) in the original dictionary
+    for param_name in samples.keys():
+        # Get the samples for the current parameter
+        param_samples = samples[param_name]
+
+        # Remove the specified chains from the samples
+        filtered_samples = [
+            samples
+            for i, samples in enumerate(param_samples)
+            if i not in dropped_chain_vals
+        ]
+
+        # Add the filtered samples to the new dictionary
+        filtered_dict[param_name] = filtered_samples
+
+    return filtered_dict
+
+
+def flatten_list_parameters(samples):
+    """
+    given a dictionary of parameter names and samples, identifies any parameters that are
+    placed under a single name, but actually multiple independent draws from the same distribution.
+    These parameters are often the result of a call to `numpyro.plate(P)` for some number of draws `P`
+    After identifying plated samples, this function will separate the `P` draws into their own
+    keys in the samples dictionary.
+
+    Parameters
+    ----------
+    `samples`: dict{str: list}
+        a dictionary where parameter names are keys and samples are a list.
+        In the case of M chains and N samples per chain, the list will be of shape MxN normally
+        with one row per chain, each containing N samples.
+        In the case that the parameter is drawn P independent times, the list will be of shape
+        MxNxP.
+
+    Returns
+    ----------
+    dict{str: list}  a dictionary in which parameters with lists of shape MxNxP are split into
+    P separate parameters, each with lists of shape MxN for M chains and N samples.
+    """
+    flattened_dict = {}
+    for param in samples.keys():
+        samples_param = samples[param]
+        # if this parameter was drawn `d` times from independent draws
+        # we want to separate it into `d` distinct parameters
+        if samples_param.ndim == 3:  # chain x samples x draws
+            for num_draw in range(samples_param.shape[-1]):
+                flattened_dict[param + "_%d" % num_draw] = samples_param[
+                    :, :, num_draw
+                ]
+        else:
+            flattened_dict[param] = samples_param
+    return flattened_dict
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1552,6 +1633,39 @@ def init_infections_from_abm(
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Plotting CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+def plot_sample_chains(samples):
+    """
+    a function that given a dictionary of parameter names and MxN samples for each parameter
+    plots the trace plot of each of the M chains through the N samples in that chain.
+
+    Parameters
+    ----------
+    `samples`: dict{str: list}
+        a dictionary where parameter names are keys and samples are a list.
+        In the case of M chains and N samples per chain, the list will be of shape MxN
+        with one row per chain, each containing N samples.
+
+    Returns
+    ----------
+    plots each parameter along with each chain of that parameter,
+    also returns `plt.fig` and `plt.axs` objects for modification.
+    """
+    # we want ceil(n/2) rows and 2 columns
+    fig, axs = plt.subplots(int(len(samples.keys()) + 1) / 2, 2)
+    for i, parameter in enumerate(samples.keys()):
+        num_chains = len(samples["parameter"])
+        # basic bounds checking to set our axs obj
+        row = i if i < len(axs) else i - len(axs)
+        col = 1 if i >= len(axs) else 0
+        axs[row, col].set_title(parameter)
+        axs[row, col].plot(
+            np.transpose(samples[parameter]), label=range(num_chains)
+        )
+    fig.legend()
+    plt.show()
+    return fig, axs
 
 
 def get_timeline_from_solution_with_command(
