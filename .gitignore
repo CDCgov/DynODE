@@ -58,6 +58,7 @@ testing.py
 !output/example_output_summary_slide.png
 !config/*.json
 !tests/*.json
+!exp/*/*.json
 
 
 #####
