@@ -755,11 +755,13 @@ def drop_sample_chains(samples: dict, dropped_chain_vals: list):
         param_samples = samples[param_name]
 
         # Remove the specified chains from the samples
-        filtered_samples = [
-            samples
-            for i, samples in enumerate(param_samples)
-            if i not in dropped_chain_vals
-        ]
+        filtered_samples = np.array(
+            [
+                samples
+                for i, samples in enumerate(param_samples)
+                if i not in dropped_chain_vals
+            ]
+        )
 
         # Add the filtered samples to the new dictionary
         filtered_dict[param_name] = filtered_samples
