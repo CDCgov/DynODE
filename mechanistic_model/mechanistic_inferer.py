@@ -182,7 +182,7 @@ class MechanisticInferer(AbstractParameters):
                 samples_array_flattened, axis=1
             )
             self.prior_inferer_particle_cov = np.cov(samples_array_flattened)
-            samples.prior_inferer_param_names = list(samples.keys())
+            self.prior_inferer_param_names = list(samples.keys())
             self.cholesky_triangle_matrix = jnp.linalg.cholesky(
                 self.prior_inferer_particle_cov
             )

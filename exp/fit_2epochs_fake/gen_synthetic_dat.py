@@ -1,11 +1,11 @@
 # %%
+import os
+
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import os
 
-# os.chdir("/home/bentoh/projects/scenarios-2")
 from mechanistic_model.covid_initializer import CovidInitializer
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 from mechanistic_model.static_value_parameters import StaticValueParameters
