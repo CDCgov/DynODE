@@ -1,6 +1,9 @@
 # %%
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+import numpyro
+import numpyro.distributions as Dist
 import pandas as pd
 
 from mechanistic_model.covid_initializer import CovidInitializer
@@ -65,7 +68,7 @@ mc1 = inferer.infer(epoch_1_synthetic_hosp_data.to_numpy())
 
 # %%
 samp = mc1.get_samples(group_by_chain=True)
-fig, axs = plt.subplots(3, 2)
+fig, axs = plt.subplots(2, 2)
 axs[0, 0].set_title("Intro Time")
 axs[0, 0].plot(np.transpose(samp["INTRODUCTION_TIMES_0"]))
 axs[0, 1].set_title("BA2/BA5 R0")
@@ -74,8 +77,8 @@ axs[1, 0].set_title("ihr-50-64")
 axs[1, 0].plot(np.transpose(samp["ihr"][:, :, 2]))
 axs[1, 1].set_title("ihr-65+")
 axs[1, 1].plot(np.transpose(samp["ihr"][:, :, 3]), label=range(0, 4))
-axs[2, 0].set_title("k")
-axs[2, 0].plot(np.transpose(samp["k"]))
+# axs[2, 0].set_title("k")
+# axs[2, 0].plot(np.transpose(samp["k"]))
 fig.legend()
 plt.show()
 print(
@@ -152,7 +155,127 @@ print(
 )
 
 # %%
-inferer2 = MechanisticInferer(
+
+
+class PosteriorInferer(MechanisticInferer):
+    def __init__(
+        self,
+        global_variables_path: str,
+        distributions_path: str,
+        runner: MechanisticRunner,
+        initial_state: tuple,
+        prior_inferer=None,
+    ):
+        super().__init__(
+            global_variables_path,
+            distributions_path,
+            runner,
+            initial_state,
+            prior_inferer,
+        )
+
+    def get_parameters(self):
+        """
+        Goes through the parameters passed to the inferer, if they are distributions, it samples them.
+        Otherwise it returns their raw values.
+
+        Returns a dictionary of {str:obj} where obj may either be a float value,
+        or a jax tracer (in the case of a sampled value). Finally converts all list types to jax tracers for inference.
+        """
+        parameters = {
+            "CONTACT_MATRIX": self.config.CONTACT_MATRIX,
+            "POPULATION": self.config.POPULATION,
+            "NUM_STRAINS": self.config.NUM_STRAINS,
+            "NUM_AGE_GROUPS": self.config.NUM_AGE_GROUPS,
+            "NUM_WANING_COMPARTMENTS": self.config.NUM_WANING_COMPARTMENTS,
+            "WANING_PROTECTIONS": self.config.WANING_PROTECTIONS,
+            "MAX_VAX_COUNT": self.config.MAX_VAX_COUNT,
+            "CROSSIMMUNITY_MATRIX": self.config.CROSSIMMUNITY_MATRIX,
+            "VAX_EFF_MATRIX": self.config.VAX_EFF_MATRIX,
+            "BETA_TIMES": self.config.BETA_TIMES,
+            "STRAIN_R0s": self.config.STRAIN_R0s,
+            "INFECTIOUS_PERIOD": self.config.INFECTIOUS_PERIOD,
+            "EXPOSED_TO_INFECTIOUS": self.config.EXPOSED_TO_INFECTIOUS,
+            "INTRODUCTION_TIMES": self.config.INTRODUCTION_TIMES,
+        }
+        # we are not using posteriors for the BA2 R0 or the intro time
+        with numpyro.plate(
+            "num_parameters", len(self.prior_inferer_param_names)
+        ):
+            u = numpyro.sample("us", Dist.Normal(0, 1))
+        multi_samples = [
+            numpyro.deterministic(
+                self.prior_inferer_param_names[i],
+                self.prior_inferer_particle_means[i]
+                + sum(
+                    self.cholesky_triangle_matrix[i, j] * u[j]
+                    for j in range(i + 1)
+                ),
+            )
+            for i in range(len(self.prior_inferer_param_names))
+        ]
+        parameters = self.sample_if_distribution(parameters)
+        # if we are sampling external introductions, we must reload the function
+        self.load_external_i_distributions(parameters["INTRODUCTION_TIMES"])
+        beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
+        gamma = 1 / parameters["INFECTIOUS_PERIOD"]
+        sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]
+        # since our last waning time is zero to account for last compartment never waning
+        # we include an if else statement to catch a division by zero error here.
+        waning_rates = np.array(
+            [
+                1 / waning_time if waning_time > 0 else 0
+                for waning_time in self.config.WANING_TIMES
+            ]
+        )
+        # add final parameters, if your model expects added parameters, add them here
+        parameters = dict(
+            parameters,
+            **{
+                "BETA": beta,
+                "SIGMA": sigma,
+                "GAMMA": gamma,
+                "WANING_RATES": waning_rates,
+                "EXTERNAL_I": self.external_i,
+                "VACCINATION_RATES": self.vaccination_rate,
+                "BETA_COEF": self.beta_coef,
+                "ihr": multi_samples[:4],
+            }
+        )
+        # model only expects jax lists, so replace all lists and numpy arrays with lists here.
+        for key, val in parameters.items():
+            if isinstance(val, (np.ndarray, list)):
+                parameters[key] = jnp.array(val)
+
+        return parameters
+
+    def likelihood(self, obs_metrics):
+        parameters = self.get_parameters()
+        solution = self.runner.run(
+            self.INITIAL_STATE, args=parameters, tf=len(obs_metrics)
+        )
+        # add 1 to idxs because we are stratified by time in the solution object
+        # sum down to just time x age bins
+        model_incidence = jnp.sum(
+            solution.ys[self.config.COMPARTMENT_IDX.C],
+            axis=(
+                self.config.I_AXIS_IDX.hist + 1,
+                self.config.I_AXIS_IDX.vax + 1,
+                self.config.I_AXIS_IDX.strain + 1,
+            ),
+        )
+        # axis = 0 because we take diff across time
+        model_incidence = jnp.diff(model_incidence, axis=0)
+        numpyro.sample(
+            "incidence",
+            Dist.Poisson(model_incidence * parameters["ihr"]),
+            obs=obs_metrics,
+        )
+
+
+# %%
+# Basically the same but with some minor changes to how sampling is done
+inferer2 = PosteriorInferer(
     GLOBAL_EPOCH2_CONFIG_PATH,
     INFERER_EPOCH2_PATH,
     runner,
@@ -161,6 +284,7 @@ inferer2 = MechanisticInferer(
 )
 print(inferer2.cholesky_triangle_matrix)
 print(inferer2.prior_inferer_particle_means)
+
 # %%
 print(np.sum(inferer.vaccination_rate(0)))
 print(np.sum(inferer2.vaccination_rate(0)))
@@ -172,8 +296,12 @@ should be fine because this was needed to create the synthetic data
 2) have to re-add the delay on the vax model when infer multiple epochs with the same vax function
 
 """
+# %%
+print(inferer2.prior_inferer_param_names)
 
 # %%
 mc2 = inferer2.infer(epoch_2_synthetic_hosp_data.to_numpy())
 
+# %%
+mc2.print_summary(exclude_deterministic=False)
 # %%
