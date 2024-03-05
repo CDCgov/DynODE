@@ -117,12 +117,17 @@ class MechanisticInferer(AbstractParameters):
             ihr = numpyro.sample("ihr", Dist.Beta(0.5, 10))
 
         # scale model_incidence by the ihr, then apply NB observation model
-        k = numpyro.sample("k", Dist.HalfCauchy(1.0))
+        # k = numpyro.sample("k", Dist.HalfCauchy(1.0))
+        # numpyro.sample(
+        #     "incidence",
+        #     Dist.NegativeBinomial2(
+        #         mean=model_incidence * ihr, concentration=10
+        #     ),
+        #     obs=obs_metrics,
+        # )
         numpyro.sample(
             "incidence",
-            Dist.NegativeBinomial2(
-                mean=model_incidence * ihr, concentration=k
-            ),
+            Dist.Poisson(model_incidence * ihr),
             obs=obs_metrics,
         )
 
@@ -138,6 +143,12 @@ class MechanisticInferer(AbstractParameters):
         if prior_inferer is not None:
             # get all the samples from each chain run in previous inference
             samples = prior_inferer.get_samples(group_by_chain=True)
+            # if a user does not want to use posteriors for certain parameters
+            # they can drop them using the DROP_POSTERIOR_PARAMETERS keyword
+            for parameter in getattr(
+                self.config, "DROP_POSTERIOR_PARAMETERS", []
+            ):
+                samples.pop(parameter, None)
             # flatten any parameters that are created via numpyro.plate
             # these parameters add a dimensions to `samples` values, and mess with things
             samples = utils.flatten_list_parameters(samples)
