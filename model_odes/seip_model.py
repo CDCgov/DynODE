@@ -65,7 +65,11 @@ def seip_ode(state, t, parameters):
         (
             p.BETA
             * beta_coef
-            * jnp.einsum("ab,bijk->ak", p.CONTACT_MATRIX, i + p.EXTERNAL_I(t))
+            * jnp.einsum(
+                "ab,bijk->ak",
+                p.CONTACT_MATRIX,
+                i + p.EXTERNAL_I(t, p.INTRODUCTION_TIMES),
+            )
         ).transpose()
         / p.POPULATION
     ).transpose()  # (NUM_AGE_GROUPS, strain)

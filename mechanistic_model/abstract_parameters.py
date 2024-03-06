@@ -23,7 +23,7 @@ class AbstractParameters:
         pass
 
     @partial(jax.jit, static_argnums=(0))
-    def external_i(self, t):
+    def external_i(self, t, introduction_times):
         """
         Given some time t, returns jnp.array of shape self.INITIAL_STATE[self.config.COMPARTMENT_IDX.I] representing external infected persons
         interacting with the population. it does so by calling some function f_s(t) for each strain s.
@@ -36,18 +36,42 @@ class AbstractParameters:
             current time in the model, due to the just-in-time nature of Jax this float value may be contained within a
             traced array of shape () and size 1. Thus no explicit comparison should be done on "t".
 
+        `introduction_times`: list[int]
+            a list representing the times at which external strains should be introduced, in days, after t=0 of the model
+            This list is ordered inversely to self.config.STRAIN_R0s. Meaning the first element in `introduction_times`
+            is modeling the introduction of the last strain in self.config.STRAIN_R0s.
+
         Returns
         -----------
         external_i_compartment: jnp.array()
             jnp.array(shape=(self.INITIAL_STATE[self.config.COMPARTMENT_IDX.I].shape)) of external individuals to the system
             interacting with susceptibles within the system, used to impact force of infection.
         """
+
+        def zero_function(_):
+            return 0
+
+        external_i_distributions = [
+            zero_function for _ in range(self.config.NUM_STRAINS)
+        ]
+        for introduced_strain_idx, introduced_time in enumerate(
+            introduction_times
+        ):
+            # earlier introduced strains earlier will be placed closer to historical strains (0 and 1)
+            dist_idx = (
+                self.config.NUM_STRAINS
+                - self.config.NUM_INTRODUCED_STRAINS
+                + introduced_strain_idx
+            )
+            # use a normal PDF with std dv
+            external_i_distributions[dist_idx] = partial(
+                pdf, loc=introduced_time, scale=self.config.INTRODUCTION_SCALE
+            )
         # set up our return value
         external_i_compartment = jnp.zeros(
             self.INITIAL_STATE[self.config.COMPARTMENT_IDX.I].shape
         )
         # default from the config
-        external_i_distributions = self.config.EXTERNAL_I_DISTRIBUTIONS
         introduction_age_mask = jnp.where(
             jnp.array(self.config.INTRODUCTION_AGE_MASK),
             1,
@@ -200,42 +224,6 @@ class AbstractParameters:
         self.config.VAX_MODEL_KNOTS = jnp.array(vax_knots)
         self.config.VAX_MODEL_KNOT_LOCATIONS = jnp.array(vax_knot_locations)
         self.config.VAX_MODEL_BASE_EQUATIONS = jnp.array(vax_base_equations)
-
-    def load_external_i_distributions(self, introduction_times):
-        """
-        a function that loads external_i_distributions array into the model.
-        this list of functions dictate the number of infected individuals EXTERNAL TO THE POPULATION are introduced at a particular timestep.
-
-        each function within this list must be differentiable at all input values `t`>=0 and return some value such that
-        sum(f(t)) forall t>=0 = 1.0. By default we use a normal PDF to approximate this value.
-
-        Updates
-        ----------
-        EXTERNAL_I_DISTRIBUTIONS: list[func(jac_tracer(float))->float]
-        updates each strain to have its own introduction function,
-        centered around the corresponding introduction time in self.config.INTRODUCTION_TIMES
-        historical strains, which are introduced before model initialization are given the zero function f(_) -> 0.
-        """
-
-        def zero_function(_):
-            return 0
-
-        self.config.EXTERNAL_I_DISTRIBUTIONS = [
-            zero_function for _ in range(self.config.NUM_STRAINS)
-        ]
-        for introduced_strain_idx, introduced_time in enumerate(
-            introduction_times
-        ):
-            # earlier introduced strains earlier will be placed closer to historical strains (0 and 1)
-            dist_idx = (
-                self.config.NUM_STRAINS
-                - self.config.NUM_INTRODUCED_STRAINS
-                + introduced_strain_idx
-            )
-            # use a normal PDF with std dv
-            self.config.EXTERNAL_I_DISTRIBUTIONS[dist_idx] = partial(
-                pdf, loc=introduced_time, scale=self.config.INTRODUCTION_SCALE
-            )
 
     def load_contact_matrix(self):
         """

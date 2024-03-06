@@ -16,7 +16,6 @@ class StaticValueParameters(AbstractParameters):
         self.retrieve_population_counts()
         self.load_cross_immunity_matrix()
         self.load_vaccination_model()
-        self.load_external_i_distributions(self.config.INTRODUCTION_TIMES)
         self.load_contact_matrix()
 
     def get_parameters(
@@ -54,6 +53,7 @@ class StaticValueParameters(AbstractParameters):
             "CROSSIMMUNITY_MATRIX": self.config.CROSSIMMUNITY_MATRIX,
             "VAX_EFF_MATRIX": self.config.VAX_EFF_MATRIX,
             "BETA_TIMES": self.config.BETA_TIMES,
+            "INTRODUCTION_TIMES": self.config.INTRODUCTION_TIMES,
         }
         beta = self.config.STRAIN_R0s / self.config.INFECTIOUS_PERIOD
         gamma = 1 / self.config.INFECTIOUS_PERIOD

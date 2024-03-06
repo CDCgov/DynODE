@@ -1,3 +1,5 @@
+import copy
+
 import jax.numpy as jnp
 import numpy as np
 import numpyro
@@ -87,7 +89,6 @@ class MechanisticInferer(AbstractParameters):
         with numpyro.plate("num_age", self.config.NUM_AGE_GROUPS):
             ihr = numpyro.sample("ihr", Dist.Beta(0.5, 10))
 
-        # scale model_incidence by the ihr, then apply NB observation model
         k = numpyro.sample("k", Dist.HalfCauchy(1.0))
         numpyro.sample(
             "incidence",
@@ -102,11 +103,32 @@ class MechanisticInferer(AbstractParameters):
         given a dictionary of keys and parameters, searches through all keys
         and samples the distribution associated with that key, if it exists.
         Otherwise returns the constant value associated with that key.
+        Converts lists with distributions inside to `jnp.ndarray`
+
+        Parameters
+        ----------
+        parameters: dict{str: obj}
+            a dictionary mapping a parameter name to an object, either a value or a distribution.
+            `numpyro.distribution` objects are sampled, and their sampled value replaces the distribution object
+            within parameters. Capable of sampling lists with static values and distributions together.
+
+        Returns
+        ----------
+        parameters_cpy: a new dictionary with any `numpyro.distribution` objects replaced with jax.tracer samples
+        of those distributions from `numpyro.sample`
         """
+
         for key, param in parameters.items():
+            # if distribution, sample and replace
             if issubclass(type(param), Dist.Distribution):
                 param = numpyro.sample(key, param)
-            elif isinstance(param, (np.ndarray, list)):
+            # if list, check for distributions within and replace them
+            elif isinstance(param, (np.ndarray, list)) and any(
+                [
+                    issubclass(type(param_lst), Dist.Distribution)
+                    for param_lst in param
+                ]
+            ):
                 param = jnp.array(
                     [
                         (
@@ -117,6 +139,7 @@ class MechanisticInferer(AbstractParameters):
                         for i, param_lst in enumerate(param)
                     ]
                 )
+            # else static param, do nothing
             parameters[key] = param
         return parameters
 
@@ -126,27 +149,28 @@ class MechanisticInferer(AbstractParameters):
         Otherwise it returns their raw values.
 
         Returns a dictionary of {str:obj} where obj may either be a float value,
-        or a jax tracer (in the case of a sampled value). Finally converts all list types to jax tracers for inference.
+        or a jax tracer (in the case of a sampled value).
+        Converts all list types to jax tracers if values within are sampled.
         """
+        # multiple chains of MCMC calling get_parameters() should not share references, deep copy
+        freeze_params = copy.deepcopy(self.config)
         parameters = {
-            "CONTACT_MATRIX": self.config.CONTACT_MATRIX,
-            "POPULATION": self.config.POPULATION,
-            "NUM_STRAINS": self.config.NUM_STRAINS,
-            "NUM_AGE_GROUPS": self.config.NUM_AGE_GROUPS,
-            "NUM_WANING_COMPARTMENTS": self.config.NUM_WANING_COMPARTMENTS,
-            "WANING_PROTECTIONS": self.config.WANING_PROTECTIONS,
-            "MAX_VAX_COUNT": self.config.MAX_VAX_COUNT,
-            "CROSSIMMUNITY_MATRIX": self.config.CROSSIMMUNITY_MATRIX,
-            "VAX_EFF_MATRIX": self.config.VAX_EFF_MATRIX,
-            "BETA_TIMES": self.config.BETA_TIMES,
-            "STRAIN_R0s": self.config.STRAIN_R0s,
-            "INFECTIOUS_PERIOD": self.config.INFECTIOUS_PERIOD,
-            "EXPOSED_TO_INFECTIOUS": self.config.EXPOSED_TO_INFECTIOUS,
-            "INTRODUCTION_TIMES": self.config.INTRODUCTION_TIMES,
+            "CONTACT_MATRIX": freeze_params.CONTACT_MATRIX,
+            "POPULATION": freeze_params.POPULATION,
+            "NUM_STRAINS": freeze_params.NUM_STRAINS,
+            "NUM_AGE_GROUPS": freeze_params.NUM_AGE_GROUPS,
+            "NUM_WANING_COMPARTMENTS": freeze_params.NUM_WANING_COMPARTMENTS,
+            "WANING_PROTECTIONS": freeze_params.WANING_PROTECTIONS,
+            "MAX_VAX_COUNT": freeze_params.MAX_VAX_COUNT,
+            "CROSSIMMUNITY_MATRIX": freeze_params.CROSSIMMUNITY_MATRIX,
+            "VAX_EFF_MATRIX": freeze_params.VAX_EFF_MATRIX,
+            "BETA_TIMES": freeze_params.BETA_TIMES,
+            "STRAIN_R0s": freeze_params.STRAIN_R0s,
+            "INFECTIOUS_PERIOD": freeze_params.INFECTIOUS_PERIOD,
+            "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
+            "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
         }
         parameters = self.sample_if_distribution(parameters)
-        # if we are sampling external introductions, we must reload the function
-        self.load_external_i_distributions(parameters["INTRODUCTION_TIMES"])
         beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
         gamma = 1 / parameters["INFECTIOUS_PERIOD"]
         sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]
@@ -155,7 +179,7 @@ class MechanisticInferer(AbstractParameters):
         waning_rates = np.array(
             [
                 1 / waning_time if waning_time > 0 else 0
-                for waning_time in self.config.WANING_TIMES
+                for waning_time in freeze_params.WANING_TIMES
             ]
         )
         # add final parameters, if your model expects added parameters, add them here
@@ -171,10 +195,6 @@ class MechanisticInferer(AbstractParameters):
                 "BETA_COEF": self.beta_coef,
             }
         )
-        # model only expects jax lists, so replace all lists and numpy arrays with lists here.
-        for key, val in parameters.items():
-            if isinstance(val, (np.ndarray, list)):
-                parameters[key] = jnp.array(val)
 
         return parameters
 
