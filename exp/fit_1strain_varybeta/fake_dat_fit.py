@@ -1,6 +1,5 @@
 # %%
 import copy
-import os
 import types
 
 import jax.config
