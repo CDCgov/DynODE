@@ -117,12 +117,11 @@ class MechanisticInferer(AbstractParameters):
         parameters_cpy: a new dictionary with any `numpyro.distribution` objects replaced with jax.tracer samples
         of those distributions from `numpyro.sample`
         """
-        parameters_cpy = {}
+
         for key, param in parameters.items():
             # if distribution, sample and replace
             if issubclass(type(param), Dist.Distribution):
-                sample = numpyro.sample(key, param)
-                parameters_cpy[key] = sample
+                param = numpyro.sample(key, param)
             # if list, check for distributions within and replace them
             elif isinstance(param, (np.ndarray, list)) and any(
                 [
@@ -130,7 +129,7 @@ class MechanisticInferer(AbstractParameters):
                     for param_lst in param
                 ]
             ):
-                lst_with_sample = jnp.array(
+                param = jnp.array(
                     [
                         (
                             numpyro.sample(key + "_" + str(i), param_lst)
@@ -140,11 +139,9 @@ class MechanisticInferer(AbstractParameters):
                         for i, param_lst in enumerate(param)
                     ]
                 )
-                parameters_cpy[key] = lst_with_sample
-            # static param, do nothing
-            else:
-                parameters_cpy[key] = param
-        return parameters_cpy
+            # else static param, do nothing
+            parameters[key] = param
+        return parameters
 
     def get_parameters(self):
         """
@@ -155,6 +152,7 @@ class MechanisticInferer(AbstractParameters):
         or a jax tracer (in the case of a sampled value).
         Converts all list types to jax tracers if values within are sampled.
         """
+        # multiple chains of MCMC calling get_parameters() should not share references, deep copy
         freeze_params = copy.deepcopy(self.config)
         parameters = {
             "CONTACT_MATRIX": freeze_params.CONTACT_MATRIX,
