@@ -1,10 +1,13 @@
 # %%
+import copy
+
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import numpyro
 import numpyro.distributions as Dist
 import pandas as pd
+from tqdm import tqdm
 
 from mechanistic_model.covid_initializer import CovidInitializer
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
@@ -62,9 +65,10 @@ inferer = MechanisticInferer(
     runner,
     initializer.get_initial_state(),
 )
-# %%
-mc1 = inferer.infer(epoch_1_synthetic_hosp_data.to_numpy())
 
+# %%
+# with jax.checking_leaks():
+mc1 = inferer.infer(epoch_1_synthetic_hosp_data.to_numpy())
 
 # %%
 samp = mc1.get_samples(group_by_chain=True)
@@ -92,12 +96,13 @@ print(
 
 
 # %%
-chain_2_intro_time = samp["INTRODUCTION_TIMES_0"][2, :]
-chain_2_ba2_r0 = samp["STRAIN_R0s_2"][2, :]
+samp_flatten = mc1.get_samples(group_by_chain=False)
+sample_intro_times = samp_flatten["INTRODUCTION_TIMES_0"]
+sample_ba2_r0s = samp_flatten["STRAIN_R0s_2"]
 print(
     "PARAMETERS FIXED FOR GENERATING EPOCH 2 INITIAL STATE: "
-    "INTRO_TIME = [%d]   BA2/5 R0: %s"
-    % (np.median(chain_2_intro_time), str(np.median(chain_2_ba2_r0)))
+    "INTRO_TIME = [%s]   BA2/5 R0: %s"
+    % (str(np.median(sample_intro_times)), str(np.median(sample_ba2_r0s)))
 )
 # %%
 # for now we will take the median values fitted and use them to create a final state
@@ -119,7 +124,7 @@ all_final_states = [
     [],
 ]
 # total_pops = [0, 0, 0, 0]
-for intro_time, ba2_r0 in zip(chain_2_intro_time, chain_2_ba2_r0):
+for intro_time, ba2_r0 in tqdm(zip(sample_intro_times, sample_ba2_r0s)):
     median_epoch_1_fitted_params.config.STRAIN_R0s[2] = ba2_r0
     median_epoch_1_fitted_params.config.INTRODUCTION_TIMES[0] = intro_time
     median_epoch_1_fitted_params.load_external_i_distributions(
@@ -182,21 +187,22 @@ class PosteriorInferer(MechanisticInferer):
         Returns a dictionary of {str:obj} where obj may either be a float value,
         or a jax tracer (in the case of a sampled value). Finally converts all list types to jax tracers for inference.
         """
+        freeze_params = copy.deepcopy(self.config)
         parameters = {
-            "CONTACT_MATRIX": self.config.CONTACT_MATRIX,
-            "POPULATION": self.config.POPULATION,
-            "NUM_STRAINS": self.config.NUM_STRAINS,
-            "NUM_AGE_GROUPS": self.config.NUM_AGE_GROUPS,
-            "NUM_WANING_COMPARTMENTS": self.config.NUM_WANING_COMPARTMENTS,
-            "WANING_PROTECTIONS": self.config.WANING_PROTECTIONS,
-            "MAX_VAX_COUNT": self.config.MAX_VAX_COUNT,
-            "CROSSIMMUNITY_MATRIX": self.config.CROSSIMMUNITY_MATRIX,
-            "VAX_EFF_MATRIX": self.config.VAX_EFF_MATRIX,
-            "BETA_TIMES": self.config.BETA_TIMES,
-            "STRAIN_R0s": self.config.STRAIN_R0s,
-            "INFECTIOUS_PERIOD": self.config.INFECTIOUS_PERIOD,
-            "EXPOSED_TO_INFECTIOUS": self.config.EXPOSED_TO_INFECTIOUS,
-            "INTRODUCTION_TIMES": self.config.INTRODUCTION_TIMES,
+            "CONTACT_MATRIX": freeze_params.CONTACT_MATRIX,
+            "POPULATION": freeze_params.POPULATION,
+            "NUM_STRAINS": freeze_params.NUM_STRAINS,
+            "NUM_AGE_GROUPS": freeze_params.NUM_AGE_GROUPS,
+            "NUM_WANING_COMPARTMENTS": freeze_params.NUM_WANING_COMPARTMENTS,
+            "WANING_PROTECTIONS": freeze_params.WANING_PROTECTIONS,
+            "MAX_VAX_COUNT": freeze_params.MAX_VAX_COUNT,
+            "CROSSIMMUNITY_MATRIX": freeze_params.CROSSIMMUNITY_MATRIX,
+            "VAX_EFF_MATRIX": freeze_params.VAX_EFF_MATRIX,
+            "BETA_TIMES": freeze_params.BETA_TIMES,
+            "STRAIN_R0s": freeze_params.STRAIN_R0s,
+            "INFECTIOUS_PERIOD": freeze_params.INFECTIOUS_PERIOD,
+            "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
+            "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
         }
         # we are not using posteriors for the BA2 R0 or the intro time
         with numpyro.plate(
@@ -216,7 +222,7 @@ class PosteriorInferer(MechanisticInferer):
         ]
         parameters = self.sample_if_distribution(parameters)
         # if we are sampling external introductions, we must reload the function
-        self.load_external_i_distributions(parameters["INTRODUCTION_TIMES"])
+        # self.load_external_i_distributions(parameters["INTRODUCTION_TIMES"])
         beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
         gamma = 1 / parameters["INFECTIOUS_PERIOD"]
         sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]

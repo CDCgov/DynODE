@@ -72,6 +72,7 @@ class AbstractParameters:
             self.INITIAL_STATE[self.config.COMPARTMENT_IDX.I].shape
         )
         # default from the config
+        # external_i_distributions = self.config.EXTERNAL_I_DISTRIBUTIONS
         introduction_age_mask = jnp.where(
             jnp.array(self.config.INTRODUCTION_AGE_MASK),
             1,

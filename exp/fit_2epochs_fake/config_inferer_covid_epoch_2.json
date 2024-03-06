@@ -28,11 +28,7 @@
             }
         }
     ],
-    "DROP_CHAINS": [
-        0,
-        1,
-        3
-    ],
+    "DROP_CHAINS": [],
     "DROP_POSTERIOR_PARAMETERS": [
         "STRAIN_R0s_2",
         "INTRODUCTION_TIMES_0"
@@ -110,7 +106,7 @@
         1.0,
         1.0
     ],
-    "INFERENCE_PRNGKEY": 8675309,
+    "INFERENCE_PRNGKEY": 867530900,
     "INFERENCE_NUM_WARMUP": 300,
     "INFERENCE_NUM_SAMPLES": 100,
     "INFERENCE_NUM_CHAINS": 4,

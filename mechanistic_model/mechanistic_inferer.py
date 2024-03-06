@@ -1,3 +1,6 @@
+import copy
+import warnings
+
 import jax.numpy as jnp
 import numpy as np
 import numpyro
@@ -94,6 +97,7 @@ class MechanisticInferer(AbstractParameters):
         -----------
         None
         """
+        # self = copy.deepcopy(self)
         solution = self.runner.run(
             self.INITIAL_STATE, args=self.get_parameters(), tf=len(obs_metrics)
         )
@@ -208,19 +212,19 @@ class MechanisticInferer(AbstractParameters):
         parameters_cpy: a new dictionary with any `numpyro.distribution` objects replaced with jax.tracer samples
         of those distributions from `numpyro.sample`
         """
-
+        parameters_cpy = {}
         for key, param in parameters.items():
             # if distribution, sample and replace
             if issubclass(type(param), Dist.Distribution):
-                param = numpyro.sample(key, param)
-            # if list, check for distributions within and replace them
+                sample = numpyro.sample(key, param)
+                parameters_cpy[key] = sample
             elif isinstance(param, (np.ndarray, list)) and any(
                 [
                     issubclass(type(param_lst), Dist.Distribution)
                     for param_lst in param
                 ]
             ):
-                param = jnp.array(
+                lst_with_sample = jnp.array(
                     [
                         (
                             numpyro.sample(key + "_" + str(i), param_lst)
@@ -230,9 +234,10 @@ class MechanisticInferer(AbstractParameters):
                         for i, param_lst in enumerate(param)
                     ]
                 )
-            # else static param, do nothing
-            parameters[key] = param
-        return parameters
+                parameters_cpy[key] = lst_with_sample
+            else:
+                parameters_cpy[key] = param
+        return parameters_cpy
 
     def get_parameters(self):
         """
@@ -264,6 +269,8 @@ class MechanisticInferer(AbstractParameters):
         # if self.prior_inferer is not None:
         #     parameters = self.sample_from_multivariate_normal(parameters)
         parameters = self.sample_if_distribution(parameters)
+        # if we are sampling external introductions, we must reload the function
+        self.load_external_i_distributions(parameters["INTRODUCTION_TIMES"])
         beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
         gamma = 1 / parameters["INFECTIOUS_PERIOD"]
         sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]
@@ -288,6 +295,10 @@ class MechanisticInferer(AbstractParameters):
                 "BETA_COEF": self.beta_coef,
             }
         )
+        # model only expects jax lists, so replace all lists and numpy arrays with lists here.
+        for key, val in parameters.items():
+            if isinstance(val, (np.ndarray, list)):
+                parameters[key] = jnp.array(val)
 
         return parameters
 

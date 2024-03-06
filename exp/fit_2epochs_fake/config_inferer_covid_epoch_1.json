@@ -9,22 +9,12 @@
         1.2,
         2.4,
         {
-            "distribution": "TransformedDistribution",
+            "distribution": "TruncatedNormal",
             "params": {
-                "base_distribution": {
-                    "distribution": "Beta",
-                    "params": {
-                        "concentration1": 6,
-                        "concentration0": 4
-                    }
-                },
-                "transforms": {
-                    "transform": "AffineTransform",
-                    "params": {
-                        "loc": 2.0,
-                        "scale": 1
-                    }
-                }
+                "loc": 2.5,
+                "scale": 1,
+                "low": 1,
+                "high": 3.3
             }
         }
     ],
@@ -103,7 +93,7 @@
     "INFERENCE_PRNGKEY": 8675309,
     "INFERENCE_NUM_WARMUP": 300,
     "INFERENCE_NUM_SAMPLES": 100,
-    "INFERENCE_NUM_CHAINS": 1,
+    "INFERENCE_NUM_CHAINS": 4,
     "INFERENCE_PROGRESS_BAR": true,
     "MODEL_RAND_SEED": 8675309
 }

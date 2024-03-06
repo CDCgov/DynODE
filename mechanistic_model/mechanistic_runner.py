@@ -42,7 +42,6 @@ class MechanisticRunner:
             if "BETA_TIMES" in args.keys()
             else ConstantStepSize()
         )
-        stepsize_controller = ConstantStepSize()
 
         solution = diffeqsolve(
             term,
@@ -57,4 +56,5 @@ class MechanisticRunner:
             # higher for large time scales / rapid changes
             max_steps=int(1e6),
         )
+        # self.solution = solution
         return solution

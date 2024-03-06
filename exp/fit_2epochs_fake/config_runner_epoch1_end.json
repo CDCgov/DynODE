@@ -8,13 +8,13 @@
     "STRAIN_R0s": [
         1.2,
         2.4,
-        2.99
+        2.88
     ],
     "INFECTIOUS_PERIOD": 7.0,
     "EXPOSED_TO_INFECTIOUS": 3.6,
     "INITIAL_INFECTIONS_SCALE": 1.0,
     "INTRODUCTION_TIMES": [
-        74
+        12
     ],
     "INTRODUCTION_PERCENTAGE": 0.05,
     "INTRODUCTION_SCALE": 12.0,
