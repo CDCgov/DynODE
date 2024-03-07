@@ -87,17 +87,7 @@ class MechanisticInferer(AbstractParameters):
         under a set of parameter distributions sampled by self.inference_algo.
 
         Currently expects hospitalization data and samples IHR using a negative binomial distribution.
-
-        Parameters
-        -----------
-        obs_metrics: jnp.ndarray
-            the observed metrics on which likelihood is calculated. Usually synthetic or empirical data.
-
-        Returns
-        -----------
-        None
         """
-        # self = copy.deepcopy(self)
         solution = self.runner.run(
             self.INITIAL_STATE, args=self.get_parameters(), tf=len(obs_metrics)
         )
