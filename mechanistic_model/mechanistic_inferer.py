@@ -259,8 +259,6 @@ class MechanisticInferer(AbstractParameters):
         # if self.prior_inferer is not None:
         #     parameters = self.sample_from_multivariate_normal(parameters)
         parameters = self.sample_if_distribution(parameters)
-        # if we are sampling external introductions, we must reload the function
-        self.load_external_i_distributions(parameters["INTRODUCTION_TIMES"])
         beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
         gamma = 1 / parameters["INFECTIOUS_PERIOD"]
         sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]

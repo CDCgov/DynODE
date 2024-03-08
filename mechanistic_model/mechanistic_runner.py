@@ -42,7 +42,6 @@ class MechanisticRunner:
             if "BETA_TIMES" in args.keys()
             else ConstantStepSize()
         )
-        stepsize_controller = ConstantStepSize()
 
         solution = diffeqsolve(
             term,

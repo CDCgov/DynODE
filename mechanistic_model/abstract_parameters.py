@@ -48,6 +48,7 @@ class AbstractParameters:
             interacting with susceptibles within the system, used to impact force of infection.
         """
 
+        # define a function that returns 0 for non-introduced strains
         def zero_function(_):
             return 0
 
@@ -67,12 +68,11 @@ class AbstractParameters:
             external_i_distributions[dist_idx] = partial(
                 pdf, loc=introduced_time, scale=self.config.INTRODUCTION_SCALE
             )
+        # with our external_i_distributions set up, now we can execute them on `t`
         # set up our return value
         external_i_compartment = jnp.zeros(
             self.INITIAL_STATE[self.config.COMPARTMENT_IDX.I].shape
         )
-        # default from the config
-        # external_i_distributions = self.config.EXTERNAL_I_DISTRIBUTIONS
         introduction_age_mask = jnp.where(
             jnp.array(self.config.INTRODUCTION_AGE_MASK),
             1,
