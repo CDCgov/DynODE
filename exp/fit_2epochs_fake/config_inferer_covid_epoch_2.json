@@ -7,24 +7,14 @@
     "VAX_MODEL_NUM_KNOTS": 18,
     "STRAIN_R0s": [
         2.4,
-        2.99,
+        2.7,
         {
-            "distribution": "TransformedDistribution",
+            "distribution": "TruncatedNormal",
             "params": {
-                "base_distribution": {
-                    "distribution": "Beta",
-                    "params": {
-                        "concentration1": 6,
-                        "concentration0": 4
-                    }
-                },
-                "transforms": {
-                    "transform": "AffineTransform",
-                    "params": {
-                        "loc": 2.0,
-                        "scale": 1
-                    }
-                }
+                "loc": 2.3,
+                "scale": 1,
+                "low": 1,
+                "high": 3.0
             }
         }
     ],
@@ -47,8 +37,8 @@
             }
         }
     ],
-    "INTRODUCTION_PERCENTAGE": 0.01,
-    "INTRODUCTION_SCALE": 10,
+    "INTRODUCTION_PERCENTAGE": 0.05,
+    "INTRODUCTION_SCALE": 12,
     "INTRODUCTION_AGE_MASK": [
         false,
         true,

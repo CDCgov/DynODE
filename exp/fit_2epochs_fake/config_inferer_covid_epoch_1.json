@@ -31,8 +31,8 @@
             }
         }
     ],
-    "INTRODUCTION_PERCENTAGE": 0.01,
-    "INTRODUCTION_SCALE": 10,
+    "INTRODUCTION_PERCENTAGE": 0.05,
+    "INTRODUCTION_SCALE": 12,
     "INTRODUCTION_AGE_MASK": [
         false,
         true,

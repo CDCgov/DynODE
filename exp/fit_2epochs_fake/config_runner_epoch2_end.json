@@ -6,16 +6,17 @@
     "VAX_MODEL_DATA": "data/spline_fits.csv",
     "VAX_MODEL_NUM_KNOTS": 18,
     "STRAIN_R0s": [
-        1.2,
         2.4,
-        2.7
+        2.7,
+        2.55
     ],
     "INFECTIOUS_PERIOD": 7.0,
     "EXPOSED_TO_INFECTIOUS": 3.6,
     "INITIAL_INFECTIONS_SCALE": 1.0,
     "INTRODUCTION_TIMES": [
-        70
+        32
     ],
+    "VAX_MODEL_DAYS_SHIFT": 240,
     "INTRODUCTION_PERCENTAGE": 0.05,
     "INTRODUCTION_SCALE": 12.0,
     "INTRODUCTION_AGE_MASK": [
@@ -51,11 +52,6 @@
     "VAX_EFF_MATRIX": [
         [
             0,
-            0.29,
-            0.58
-        ],
-        [
-            0,
             0.24,
             0.48
         ],
@@ -63,6 +59,11 @@
             0,
             0.19,
             0.38
+        ],
+        [
+            0,
+            0.14,
+            0.28
         ]
     ],
     "BETA_TIMES": [

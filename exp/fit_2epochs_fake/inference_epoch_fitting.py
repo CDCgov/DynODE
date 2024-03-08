@@ -1,6 +1,7 @@
 # %%
 import copy
 
+import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,9 +10,11 @@ import numpyro.distributions as Dist
 import pandas as pd
 from tqdm import tqdm
 
+import utils
 from mechanistic_model.covid_initializer import CovidInitializer
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
 from mechanistic_model.mechanistic_runner import MechanisticRunner
+from mechanistic_model.solution_iterpreter import SolutionInterpreter
 from mechanistic_model.static_value_parameters import StaticValueParameters
 from model_odes.seip_model import seip_ode
 
@@ -115,6 +118,21 @@ median_epoch_1_fitted_params = StaticValueParameters(
     MEDIAN_EPOCH_1_STATIC_PARAMS_PATH,
     GLOBAL_EPOCH1_CONFIG_PATH,
 )
+median_epoch1_solution = runner.run(
+    median_epoch_1_fitted_params.INITIAL_STATE,
+    median_epoch_1_fitted_params.get_parameters(),
+    tf=len(epoch_1_synthetic_hosp_data),
+)
+
+interpreter = SolutionInterpreter(
+    median_epoch1_solution,
+    GLOBAL_EPOCH1_CONFIG_PATH,
+    GLOBAL_EPOCH1_CONFIG_PATH,
+)
+interpreter.summarize_solution()
+# %%
+# now we get an average final state by running all sampled parameters
+# as static parameters and averaging the final state of each.
 s_shape = median_epoch_1_fitted_params.INITIAL_STATE[0].shape
 rest_shape = median_epoch_1_fitted_params.INITIAL_STATE[1].shape
 all_final_states = [
@@ -124,15 +142,15 @@ all_final_states = [
     [],
 ]
 # total_pops = [0, 0, 0, 0]
-for intro_time, ba2_r0 in tqdm(zip(sample_intro_times, sample_ba2_r0s)):
+for intro_time, ba2_r0 in tqdm(
+    zip(sample_intro_times, sample_ba2_r0s), total=len(sample_intro_times)
+):
     median_epoch_1_fitted_params.config.STRAIN_R0s[2] = ba2_r0
     median_epoch_1_fitted_params.config.INTRODUCTION_TIMES[0] = intro_time
-    median_epoch_1_fitted_params.load_external_i_distributions(
-        median_epoch_1_fitted_params.config.INTRODUCTION_TIMES
-    )
     run_with_fitted_params_epoch_1 = runner.run(
         median_epoch_1_fitted_params.INITIAL_STATE,
         median_epoch_1_fitted_params.get_parameters(),
+        tf=len(epoch_1_synthetic_hosp_data),
     )
     for i, compartment in enumerate(run_with_fitted_params_epoch_1.ys):
         # timestep is first dimension, so we selecting compartment at t=-1
@@ -141,13 +159,37 @@ for intro_time, ba2_r0 in tqdm(zip(sample_intro_times, sample_ba2_r0s)):
         # add a rolling sum to the average_final_state variable
         all_final_states[i].append(last_time_step)
         # total_pops[i] += np.sum(last_time_step)
-# %%
 average_final_state = [
     np.mean(compartment, axis=0) for compartment in all_final_states
 ]
+# %%
+# now we need to move people around by collapsing strains for the next epoch
+average_final_state = tuple(average_final_state)
+average_final_state_combined = []
+for idx, compartment in enumerate(average_final_state):
+    # if susceptible compartment, no strain axis,set strain_axis=False
+    strain_axis = idx != 0
+    state_mapping, strain_mapping = utils.combined_strains_mapping(1, 0, 3)
+    compartment_collapsed = utils.combine_strains(
+        compartment,
+        state_mapping=state_mapping,
+        strain_mapping=strain_mapping,
+        num_strains=3,
+        state_dim=1,  # start from 0, 2nd dim = 1
+        strain_dim=3,  # start from 0, 4th dim = 3
+        strain_axis=strain_axis,
+    )
+    average_final_state_combined.append(compartment_collapsed)
+
+# %% testing to ensure population did not actually change, people just moved around
 print("Total Pop of the new average final state")
 print(
-    np.sum([np.sum(compartment) for compartment in average_final_state[:-1]])
+    np.sum(
+        [
+            np.sum(compartment)
+            for compartment in average_final_state_combined[:-1]
+        ]
+    )
 )
 print("Total Pop of the initial state of the sim, should be unchanged")
 print(
@@ -159,9 +201,8 @@ print(
     )
 )
 
-# %%
 
-
+# %% creating dummy class to do posterior inference of ihrs
 class PosteriorInferer(MechanisticInferer):
     def __init__(
         self,
@@ -221,6 +262,9 @@ class PosteriorInferer(MechanisticInferer):
             for i in range(len(self.prior_inferer_param_names))
         ]
         parameters = self.sample_if_distribution(parameters)
+        jax.debug.print("Strain R0 {x}", x=parameters["STRAIN_R0s"][2])
+        jax.debug.print("ihrs {x}", x=multi_samples)
+        jax.debug.print("Intro Time: {x}", x=parameters["INTRODUCTION_TIMES"])
         # if we are sampling external introductions, we must reload the function
         # self.load_external_i_distributions(parameters["INTRODUCTION_TIMES"])
         beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
@@ -279,21 +323,117 @@ class PosteriorInferer(MechanisticInferer):
         )
 
 
-# %%
-# Basically the same but with some minor changes to how sampling is done
 inferer2 = PosteriorInferer(
     GLOBAL_EPOCH2_CONFIG_PATH,
     INFERER_EPOCH2_PATH,
     runner,
-    tuple(average_final_state),
+    tuple(average_final_state_combined),
     prior_inferer=mc1,
 )
 print(inferer2.cholesky_triangle_matrix)
 print(inferer2.prior_inferer_particle_means)
 
+# %% run epoch 2 inference to fit on xbb
+mc2 = inferer2.infer(epoch_2_synthetic_hosp_data.to_numpy())
+mc2.print_summary(exclude_deterministic=False)
+
+# %% plot the fitting by chain for the second epoch
+samp2 = mc2.get_samples(group_by_chain=True)
+fig, axs = plt.subplots(2, 2)
+axs[0, 0].set_title("Intro Time XBB")
+axs[0, 0].plot(np.transpose(samp2["INTRODUCTION_TIMES_0"]))
+axs[0, 1].set_title("XBB R0")
+axs[0, 1].plot(np.transpose(samp2["STRAIN_R0s_2"]))
+axs[1, 0].set_title(" ihr-50-64")
+axs[1, 0].plot(np.transpose(mc2._states["z"]["ihr_2"]))
+axs[1, 1].set_title("ihr-65+")
+axs[1, 1].plot(np.transpose(mc2._states["z"]["ihr_3"]), label=range(0, 4))
+# axs[2, 0].set_title("k")
+# axs[2, 0].plot(np.transpose(samp["k"]))
+fig.legend()
+plt.show()
+# %% run using epoch 2 median parameters
+MEDIAN_EPOCH_2_STATIC_PARAMS_PATH = (
+    EXP_ROOT_PATH + "config_runner_epoch2_end.json"
+)
+median_epoch_2_fitted_params = StaticValueParameters(
+    tuple(average_final_state_combined),
+    MEDIAN_EPOCH_2_STATIC_PARAMS_PATH,
+    GLOBAL_EPOCH2_CONFIG_PATH,
+)
+print(median_epoch_2_fitted_params.config.STRAIN_R0s)
+median_epoch2_solution = runner.run(
+    median_epoch_2_fitted_params.INITIAL_STATE,
+    median_epoch_2_fitted_params.get_parameters(),
+    tf=len(epoch_2_synthetic_hosp_data),
+)
+# %% combine the median runs of both epochs for a final timeline
+
+combined_epochs = utils.combine_epochs(
+    [median_epoch1_solution.ys, median_epoch2_solution.ys],
+    from_strains=["omicron"],
+    to_strains=["delta"],
+    strain_idxs=[
+        median_epoch_1_fitted_params.config.STRAIN_IDX,
+        median_epoch_2_fitted_params.config.STRAIN_IDX,
+    ],
+    num_tracked_strains=3,
+)
+
+
 # %%
-print(np.sum(inferer.vaccination_rate(0)))
-print(np.sum(inferer2.vaccination_rate(0)))
+class spoof_solution_class:
+    def __init__(self, solys):
+        self.ys = solys
+
+
+interpreter.solution = spoof_solution_class(combined_epochs)
+interpreter.STRAIN_IDX = median_epoch_2_fitted_params.config.STRAIN_IDX
+fig, ax = interpreter.summarize_solution()
+# %%
+ihr_epoch_1_median = np.median(
+    mc1.get_samples(group_by_chain=False)["ihr"], axis=0
+)
+ihr_epoch_2_median = np.median(
+    np.array([mc2._states["z"]["ihr_" + str(i)] for i in range(4)]),
+    axis=(1, 2),
+)
+print(ihr_epoch_1_median)
+print(ihr_epoch_2_median)
+for i, (solution, ihrs, hosp) in enumerate(
+    zip(
+        [median_epoch1_solution, median_epoch2_solution],
+        [ihr_epoch_1_median, ihr_epoch_2_median],
+        [epoch_1_synthetic_hosp_data, epoch_2_synthetic_hosp_data],
+    )
+):
+    model_incidence = jnp.sum(solution.ys[3], axis=(2, 3, 4))
+    model_incidence = jnp.diff(model_incidence, axis=0)
+    model_incidence = model_incidence * ihrs
+    print(model_incidence.shape)
+    print(hosp.shape)
+    fig, ax = plt.subplots(1)
+    ax.plot(
+        list(range(len(model_incidence))),
+        model_incidence,
+        label=["0-17-infer", "18-49-infer", "50-64-infer", "65+-infer"],
+    )
+    ax.plot(
+        list(range(len(model_incidence))),
+        hosp,
+        label=["0-17-truth", "18-49-truth", "50-64-truth", "65+-truth"],
+    )
+    fig.legend()
+    # ax.set_title("model vs obs data epoch 1")
+    ax.set_title("model vs obs data epoch " + str(i))
+    plt.show()
+# %%
+print(np.sum(inferer2.external_i(0, [30])))
+print(np.sum(inferer2.external_i(2, [30])))
+print(np.sum(inferer2.external_i(4, [30])))
+print(np.sum(inferer2.external_i(30, [30])))
+
+# %%
 problems = """
                              Problems Faced
 1) the global config specified 4 strains instead of 3,
@@ -301,13 +441,7 @@ should be fine because this was needed to create the synthetic data
 
 2) have to re-add the delay on the vax model when infer multiple epochs with the same vax function
 
+3) have to remember that the average compartment must be generated by running the runner for the same number of days as was inferred.
+
+4) dont forget to actually transition the strains when you calculate the average final state, gotta zero out the last index again.
 """
-# %%
-print(inferer2.prior_inferer_param_names)
-
-# %%
-mc2 = inferer2.infer(epoch_2_synthetic_hosp_data.to_numpy())
-
-# %%
-mc2.print_summary(exclude_deterministic=False)
-# %%
