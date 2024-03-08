@@ -95,6 +95,8 @@ class AbstractParameters:
         Given some time t, returns a jnp.array of shape (self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)
         representing the age / vax history stratified vaccination rates for an additional vaccine. Used by transmission models
         to determine vaccination rates at a particular time step.
+        In the cases that your model's definition of t=0 is later the vaccination spline's definition of t=0
+        use the `VAX_MODEL_DAYS_SHIFT` config parameter to shift the vaccination spline's t=0 right.
 
         MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t. If you want a piecewise implementation of vax rates must declare jump points
         in the MCMC object.

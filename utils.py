@@ -748,12 +748,10 @@ def drop_sample_chains(samples: dict, dropped_chain_vals: list):
     """
     # Create a new dictionary to store the filtered samples
     filtered_dict = {}
-
     # Iterate over the keys (parameter names) in the original dictionary
     for param_name in samples.keys():
         # Get the samples for the current parameter
         param_samples = samples[param_name]
-
         # Remove the specified chains from the samples
         filtered_samples = np.array(
             [
@@ -762,7 +760,6 @@ def drop_sample_chains(samples: dict, dropped_chain_vals: list):
                 if i not in dropped_chain_vals
             ]
         )
-
         # Add the filtered samples to the new dictionary
         filtered_dict[param_name] = filtered_samples
 
@@ -1654,6 +1651,9 @@ def plot_sample_chains(samples):
     plots each parameter along with each chain of that parameter,
     also returns `plt.fig` and `plt.axs` objects for modification.
     """
+    # ensure samples are all NxM before plotting
+    if any([samples[key].ndim == 3 for key in samples.keys()]):
+        samples = flatten_list_parameters(samples)
     # we want ceil(n/2) rows and 2 columns
     fig, axs = plt.subplots(int(len(samples.keys()) + 1) / 2, 2)
     for i, parameter in enumerate(samples.keys()):

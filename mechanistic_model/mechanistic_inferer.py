@@ -35,7 +35,6 @@ class MechanisticInferer(AbstractParameters):
         self.config = Config(global_json).add_file(distributions_json)
         self.runner = runner
         self.INITIAL_STATE = initial_state
-        self.set_posteriors_if_exist(prior_inferer)
         self.set_infer_algo(prior_inferer=prior_inferer)
         self.retrieve_population_counts()
         self.load_cross_immunity_matrix()
@@ -80,6 +79,7 @@ class MechanisticInferer(AbstractParameters):
                 assert isinstance(
                     prior_inferer, MCMC
                 ), "the previous inferer is not of the same type."
+                self.set_posteriors_if_exist(prior_inferer)
 
     def likelihood(self, obs_metrics):
         """
@@ -114,14 +114,40 @@ class MechanisticInferer(AbstractParameters):
             obs=obs_metrics,
         )
 
-    def set_posteriors_if_exist(
-        self, prior_inferer: MCMC, posterior_transforms={}
-    ):
+    def set_posteriors_if_exist(self, prior_inferer: MCMC):
         """
-        Given a prior_inferer object look at its samples, check to make sure that
+        Given a `prior_inferer` object look at its samples, check to make sure that
         each parameter sampled has converging chains, then calculate the mean of
         each of the parameters samples, as well as the covariance between all of the parameter
-        posterior distributions. These posteriors will be used as priors in the current run.
+        posterior distributions.
+
+        To exclude certain chains from use in posteriors use `DROP_CHAINS`
+        config argument as a list of chain indexes.
+
+        To exclude certain parameters from use in posteriors because you are not
+        sampling them this epoch, use the `DROP_POSTERIOR_PARAMETERS` config argument
+        as a list of sample names as they appear in `prior_inferer.print_summary()`
+
+        Parameters
+        -----------
+        prior_inferer: MCMC
+            the inferer algorithm used in the previous epoch, or None.
+
+        Updates
+        -----------
+        self.prior_inferer_particle_means : `np.ndarray`
+            non-dropped parameter means across all non-dropped chains
+        self.prior_inferer_particle_cov : `np.ndarray`
+            non-dropped parameters covariance across all non-dropped chains
+        self.prior_inferer_param_names : `list[str]`
+            non-dropped parameter names
+        self.cholesky_triangle_matrix : `jnp.ndarray`
+            a cholesky bottom triangle matrix for each non-dropped parameter.
+            Used in cholesky decomposition of a multivariate normal distribution
+
+        Returns
+        -----------
+        None
         """
         if prior_inferer is not None:
             # get all the samples from each chain run in previous inference
@@ -187,7 +213,7 @@ class MechanisticInferer(AbstractParameters):
         """
         given a dictionary of keys and parameters, searches through all keys
         and samples the distribution associated with that key, if it exists.
-        Otherwise returns the constant value associated with that key.
+        Otherwise keeps the value associated with that key.
         Converts lists with distributions inside to `jnp.ndarray`
 
         Parameters
@@ -199,22 +225,21 @@ class MechanisticInferer(AbstractParameters):
 
         Returns
         ----------
-        parameters_cpy: a new dictionary with any `numpyro.distribution` objects replaced with jax.tracer samples
+        parameters dictionary with any `numpyro.distribution` objects replaced with jax.tracer samples
         of those distributions from `numpyro.sample`
         """
-        parameters_cpy = {}
         for key, param in parameters.items():
             # if distribution, sample and replace
             if issubclass(type(param), Dist.Distribution):
-                sample = numpyro.sample(key, param)
-                parameters_cpy[key] = sample
+                param = numpyro.sample(key, param)
+            # if list, check for distributions within and replace them
             elif isinstance(param, (np.ndarray, list)) and any(
                 [
                     issubclass(type(param_lst), Dist.Distribution)
                     for param_lst in param
                 ]
             ):
-                lst_with_sample = jnp.array(
+                param = jnp.array(
                     [
                         (
                             numpyro.sample(key + "_" + str(i), param_lst)
@@ -224,19 +249,21 @@ class MechanisticInferer(AbstractParameters):
                         for i, param_lst in enumerate(param)
                     ]
                 )
-                parameters_cpy[key] = lst_with_sample
-            else:
-                parameters_cpy[key] = param
-        return parameters_cpy
+            # else static param, do nothing
+            parameters[key] = param
+        return parameters
 
     def get_parameters(self):
         """
         Goes through the parameters passed to the inferer, if they are distributions, it samples them.
         Otherwise it returns their raw values.
 
-        Returns a dictionary of {str:obj} where obj may either be a float value,
-        or a jax tracer (in the case of a sampled value).
-        Converts all list types to jax tracers if values within are sampled.
+        Converts all list types with sampled values to jax tracers.
+
+        Returns
+        -----------
+        dict{str:obj} where obj may either be a float value,
+        or a jax tracer, in the case of a sampled value or list containing sampled values.
         """
         # multiple chains of MCMC calling get_parameters() should not share references, deep copy
         freeze_params = copy.deepcopy(self.config)
@@ -256,14 +283,13 @@ class MechanisticInferer(AbstractParameters):
             "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
             "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
         }
-        # if self.prior_inferer is not None:
-        #     parameters = self.sample_from_multivariate_normal(parameters)
         parameters = self.sample_if_distribution(parameters)
+        # create parameters based on other possibly sampled parameters
         beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
         gamma = 1 / parameters["INFECTIOUS_PERIOD"]
         sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]
-        # since our last waning time is zero to account for last compartment never waning
-        # we include an if else statement to catch a division by zero error here.
+        # last waning time is zero since last compartment does not wane
+        # catch a division by zero error here.
         waning_rates = np.array(
             [
                 1 / waning_time if waning_time > 0 else 0
@@ -283,10 +309,6 @@ class MechanisticInferer(AbstractParameters):
                 "BETA_COEF": self.beta_coef,
             }
         )
-        # model only expects jax lists, so replace all lists and numpy arrays with lists here.
-        for key, val in parameters.items():
-            if isinstance(val, (np.ndarray, list)):
-                parameters[key] = jnp.array(val)
 
         return parameters
 

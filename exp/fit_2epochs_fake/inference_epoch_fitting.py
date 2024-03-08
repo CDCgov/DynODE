@@ -1,7 +1,8 @@
 # %%
+# import os
+# os.chdir("../../") # you may need this when running this file
 import copy
 
-import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
@@ -69,11 +70,10 @@ inferer = MechanisticInferer(
     initializer.get_initial_state(),
 )
 
-# %%
-# with jax.checking_leaks():
+# %% run inferer on first epoch
 mc1 = inferer.infer(epoch_1_synthetic_hosp_data.to_numpy())
 
-# %%
+# %% plot each chain for certain parameters, look for diverging chains
 samp = mc1.get_samples(group_by_chain=True)
 fig, axs = plt.subplots(2, 2)
 axs[0, 0].set_title("Intro Time")
@@ -84,21 +84,14 @@ axs[1, 0].set_title("ihr-50-64")
 axs[1, 0].plot(np.transpose(samp["ihr"][:, :, 2]))
 axs[1, 1].set_title("ihr-65+")
 axs[1, 1].plot(np.transpose(samp["ihr"][:, :, 3]), label=range(0, 4))
-# axs[2, 0].set_title("k")
-# axs[2, 0].plot(np.transpose(samp["k"]))
 fig.legend()
 plt.show()
 print(
     "lets look for any clearly diverging chains, see if we need to drop anything"
 )
-print(
-    """Something super interesting here, the fake data is generated with Poisson distribution,
-      while we sample incidence via negative binomial. As K gets larger NB approaches poisson,
-      this is why chain 2 is divergent but actually more correct!"""
-)
 
 
-# %%
+# %% calculate median parameters to put into runner
 samp_flatten = mc1.get_samples(group_by_chain=False)
 sample_intro_times = samp_flatten["INTRODUCTION_TIMES_0"]
 sample_ba2_r0s = samp_flatten["STRAIN_R0s_2"]
@@ -107,9 +100,7 @@ print(
     "INTRO_TIME = [%s]   BA2/5 R0: %s"
     % (str(np.median(sample_intro_times)), str(np.median(sample_ba2_r0s)))
 )
-# %%
-# for now we will take the median values fitted and use them to create a final state
-# see config_runner_epoch1_end.json to see the medians
+# %% use median values fitted to create a timeline
 MEDIAN_EPOCH_1_STATIC_PARAMS_PATH = (
     EXP_ROOT_PATH + "config_runner_epoch1_end.json"
 )
@@ -130,18 +121,15 @@ interpreter = SolutionInterpreter(
     GLOBAL_EPOCH1_CONFIG_PATH,
 )
 interpreter.summarize_solution()
-# %%
-# now we get an average final state by running all sampled parameters
+# %% get an average final state by running all sampled parameters
 # as static parameters and averaging the final state of each.
-s_shape = median_epoch_1_fitted_params.INITIAL_STATE[0].shape
-rest_shape = median_epoch_1_fitted_params.INITIAL_STATE[1].shape
+# big list of final states for each compartment
 all_final_states = [
     [],
     [],
     [],
     [],
 ]
-# total_pops = [0, 0, 0, 0]
 for intro_time, ba2_r0 in tqdm(
     zip(sample_intro_times, sample_ba2_r0s), total=len(sample_intro_times)
 ):
@@ -162,8 +150,7 @@ for intro_time, ba2_r0 in tqdm(
 average_final_state = [
     np.mean(compartment, axis=0) for compartment in all_final_states
 ]
-# %%
-# now we need to move people around by collapsing strains for the next epoch
+# %% move people around by collapsing strains for the next epoch
 average_final_state = tuple(average_final_state)
 average_final_state_combined = []
 for idx, compartment in enumerate(average_final_state):
@@ -175,8 +162,8 @@ for idx, compartment in enumerate(average_final_state):
         state_mapping=state_mapping,
         strain_mapping=strain_mapping,
         num_strains=3,
-        state_dim=1,  # start from 0, 2nd dim = 1
-        strain_dim=3,  # start from 0, 4th dim = 3
+        state_dim=1,
+        strain_dim=3,
         strain_axis=strain_axis,
     )
     average_final_state_combined.append(compartment_collapsed)
@@ -245,28 +232,27 @@ class PosteriorInferer(MechanisticInferer):
             "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
             "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
         }
-        # we are not using posteriors for the BA2 R0 or the intro time
+        # here we use posteriors stored in `self.cholesky_triangle_matrix`
+        # to decompose a multivariate normal into separate sample calls
+        # it is fair to assume this is the same as a sample from a single MVN
         with numpyro.plate(
             "num_parameters", len(self.prior_inferer_param_names)
         ):
             u = numpyro.sample("us", Dist.Normal(0, 1))
-        multi_samples = [
-            numpyro.deterministic(
-                self.prior_inferer_param_names[i],
-                self.prior_inferer_particle_means[i]
-                + sum(
-                    self.cholesky_triangle_matrix[i, j] * u[j]
-                    for j in range(i + 1)
-                ),
-            )
-            for i in range(len(self.prior_inferer_param_names))
-        ]
+        multi_samples = jnp.array(
+            [
+                numpyro.deterministic(
+                    self.prior_inferer_param_names[i],
+                    self.prior_inferer_particle_means[i]
+                    + sum(
+                        self.cholesky_triangle_matrix[i, j] * u[j]
+                        for j in range(i + 1)
+                    ),
+                )
+                for i in range(len(self.prior_inferer_param_names))
+            ]
+        )
         parameters = self.sample_if_distribution(parameters)
-        jax.debug.print("Strain R0 {x}", x=parameters["STRAIN_R0s"][2])
-        jax.debug.print("ihrs {x}", x=multi_samples)
-        jax.debug.print("Intro Time: {x}", x=parameters["INTRODUCTION_TIMES"])
-        # if we are sampling external introductions, we must reload the function
-        # self.load_external_i_distributions(parameters["INTRODUCTION_TIMES"])
         beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
         gamma = 1 / parameters["INFECTIOUS_PERIOD"]
         sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]
@@ -292,11 +278,6 @@ class PosteriorInferer(MechanisticInferer):
                 "ihr": multi_samples[:4],
             }
         )
-        # model only expects jax lists, so replace all lists and numpy arrays with lists here.
-        for key, val in parameters.items():
-            if isinstance(val, (np.ndarray, list)):
-                parameters[key] = jnp.array(val)
-
         return parameters
 
     def likelihood(self, obs_metrics):
@@ -316,6 +297,7 @@ class PosteriorInferer(MechanisticInferer):
         )
         # axis = 0 because we take diff across time
         model_incidence = jnp.diff(model_incidence, axis=0)
+        # use parameters["ihr"] since ihr is sampled from posteriors now.
         numpyro.sample(
             "incidence",
             Dist.Poisson(model_incidence * parameters["ihr"]),
@@ -330,9 +312,6 @@ inferer2 = PosteriorInferer(
     tuple(average_final_state_combined),
     prior_inferer=mc1,
 )
-print(inferer2.cholesky_triangle_matrix)
-print(inferer2.prior_inferer_particle_means)
-
 # %% run epoch 2 inference to fit on xbb
 mc2 = inferer2.infer(epoch_2_synthetic_hosp_data.to_numpy())
 mc2.print_summary(exclude_deterministic=False)
@@ -348,8 +327,6 @@ axs[1, 0].set_title(" ihr-50-64")
 axs[1, 0].plot(np.transpose(mc2._states["z"]["ihr_2"]))
 axs[1, 1].set_title("ihr-65+")
 axs[1, 1].plot(np.transpose(mc2._states["z"]["ihr_3"]), label=range(0, 4))
-# axs[2, 0].set_title("k")
-# axs[2, 0].plot(np.transpose(samp["k"]))
 fig.legend()
 plt.show()
 # %% run using epoch 2 median parameters
@@ -361,12 +338,17 @@ median_epoch_2_fitted_params = StaticValueParameters(
     MEDIAN_EPOCH_2_STATIC_PARAMS_PATH,
     GLOBAL_EPOCH2_CONFIG_PATH,
 )
-print(median_epoch_2_fitted_params.config.STRAIN_R0s)
 median_epoch2_solution = runner.run(
     median_epoch_2_fitted_params.INITIAL_STATE,
     median_epoch_2_fitted_params.get_parameters(),
     tf=len(epoch_2_synthetic_hosp_data),
 )
+median_epoch2_interpreter = SolutionInterpreter(
+    median_epoch2_solution,
+    GLOBAL_EPOCH2_CONFIG_PATH,
+    GLOBAL_EPOCH2_CONFIG_PATH,
+)
+median_epoch2_interpreter.summarize_solution()
 # %% combine the median runs of both epochs for a final timeline
 
 combined_epochs = utils.combine_epochs(
@@ -381,7 +363,7 @@ combined_epochs = utils.combine_epochs(
 )
 
 
-# %%
+# %% summarize a combined solution to see how it looks
 class spoof_solution_class:
     def __init__(self, solys):
         self.ys = solys
@@ -390,7 +372,7 @@ class spoof_solution_class:
 interpreter.solution = spoof_solution_class(combined_epochs)
 interpreter.STRAIN_IDX = median_epoch_2_fitted_params.config.STRAIN_IDX
 fig, ax = interpreter.summarize_solution()
-# %%
+# %% plot hosp curves for each epoch compared to synthetic "truth" data
 ihr_epoch_1_median = np.median(
     mc1.get_samples(group_by_chain=False)["ihr"], axis=0
 )
@@ -427,21 +409,16 @@ for i, (solution, ihrs, hosp) in enumerate(
     # ax.set_title("model vs obs data epoch 1")
     ax.set_title("model vs obs data epoch " + str(i))
     plt.show()
-# %%
-print(np.sum(inferer2.external_i(0, [30])))
-print(np.sum(inferer2.external_i(2, [30])))
-print(np.sum(inferer2.external_i(4, [30])))
-print(np.sum(inferer2.external_i(30, [30])))
 
-# %%
+# %% book keeping cell about problems faced during the experiment
 problems = """
                              Problems Faced
 1) the global config specified 4 strains instead of 3,
 should be fine because this was needed to create the synthetic data
 
-2) have to re-add the delay on the vax model when infer multiple epochs with the same vax function
-
 3) have to remember that the average compartment must be generated by running the runner for the same number of days as was inferred.
 
 4) dont forget to actually transition the strains when you calculate the average final state, gotta zero out the last index again.
+
+5) had to override get_parameters() and likelihood to use posterios
 """
