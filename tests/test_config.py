@@ -102,6 +102,29 @@ def test_negative_initial_infections():
         Config(input_json)
 
 
+def test_negative_tree_depth():
+    input_json = """{"MAX_TREE_DEPTH": -1}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_zero_tree_depth():
+    input_json = """{"MAX_TREE_DEPTH": 0}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_float_tree_depth():
+    input_json = """{"MAX_TREE_DEPTH": 1.2}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_valid_tree_depth():
+    input_json = """{"MAX_TREE_DEPTH": 10}"""
+    assert Config(input_json).MAX_TREE_DEPTH == 10
+
+
 def test_str_initial_infections():
     input_json = """{"INITIAL_INFECTIONS": "5"}"""
     with pytest.raises(AssertionError):
