@@ -10,7 +10,8 @@ theme_update(text = element_text(family = "Open Sans"))
 # if this line fails download the data and place it in the data folder.
 dat_csv <- file.path(
   "data",
-  "COVID-19_Reported_Patient_Impact_and_Hospital_Capacity_by_State_Timeseries_20240108.csv" # nolint: line_length_linter.
+  "hospitalization-data",
+  "COVID-19_Reported_Patient_Impact_and_Hospital_Capacity_by_State_Timeseries_20240304.csv" # nolint: line_length_linter.
 )
 dat <- data.table::fread(dat_csv)
 
@@ -105,7 +106,7 @@ dat_agegroup <- bind_rows(dat_pedia, dat_adult_grouped) |>
   mutate(incidence = new_admission / population * 1e5) # per 100000
 
 dat_agegroup_subset <- dat_agegroup |>
-  filter(date >= ymd("2022-02-20"), date <= ymd("2022-10-29")) |>
+  filter(date >= ymd("2022-02-20"), date <= ymd("2023-12-31")) |>
   mutate(
     week = epiweek(date)
   ) |>
@@ -127,7 +128,7 @@ dat_agegroup_weekly <- dat_agegroup_subset |>
 
 # Plot
 dat_agegroup |>
-  filter(date >= ymd("2022-02-20"), date <= ymd("2022-11-05")) |>
+  filter(date >= ymd("2022-02-20"), date <= ymd("2023-12-31")) |>
   ggplot() +
   geom_line(aes(x = date, y = incidence, colour = agegroup)) +
   theme_bw()
@@ -144,4 +145,4 @@ dat_agegroup_weekly |>
 # Output
 dat_agegroup_subset |>
   select(-population) |>
-  data.table::fwrite("./data/hospitalization-data/hospital_220220_221105.csv")
+  data.table::fwrite("./data/hospitalization-data/hospital_220220_231231.csv")
