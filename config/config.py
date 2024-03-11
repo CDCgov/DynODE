@@ -517,6 +517,13 @@ PARAMETERS = [
         # "validate": do_nothing,
         "type": lambda lst: IntEnum("enum", lst, start=0),
     },
+    {
+        "name": "MAX_TREE_DEPTH",
+        "validate": [
+            partial(test_type, tested_type=(int)),
+            test_positive,
+        ],
+    },
 ]
 
 

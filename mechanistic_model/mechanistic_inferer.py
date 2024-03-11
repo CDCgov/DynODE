@@ -49,11 +49,13 @@ class MechanisticInferer(AbstractParameters):
             )
 
         if inferer_type == "mcmc":
+            # default to max tree depth of 5 if not specified
+            tree_depth = getattr(self.config, "MAX_TREE_DEPTH", 5)
             self.inference_algo = MCMC(
                 NUTS(
                     self.likelihood,
                     dense_mass=True,
-                    max_tree_depth=5,
+                    max_tree_depth=tree_depth,
                     init_strategy=numpyro.infer.init_to_median,
                 ),
                 num_warmup=self.config.INFERENCE_NUM_WARMUP,
