@@ -140,8 +140,10 @@ donor2_adj_df |>
 # calculate logit scale mean and sd
 donor2_adj_fin <- donor2_adj_df |>
   mutate(across(value:uci, ~ arm::logit(.x / 100), .names = "logit_{.col}")) |>
-  mutate(logit_sd = ((logit_uci - logit_value) + (logit_value - logit_lci)) /
-    (2 * 1.96)) |>
+  mutate(
+    logit_sd = ((logit_uci - logit_value) + (logit_value - logit_lci)) /
+      (2 * 1.96)
+  ) |>
   select(-logit_lci, -logit_uci) |>
   rename(logit_mean = logit_value)
 
