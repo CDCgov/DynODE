@@ -35,7 +35,7 @@ lab_df <- data.table::fread(lab_csv) |>
 donor1_csv <- file.path(
   "data",
   "serological-data",
-  "2020-2021_Nationwide_Blood_Donor_Seroprevalence_Survey_Infection-Induced_Seroprevalence_Estimates_20231018.csv"
+  "2020-2021_Nationwide_Blood_Donor_Seroprevalence_Survey_Infection-Induced_Seroprevalence_Estimates_20231018.csv" # nolint: line_length_linter.
 )
 donor1_df <- data.table::fread(donor1_csv) |>
   filter(`Region Abbreviation` == "All")
@@ -65,7 +65,7 @@ donor1_long <- donor1_long |>
 donor2_csv <- file.path(
   "data",
   "serological-data",
-  "2022_Nationwide_Blood_Donor_Seroprevalence_Survey_Combined_Infection-_and_Vaccination-Induced_Seroprevalence_Estimates_20240307.csv"
+  "2022_Nationwide_Blood_Donor_Seroprevalence_Survey_Combined_Infection-_and_Vaccination-Induced_Seroprevalence_Estimates_20240307.csv" # nolint: line_length_linter.
 )
 donor2_df <- data.table::fread(donor2_csv) |>
   filter(
@@ -140,7 +140,8 @@ donor2_adj_df |>
 # calculate logit scale mean and sd
 donor2_adj_fin <- donor2_adj_df |>
   mutate(across(value:uci, ~ arm::logit(.x / 100), .names = "logit_{.col}")) |>
-  mutate(logit_sd = ((logit_uci - logit_value) + (logit_value - logit_lci)) / (2 * 1.96)) |>
+  mutate(logit_sd = ((logit_uci - logit_value) + (logit_value - logit_lci)) /
+    (2 * 1.96)) |>
   select(-logit_lci, -logit_uci) |>
   rename(logit_mean = logit_value)
 
