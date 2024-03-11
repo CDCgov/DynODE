@@ -37,6 +37,7 @@ INFERER_CONFIG_PATH = EXP_ROOT_PATH + "config_inferer.json"
 
 # %%
 # Observations
+## Incidence
 obs_df = pd.read_csv("./data/hospitalization-data/hospital_220220_231231.csv")
 obs_incidence = obs_df.groupby(["date"])["new_admission_7"].apply(np.array)
 obs_incidence = jnp.array(obs_incidence.tolist())
@@ -47,6 +48,15 @@ ax.plot(np.asarray(obs_incidence), label=["0-17", "18-49", "50-64", "65+"])
 fig.legend()
 ax.set_title("Observed data")
 plt.show()
+
+# %%
+# Seroprevalence
+sero_df = pd.read_csv("./data/serological-data/donor2022.csv")
+sero_days = [5, 95, 185, 275]
+obs_sero_lmean = sero_df.groupby(["date"])["logit_mean"].apply(np.array)
+obs_sero_lmean = jnp.array(obs_sero_lmean.to_list())
+obs_sero_lsd = sero_df.groupby(["date"])["logit_sd"].apply(np.array)
+obs_sero_lsd = jnp.array(obs_sero_lsd.to_list())
 
 # %%
 # Take original initializer and create new 1 strain state
@@ -93,7 +103,10 @@ mcmc = MCMC(
 )
 mcmc.run(
     rng_key=PRNGKey(8811968),
-    incidence=obs_incidence,
+    obs_incidence=obs_incidence,
+    obs_sero_lmean=obs_sero_lmean,
+    obs_sero_lsd=obs_sero_lsd / 10,  # / 10 to increase weigtage
+    sero_days=sero_days,
     model=inferer,
 )
 mcmc.print_summary()
@@ -122,7 +135,7 @@ m = copy.deepcopy(inferer)
 m.config.BSPLINE_COEFFS = jnp.append(
     jnp.array([1.0]), fitted_medians["sp_coef"]
 )
-m.config.STRAIN_R0s = [fitted_medians["r0"]]
+m.config.STRAIN_R0s = jnp.array([fitted_medians["r0"]])
 output = runner.run(new_init_state, m.get_parameters(), tf=450)
 
 # %%
@@ -166,4 +179,30 @@ axs[1].set_ylabel("Beta multiplier")
 fig.legend()
 fig.set_size_inches(6, 6)
 fig.set_dpi(300)
+plt.show()
+
+# %%
+# Calculate and plot sim vs obs seroprevalence
+never_infected = jnp.sum(output.ys[0][sero_days, :, 0, :, :], axis=(2, 3))
+sim_seroprevalence = 1 - never_infected / m.config.POPULATION
+sim_seroprevalence = sim_seroprevalence[:, 1:]
+sim_lseroprevalence = jnp.log(sim_seroprevalence / (1 - sim_seroprevalence))
+obs_seroprevalence = 1 / (1 + jnp.exp(-obs_sero_lmean))
+
+# %%
+quarters = np.arange(1, 5)
+fig, ax = plt.subplots(1)
+# ax[0].xaxis.set_major_formatter(date_format)
+ax.set_prop_cycle(cycler(color=colors[1:]))
+ax.plot(quarters, sim_seroprevalence, label=["18-49", "50-64", "65+"])
+ax.plot(
+    quarters,
+    obs_seroprevalence,
+    label=["18-49 (obs)", "50-64 (obs)", "65+ (obs)"],
+    linestyle="dashed",
+)
+ax.set_title("Observed vs fitted")
+ax.set_ylabel("Seroprevalence")
+ax.set_xlabel("Quarter (2022)")
+fig.legend()
 plt.show()

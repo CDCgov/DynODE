@@ -5,7 +5,7 @@ import numpyro
 import numpyro.distributions as dist
 
 
-def infer_model(incidence, model):
+def infer_model(obs_incidence, obs_sero_lmean, obs_sero_lsd, sero_days, model):
     """
     Full model for inference (prior and likelihood), bypassing the use of
     inferer.infer()
@@ -32,12 +32,14 @@ def infer_model(incidence, model):
     sol = m.runner.run(
         m.INITIAL_STATE,
         args=m.get_parameters(),
-        tf=len(incidence),
+        tf=len(obs_incidence),
     )
 
-    # Calculate incidence and sample ihr and/or ihr multiplier
-    # ihr multiplier reduces severity for people with previous
-    # infection or vaccination
+    # Simulated metrics
+    ## Hospital incidence
+    ## Calculate incidence and sample ihr and/or ihr multiplier
+    ## ihr multiplier reduces severity for people with previous
+    ## infection or vaccination
     model_incidence = jnp.sum(sol.ys[3], axis=4)
     model_incidence_0 = jnp.diff(model_incidence[:, :, 0, 0], axis=0)
 
@@ -48,18 +50,32 @@ def infer_model(incidence, model):
     with numpyro.plate("num_age", 4):
         ihr = numpyro.sample("ihr", dist.Beta(1, 9))
 
-    # ihr_mult = numpyro.sample("ihr_mult", dist.Beta(100, 900))
-    ihr_mult = numpyro.deterministic("ihr_mult", 0.2)
+    ihr_mult = numpyro.sample("ihr_mult", dist.Beta(2000, 8000))
+    # ihr_mult = numpyro.deterministic("ihr_mult", 1.0)
 
     sim_incidence = (
         model_incidence_0 * ihr + model_incidence_1 * ihr * ihr_mult
+    )
+
+    ## Seroprevalence
+    never_infected = jnp.sum(sol.ys[0][sero_days, :, 0, :, :], axis=(2, 3))
+    sim_seroprevalence = 1 - never_infected / m.config.POPULATION
+    sim_seroprevalence = sim_seroprevalence[:, 1:]
+    sim_lseroprevalence = jnp.log(
+        sim_seroprevalence / (1 - sim_seroprevalence)
     )
 
     # Observation model
     numpyro.sample(
         "incidence",
         dist.Poisson(sim_incidence),
-        obs=incidence,
+        obs=obs_incidence,
+    )
+
+    numpyro.sample(
+        "lseroprevalence",
+        dist.Normal(sim_lseroprevalence, obs_sero_lsd),
+        obs=obs_sero_lmean,
     )
 
 
