@@ -27,7 +27,7 @@ A fully dynamic suite of compartment models where any compartment may be easily 
 ## Model Structure
 
 Subject to change, current transmission dynamics follow this basic model
-![](/misc/scenarios_seip_model_diagram_cdc_blue.png)
+![](/misc/scenarios_seip_model_diagram_3_11_24.png)
 
 ## Quick Start
 
