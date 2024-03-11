@@ -6,50 +6,39 @@
     "VAX_MODEL_DATA": "data/spline_fits.csv",
     "VAX_MODEL_NUM_KNOTS": 18,
     "STRAIN_R0s": [
-        1.2,
-        1.8,
+        2.4,
+        2.7,
         {
-            "distribution": "TransformedDistribution",
+            "distribution": "TruncatedNormal",
             "params": {
-                "base_distribution": {
-                    "distribution": "Beta",
-                    "params": {
-                        "concentration1": 8,
-                        "concentration0": 2
-                    }
-                },
-                "transforms": {
-                    "transform": "AffineTransform",
-                    "params": {
-                        "loc": 2.5,
-                        "scale": 1
-                    }
-                }
+                "loc": 2.3,
+                "scale": 1,
+                "low": 1,
+                "high": 3.0
             }
         }
     ],
-    "INFECTIOUS_PERIOD": {
-        "distribution": "TruncatedNormal",
-        "params": {
-            "loc": 10,
-            "scale": 2,
-            "low": 1.0
-        }
-    },
+    "DROP_CHAINS": [],
+    "DROP_POSTERIOR_PARAMETERS": [
+        "STRAIN_R0s_2",
+        "INTRODUCTION_TIMES_0"
+    ],
+    "VAX_MODEL_DAYS_SHIFT": 240,
+    "INFECTIOUS_PERIOD": 7,
     "EXPOSED_TO_INFECTIOUS": 3.6,
     "INITIAL_INFECTIONS_SCALE": 1.0,
     "INTRODUCTION_TIMES": [
         {
             "distribution": "TruncatedNormal",
             "params": {
-                "loc": 60,
+                "loc": 30,
                 "scale": 20,
                 "low": 10
             }
         }
     ],
-    "INTRODUCTION_PERCENTAGE": 0.01,
-    "INTRODUCTION_SCALE": 10,
+    "INTRODUCTION_PERCENTAGE": 0.05,
+    "INTRODUCTION_SCALE": 12,
     "INTRODUCTION_AGE_MASK": [
         false,
         true,
@@ -66,13 +55,13 @@
     "STRAIN_INTERACTIONS": [
         [
             1.0,
-            0.7,
-            0.49
+            1.0,
+            1.0
         ],
         [
             0.7,
             1.0,
-            0.7
+            1.0
         ],
         [
             0.49,
@@ -83,13 +72,13 @@
     "VAX_EFF_MATRIX": [
         [
             0,
-            0.34,
-            0.68
+            0.24,
+            0.48
         ],
         [
             0,
-            0.24,
-            0.48
+            0.19,
+            0.38
         ],
         [
             0,
@@ -107,9 +96,9 @@
         1.0,
         1.0
     ],
-    "INFERENCE_PRNGKEY": 8675309,
-    "INFERENCE_NUM_WARMUP": 100,
-    "INFERENCE_NUM_SAMPLES": 500,
+    "INFERENCE_PRNGKEY": 867530900,
+    "INFERENCE_NUM_WARMUP": 300,
+    "INFERENCE_NUM_SAMPLES": 100,
     "INFERENCE_NUM_CHAINS": 4,
     "INFERENCE_PROGRESS_BAR": true,
     "MODEL_RAND_SEED": 8675309

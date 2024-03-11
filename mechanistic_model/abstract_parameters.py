@@ -48,6 +48,7 @@ class AbstractParameters:
             interacting with susceptibles within the system, used to impact force of infection.
         """
 
+        # define a function that returns 0 for non-introduced strains
         def zero_function(_):
             return 0
 
@@ -67,11 +68,11 @@ class AbstractParameters:
             external_i_distributions[dist_idx] = partial(
                 pdf, loc=introduced_time, scale=self.config.INTRODUCTION_SCALE
             )
+        # with our external_i_distributions set up, now we can execute them on `t`
         # set up our return value
         external_i_compartment = jnp.zeros(
             self.INITIAL_STATE[self.config.COMPARTMENT_IDX.I].shape
         )
-        # default from the config
         introduction_age_mask = jnp.where(
             jnp.array(self.config.INTRODUCTION_AGE_MASK),
             1,
@@ -94,6 +95,8 @@ class AbstractParameters:
         Given some time t, returns a jnp.array of shape (self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)
         representing the age / vax history stratified vaccination rates for an additional vaccine. Used by transmission models
         to determine vaccination rates at a particular time step.
+        In the cases that your model's definition of t=0 is later the vaccination spline's definition of t=0
+        use the `VAX_MODEL_DAYS_SHIFT` config parameter to shift the vaccination spline's t=0 right.
 
         MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t. If you want a piecewise implementation of vax rates must declare jump points
         in the MCMC object.
@@ -109,9 +112,10 @@ class AbstractParameters:
         vaccination_rates: jnp.array()
             jnp.array(shape=(self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
         """
+        t_added = getattr(self.config, "VAX_MODEL_DAYS_SHIFT", 0)
         return jnp.exp(
             utils.evaluate_cubic_spline(
-                t,
+                t + t_added,
                 self.config.VAX_MODEL_KNOT_LOCATIONS,
                 self.config.VAX_MODEL_BASE_EQUATIONS,
                 self.config.VAX_MODEL_KNOTS,
