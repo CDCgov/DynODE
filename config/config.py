@@ -124,6 +124,7 @@ def distribution_converter(dct):
 
     a distribution is identified by the `distribution` and `params` keys inside of a json object
     while a transform is identified by the `transform` and `params` keys inside of a json object
+    and a constraint is identified by the `constraint` and `params` keys inside of a json object
 
     PARAMETERS
     ----------
@@ -165,6 +166,19 @@ def distribution_converter(dct):
                 raise KeyError(
                     "The transform name was not found in the available transformations, "
                     "see transform names here: https://num.pyro.ai/en/stable/distributions.html#transforms"
+                )
+        elif "constraint" in dct.keys() and "params" in dct.keys():
+            numpyro_constraint = dct["constraint"]
+            numpyro_constraint_params = dct["params"]
+            if numpyro_constraint in constraint_types.keys():
+                constraint = constraint_types[numpyro_constraint](
+                    **numpyro_constraint_params
+                )
+                return constraint
+            else:
+                raise KeyError(
+                    "The constraint name was not found in the available constraints, "
+                    "see constraint names here: https://num.pyro.ai/en/stable/_modules/numpyro/distributions/constraints.html"
                 )
     except Exception as e:
         # reraise the error
@@ -305,6 +319,10 @@ distribution_types = {
 transform_types = {
     transform_name: transforms.__dict__.get(transform_name)
     for transform_name in transforms.__all__
+}
+constraint_types = {
+    constraint_name: distributions.constraints.__dict__.get(constraint_name)
+    for constraint_name in distributions.constraints.__all__
 }
 
 

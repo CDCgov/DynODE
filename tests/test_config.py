@@ -229,3 +229,35 @@ def test_invalid_nested_distribution_infectious_period():
         }}"""
     with pytest.raises(ConfigParserError):
         Config(input_json)
+
+
+def test_invalid_constraint_param():
+    # a basic 1 + N(0,1) distribution with incorrect interval constraint
+    input_json = """{"INFECTIOUS_PERIOD": {
+            "distribution": "TransformedDistribution",
+            "params": {
+                "base_distribution": {
+                    "distribution": "Normal",
+                    "params": {
+                        "loc": 0,
+                        "scale": 1
+                    }
+                },
+                "transforms": {
+                    "transform": "AffineTransform",
+                    "params": {
+                        "loc": 1,
+                        "scale": 1,
+                        "domain": {
+                            "constraint": "interval",
+                            "params": {
+                                "lower_bound": 0,
+                                "upper_bound": "blah"
+                            }
+                        }
+                    }
+                }
+            }
+        }}"""
+    with pytest.raises(ConfigParserError):
+        Config(input_json)
