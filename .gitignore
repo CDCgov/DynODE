@@ -17,6 +17,7 @@ testing.py
 *.txt
 *.json
 *.sqlite
+*.toml
 
 # Documents
 *.doc
