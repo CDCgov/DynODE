@@ -19,6 +19,7 @@ CONFIG_MOLDS = [
     "config/config_inferer_covid.json",
     "config/config_initializer_covid.json",
     "config/config_runner_covid.json",
+    "config/config_interpreter_covid.json",
 ]
 
 
@@ -51,6 +52,9 @@ def create_state_subdirectories(dir, states_fips):
         state_dir = os.path.join(dir, str(state))
         if not os.path.exists(state_dir):
             os.makedirs(state_dir)
+        state_output_dir = os.path.join(state_dir, "output")
+        if not os.path.exists(state_output_dir):
+            os.makedirs(state_output_dir)
 
 
 def populate_config_files(dir, configs):
