@@ -22,27 +22,64 @@ CONFIG_MOLDS = [
 ]
 
 
-def create_state_subdirectories(dir, states):
+def create_state_subdirectories(dir, states_fips):
+    """
+    function to create an experiment directory `dir` and then create
+    subfolders for each FIPS code in `states`.
+    Will not override if `dir` or `dir/state_fips[i]` already exists
+
+    Parameters
+    ------------
+    `dir`: str
+        relative or absolute directory path of the experiment,
+        for which subdirectories per state will be created under it.
+
+    `state_fips`: list[int]
+        list of fips codes per state involved in the experiment, will create subfolders of `dir`
+        with each fips code.
+
+    Returns
+    ------------
+    None
+    """
     # Create the main directory if it does not exist
     if not os.path.exists(dir):
         os.makedirs(dir)
 
     # Create subdirectories for each state
-    for state in states:
+    for state in states_fips:
         state_dir = os.path.join(dir, str(state))
         if not os.path.exists(state_dir):
             os.makedirs(state_dir)
 
 
 def populate_config_files(dir, configs):
+    """
+    scans an experiment directory `dir` opening each folder, and copying over read-only versions
+    of each json file in `configs`, modifying the "REGIONS" key to mirror the state to which the FIPS code is assigned.
+
+    will raise an error if a subdirectory of `dir` is not a fips code able to be parsed to an integer.
+
+    Parameters
+    ------------
+    `dir`: str
+        relative or absolute directory path of the experiment,
+        contains subdirectories created by `create_state_subdirectories`
+
+    `configs`: list[str]
+        list of paths to each config mold, these config molds will be copied into each subdirectory as read-only
+        they will have their "REGIONS" key changed to resemble the state the subdirectory is modeling.
+
+    Returns
+    ------------
+    None
+    """
     for subdir in os.listdir(dir):
         subdir_path = os.path.join(dir, subdir)
         if os.path.isdir(subdir_path):
             state_name = fips_to_state(int(subdir))
 
             for config_file_path in configs:
-                # config_file_path = os.path.join(dir, config_file)
-
                 # Read the original JSON file
                 with open(config_file_path) as f:
                     data = json.load(f)
@@ -66,6 +103,18 @@ def populate_config_files(dir, configs):
 
 
 def fips_to_state(fips):
+    """
+    basic function to read in an integer fips code and return associated state name
+
+    Parameters
+    ----------
+    fips: int
+        fips code the state
+
+    Returns
+    ----------
+    str/KeyError: state name, or KeyError if fips does not point to a state or isnt an integer
+    """
     state_info = states[states["st"] == fips]
     if len(state_info) == 1:
         return state_info["stname"].iloc[0]
@@ -73,6 +122,7 @@ def fips_to_state(fips):
         raise KeyError("Unknown fips %d" % fips)
 
 
+# script takes arguments to specify the experiment being created.
 parser = argparse.ArgumentParser()
 # experiment directory
 parser.add_argument(
