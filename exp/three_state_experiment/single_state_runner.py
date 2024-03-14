@@ -17,7 +17,7 @@ parser.add_argument(
     "-s",
     "--state",
     type=str,
-    help="directory for the state to run, resembles FIPS code of the state",
+    help="directory for the state to run, resembles USPS code of the state",
 )
 
 if __name__ == "__main__":

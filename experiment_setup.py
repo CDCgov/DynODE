@@ -23,11 +23,11 @@ CONFIG_MOLDS = [
 ]
 
 
-def create_state_subdirectories(dir, states_fips):
+def create_state_subdirectories(dir, state_names):
     """
     function to create an experiment directory `dir` and then create
-    subfolders for each FIPS code in `states`.
-    Will not override if `dir` or `dir/state_fips[i]` already exists
+    subfolders for each Postal Abreviation in `state_names`.
+    Will not override if `dir` or `dir/state_names[i]` already exists
 
     Parameters
     ------------
@@ -35,9 +35,9 @@ def create_state_subdirectories(dir, states_fips):
         relative or absolute directory path of the experiment,
         for which subdirectories per state will be created under it.
 
-    `state_fips`: list[int]
-        list of fips codes per state involved in the experiment, will create subfolders of `dir`
-        with each fips code.
+    `state_names`: list[str]
+        list of USPS postal codes per state involved in the experiment, will create subfolders of `dir`
+        with each code.
 
     Returns
     ------------
@@ -48,8 +48,8 @@ def create_state_subdirectories(dir, states_fips):
         os.makedirs(dir)
 
     # Create subdirectories for each state
-    for state in states_fips:
-        state_dir = os.path.join(dir, str(state))
+    for state in state_names:
+        state_dir = os.path.join(dir, state)
         if not os.path.exists(state_dir):
             os.makedirs(state_dir)
         state_output_dir = os.path.join(state_dir, "output")
@@ -60,9 +60,12 @@ def create_state_subdirectories(dir, states_fips):
 def populate_config_files(dir, configs):
     """
     scans an experiment directory `dir` opening each folder, and copying over read-only versions
-    of each json file in `configs`, modifying the "REGIONS" key to mirror the state to which the FIPS code is assigned.
+    of each json file in `configs`, modifying the "REGIONS" key to match the postal code.
+    Modifies the `POP_SIZE` variable to match the states population according to the census.
+    Modifies the `INITIAL_INFECTIONS` variable to equal the same % of the population as in the mold config.
+        eg: 2% of TOTAL_POP in mold config applied to each state's individual `POP_SIZE`
 
-    will raise an error if a subdirectory of `dir` is not a fips code able to be parsed to an integer.
+    will raise an error if a subdirectory of `dir` is not a postal code able to be looked up.
 
     Parameters
     ------------
@@ -81,15 +84,36 @@ def populate_config_files(dir, configs):
     for subdir in os.listdir(dir):
         subdir_path = os.path.join(dir, subdir)
         if os.path.isdir(subdir_path):
-            state_name = fips_to_state(int(subdir))
+            state_name = code_to_state(subdir)
+            state_pop = code_to_pop(state_name)
 
             for config_file_path in configs:
                 # Read the original JSON file
                 with open(config_file_path) as f:
-                    data = json.load(f)
+                    state_config = json.load(f)
 
                 # Change the "REGION" key to state name
-                data["REGIONS"] = [state_name]
+                state_config["REGIONS"] = [state_name]
+
+                if "POP_SIZE" in state_config.keys():
+                    # havent changed yet, so old value still in `state_config`
+                    mold_pop_size = state_config["POP_SIZE"]
+                    # match the same % of the population as in the mold config to new state POP_SIZE
+                    if "INITIAL_INFECTIONS" in state_config.keys():
+                        mold_initial_inf = state_config["INITIAL_INFECTIONS"]
+                        # state_pop * (% of infections in the mold config)
+                        # round to 3 sig figs, convert to int
+                        state_config["INITIAL_INFECTIONS"] = int(
+                            float(
+                                "%.3g"
+                                % (
+                                    state_pop
+                                    * (mold_initial_inf / mold_pop_size)
+                                )
+                            )
+                        )
+                    # round pop sizes 3 sig figs then convert to int
+                    state_config["POP_SIZE"] = int(float("%.3g" % state_pop))
 
                 # Create a new read-only copy of the JSON file with modified data
                 new_config_file_path = os.path.join(
@@ -100,30 +124,50 @@ def populate_config_files(dir, configs):
                     os.remove(new_config_file_path)
 
                 with open(new_config_file_path, "w") as f:
-                    json.dump(data, f, indent=4)
+                    json.dump(state_config, f, indent=4)
 
                 # Set the new file permissions to read-only
                 os.chmod(new_config_file_path, 0o444)
 
 
-def fips_to_state(fips):
+def code_to_state(code):
     """
-    basic function to read in an integer fips code and return associated state name
+    basic function to read in an postal code and return associated state name
 
     Parameters
     ----------
-    fips: int
-        fips code the state
+    code: str
+        usps code the state
 
     Returns
     ----------
-    str/KeyError: state name, or KeyError if fips does not point to a state or isnt an integer
+    str/KeyError: state name, or KeyError if code does not point to a state or isnt an str
     """
-    state_info = states[states["st"] == fips]
+    state_info = state_names[state_names["stusps"] == code]
     if len(state_info) == 1:
         return state_info["stname"].iloc[0]
     else:
-        raise KeyError("Unknown fips %d" % fips)
+        raise KeyError("Unknown code %s" % code)
+
+
+def code_to_pop(state_name):
+    """
+    basic function to read in an postal code and return associated state name
+
+    Parameters
+    ----------
+    state_name: str
+        state name
+
+    Returns
+    ----------
+    str/KeyError: state population, or KeyError if invalid state name
+    """
+    state_pop = pops[pops["STNAME"] == state_name]
+    if len(state_pop) == 1:
+        return state_pop["POPULATION"].iloc[0]
+    else:
+        raise KeyError("Unknown fips %s" % state_name)
 
 
 # script takes arguments to specify the experiment being created.
@@ -138,12 +182,12 @@ parser.add_argument(
 )
 # list of fips codes
 parser.add_argument(
-    "-f",
-    "--fips",
-    type=int,
+    "-s",
+    "--states",
+    type=str,
     required=True,
     nargs="+",
-    help="space separated list of integers representing FIPS code of each state",
+    help="space separated list of str representing USPS postal code of each state",
 )
 # the molds of configs to bring into each state sub-dir
 parser.add_argument(
@@ -157,12 +201,21 @@ parser.add_argument(
 )
 
 if __name__ == "__main__":
-    states = pd.read_csv("data/fips_to_name.csv")
+    state_names = pd.read_csv("data/fips_to_name.csv")
+    pops = pd.read_csv("data/demographic-data/CenPop2020_Mean_ST.csv")
+    # adding a USA row with the sum of all state pops
+    pops.loc[len(pops.index)] = [
+        "US",
+        "United States",
+        sum(pops["POPULATION"]),
+        None,
+        None,
+    ]
     args = parser.parse_args()
     exp = args.exp
-    fips = args.fips
+    states = args.states
     config_molds = args.config_molds
-    create_state_subdirectories(exp, fips)
+    create_state_subdirectories(exp, states)
     populate_config_files(exp, config_molds)
     print(
         "Created and populated state level directories with read-only copies of the config files"
