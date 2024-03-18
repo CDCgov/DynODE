@@ -44,15 +44,13 @@ class EarlyCovidInitializer(MechanisticInitializer):
         )
 
         for i, s in enumerate(initial_sero):
-            arr = arr.at[i, 0, 0, self.config.NUM_WANING_COMPARTMENTS - 1].set(
-                1 - s
-            )
+            arr = arr.at[i, 0, 0, 0].set(1 - s)
             arr = arr.at[i, 1, 0, 0:2].set([s * 0.8, s * 0.2])
 
         self.config.INIT_IMMUNE_HISTORY = arr
 
     def load_init_infection_dist(
-        self, ei_split=[0.34, 0.66], age_split=[0.39, 0.31, 0.23, 0.07]
+        self, ei_split=[0.34, 0.66], age_split=[0.41, 0.33, 0.23, 0.04]
     ):
         arr_e = jnp.zeros(
             (

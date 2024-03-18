@@ -17,6 +17,7 @@ testing.py
 *.txt
 *.json
 *.sqlite
+*.toml
 
 # Documents
 *.doc
@@ -47,6 +48,7 @@ testing.py
 # !your_data_directory/
 !data/
 !data/dates_of_interest.csv
+!data/fips_to_name.csv
 !output/example_output_1000_days.png
 !output/example_output_1000_days.png_meta.json
 !output/base_model_initial_immune_distribution.png

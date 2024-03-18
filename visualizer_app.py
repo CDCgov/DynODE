@@ -4,7 +4,6 @@ initialized with the config_base.py config file. This file is an active work in 
 get an understanding of the context that their mechanistic model is being run in.
 """
 
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -12,35 +11,41 @@ import seaborn as sn
 from shiny import App, render, ui
 
 import utils
-from config.config_base import ConfigBase
-from mechanistic_compartments import build_basic_mechanistic_model
+from mechanistic_model.covid_initializer import CovidInitializer
 
-model = build_basic_mechanistic_model(ConfigBase())
-(s_compartment, e_compartment, i_compartment, _) = model.INITIAL_STATE
-age_choices = ["All"] + model.AGE_GROUP_STRS
+CONFIG_GLOBAL_PATH = "config/config_global.json"
+CONFIG_INITIALIZER_PATH = "config/config_initializer_covid.json"
+model = CovidInitializer(CONFIG_INITIALIZER_PATH, CONFIG_GLOBAL_PATH)
+
+(s_compartment, e_compartment, i_compartment, _) = model.get_initial_state()
+age_choices = ["All"] + model.config.AGE_GROUP_STRS
 # indexes for the age bins
 age_dict = {
-    age_string: idx for idx, age_string in enumerate(model.AGE_GROUP_STRS)
+    age_string: idx
+    for idx, age_string in enumerate(model.config.AGE_GROUP_STRS)
 }
 # index for all category
-age_dict["All"] = list(range(model.NUM_AGE_GROUPS))
-vaccination_strings = [str(vax) for vax in range(model.MAX_VAX_COUNT + 1)]
+age_dict["All"] = list(range(model.config.NUM_AGE_GROUPS))
+vaccination_strings = [
+    str(vax) for vax in range(model.config.MAX_VAX_COUNT + 1)
+]
 vaccination_strings[-1] = vaccination_strings[-1] + "+"
 # vaccination_strings = ["0", "1", "2+"]
-immune_states = list(range(model.NUM_PREV_INF_HIST))
+immune_states = list(range(2**model.config.NUM_STRAINS))
 # giving a custom string to the no prior exposure state
 immune_state_strings = [
     "no prior infection",
 ]
+strain_names = list(model.config.STRAIN_IDX.__members__.keys())
 # skip 0 due to custom tag
 for state in immune_states[1:]:
     immune_state_string = ""
     # build up strain exposure history
     for exposed_strain in utils.get_strains_exposed_to(
-        state, model.NUM_STRAINS
+        state, model.config.NUM_STRAINS
     ):
         immune_state_string = (
-            immune_state_string + model.STRAIN_NAMES[exposed_strain] + " + "
+            immune_state_string + strain_names[exposed_strain] + " + "
         )
     # cut the last " + " via :-3
     immune_state_strings.append(immune_state_string[:-3])
@@ -163,18 +168,18 @@ def waning_in_population(input, fig, ax):
             age_bin.append(age_dict[age])
     # sort in order for stacked bar chart
     age_bin.sort()
-    age_strings = model.AGE_GROUP_STRS
+    age_strings = model.config.AGE_GROUP_STRS
 
     compartment = s_compartment.copy()
     if input.display() == "Proportion":
         compartment = compartment / np.sum(compartment)
 
     immune_compartments = [
-        compartment[:, :, :, w_idx] for w_idx in model.W_IDX
+        compartment[:, :, :, w_idx] for w_idx in model.config.WANE_IDX
     ]
     # reverse for plot readability since we read left to right
     immune_compartments = np.array(immune_compartments[::-1])
-    x_axis = ["W" + str(int(idx)) for idx in model.W_IDX][::-1]
+    x_axis = ["W" + str(int(idx)) for idx in model.config.WANE_IDX][::-1]
     age_to_immunity_slice = {}
     # for each age group, plot its number of persons in each immune compartment
     # stack the bars on top of one another by summing the previous age groups underneath
@@ -218,7 +223,7 @@ def model_sero_curve(input, fig, ax):
     the `fig` and `ax` parameters, modified to have the model sero curve drawn in.
     """
 
-    abm_population = pd.read_csv(model.SIM_DATA)
+    abm_population = pd.read_csv(model.config.SIM_DATA_PATH)
     # remove those with active infections, those are designated for exposed/infected
     if (
         len(input.compartment()) == 0
@@ -250,11 +255,11 @@ def model_sero_curve(input, fig, ax):
     # next we want to add bins to our abm data just like our model does.
     abm_population = utils.prep_abm_data(
         abm_population,
-        model.MAX_VAX_COUNT,
-        model.AGE_LIMITS,
-        model.WANING_TIMES,
-        model.NUM_STRAINS,
-        model.STRAIN_IDX,
+        model.config.MAX_VAX_COUNT,
+        model.config.AGE_LIMITS,
+        model.config.WANING_TIMES,
+        model.config.NUM_STRAINS,
+        model.config.STRAIN_IDX,
     )
     # next filter down the age bins we want using the new columns we added above
     age_selections = input.age_bin()

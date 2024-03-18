@@ -3,8 +3,8 @@
     "CONTACT_MATRIX_PATH": "data/demographic-data/contact_matrices",
     "SAVE_PATH": "output/",
     "HOSP_PATH": "data/hospital_220213_220108.csv",
-    "VAX_MODEL_DATA": "data/spline_fits.csv",
-    "VAX_MODEL_NUM_KNOTS": 18,
+    "VAX_MODEL_DATA": "exp/fit_3year_1strain/spline_fits_201213.csv",
+    "VAX_MODEL_NUM_KNOTS": 29,
     "STRAIN_R0s": [
         1.0
     ],

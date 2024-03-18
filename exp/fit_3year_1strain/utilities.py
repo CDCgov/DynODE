@@ -3,6 +3,8 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 
+import utils
+
 
 def make_1strain_init_state(ori_init_state):
     """
@@ -76,29 +78,34 @@ def custom_beta_coef(self, t):
 
 
 @partial(jax.jit, static_argnums=(0))
-def zero_vaccination_rate(self, t):
-    """
-    Given some time t, returns a jnp.array of shape (self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)
-    representing the age / vax history stratified vaccination rates for an additional vaccine. Used by transmission models
-    to determine vaccination rates at a particular time step.
-    In the cases that your model's definition of t=0 is later the vaccination spline's definition of t=0
-    use the `VAX_MODEL_DAYS_SHIFT` config parameter to shift the vaccination spline's t=0 right.
-
-    MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t. If you want a piecewise implementation of vax rates must declare jump points
-    in the MCMC object.
+def vaccination_rate(self, t):
+    """Returns a coefficient for the beta value for cases of seasonal forcing or external impacts
+    onto beta not directly measured in the model. e.g., masking mandates or holidays.
+    Currently implemented via an array search with timings BETA_TIMES and coefficients BETA_COEFICIENTS
 
     Parameters
     ----------
     t: float as Traced<ShapedArray(float32[])>
-        current time in the model, due to the just-in-time nature of Jax this float value may be contained within a
+        current time in the model. Due to the just-in-time nature of Jax this float value may be contained within a
         traced array of shape () and size 1. Thus no explicit comparison should be done on "t".
 
-    Returns
-    -----------
-    vaccination_rates: jnp.array()
-        jnp.array(shape=(self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
+    Returns:
+    coefficient by which BETA can be multiplied to externally increase or decrease the value to account for measures or seasonal forcing.
     """
-    zero_vac = jnp.zeros(
-        (self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)
+    # a smart lookup function that works with JAX just in time compilation
+    # if t > self.config.BETA_TIMES_i, return self.config.BETA_COEFICIENTS_i
+    t_added = getattr(self.config, "VAX_MODEL_DAYS_SHIFT", 0)
+    t_mod = jnp.where(t + t_added < 0, 0, t + t_added)
+    multiplier = jnp.where(t + t_added < 0, 0, 1)
+
+    return (
+        jnp.exp(
+            utils.evaluate_cubic_spline(
+                t_mod,
+                self.config.VAX_MODEL_KNOT_LOCATIONS,
+                self.config.VAX_MODEL_BASE_EQUATIONS,
+                self.config.VAX_MODEL_KNOTS,
+            )
+        )
+        * multiplier
     )
-    return zero_vac

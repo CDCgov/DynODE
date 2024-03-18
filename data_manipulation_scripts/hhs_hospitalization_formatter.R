@@ -106,11 +106,14 @@ dat_agegroup <- bind_rows(dat_pedia, dat_adult_grouped) |>
   mutate(incidence = new_admission / population * 1e5) # per 100000
 
 dat_agegroup_subset <- dat_agegroup |>
-  filter(date >= ymd("2022-02-20"), date <= ymd("2023-12-31")) |>
+  filter(date >= ymd("2020-08-02"), date <= ymd("2023-12-31")) |>
   mutate(
-    week = epiweek(date)
+    week = epiweek(date),
+    year = ifelse(week %in% 52:53 & month(date) == 1,
+      year(date) - 1, year(date)
+    )
   ) |>
-  group_by(week, agegroup) |>
+  group_by(year, week, agegroup) |>
   mutate(
     new_admission_7 = mean(new_admission),
     incidence_7 = mean(incidence),
@@ -118,7 +121,7 @@ dat_agegroup_subset <- dat_agegroup |>
   )
 
 dat_agegroup_weekly <- dat_agegroup_subset |>
-  group_by(week, agegroup) |>
+  group_by(year, week, agegroup) |>
   summarise(
     new_admission = sum(new_admission),
     incidence = sum(incidence),
@@ -128,7 +131,7 @@ dat_agegroup_weekly <- dat_agegroup_subset |>
 
 # Plot
 dat_agegroup |>
-  filter(date >= ymd("2022-02-20"), date <= ymd("2023-12-31")) |>
+  filter(date >= ymd("2020-08-02"), date <= ymd("2023-12-31")) |>
   ggplot() +
   geom_line(aes(x = date, y = incidence, colour = agegroup)) +
   theme_bw()
@@ -145,4 +148,4 @@ dat_agegroup_weekly |>
 # Output
 dat_agegroup_subset |>
   select(-population) |>
-  data.table::fwrite("./data/hospitalization-data/hospital_220220_231231.csv")
+  data.table::fwrite("./data/hospitalization-data/hospital_200802_231231.csv")

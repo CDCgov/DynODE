@@ -18,10 +18,7 @@ from numpyro.infer import MCMC, NUTS
 os.chdir("/home/bentoh/projects/scenarios-2/")
 from exp.fit_3year_1strain.inference import infer_model
 from exp.fit_3year_1strain.initializer import EarlyCovidInitializer
-from exp.fit_3year_1strain.utilities import (
-    custom_beta_coef,
-    zero_vaccination_rate,
-)
+from exp.fit_3year_1strain.utilities import custom_beta_coef, vaccination_rate
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 from model_odes.seip_model import seip_ode
@@ -39,6 +36,7 @@ INFERER_CONFIG_PATH = EXP_ROOT_PATH + "config_inferer.json"
 # Global
 obs_days = 250
 knot_upper_bound = 270
+vax_start_day = 140
 
 # %%
 # Observations
@@ -92,7 +90,11 @@ inferer = MechanisticInferer(
 )
 
 inferer.beta_coef = types.MethodType(custom_beta_coef, inferer)
-inferer.vaccination_rate = types.MethodType(zero_vaccination_rate, inferer)
+inferer.vaccination_rate = types.MethodType(vaccination_rate, inferer)
+# inferer.zero_vaccination_rate = zero_vaccination_rate
+# inferer.spline_vaccination_rate = spline_vaccination_rate
+inferer.config.VAX_TIMES = jnp.array([vax_start_day])
+inferer.config.VAX_MODEL_DAYS_SHIFT = -vax_start_day
 
 # %%
 # Set default bspline knots and coefficients
@@ -124,7 +126,7 @@ mcmc.run(
     rng_key=PRNGKey(8811968),
     obs_incidence=obs_incidence,
     obs_sero_lmean=obs_sero_lmean,
-    obs_sero_lsd=obs_sero_lsd / 20,
+    obs_sero_lsd=obs_sero_lsd / 10,
     sero_days=sero_days,
     J=J,
     model=inferer,
@@ -245,3 +247,11 @@ plt.legend()
 plt.show()
 
 # %%
+print("Theoretical cumulative vax rate:")
+vax = jnp.array([inferer.vaccination_rate(t) for t in range(250)])
+print(jnp.sum(vax, axis=(0)))
+
+print("Simulated vax compartment size (0, 1, 2):")
+sim_vax = [jnp.sum(output.ys[i][-1,], axis=(1, 3)) for i in range(3)]
+sim_vax = jnp.sum(jnp.array(sim_vax), axis=(0,))
+print(sim_vax / inferer.config.POPULATION[:, None])

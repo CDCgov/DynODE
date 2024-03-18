@@ -245,4 +245,4 @@ class AbstractParameters:
             self.config.NUM_AGE_GROUPS,
             self.config.AGE_LIMITS[0],
             self.config.AGE_LIMITS,
-        )["United States"]["avg_CM"]
+        )[self.config.REGIONS[0]]["avg_CM"]
