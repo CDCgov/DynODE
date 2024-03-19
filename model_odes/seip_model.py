@@ -138,7 +138,7 @@ def seip_ode(state, t, parameters):
         updated_vax_rates > 1.0,
         jnp.ones(updated_vax_rates.shape),
         updated_vax_rates,
-    )
+    )  # prevent moving more people out than the compartments have
 
     # Assuming that people who received 2 or more doses wouldn't get additional booster too soon
     # i.e., when they were still within the first waning compartment
