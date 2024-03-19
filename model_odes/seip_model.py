@@ -132,7 +132,9 @@ def seip_ode(state, t, parameters):
     # input vaccination rate is per entire population, need to update to per compartments first
     vax_rates = p.VACCINATION_RATES(t)
     vax_totals = vax_rates * p.POPULATION[:, None]
-    vax_status_counts = jnp.sum(s, axis=(1, 3))
+    vax_status_counts = jnp.sum(
+        s, axis=(1, 3)
+    )  # Sum over immune hist and waning to get count per age and vax status
     updated_vax_rates = vax_totals / vax_status_counts
     updated_vax_rates = jnp.where(
         updated_vax_rates > 1.0,
