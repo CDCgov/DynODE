@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import warnings
 from enum import IntEnum
 from functools import partial
 
@@ -78,26 +79,6 @@ class Config:
             if validator_funcs and all([hasattr(self, k) for k in key]):
                 validator_funcs = make_list_if_not(validator_funcs)
                 vals = [getattr(self, k) for k in key]
-                # can not validate a distribution since it does not have 1 fixed value
-                distribution_involved = False
-                for val in vals:
-                    val_temp = make_list_if_not(val)
-                    if any(
-                        [
-                            issubclass(
-                                type(v),
-                                (
-                                    distributions.Distribution,
-                                    transforms.Transform,
-                                ),
-                            )
-                            for v in val_temp
-                        ]
-                    ):
-                        distribution_involved = True
-                        break
-                if distribution_involved:
-                    continue
                 # val_func() throws assert errors if incongruence arrises
                 [
                     (
@@ -167,13 +148,20 @@ def distribution_converter(dct):
                     "The transform name was not found in the available transformations, "
                     "see transform names here: https://num.pyro.ai/en/stable/distributions.html#transforms"
                 )
-        elif "constraint" in dct.keys() and "params" in dct.keys():
+        elif "constraint" in dct.keys():
             numpyro_constraint = dct["constraint"]
-            numpyro_constraint_params = dct["params"]
             if numpyro_constraint in constraint_types.keys():
-                constraint = constraint_types[numpyro_constraint](
-                    **numpyro_constraint_params
-                )
+                # some constraints are not callable, like unit_interval
+                if (
+                    "params" not in dct.keys()
+                    or len(dct["params"].keys()) == 0
+                ):
+                    constraint = constraint_types[numpyro_constraint]
+                else:
+                    numpyro_constraint_params = dct["params"]
+                    constraint = constraint_types[numpyro_constraint](
+                        **numpyro_constraint_params
+                    )
                 return constraint
             else:
                 raise KeyError(
@@ -236,17 +224,84 @@ def path_checker(key, value):
 
 
 def test_positive(key, value):
-    assert value > 0, "%s must be greater than zero, got %s" % (
-        key,
-        str(value),
-    )
+    """
+    checks if a value is positive.
+    If `value` is a distribution, checks that the lower bound of its support is positive
+    """
+    if issubclass(type(value), distributions.Distribution):
+        if hasattr(value.support, "lower_bound"):
+            assert value.support.lower_bound > 0, (
+                "the support for the distribution in %s must have a lower bound greater than zero, "
+                "got %s. Try specifying a support constraint on the distribution"
+                % (
+                    key,
+                    str(value.support.lower_bound),
+                )
+            )
+        elif isinstance(value.support, distributions.constraints._Real):
+            assert False, (
+                "the support for the distribution in %s must have a lower bound greater than zero,"
+                "got all Real numbers. Try specifying a support constraint on the distribution"
+                % key
+            )
+        else:
+            warnings.warn(
+                "%s does not have a support lower bound, can not validate the distribution"
+                % key
+            )
+    else:  # not a distribution, just a value
+        assert value > 0, "%s must be greater than zero, got %s" % (
+            key,
+            str(value),
+        )
 
 
 def test_not_negative(key, value):
-    assert value >= 0, "%s must be non-negative, got %s" % (
-        key,
-        str(value),
-    )
+    """
+    checks if a value is not negative.
+    If `value` is a distribution, checks that the lower bound of its support not negative
+    """
+    if issubclass(type(value), distributions.Distribution):
+        if hasattr(value.support, "lower_bound"):
+            assert value.support.lower_bound >= 0, (
+                "the support for the distribution in %s must have a lower bound that is non-negative, "
+                "got %s. Try specifying a support constraint on the distribution"
+                % (
+                    key,
+                    str(value.support.lower_bound),
+                )
+            )
+        elif isinstance(value.support, distributions.constraints._Real):
+            assert False, (
+                "the support for the distribution in %s must have a lower bound greater than zero,"
+                "got all Real numbers. Try specifying a support constraint on the distribution"
+                % key
+            )
+        else:
+            warnings.warn(
+                "%s does not have a support lower bound, can not validate the distribution"
+                % key
+            )
+    else:  # not a distribution, just a value
+        assert value >= 0, "%s must be non-negative, got %s" % (
+            key,
+            str(value),
+        )
+
+
+def test_all_in_list(key, lst, func):
+    """
+    a function which tests a different constraint function defined in this file across all values of a list
+    """
+    try:
+        for i, value in enumerate(lst):
+            func(key, value)
+    except Exception as e:
+        # reraise exception specifying which index failed the test
+        raise AssertionError(
+            "The %s'th element of the %s array failed the above test"
+            % (str(i), key)
+        ) from e
 
 
 def age_limit_checks(key, age_limits):
@@ -411,6 +466,7 @@ PARAMETERS = [
         "validate": [
             partial(test_type, tested_type=np.ndarray),
             test_non_empty,
+            partial(test_all_in_list, func=test_positive),
         ],
         "type": np.array,
     },
@@ -491,8 +547,10 @@ PARAMETERS = [
     },
     {
         "name": "STRAIN_R0s",
-        "validate": lambda key, lst: [
-            test_not_negative(key, r0) for r0 in lst
+        "validate": [
+            partial(test_type, tested_type=np.ndarray),
+            test_non_empty,
+            partial(test_all_in_list, func=test_positive),
         ],
         "type": np.array,
     },

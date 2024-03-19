@@ -22,7 +22,11 @@
                     "transform": "AffineTransform",
                     "params": {
                         "loc": 2.5,
-                        "scale": 1
+                        "scale": 1,
+                        "domain": {
+                            "constraint": "unit_interval",
+                            "params": {}
+                        }
                     }
                 }
             }
