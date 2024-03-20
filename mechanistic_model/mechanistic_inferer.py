@@ -1,4 +1,6 @@
 import copy
+import json
+import os
 import warnings
 
 import jax.numpy as jnp
@@ -333,3 +335,85 @@ class MechanisticInferer(AbstractParameters):
         )
         self.inference_algo.print_summary()
         return self.inference_algo
+
+    def checkpoint(self, checkpoint_folder):
+        """
+        a function which saves the posterior samples from `self.inference_algo.get_samples()` into `checkpoint_folder` as well
+        as the average final state of the model when using all particles found in `self.inference_algo.get_samples()`.
+        """
+        if self.inference_algo.last_state is None:
+            print(
+                "unable to checkpoint as you have not called infer() yet to produce posteriors"
+            )
+            return
+        # get posterior samples
+        samples = self.inference_algo.get_samples(group_by_chain=False)
+        # we cant convert ndarray to samples, so we convert to list first
+        for parameter in samples.keys():
+            param_samples = samples[parameter]
+            if isinstance(param_samples, (np.ndarray, jnp.ndarray)):
+                samples[parameter] = param_samples.tolist()
+        with open(os.path.join(checkpoint_folder, "sample.json"), "w") as file:
+            json.dump(samples, file)
+
+    def create_average_final_state(self, tf):
+        if self.inference_algo.last_state is None:
+            print(
+                "unable to checkpoint as you have not called infer() yet to produce posteriors"
+            )
+            return
+        samples = self.inference_algo.get_samples(group_by_chain=True)
+        # lets flatten any parameters that come as lists into separate parameters
+        samples = utils.flatten_list_parameters(samples)
+        parameters_sampled = samples.keys()
+        # now lets resize it to get rid of the chains dimension
+        # current shape is (# params, num chains, num samples per chain)
+        samples = np.array(samples.values())
+        particles = samples.reshape(
+            (samples.shape[0], samples.shape[1] * samples.shape[2])
+        )  # (num_parameters, num_samples)
+        num_particles = particles.shape[1]
+        config_with_distributions = copy.deepcopy(self.config)
+        all_final_states = [
+            [],
+            [],
+            [],
+            [],
+        ]
+        # for each particle, change self.config parameters to match the posterior parameter values
+        # where applicable, sometimes we sample things like IHR which are not used by the runner
+        for particle in range(num_particles):
+            for i, parameter in enumerate(parameters_sampled):
+                posterior_param_value = samples[i, particle]
+                # if parameter name matches what is in self.config
+                if hasattr(self.config, parameter):
+                    setattr(self.config, parameter, posterior_param_value)
+                # if we sample as a part of a list, the end of `parameter` will have _i where i is the index
+                elif hasattr(self.config, "".join(parameter.split("_")[:-1])):
+                    # remove the _i from the name so we can reference it in self.config
+                    param_name_no_index = "".join(parameter.split("_")[:-1])
+                    # grab the index so we can set that element of the list
+                    param_index = int(parameter[-1])
+                    self.config.__dict__[param_name_no_index][
+                        param_index
+                    ] = posterior_param_value
+            # with self.config changed out, there are no distributions to sample, so calling self.get_parameters()
+            # returns only values and no numpyro.sample tracers
+            run_with_posterior_params = self.runner.run(
+                self.INITIAL_STATE,
+                self.get_parameters(),
+                tf=tf,
+            )
+            for i, compartment in enumerate(run_with_posterior_params.ys):
+                # timestep is first dimension, so we selecting compartment at t=-1
+                # which in this case is t=240
+                last_time_step = compartment[-1]
+                # add a rolling sum to the average_final_state variable
+                all_final_states[i].append(last_time_step)
+                # total_pops[i] += np.sum(last_time_step)
+        average_final_state = [
+            np.mean(compartment, axis=0) for compartment in all_final_states
+        ]
+        # set our self.config back to what it was in case we use inferer again
+        self.config = config_with_distributions
+        return average_final_state
