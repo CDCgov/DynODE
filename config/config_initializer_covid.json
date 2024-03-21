@@ -1,7 +1,7 @@
 {
     "INITALIZER_NAME": "base initializer covid",
-    "SEROLOGICAL_DATA_PATH": "data/serological-data/",
-    "SIM_DATA_PATH": "data/abm-data/abm_population.csv",
+    "SEROLOGICAL_DATA_PATH": "/input/serological-data/",
+    "SIM_DATA_PATH": "/input/abm-data/abm_population.csv",
     "POP_SIZE": 1000000,
     "INITIAL_INFECTIONS": 32000
 }
