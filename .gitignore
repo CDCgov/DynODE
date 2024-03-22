@@ -61,6 +61,7 @@ testing.py
 !config/*.json
 !tests/*.json
 !exp/*/*.json
+!docker_template_configs/*.json
 
 
 #####

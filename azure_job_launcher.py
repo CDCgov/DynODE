@@ -8,7 +8,7 @@ client = AzureClient(config_path="secrets/configuration_cfaazurebatchprd.toml")
 # client.set_debugging(True)
 
 client.package_and_upload_dockerfile(
-    registry_name="cfaprdbatchcr", repo_name="scenarios-test", tag="test2"
+    registry_name="cfaprdbatchcr", repo_name="scenarios-test", tag="test3"
 )
 
 # create the input and output blobs
@@ -41,13 +41,14 @@ print(client.container_image_name)
 in_files = helpers.list_files_in_container(
                 client.input_container_name, client.sp_credential, client.config
             ) 
+job_id = "scenarios_test_run_20"
 # command to run the job
-client.add_job(job_id="scenarios_test_run_15", input_files=in_files)
+client.add_job(job_id=job_id, input_files=in_files)
 # docker_cmd = "python ./example_end_to_end_run.py -state "
 # for state in states:
 #     docker_cmd = "python ./example_end_to_end_run.py -state " + str(state)
-client.add_task(job_id="scenarios_test_run_15", docker_cmd="python /app/example_end_to_end_run.py")
-client.monitor_job(job_id="scenarios_test_run_15")
+client.add_task(job_id=job_id, docker_cmd="python /app/experiment_runner.py --folder /app/exp/three_state_experiment -- runner /app/exp/three_state_experiment/single_state_runner")
+client.monitor_job(job_id=job_id)
 
 # close down the jobs, required when using debug is True
 # look into https://learn.microsoft.com/en-us/python/api/azure-batch/azure.batch.operations.joboperations?view=azure-python#azure-batch-operations-joboperations terminate

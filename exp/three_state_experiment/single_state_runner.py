@@ -23,7 +23,7 @@ parser.add_argument(
 if __name__ == "__main__":
     args = parser.parse_args()
     # step 1: define your paths
-    state_config_path = args.state + "/"
+    state_config_path = "/app/exp/three_state_experiment/" + args.state + "/"
     print("Running the following state: " + str(args.state) + "\n")
     # global_config include definitions such as age bin bounds and strain definitions
     # Any value or data structure that needs context to be interpretted is here.
@@ -64,6 +64,8 @@ if __name__ == "__main__":
     )
     # plot the 4 compartments summed across all age bins and immunity status
     fig, ax = interpreter.summarize_solution()
-    save_path = state_config_path + "output/example_end_to_end_run.png"
+    save_path = "/output/three_state_experiment/%s/example_end_to_end_run_.png" % args.state
+    if not os.path.exists(save_path):
+        os.mkdir("/output/three_state_experiment/%s"%args.state)
     print("Please see %s for your plot!" % save_path)
     plt.savefig(save_path)

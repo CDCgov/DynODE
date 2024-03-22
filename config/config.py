@@ -60,8 +60,8 @@ class Config:
                 if all([hasattr(self, k) for k in key]):
                     downstream_function(self, key)
         # take note of the current git hash for reproducibility reasons
-        self.LOCAL_REPO = git.Repo()
-        self.GIT_HASH = self.LOCAL_REPO.head.object.hexsha
+        # self.LOCAL_REPO = git.Repo()
+        # self.GIT_HASH = self.LOCAL_REPO.head.object.hexsha
 
     def assert_valid_configuration(self):
         """

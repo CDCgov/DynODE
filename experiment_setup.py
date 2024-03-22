@@ -15,11 +15,11 @@ import pandas as pd
 # these are the configs that will be copied into each state-level directory
 # their REGIONS key will be modified to match the state they work with.
 CONFIG_MOLDS = [
-    "config/config_global.json",
-    "config/config_inferer_covid.json",
-    "config/config_initializer_covid.json",
-    "config/config_runner_covid.json",
-    "config/config_interpreter_covid.json",
+    "docker_template_configs/config_global.json",
+    "docker_template_configs/config_inferer_covid.json",
+    "docker_template_configs/config_initializer_covid.json",
+    "docker_template_configs/config_runner_covid.json",
+    "docker_template_configs/config_interpreter_covid.json",
 ]
 
 
