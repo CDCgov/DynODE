@@ -32,7 +32,7 @@ client = AzureClient(config_path="secrets/configuration_cfaazurebatchprd.toml")
 # client.set_debugging(True)
 
 client.package_and_upload_dockerfile(
-    registry_name="cfaprdbatchcr", repo_name="scenarios-test", tag="testexp"
+    registry_name="cfaprdbatchcr", repo_name="scenarios-test", tag="testexp2"
 )
 
 # create the input and output blobs
@@ -49,12 +49,13 @@ client.use_pool(pool_name="scenarios_2_node")
 in_files = helpers.list_files_in_container(
                 client.input_container_name, client.sp_credential, client.config
             ) 
-job_id = "scenarios_test_run_20"
+job_id = "scenarios_test_run_25"
 # command to run the job
 client.add_job(job_id=job_id, input_files=in_files)
 for subdir in os.listdir(args.folder):
         subdir_path = os.path.join(args.folder, subdir)
         if os.path.isdir(subdir_path):
             # add a task setting the runner onto each state
-            client.add_task(job_id=job_id, docker_cmd="python %s -s %s"%(args.runner, subdir_path))
+            print("python %s -s %s"%(args.runner, subdir))
+            client.add_task(job_id=job_id, task_id = job_id + subdir, docker_cmd="python %s -s %s"%(args.runner, subdir))
 client.monitor_job(job_id=job_id)

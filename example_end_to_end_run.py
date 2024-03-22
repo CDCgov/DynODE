@@ -12,15 +12,13 @@ from mechanistic_model.static_value_parameters import StaticValueParameters
 from model_odes.seip_model import seip_ode
 
 if __name__ == "__main__":
-    print("starting example_end_to_end_run.py")
     # step 1: define your paths
-    config_path = "/app/config/"
+    config_path = "config/"
     # global_config include definitions such as age bin bounds and strain definitions
     # Any value or data structure that needs context to be interpretted is here.
     GLOBAL_CONFIG_PATH = config_path + "config_global.json"
     # defines the init conditions of the scenario: pop size, initial infections etc.
     INITIALIZER_CONFIG_PATH = config_path + "config_initializer_covid.json"
-    print(INITIALIZER_CONFIG_PATH)
     # defines the running variables, strain R0s, external strain introductions etc.
     RUNNER_CONFIG_PATH = config_path + "config_runner_covid.json"
     # defines prior __distributions__ for inferring runner variables.
@@ -38,14 +36,12 @@ if __name__ == "__main__":
     )
     # A runner that does ODE solving of a single run.
     runner = MechanisticRunner(seip_ode)
-    print("loaded objects")
     # run for 200 days, using init state and parameters from StaticValueParameters
     solution = runner.run(
         initializer.get_initial_state(),
         tf=200,
         args=static_params.get_parameters(),
     )
-    print("runner.run completed")
     if "-infer" in sys.argv:
         # for an example inference, lets jumble our solution up a bit and attempt to fit back to it
         ihr = [0.002, 0.004, 0.008, 0.06]
@@ -81,7 +77,6 @@ if __name__ == "__main__":
         )
         # plot the 4 compartments summed across all age bins and immunity status
         fig, ax = interpreter.summarize_solution()
-        print("summarized solution")
-        save_path = "../output/example_end_to_end_run.png"
+        save_path = "output/example_end_to_end_run.png"
         print("Please see %s for your plot!" % save_path)
         plt.savefig(save_path)

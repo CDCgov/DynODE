@@ -2,8 +2,9 @@
 import argparse
 import os
 import sys
-
-sys.path.append(os.getcwd())
+sys.path.append("/app")
+sys.path.append("/app/mechanistic_model/")
+print(sys.path)
 import matplotlib.pyplot as plt
 
 from mechanistic_model.covid_initializer import CovidInitializer
@@ -66,6 +67,6 @@ if __name__ == "__main__":
     fig, ax = interpreter.summarize_solution()
     save_path = "/output/three_state_experiment/%s/example_end_to_end_run_.png" % args.state
     if not os.path.exists(save_path):
-        os.mkdir("/output/three_state_experiment/%s"%args.state)
+        os.makedirs("/output/three_state_experiment/%s"%args.state)
     print("Please see %s for your plot!" % save_path)
     plt.savefig(save_path)
