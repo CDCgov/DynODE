@@ -349,7 +349,7 @@ class MechanisticInferer(AbstractParameters):
         self.infer_complete = True
         return self.inference_algo
 
-    def checkpoint(self, checkpoint_path):
+    def checkpoint(self, checkpoint_path, group_by_chain=True):
         """
         a function which saves the posterior samples from `self.inference_algo` into `checkpoint_path` as a json file.
         will save anything sampled or numpyro.deterministic as long as it is tracked by `self.inference_algo`
@@ -369,9 +369,14 @@ class MechanisticInferer(AbstractParameters):
             )
             return
         # get posterior samples including any calls to numpyro.deterministic
-        samples = self.inference_algo._states_flat[
-            self.inference_algo._sample_field
-        ]
+        if group_by_chain:
+            samples = self.inference_algo._states[
+                self.inference_algo._sample_field
+            ]
+        else:
+            samples = self.inference_algo._states_flat[
+                self.inference_algo._sample_field
+            ]
         # we cant convert ndarray to samples, so we convert to list first
         for parameter in samples.keys():
             param_samples = samples[parameter]
