@@ -4,7 +4,6 @@ import os
 from enum import IntEnum
 from functools import partial
 
-import git
 import jax.numpy as jnp
 import numpy as np
 import numpyro.distributions as distributions
@@ -59,7 +58,7 @@ class Config:
                 # dont try to create downstream unless config has all necessary keys
                 if all([hasattr(self, k) for k in key]):
                     downstream_function(self, key)
-                    
+
     def assert_valid_configuration(self):
         """
         checks the soundness of parameters passed into Config by referencing the name of parameters passed to the config

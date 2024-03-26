@@ -5,10 +5,9 @@ and another to specify the location of the state-specific runner script, which w
 
 import argparse
 import os
-import subprocess
-from cfa_azure.clients import AzureClient
+
 import cfa_azure.helpers as helpers
-import os
+from cfa_azure.clients import AzureClient
 
 # specify job ID, cant already exist
 JOB_ID = "scenarios_inference_run_4"
@@ -43,9 +42,7 @@ client.set_input_container("scenarios-test-container", "input")
 client.set_output_container("example-output-scenarios-mechanistic", "output")
 
 # set the scaling of the pool, assign `dedicated_nodes` to split work accross
-client.set_scaling(
-    mode="fixed", dedicated_nodes=2, timeout=TIMEOUT_SECS
-)
+client.set_scaling(mode="fixed", dedicated_nodes=2, timeout=TIMEOUT_SECS)
 # create the pool
 client.create_pool(pool_name="scenarios_2_node")
 # or use a certain pool if already exists and active
@@ -53,16 +50,20 @@ client.create_pool(pool_name="scenarios_2_node")
 
 # for now lets just mount every file into each node
 in_files = helpers.list_files_in_container(
-                client.input_container_name, client.sp_credential, client.config
-            ) 
+    client.input_container_name, client.sp_credential, client.config
+)
 # command to run the job
 client.add_job(job_id=JOB_ID, input_files=in_files)
 # add a task for each subdir of the given experiment folder
 for subdir in os.listdir(args.folder):
-        subdir_path = os.path.join(args.folder, subdir)
-        if os.path.isdir(subdir_path):
-            # add a task setting the runner onto each state
-            # we use the -s flag with the subdir name, 
-            # since experiment directories are structured with USPS state codes as directory names
-            client.add_task(job_id=JOB_ID, task_id = JOB_ID + subdir, docker_cmd="python %s -s %s"%(args.runner, subdir))
+    subdir_path = os.path.join(args.folder, subdir)
+    if os.path.isdir(subdir_path):
+        # add a task setting the runner onto each state
+        # we use the -s flag with the subdir name,
+        # since experiment directories are structured with USPS state codes as directory names
+        client.add_task(
+            job_id=JOB_ID,
+            task_id=JOB_ID + subdir,
+            docker_cmd="python %s -s %s" % (args.runner, subdir),
+        )
 client.monitor_job(job_id=JOB_ID)

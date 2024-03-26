@@ -2,18 +2,19 @@
 import argparse
 import os
 import sys
+
 sys.path.append("/app")
 sys.path.append("/app/mechanistic_model/")
 print(sys.path)
-import matplotlib.pyplot as plt
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 
 from mechanistic_model.covid_initializer import CovidInitializer
+from mechanistic_model.mechanistic_inferer import MechanisticInferer
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 from mechanistic_model.solution_iterpreter import SolutionInterpreter
 from mechanistic_model.static_value_parameters import StaticValueParameters
-from mechanistic_model.mechanistic_inferer import MechanisticInferer
 from model_odes.seip_model import seip_ode
 
 parser = argparse.ArgumentParser()
@@ -27,7 +28,9 @@ parser.add_argument(
 if __name__ == "__main__":
     args = parser.parse_args()
     # step 1: define your paths
-    state_config_path = "/app/exp/five_state_inference_experiment/" + args.state + "/"
+    state_config_path = (
+        "/app/exp/five_state_inference_experiment/" + args.state + "/"
+    )
     print("Running the following state: " + str(args.state) + "\n")
     # global_config include definitions such as age bin bounds and strain definitions
     # Any value or data structure that needs context to be interpretted is here.
@@ -91,14 +94,21 @@ if __name__ == "__main__":
     )
     # plot the 4 compartments summed across all age bins and immunity status
     fig, ax = interpreter.summarize_solution()
-    save_path = "/output/five_state_inference_experiment/%s/static_params_run.png" % args.state
+    save_path = (
+        "/output/five_state_inference_experiment/%s/static_params_run.png"
+        % args.state
+    )
     if not os.path.exists(save_path):
-        os.makedirs("/output/five_state_inference_experiment/%s"%args.state)
+        os.makedirs("/output/five_state_inference_experiment/%s" % args.state)
     print("Please see %s for your plot!" % save_path)
     plt.savefig(save_path)
     # now we override the static params with the fitted ones and plot the line again.
-    static_params.config.INTRODUCTION_TIMES = [np.median(samples["INTRODUCTION_TIMES_0"])]
-    static_params.config.INFECTIOUS_PERIOD = np.median(samples["INFECTIOUS_PERIOD"])
+    static_params.config.INTRODUCTION_TIMES = [
+        np.median(samples["INTRODUCTION_TIMES_0"])
+    ]
+    static_params.config.INFECTIOUS_PERIOD = np.median(
+        samples["INFECTIOUS_PERIOD"]
+    )
     static_params.config.STRAIN_R0s[2] = np.median(samples["STRAIN_R0s_2"])
     solution = runner.run(
         initializer.get_initial_state(),
@@ -110,8 +120,9 @@ if __name__ == "__main__":
     )
     # plot the 4 compartments summed across all age bins and immunity status
     fig, ax = interpreter.summarize_solution()
-    save_path = "/output/five_state_inference_experiment/%s/infered_params_run.png" % args.state
+    save_path = (
+        "/output/five_state_inference_experiment/%s/infered_params_run.png"
+        % args.state
+    )
     print("Please see %s for your plot!" % save_path)
     plt.savefig(save_path)
-
-
