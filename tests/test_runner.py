@@ -23,9 +23,9 @@ EIC_SHAPE = (
     global_config.NUM_STRAINS,
 )
 fake_initial_state = (
-    500 * jnp.zeros(S_SHAPE),  # S
+    500 * jnp.ones(S_SHAPE),  # S
     jnp.zeros(EIC_SHAPE),  # E
-    1 * jnp.zeros(EIC_SHAPE),  # I
+    1 * jnp.ones(EIC_SHAPE),  # I
     jnp.zeros(EIC_SHAPE),  # C
 )
 static_params = StaticValueParameters(
@@ -107,4 +107,15 @@ def test_output_shapes():
             + str(compartment.shape)
             + " expected: "
             + str(expected_shape)
+        )
+
+
+def test_non_negative_compartments():
+    solution = runner.run(fake_initial_state, static_params.get_parameters())
+    for compartment_name, compartment in zip(
+        static_params.config.COMPARTMENT_IDX._member_names_, solution.ys
+    ):
+        assert (compartment >= 0).all(), (
+            "compartment counts must be above zero, found negatives in compartment %s"
+            % compartment_name
         )
