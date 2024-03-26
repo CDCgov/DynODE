@@ -1,4 +1,5 @@
 import copy
+import json
 import warnings
 
 import jax.numpy as jnp
@@ -35,6 +36,7 @@ class MechanisticInferer(AbstractParameters):
         self.config = Config(global_json).add_file(distributions_json)
         self.runner = runner
         self.INITIAL_STATE = initial_state
+        self.infer_complete = False  # flag once inference completes
         self.set_infer_algo(prior_inferer=prior_inferer)
         self.retrieve_population_counts()
         self.load_cross_immunity_matrix()
@@ -105,7 +107,19 @@ class MechanisticInferer(AbstractParameters):
         )
         # axis = 0 because we take diff across time
         model_incidence = jnp.diff(model_incidence, axis=0)
-
+        # save the final timestep of solution array for each compartment
+        numpyro.deterministic(
+            "final_timestep_s", solution.ys[self.config.COMPARTMENT_IDX.S][-1]
+        )
+        numpyro.deterministic(
+            "final_timestep_e", solution.ys[self.config.COMPARTMENT_IDX.E][-1]
+        )
+        numpyro.deterministic(
+            "final_timestep_i", solution.ys[self.config.COMPARTMENT_IDX.I][-1]
+        )
+        numpyro.deterministic(
+            "final_timestep_c", solution.ys[self.config.COMPARTMENT_IDX.C][-1]
+        )
         # sample infection hospitalization rate here
         with numpyro.plate("num_age", self.config.NUM_AGE_GROUPS):
             ihr = numpyro.sample("ihr", Dist.Beta(0.5, 10))
@@ -332,4 +346,41 @@ class MechanisticInferer(AbstractParameters):
             obs_metrics=obs_metrics,
         )
         self.inference_algo.print_summary()
+        self.infer_complete = True
         return self.inference_algo
+
+    def checkpoint(self, checkpoint_path, group_by_chain=True):
+        """
+        a function which saves the posterior samples from `self.inference_algo` into `checkpoint_path` as a json file.
+        will save anything sampled or numpyro.deterministic as long as it is tracked by `self.inference_algo`
+
+        Parameters
+        -----------
+        checkpoint_path: str
+            a path to which the json file is saved to. Throws error if folders do not exist, overwrites existing JSON files within.
+
+        Returns
+        -----------
+        None
+        """
+        if not self.infer_complete:
+            print(
+                "unable to checkpoint as you have not called infer() yet to produce posteriors"
+            )
+            return
+        # get posterior samples including any calls to numpyro.deterministic
+        if group_by_chain:
+            samples = self.inference_algo._states[
+                self.inference_algo._sample_field
+            ]
+        else:
+            samples = self.inference_algo._states_flat[
+                self.inference_algo._sample_field
+            ]
+        # we cant convert ndarray to samples, so we convert to list first
+        for parameter in samples.keys():
+            param_samples = samples[parameter]
+            if isinstance(param_samples, (np.ndarray, jnp.ndarray)):
+                samples[parameter] = param_samples.tolist()
+        with open(checkpoint_path, "w") as file:
+            json.dump(samples, file)
