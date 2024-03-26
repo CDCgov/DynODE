@@ -59,10 +59,7 @@ class Config:
                 # dont try to create downstream unless config has all necessary keys
                 if all([hasattr(self, k) for k in key]):
                     downstream_function(self, key)
-        # take note of the current git hash for reproducibility reasons
-        # self.LOCAL_REPO = git.Repo()
-        # self.GIT_HASH = self.LOCAL_REPO.head.object.hexsha
-
+                    
     def assert_valid_configuration(self):
         """
         checks the soundness of parameters passed into Config by referencing the name of parameters passed to the config
