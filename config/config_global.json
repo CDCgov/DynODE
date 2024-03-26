@@ -1,5 +1,5 @@
 {
-    "DEMOGRAPHIC_DATA_PATH": "/input/demographic-data/",
+    "DEMOGRAPHIC_DATA_PATH": "data/demographic-data/",
     "REGIONS": [
         "United States"
     ],

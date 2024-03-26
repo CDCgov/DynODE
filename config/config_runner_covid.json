@@ -1,9 +1,9 @@
 {
     "SCENARIO_NAME": "test covid run for testing suite",
-    "CONTACT_MATRIX_PATH": "/input/demographic-data/contact_matrices",
-    "SAVE_PATH": "/output/",
-    "HOSP_PATH": "/input/hospital_220213_220108.csv",
-    "VAX_MODEL_DATA": "/input/spline_fits.csv",
+    "CONTACT_MATRIX_PATH": "data/demographic-data/contact_matrices",
+    "SAVE_PATH": "output/",
+    "HOSP_PATH": "data/hospital_220213_220108.csv",
+    "VAX_MODEL_DATA": "data/spline_fits.csv",
     "VAX_MODEL_NUM_KNOTS": 18,
     "STRAIN_R0s": [
         1.2,
