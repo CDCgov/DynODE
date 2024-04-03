@@ -462,15 +462,6 @@ PARAMETERS = [
         ],
     },
     {
-        "name": "STRAIN_SPECIFIC_R0",
-        "validate": [
-            partial(test_type, tested_type=np.ndarray),
-            test_non_empty,
-            partial(test_all_in_list, func=test_positive),
-        ],
-        "type": np.array,
-    },
-    {
         "name": "WANING_TIMES",
         "validate": [
             partial(test_type, tested_type=list),
@@ -550,7 +541,7 @@ PARAMETERS = [
         "validate": [
             partial(test_type, tested_type=np.ndarray),
             test_non_empty,
-            partial(test_all_in_list, func=test_positive),
+            partial(test_all_in_list, func=test_not_negative),
         ],
         "type": np.array,
     },
