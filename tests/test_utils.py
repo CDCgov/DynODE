@@ -194,7 +194,6 @@ def test_all_immune_states_without():
                     )
 
 
-
 def test_evaluate_cubic_spline():
     test_base_equations = jnp.array([[1, 2, 3, 4], [1, 2, 3, 4]])
     test_spline_locations = jnp.array([[0, 2, 4, 6], [0, 2, 4, 6]])
@@ -231,6 +230,7 @@ def test_evaluate_cubic_spline():
             "utils.evaluate_cubic_spline is returning incorrect splines, check the math at t=%d"
             % t
         )
+
 
 def test_date_to_epi_week():
     random_date_looked_up_epi_week_for = datetime.date(2024, 2, 1)
