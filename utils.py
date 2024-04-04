@@ -201,10 +201,10 @@ def date_to_epi_week(date: datetime.date):
         date to be converted to a simulation day
     Returns
     -----------
-    int epi week representing the epi_week that `date` falls in
+    epiweeks.Week obj representing the epi_week that `date` falls in
     """
     epi_week = epiweeks.Week.fromdate(date)
-    return epi_week.week
+    return epi_week
 
 
 def new_immune_state(
