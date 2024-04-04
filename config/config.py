@@ -562,7 +562,7 @@ PARAMETERS = [
     {
         "name": "INIT_DATE",
         # "validate": do_nothing,
-        "type": lambda s: datetime.datetime.strptime(s, "%Y-%m-%d"),
+        "type": lambda s: datetime.datetime.strptime(s, "%Y-%m-%d").date(),
     },
     {
         "name": "COMPARTMENT_IDX",

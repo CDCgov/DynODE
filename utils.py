@@ -4,6 +4,7 @@ import json
 import os
 from enum import IntEnum
 
+import epiweeks
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
@@ -130,6 +131,80 @@ def evaluate_cubic_spline(
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # INDEXING FUNCTIONS
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+def sim_day_to_date(sim_day: int, init_date: datetime.date):
+    """
+    given the current model's simulation day as an integer, and the date of the model initialization.
+    returns a date object representing the current simulation day.
+
+    Parameters
+    ----------
+    sim_day: int
+        current model simulation day where sim_day==0==init_date
+    init_date: datetime.date
+        the initialization date of the simulation, usually found in the config.INIT_DATE parameter
+
+    Returns
+    -----------
+    datetime.date object representing the current sim_day of the simulation.
+    """
+    return init_date + datetime.timedelta(days=sim_day)
+
+
+def sim_day_to_epiweek(sim_day: int, init_date: datetime.date):
+    """
+    given the current model's simulation day as an integer, and the date of the model initialization.
+    returns an integer cdc epiweek that sim_day falls in.
+
+    Parameters
+    ----------
+    sim_day: int
+        current model simulation day where sim_day==0==init_date
+    init_date: datetime.date
+        the initialization date of the simulation, usually found in the config.INIT_DATE parameter
+
+    Returns
+    -----------
+    int epiweek representing the cdc epiweek of the simulation on day sim_day.
+    """
+    date = sim_day_to_date(sim_day, init_date)
+    epi_week = epiweeks.Week.fromdate(date)
+    return epi_week.week
+
+
+def date_to_sim_day(date: datetime.date, init_date: datetime.date):
+    """
+    given a date object, converts back to simulation days using init_date as reference for t=0
+
+    Parameters
+    ----------
+    sim_day: datetime.date
+        date to be converted to a simulation day
+    init_date: datetime.date
+        the initialization date of the simulation, usually found in the config.INIT_DATE parameter
+
+    Returns
+    -----------
+    int simulation day representing how many days from `init_date` have passed.
+    """
+    return (date - init_date).days
+
+
+def date_to_epi_week(date: datetime.date):
+    """
+    given a date object, converts to cdc epi week using init_date as reference for t=0
+
+    Parameters
+    ----------
+    sim_day: datetime.date
+        date to be converted to a simulation day
+    Returns
+    -----------
+    int epi week representing the epi_week that `date` falls in
+    """
+    epi_week = epiweeks.Week.fromdate(date)
+    return epi_week.week
 
 
 def new_immune_state(
