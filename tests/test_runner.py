@@ -74,30 +74,10 @@ def test_output_shapes():
         static_params.INITIAL_STATE, 0, static_params.get_parameters()
     )
     expected_output_shapes = [
-        (
-            static_params.config.NUM_AGE_GROUPS,
-            2**static_params.config.NUM_STRAINS,
-            static_params.config.MAX_VAX_COUNT + 1,
-            static_params.config.NUM_WANING_COMPARTMENTS,
-        ),
-        (
-            static_params.config.NUM_AGE_GROUPS,
-            2**static_params.config.NUM_STRAINS,
-            static_params.config.MAX_VAX_COUNT + 1,
-            static_params.config.NUM_STRAINS,
-        ),
-        (
-            static_params.config.NUM_AGE_GROUPS,
-            2**static_params.config.NUM_STRAINS,
-            static_params.config.MAX_VAX_COUNT + 1,
-            static_params.config.NUM_STRAINS,
-        ),
-        (
-            static_params.config.NUM_AGE_GROUPS,
-            2**static_params.config.NUM_STRAINS,
-            static_params.config.MAX_VAX_COUNT + 1,
-            static_params.config.NUM_STRAINS,
-        ),
+        S_SHAPE,
+        EIC_SHAPE,
+        EIC_SHAPE,
+        EIC_SHAPE,
     ]
     for compartment, expected_shape in zip(
         first_derivatives, expected_output_shapes

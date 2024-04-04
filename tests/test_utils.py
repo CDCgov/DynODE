@@ -1,3 +1,4 @@
+import datetime
 import itertools
 from enum import IntEnum
 
@@ -193,6 +194,7 @@ def test_all_immune_states_without():
                     )
 
 
+
 def test_evaluate_cubic_spline():
     test_base_equations = jnp.array([[1, 2, 3, 4], [1, 2, 3, 4]])
     test_spline_locations = jnp.array([[0, 2, 4, 6], [0, 2, 4, 6]])
@@ -229,6 +231,17 @@ def test_evaluate_cubic_spline():
             "utils.evaluate_cubic_spline is returning incorrect splines, check the math at t=%d"
             % t
         )
+
+def test_date_to_epi_week():
+    random_date_looked_up_epi_week_for = datetime.date(2024, 2, 1)
+    epi_week_found_on_cdc_calendar = 5
+    epi_week_returned = utils.date_to_epi_week(
+        random_date_looked_up_epi_week_for
+    ).week
+    assert epi_week_returned == epi_week_found_on_cdc_calendar, (
+        "date_to_epi_week returns incorrect epi week for feb 1st 2024, got %s, should be %s"
+        % (epi_week_returned, epi_week_found_on_cdc_calendar)
+    )
 
 
 def test_combined_strain_mapping():
