@@ -229,6 +229,42 @@ class AbstractParameters:
         self.config.VAX_MODEL_KNOT_LOCATIONS = jnp.array(vax_knot_locations)
         self.config.VAX_MODEL_BASE_EQUATIONS = jnp.array(vax_base_equations)
 
+    def seasonal_vaccination_reset(self, t):
+        """
+        if model implements seasonal vaccination, returns evaluation of a continuously differentiable function
+        at x=t to outflow individuals from the top most vaccination bin (labeled the seasonal bin)
+        into the second highest bin.
+
+        Example
+        ----------
+        if self.config.SEASONAL_VACCINATION == True
+
+        at `t=utils.date_to_sim_day(self.config.VAX_SEASON_CHANGE)` returns 1
+        else returns near 0 for t far from self.config.VAX_SEASON_CHANGE.
+        """
+        if (
+            hasattr(self.config, "SEASONAL_VACCINATION")
+            and self.config.SEASONAL_VACCINATION
+        ):
+            # outflow function must be positive if and only if
+            # it is time to move people from seasonal bin back to max ordinal bin
+            # use a sine wave that occurs once a year to achieve this effect
+            peak_of_function = 182.5
+            # shift this value using shift_t to align with self.config.VAX_SEASON_CHANGE
+            # such that outflow_fn(self.config.VAX_SEASON_CHANGE) == 1.0 always
+            shift_t = (
+                peak_of_function
+                - (self.config.VAX_SEASON_CHANGE - self.config.INIT_DATE).days
+            )
+            # raise to an even exponent to remove negatives,
+            # pick 1000 since too high of a value likely to be stepped over by adaptive step size
+            # divide by 730 so wave only occurs 1 per every 365 days
+            # multiply by 2pi since we pass days as int
+            return jnp.sin((2 * jnp.pi * (t + shift_t) / 730)) ** 1000
+        else:
+            # if no seasonal vaccination, this function always returns zero
+            return 0
+
     def load_contact_matrix(self):
         """
         a wrapper function that loads a contact matrix for the USA based on mixing paterns data found here:
