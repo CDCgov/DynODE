@@ -1,3 +1,4 @@
+import datetime
 import itertools
 from enum import IntEnum
 
@@ -191,6 +192,18 @@ def test_all_immune_states_without():
                         "state %d should have an exposure to strain %d but does not when num_strains is %d"
                         % (immune_state, strain, num_strains)
                     )
+
+
+def test_date_to_epi_week():
+    random_date_looked_up_epi_week_for = datetime.date(2024, 2, 1)
+    epi_week_found_on_cdc_calendar = 5
+    epi_week_returned = utils.date_to_epi_week(
+        random_date_looked_up_epi_week_for
+    ).week
+    assert epi_week_returned == epi_week_found_on_cdc_calendar, (
+        "date_to_epi_week returns incorrect epi week for feb 1st 2024, got %s, should be %s"
+        % (epi_week_returned, epi_week_found_on_cdc_calendar)
+    )
 
 
 def test_combined_strain_mapping():
