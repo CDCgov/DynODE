@@ -199,7 +199,7 @@ def test_date_to_epi_week():
     epi_week_found_on_cdc_calendar = 5
     epi_week_returned = utils.date_to_epi_week(
         random_date_looked_up_epi_week_for
-    )
+    ).week
     assert epi_week_returned == epi_week_found_on_cdc_calendar, (
         "date_to_epi_week returns incorrect epi week for feb 1st 2024, got %s, should be %s"
         % (epi_week_returned, epi_week_found_on_cdc_calendar)

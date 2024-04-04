@@ -166,11 +166,11 @@ def sim_day_to_epiweek(sim_day: int, init_date: datetime.date):
 
     Returns
     -----------
-    int epiweek representing the cdc epiweek of the simulation on day sim_day.
+    epiweek.Week object representing the cdc epiweek of the simulation on day sim_day.
     """
     date = sim_day_to_date(sim_day, init_date)
     epi_week = epiweeks.Week.fromdate(date)
-    return epi_week.week
+    return epi_week
 
 
 def date_to_sim_day(date: datetime.date, init_date: datetime.date):
