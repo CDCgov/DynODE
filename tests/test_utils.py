@@ -194,6 +194,44 @@ def test_all_immune_states_without():
                     )
 
 
+def test_evaluate_cubic_spline():
+    test_base_equations = jnp.array([[1, 2, 3, 4], [1, 2, 3, 4]])
+    test_spline_locations = jnp.array([[0, 2, 4, 6], [0, 2, 4, 6]])
+    test_spline_coefs = jnp.array([[1, 1, 1, 1], [1, 2, 3, -4]])
+
+    def test_spline_1(t):
+        base_equation = 1 + 2 * t + 3 * t**2 + 4 * t**3
+        # coefficients all 1, just sum the indicators
+        spline_indicators = t > test_spline_locations[0]
+        splines = jnp.sum(
+            (t - test_spline_locations[0]) ** 3 * spline_indicators
+        )
+        return base_equation + splines
+
+    def test_spline_2(t):
+        base_equation = 1 + 2 * t + 3 * t**2 + 4 * t**3
+        # coefficients all 1, just sum the indicators
+        spline_indicators = t > test_spline_locations[1]  # indicator vars
+        splines = jnp.sum(
+            test_spline_coefs[1]
+            * ((t - test_spline_locations[1]) ** 3 * spline_indicators)
+        )
+        return base_equation + splines
+
+    for t in range(-5, 5, 1):
+        utils_splines = utils.evaluate_cubic_spline(
+            t, test_spline_locations, test_base_equations, test_spline_coefs
+        ).flatten()
+        assert utils_splines[0] == test_spline_1(t), (
+            "utils.evaluate_cubic_spline is returning incorrect splines, check the math at t=%d"
+            % t
+        )
+        assert utils_splines[1] == test_spline_2(t), (
+            "utils.evaluate_cubic_spline is returning incorrect splines, check the math at t=%d"
+            % t
+        )
+
+
 def test_date_to_epi_week():
     random_date_looked_up_epi_week_for = datetime.date(2024, 2, 1)
     epi_week_found_on_cdc_calendar = 5
