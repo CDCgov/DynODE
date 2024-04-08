@@ -92,8 +92,16 @@ class MechanisticInferer(AbstractParameters):
 
         Currently expects hospitalization data and samples IHR using a negative binomial distribution.
         """
+        parameters = self.get_parameters()
+        if "INITIAL_INFECTIONS_SCALE" in parameters.keys():
+            initial_state = self.scale_initial_infections(
+                parameters["INITIAL_INFECTIONS_SCALE"]
+            )
+        else:
+            initial_state = self.INITIAL_STATE
+
         solution = self.runner.run(
-            self.INITIAL_STATE, args=self.get_parameters(), tf=len(obs_metrics)
+            initial_state, args=parameters, tf=len(obs_metrics)
         )
         # add 1 to idxs because we are stratified by time in the solution object
         # sum down to just time x age bins

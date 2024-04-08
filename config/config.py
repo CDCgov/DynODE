@@ -440,6 +440,14 @@ PARAMETERS = [
         ],
     },
     {
+        "name": "INITIAL_INFECTIONS_SCALE",
+        "validate": [
+            partial(test_type, tested_type=(int, float)),
+            test_not_negative,
+        ],
+        "type": float,
+    },
+    {
         "name": ["POP_SIZE", "INITIAL_INFECTIONS"],
         "validate": compare_geq,
     },
