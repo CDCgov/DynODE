@@ -162,7 +162,9 @@ class CovidSeroInitializer(CovidInitializer):
         )  # shape=(hist, vax, wane)
         # for each age bin, multiply the pop counts of each
         # hist, vax, wane strata by the protect afforded by that strata
-        pop_sizes_with_relative_immunity = waned_immunity[np.newaxis, ...] * (
+        pop_sizes_with_relative_immunity = (
+            1 - waned_immunity[np.newaxis, ...]
+        ) * (
             self.config.POPULATION[:, np.newaxis, np.newaxis, np.newaxis]
             * self.config.INIT_IMMUNE_HISTORY
         )  # shape(age, hist, vax, wane)
