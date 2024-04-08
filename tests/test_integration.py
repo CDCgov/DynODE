@@ -1,3 +1,13 @@
+"""
+Integration tests are done here.
+
+This file is responsible for creating copies of each config JSON file within COPIED_TEMP_FILES,
+passing those copies to each test, and removing them from memory after the test concludes.
+
+To follow integration test best practices, avoid modifying model parameters
+in the models themselves, instead modify config parameters in the JSON where at all possible.
+"""
+
 import json
 import os
 import tempfile
@@ -34,7 +44,7 @@ COPIED_TEMP_FILES = [
 def temp_config_files(request):
     """
     will run before each test starts, creating temp copies of each config json files defined at the top of this file.
-    These spoofed file objects will be created and deleted during a single test, and
+    These temp file objects will be created and deleted during a single test, and
     """
     copied_file_paths = []
     for coped_temp_file in COPIED_TEMP_FILES:
@@ -54,19 +64,19 @@ def temp_config_files(request):
 def test_temp_config_functionality(temp_config_files):
     # make sure the order matches the order of COPIED_TEMP_FILES
     (
-        spoof_global_path,
-        spoof_initializer_path,
-        spoof_inferer_path,
-        spoof_interpreter_path,
-        spoof_runner_path,
+        temp_global_path,
+        temp_initializer_path,
+        temp_inferer_path,
+        temp_interpreter_path,
+        temp_runner_path,
     ) = temp_config_files
-    # load in the spoofed global file
-    global_config = json.load(open(spoof_global_path, "r"))
+    # load in the temp global file
+    global_config = json.load(open(temp_global_path, "r"))
     # change something about it and push those changes back
     global_config["MINIMUM_AGE"] = 25
-    json.dump(global_config, open(spoof_global_path, "w"))
+    json.dump(global_config, open(temp_global_path, "w"))
     # reload the file and make sure the changes are now there
-    global_config = json.load(open(spoof_global_path, "r"))
+    global_config = json.load(open(temp_global_path, "r"))
     assert global_config["MINIMUM_AGE"] == 25, "changes not pushed"
 
 
@@ -81,28 +91,28 @@ def test_vaccination_rates(temp_config_files):
     """
     # make sure the order matches the order of COPIED_TEMP_FILES
     (
-        spoof_global_path,
-        spoof_initializer_path,
+        temp_global_path,
+        temp_initializer_path,
         _,
         _,
-        spoof_runner_path,
+        temp_runner_path,
     ) = temp_config_files
     # creating the scenario
-    initializer = json.load(open(spoof_initializer_path, "r"))
+    initializer = json.load(open(temp_initializer_path, "r"))
     initializer["POP_SIZE"] = 1  # pop size to 1
     initializer["INITIAL_INFECTIONS"] = 0  # no initial infections
     # saving initializer changes
-    json.dump(initializer, open(spoof_initializer_path, "w"))
-    runner = json.load(open(spoof_runner_path, "r"))
+    json.dump(initializer, open(temp_initializer_path, "w"))
+    runner = json.load(open(temp_runner_path, "r"))
     runner["STRAIN_R0s"] = [0.0, 0.0, 0.0]  # no new infections
     runner["INTRODUCTION_TIMES"] = []  # turn off external introductions
     # saving runner changes
-    json.dump(runner, open(spoof_runner_path, "w"))
+    json.dump(runner, open(temp_runner_path, "w"))
 
     # integration test
-    initializer = CovidInitializer(spoof_initializer_path, spoof_global_path)
+    initializer = CovidInitializer(temp_initializer_path, temp_global_path)
     static_params = StaticValueParameters(
-        initializer.get_initial_state(), spoof_runner_path, spoof_global_path
+        initializer.get_initial_state(), temp_runner_path, temp_global_path
     )
     # test vaccination vs ode for 10 timesteps
     # we dont use the MechanisticRunner here because the adaptive step size can mess with things
