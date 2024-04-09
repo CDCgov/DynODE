@@ -165,17 +165,89 @@ def test_negative_infectious_period():
         Config(input_json)
 
 
-def test_valid_distribution_infectious_period():
+def test_invalid_support_infectious_period():
     input_json = """{"INFECTIOUS_PERIOD": {"distribution": "Normal", "params": {"loc": 0, "scale":1}}}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_valid_support_infectious_period():
+    input_json = """{"INFECTIOUS_PERIOD": {"distribution": "TruncatedNormal", "params": {"loc": 2, "scale":1, "low":1}}}"""
     c = Config(input_json)
-    assert (
-        isinstance(c.INFECTIOUS_PERIOD, dist.Normal)
-        and c.INFECTIOUS_PERIOD.mean == 0
-        and c.INFECTIOUS_PERIOD.variance == 1
-    )
+    assert issubclass(type(c.INFECTIOUS_PERIOD), dist.Distribution)
 
 
 def test_valid_nested_distribution_infectious_period():
+    # a basic 1 + N(0,1) distribution
+    input_json = """{"INFECTIOUS_PERIOD": {
+            "distribution": "TransformedDistribution",
+            "params": {
+                "base_distribution": {
+                    "distribution": "TruncatedNormal",
+                    "params": {
+                        "loc": 5,
+                        "scale": 1,
+                        "low": 1
+                    }
+                },
+                "transforms": {
+                    "transform": "AffineTransform",
+                    "params": {
+                        "loc": 1,
+                        "scale": 1,
+                        "domain": {
+                            "constraint": "greater_than",
+                            "params": {
+                                "lower_bound": 1
+                            }
+                        }
+                    }
+                }
+            }
+        }}"""
+    c = Config(input_json)
+    assert isinstance(c.INFECTIOUS_PERIOD, dist.TransformedDistribution)
+
+
+def test_invalid_distribution_infectious_period():
+    input_json = """{"INFECTIOUS_PERIOD": {"distribution": "Normal", "params": {"loc": 0, "scale":"blah"}}}"""
+    with pytest.raises(ConfigParserError):
+        Config(input_json)
+
+
+def test_invalid_params_nested_distribution_infectious_period():
+    # a basic 1 + N(0,1) distribution
+    input_json = """{"INFECTIOUS_PERIOD": {
+            "distribution": "TransformedDistribution",
+            "params": {
+                "base_distribution": {
+                    "distribution": "TruncatedNormal",
+                    "params": {
+                        "loc": 5,
+                        "scale": 1,
+                        "low": 1
+                    }
+                },
+                "transforms": {
+                    "transform": "AffineTransform",
+                    "params": {
+                        "loc": "invalid_input",
+                        "scale": 1,
+                        "domain": {
+                            "constraint": "greater_than",
+                            "params": {
+                                "lower_bound": 1
+                            }
+                        }
+                    }
+                }
+            }
+        }}"""
+    with pytest.raises(ConfigParserError):
+        Config(input_json)
+
+
+def test_invalid_support_nested_distribution_infectious_period():
     # a basic 1 + N(0,1) distribution
     input_json = """{"INFECTIOUS_PERIOD": {
             "distribution": "TransformedDistribution",
@@ -196,38 +268,7 @@ def test_valid_nested_distribution_infectious_period():
                 }
             }
         }}"""
-    c = Config(input_json)
-    assert isinstance(c.INFECTIOUS_PERIOD, dist.TransformedDistribution)
-
-
-def test_invalid_distribution_infectious_period():
-    input_json = """{"INFECTIOUS_PERIOD": {"distribution": "Normal", "params": {"loc": 0, "scale":"blah"}}}"""
-    with pytest.raises(ConfigParserError):
-        Config(input_json)
-
-
-def test_invalid_nested_distribution_infectious_period():
-    # a basic 1 + N(0,1) distribution
-    input_json = """{"INFECTIOUS_PERIOD": {
-            "distribution": "TransformedDistribution",
-            "params": {
-                "base_distribution": {
-                    "distribution": "Normal",
-                    "params": {
-                        "loc": 0,
-                        "scale": 1
-                    }
-                },
-                "transforms": {
-                    "transform": "AffineTransform",
-                    "params": {
-                        "loc": "invalid_input",
-                        "scale": 1
-                    }
-                }
-            }
-        }}"""
-    with pytest.raises(ConfigParserError):
+    with pytest.raises(AssertionError):
         Config(input_json)
 
 
