@@ -11,3 +11,4 @@ seaborn>=0.13.2
 shiny>=0.6.0
 pytest>=7.4.0
 epiweeks>=2.2.0
+cfa_azure @ git+https://github.com/CDCgov/cfa_azure.git
