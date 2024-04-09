@@ -447,10 +447,11 @@ PARAMETERS = [
     {
         "name": "INITIAL_INFECTIONS_SCALE",
         "validate": [
-            partial(test_type, tested_type=(int, float)),
+            partial(
+                test_type, tested_type=(int, float, distributions.Distribution)
+            ),
             test_not_negative,
         ],
-        "type": float,
     },
     {
         "name": ["POP_SIZE", "INITIAL_INFECTIONS"],

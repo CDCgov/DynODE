@@ -267,9 +267,9 @@ class AbstractParameters:
         ---------
         A copy of INITIAL_INFECTIONS with each compartment being scaled according to `scale_factor`
         """
-        pop_counts_by_compartment = np.array(
+        pop_counts_by_compartment = jnp.array(
             [
-                np.sum(compartment)
+                jnp.sum(compartment)
                 for compartment in self.INITIAL_STATE[
                     : self.config.COMPARTMENT_IDX.C
                 ]
@@ -297,8 +297,12 @@ class AbstractParameters:
             1.0,  # for the C compartment, unchanged.
         ]
         # scale each compartment and return
-        initial_state = (
-            compartment * factor
-            for compartment, factor in zip(self.INITIAL_STATE, scale_factors)
+        initial_state = tuple(
+            [
+                compartment * factor
+                for compartment, factor in zip(
+                    self.INITIAL_STATE, scale_factors
+                )
+            ]
         )
         return initial_state

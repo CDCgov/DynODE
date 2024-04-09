@@ -68,6 +68,60 @@ def test_external_i_shape():
     ), "external infections shape incompatible with I compartment"
 
 
+def test_scale_initial_infections():
+    e = static_params.INITIAL_STATE[static_params.config.COMPARTMENT_IDX.E]
+    i = static_params.INITIAL_STATE[static_params.config.COMPARTMENT_IDX.I]
+    num_initial_infections = jnp.sum(e + i)
+    # should always be zero since our fake state does not have exposures.
+    # this is still fine to test because the ratios must sum to 1
+    ratio_infections_exposed = jnp.sum(e) / num_initial_infections
+    ratio_infections_infectious = jnp.sum(i) / num_initial_infections
+
+    # test_config provides coverage for negative value test cases.
+    # lets go through some common scale factors as well as the unchanged one and ensure that it remained the same
+    for scale_factor in [0.5, 0.75, 1.0, 1.25, 1.5]:
+        modified_initial_state = static_params.scale_initial_infections(
+            scale_factor
+        )
+        e_modified = modified_initial_state[
+            static_params.config.COMPARTMENT_IDX.E
+        ]
+        i_modified = modified_initial_state[
+            static_params.config.COMPARTMENT_IDX.I
+        ]
+        num_initial_infections_modified = jnp.sum(e_modified + i_modified)
+        ratio_infections_exposed_modified = (
+            jnp.sum(e_modified) / num_initial_infections_modified
+        )
+        ratio_infections_infectious_modified = (
+            jnp.sum(i_modified) / num_initial_infections_modified
+        )
+        # test that the number of infections actually increased by the correct number
+        assert jnp.isclose(
+            num_initial_infections * scale_factor,
+            num_initial_infections_modified,
+        ), (
+            "scaling initial infections does not produce the correct number of new infections, "
+            "began with %s infections, scaled by a factor of %d, ended with %s"
+        ) % (
+            str(num_initial_infections),
+            scale_factor,
+            str(num_initial_infections_modified),
+        )
+        # test that the E and I ratios are preserved.
+        for ratio_start, ratio_end in zip(
+            [ratio_infections_exposed, ratio_infections_infectious],
+            [
+                ratio_infections_exposed_modified,
+                ratio_infections_infectious_modified,
+            ],
+        ):
+            assert jnp.isclose(ratio_start, ratio_end), (
+                "the ratio of infections into the exposed/infectious "
+                "compartments changed after scaling initial infections. Started with ratio of %s ended with %s"
+            ) % (str(ratio_start), str(ratio_end))
+
+
 def test_output_shapes():
     """tests that the ode-model outputs the correct compartment shapes according to the config file it was run in."""
     first_derivatives = ODES(
