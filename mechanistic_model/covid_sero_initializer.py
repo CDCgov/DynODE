@@ -132,8 +132,8 @@ class CovidSeroInitializer(CovidInitializer):
         """
         # use relative wait times in each compartment to get distribution of infections across
         # infected vs exposed compartments
-        exposed_to_infectous_ratio = (
-            self.config.EXPOSED_TO_INFECTIOUS / self.config.INFECTIOUS_PERIOD
+        exposed_to_infectous_ratio = self.config.EXPOSED_TO_INFECTIOUS / (
+            self.config.EXPOSED_TO_INFECTIOUS + self.config.INFECTIOUS_PERIOD
         )
         # use contact matrix to get the infection age distributions
         eig_data = np.linalg.eig(self.config.CONTACT_MATRIX)
