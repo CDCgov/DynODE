@@ -40,7 +40,12 @@ class Config:
                 cast_type = parameter["type"]
                 # make sure we actually have the value in our incoming config
                 if key in config.keys():
-                    config[key] = cast_type(config[key])
+                    try:
+                        config[key] = cast_type(config[key])
+                    except Exception as e:
+                        raise ConfigParserError(
+                            "Unable to cast %s into %s" % (key, str(cast_type))
+                        ) from e
         return config
 
     def set_downstream_parameters(self):
