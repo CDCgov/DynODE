@@ -25,8 +25,7 @@ theme_update(
 )
 
 # Waning equation is logistic curve based on Pfizer's 6 month data
-# waning_equation <- function(x) 1 / (1 + exp(-(2.46 - 0.2 * x / 30)))
-waning_equation <- function(x) 1 / (1 + exp(-(2.396 - 0.0143 * x)))
+waning_equation <- function(x) 1 / (1 + exp(-(2.396 - 0.0143 * x))) # 2.46 0.2/30 for longer # nolint: line_length_linter.
 waning_df <- data.frame(time = 0:1000) |>
   mutate(eqn_immunity = ifelse(time <= 21,
     1.0, waning_equation(time - 21) / waning_equation(0)
