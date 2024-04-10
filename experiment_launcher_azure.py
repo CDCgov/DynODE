@@ -6,7 +6,6 @@ and another to specify the location of the state-specific runner script, which w
 import argparse
 import os
 
-import cfa_azure.helpers as helpers
 from cfa_azure.clients import AzureClient
 
 # specify job ID, cant already exist
