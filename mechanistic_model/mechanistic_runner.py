@@ -33,15 +33,21 @@ class MechanisticRunner:
         # jump_ts describe points in time where the model is not fully differentiable
         # this is often due to piecewise changes in parameter values like Beta
         # this is why many functions in the runner/params are required to be continuously differentiable.
-        stepsize_controller = (
-            PIDController(
+        if "CONSTANT_STEP_SIZE" in args.keys() and args["CONSTANT_STEP_SIZE"]:
+            dt0 = args["CONSTANT_STEP_SIZE"]
+            # if user specifies they want constant step size, set it here
+            stepsize_controller = ConstantStepSize()
+        else:  # otherwise use adaptive step size.
+            jump_ts = (
+                list(args["BETA_TIMES"])
+                if "BETA_TIMES" in args.keys()
+                else None
+            )
+            stepsize_controller = PIDController(
                 rtol=1e-5,
                 atol=1e-6,
-                jump_ts=list(args["BETA_TIMES"]),
+                jump_ts=jump_ts,
             )
-            if "BETA_TIMES" in args.keys()
-            else ConstantStepSize()
-        )
 
         solution = diffeqsolve(
             term,
