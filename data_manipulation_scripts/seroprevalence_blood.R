@@ -142,7 +142,7 @@ donor2_region <- donor2_region |>
   ) |>
   select(-region) |>
   rename(region = region2)
-month(donor2_region$date) <- month(donor2_region$date) + (donor2_region$quarter - 1) * 3
+month(donor2_region$date) <- month(donor2_region$date) + (donor2_region$quarter - 1) * 3 # nolint: line_length_linter.
 
 # Adjust blood donor 2022 seroprevalence
 ## Take relationship between commercial lab and blood donor
@@ -150,7 +150,7 @@ month(donor2_region$date) <- month(donor2_region$date) + (donor2_region$quarter 
 ## commercial lab equivalent of 2022 (deeming commercial lab)
 ## as more representative of actual seroprevalence
 states <- donor2_region$region |> unique()
-states <- setdiff(states, "ND") # excluding ND here...
+states <- setdiff(states, "ND") # excluding ND here because no donor1 data
 donor2_adj_df <- data.frame()
 for (st in states) {
   for (ag in c("18-49", "50-64", "65+")) {

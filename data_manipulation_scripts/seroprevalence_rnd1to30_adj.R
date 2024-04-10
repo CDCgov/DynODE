@@ -227,8 +227,12 @@ alpha0s <- m[stringr::str_detect(names(m), "alpha0")] |>
   matrix(nrow = 4)
 alpha1s <- m[stringr::str_detect(names(m), "alpha1")] |>
   matrix(nrow = 4)
-df_age_spread$alpha0 <- alpha0s[as.matrix(df_age_spread[, c("age_num", "site_num")])]
-df_age_spread$alpha1 <- alpha1s[as.matrix(df_age_spread[, c("age_num", "site_num")])]
+df_age_spread$alpha0 <- alpha0s[
+  as.matrix(df_age_spread[, c("age_num", "site_num")])
+]
+df_age_spread$alpha1 <- alpha1s[
+  as.matrix(df_age_spread[, c("age_num", "site_num")])
+]
 df_spread_pred <- df_age_spread |>
   mutate(pred = alpha0 + alpha1 * day / 100)
 
@@ -245,12 +249,12 @@ ggplot(df_spread_pred |> filter(age_num == 3)) +
 # Create actual age-specific seroprevalence based on model output
 ## Extract the alphas and make sure they match with the correct states
 ## and age groups
-Site_f <- unique(df_spread_pred$Site) |> sort()
+site_f <- unique(df_spread_pred$Site) |> sort()
 age_f <- unique(df_age_spread$age) |> sort()
 df_alphas <- expand.grid(age_num = 1:4, site_num = 1:49)
 df_alphas$alpha0 <- alpha0s[as.matrix(df_alphas[, c("age_num", "site_num")])]
 df_alphas$alpha1 <- alpha1s[as.matrix(df_alphas[, c("age_num", "site_num")])]
-df_alphas$Site <- Site_f[df_alphas$site_num]
+df_alphas$Site <- site_f[df_alphas$site_num]
 df_alphas$age <- age_f[df_alphas$age_num]
 
 ## Garcia-Carreras only goes up to 2022-01-15, appending round 30

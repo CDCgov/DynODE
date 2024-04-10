@@ -64,7 +64,7 @@ lab_pediatric <- lab_pediatric |>
   filter(rate < 100) |>
   mutate(age = "0-17")
 
-# Stack lab and donor
+# Stack lab and donor and output
 comb_df <- bind_rows(donor_df, lab_pediatric)
 with(comb_df, table(region, age))
 
