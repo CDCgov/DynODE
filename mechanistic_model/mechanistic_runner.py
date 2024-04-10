@@ -37,6 +37,7 @@ class MechanisticRunner:
             dt0 = args["CONSTANT_STEP_SIZE"]
             # if user specifies they want constant step size, set it here
             stepsize_controller = ConstantStepSize()
+            print("using Constant Step Size ODES with size %s" % (str(dt0)))
         else:  # otherwise use adaptive step size.
             jump_ts = (
                 list(args["BETA_TIMES"])
