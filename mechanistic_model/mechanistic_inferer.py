@@ -298,6 +298,7 @@ class MechanisticInferer(AbstractParameters):
             "INFECTIOUS_PERIOD": freeze_params.INFECTIOUS_PERIOD,
             "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
             "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
+            "CONSTANT_STEP_SIZE": freeze_params.CONSTANT_STEP_SIZE,
         }
         parameters = self.sample_if_distribution(parameters)
         # create parameters based on other possibly sampled parameters

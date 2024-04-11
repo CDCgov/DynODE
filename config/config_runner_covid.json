@@ -66,6 +66,7 @@
             0.28
         ]
     ],
+    "CONSTANT_STEP_SIZE": 0,
     "BETA_TIMES": [
         0.0,
         120.0,

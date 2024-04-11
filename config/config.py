@@ -537,6 +537,14 @@ PARAMETERS = [
         "type": jnp.array,
     },
     {
+        "name": "CONSTANT_STEP_SIZE",
+        "validate": [
+            test_not_negative,
+            partial(test_type, tested_type=(int, float)),
+        ],
+        "type": float,
+    },
+    {
         "name": "STRAIN_R0s",
         "validate": [
             partial(test_type, tested_type=np.ndarray),

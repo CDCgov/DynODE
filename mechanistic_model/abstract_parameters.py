@@ -139,9 +139,15 @@ class AbstractParameters:
         """
         # a smart lookup function that works with JAX just in time compilation
         # if t > self.config.BETA_TIMES_i, return self.config.BETA_COEFICIENTS_i
-        return self.config.BETA_COEFICIENTS[
-            jnp.maximum(0, jnp.searchsorted(self.config.BETA_TIMES, t) - 1)
-        ]
+        if hasattr(self.config, "BETA_COEFICIENTS") and hasattr(
+            self.config, "BETA_TIMES"
+        ):
+            # this will trigger the runner to use adaptive step size with jump_ts
+            return self.config.BETA_COEFICIENTS[
+                jnp.maximum(0, jnp.searchsorted(self.config.BETA_TIMES, t) - 1)
+            ]
+        else:  # dont modify beta
+            return 1.0
 
     def retrieve_population_counts(self):
         """
