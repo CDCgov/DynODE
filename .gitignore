@@ -62,6 +62,7 @@ testing.py
 !tests/*.json
 !exp/*/*.json
 !data/serological-data/*.csv
+!data/hospitalization-data/*.csv
 
 
 #####
