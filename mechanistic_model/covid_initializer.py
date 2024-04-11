@@ -8,8 +8,7 @@ from mechanistic_model.abstract_initializer import MechanisticInitializer
 class CovidInitializer(MechanisticInitializer):
     def __init__(self, config_initializer_path, global_variables_path):
         """
-        initialize a basic abstract mechanistic model for covid19 case prediction.
-        Should not be constructed directly, use build_basic_mechanistic_model() with a config file
+        initialize a basic abstract mechanistic model for covid19 case prediction using ABM data
         """
         initializer_json = open(config_initializer_path, "r").read()
         global_json = open(global_variables_path, "r").read()
