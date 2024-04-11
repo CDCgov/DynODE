@@ -1,6 +1,9 @@
+import datetime
+
 import jax.numpy as jnp
 import pytest
 
+import utils
 from config.config import Config
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 from mechanistic_model.static_value_parameters import StaticValueParameters
@@ -66,6 +69,30 @@ def test_external_i_shape():
     assert (
         external_i_shape == expected_shape
     ), "external infections shape incompatible with I compartment"
+
+
+def test_seasonal_vaccination_reset():
+    static_params = StaticValueParameters(
+        fake_initial_state,
+        RUNNER_CONFIG_PATH,
+        CONFIG_GLOBAL_PATH,
+    )
+    static_params.config.SEASONAL_VACCINATION = True
+    # set a number of season change points and test the function for each one
+    for month in range(1, 13):
+        season_change = static_params.config.INIT_DATE + datetime.timedelta(
+            days=30 * month
+        )
+        static_params.config.VAX_SEASON_CHANGE = season_change
+        outflow_val = static_params.seasonal_vaccination_reset(
+            utils.date_to_sim_day(
+                season_change, static_params.config.INIT_DATE
+            )
+        )
+        assert outflow_val == 1, (
+            "seasonal outflow function does not peak on static_params.config.VAX_SEASON_CHANGE like it should %s"
+            % str(outflow_val)
+        )
 
 
 def test_output_shapes():

@@ -323,6 +323,7 @@ class MechanisticInferer(AbstractParameters):
                 "EXTERNAL_I": self.external_i,
                 "VACCINATION_RATES": self.vaccination_rate,
                 "BETA_COEF": self.beta_coef,
+                "SEASONAL_VACCINATION_RESET": self.seasonal_vaccination_reset,
             }
         )
 

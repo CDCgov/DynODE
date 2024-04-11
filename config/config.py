@@ -565,6 +565,15 @@ PARAMETERS = [
         "type": lambda s: datetime.datetime.strptime(s, "%Y-%m-%d").date(),
     },
     {
+        "name": "VAX_SEASON_CHANGE",
+        # "validate": do_nothing,
+        "type": lambda s: datetime.datetime.strptime(s, "%Y-%m-%d").date(),
+    },
+    {
+        "name": "SEASONAL_VACCINATION",
+        "validate": partial(test_type, tested_type=(bool)),
+    },
+    {
         "name": "COMPARTMENT_IDX",
         # "validate": do_nothing,
         "type": lambda lst: IntEnum("enum", lst, start=0),
