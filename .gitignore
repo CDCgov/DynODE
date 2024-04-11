@@ -62,7 +62,8 @@ testing.py
 !tests/*.json
 !exp/*/*.json
 !docker_template_configs/*.json
-
+!data/serological-data/*.csv
+!data/hospitalization-data/*.csv
 
 #####
 # Python

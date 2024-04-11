@@ -8,14 +8,17 @@ To follow integration test best practices, avoid modifying model parameters
 in the models themselves, instead modify config parameters in the JSON where at all possible.
 """
 
+import datetime
 import json
 import os
 import tempfile
 
+import jax.numpy as jnp
 import numpy as np
 import pytest
 
 from mechanistic_model.covid_initializer import CovidInitializer
+from mechanistic_model.mechanistic_runner import MechanisticRunner
 from mechanistic_model.static_value_parameters import StaticValueParameters
 from model_odes.seip_model import seip_ode
 
@@ -164,3 +167,81 @@ def test_vaccination_rates(temp_config_files):
                 for i in static_params.config.COMPARTMENT_IDX
             ]
         )
+
+
+def test_seasonal_vaccination(temp_config_files):
+    """
+    creates a scenario where entire population is 1 person and removes all infected and exposed people
+    turns off all infections, external introductions of infected people, and new vaccination.
+
+    checks to make sure number of seasonal-vaccinated individuals after the
+    vaccination season ends is less than 0.1% of the total population.
+
+    This test assumes some level of initial vaccination in the model
+    """
+    # make sure the order matches the order of COPIED_TEMP_FILES
+    (
+        temp_global_path,
+        temp_initializer_path,
+        _,
+        _,
+        temp_runner_path,
+    ) = temp_config_files
+    # creating the scenario
+    global_config = json.load(open(temp_global_path, "r"))
+    # we want to initialize the season and then immediately end vaccine season
+    global_config["VAX_SEASON_CHANGE"] = (
+        datetime.datetime.strptime(global_config["INIT_DATE"], "%Y-%m-%d")
+        + datetime.timedelta(days=15)
+    ).strftime("%Y-%m-%d")
+    # saving global settings
+    json.dump(global_config, open(temp_global_path, "w"))
+    initializer = json.load(open(temp_initializer_path, "r"))
+    initializer["POP_SIZE"] = 1  # pop size to 1
+    initializer["INITIAL_INFECTIONS"] = 0  # no initial infections
+    # saving initializer changes
+    json.dump(initializer, open(temp_initializer_path, "w"))
+    runner = json.load(open(temp_runner_path, "r"))
+    runner["STRAIN_R0s"] = [0.0, 0.0, 0.0]  # no new infections
+    runner["INTRODUCTION_TIMES"] = []  # turn off external introductions
+    runner["SEASONAL_VACCINATION"] = True  # turn on seasonal vaccination
+    # saving runner changes
+    json.dump(runner, open(temp_runner_path, "w"))
+
+    # integration test
+    initializer = CovidInitializer(temp_initializer_path, temp_global_path)
+    static_params = StaticValueParameters(
+        initializer.get_initial_state(), temp_runner_path, temp_global_path
+    )
+    # overriding the coefficients to be all zeros, effectively turning off vaccination
+    static_params.config.VAX_MODEL_KNOTS = jnp.zeros(
+        (
+            static_params.config.NUM_AGE_GROUPS,
+            static_params.config.MAX_VAX_COUNT + 1,
+            static_params.config.VAX_MODEL_NUM_KNOTS,
+        )
+    )
+    runner = MechanisticRunner(seip_ode)
+    # run for 50 days and witness the season end at t=5
+    solution = runner.run(
+        initial_state=initializer.get_initial_state(),
+        args=static_params.get_parameters(),
+        tf=50,
+    )
+    s_compartment = solution.ys[static_params.config.COMPARTMENT_IDX.S]
+    num_seasonal_vax_at_t_0 = np.sum(
+        s_compartment[0, :, :, static_params.config.MAX_VAX_COUNT, :]
+    )
+    # almost all of the individuals should be moved out of the seasonal vax tier by t=6
+    # we allow some tiny number of people who got vaccinated for the next season on that tier
+    # to exist there, but it should be tiny.
+    num_seasonal_vax_at_t_20 = np.sum(
+        s_compartment[20, :, :, static_params.config.MAX_VAX_COUNT, :]
+    )
+    error_msg = """The day after the vaccine season ends, you still have a measurable
+    number of individuals left in the seasonal vaccination tier. Had %s individuals in seasonal tier initially
+    vs %s individuals in the seasonal vax tier after the end of the season. This value should be near zero.""" % (
+        num_seasonal_vax_at_t_0,
+        num_seasonal_vax_at_t_20,
+    )
+    assert num_seasonal_vax_at_t_20 < 0.001, error_msg
