@@ -6,9 +6,12 @@ import sys
 sys.path.append("/app")
 sys.path.append("/app/mechanistic_model/")
 print(sys.path)
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
+import numpy as np
 
 from mechanistic_model.covid_initializer import CovidInitializer
+from mechanistic_model.mechanistic_inferer import MechanisticInferer
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 from mechanistic_model.solution_iterpreter import SolutionInterpreter
 from mechanistic_model.static_value_parameters import StaticValueParameters
@@ -25,7 +28,9 @@ parser.add_argument(
 if __name__ == "__main__":
     args = parser.parse_args()
     # step 1: define your paths
-    state_config_path = "/app/exp/three_state_experiment/" + args.state + "/"
+    state_config_path = (
+        "/app/exp/five_state_inference_experiment/" + args.state + "/"
+    )
     print("Running the following state: " + str(args.state) + "\n")
     # global_config include definitions such as age bin bounds and strain definitions
     # Any value or data structure that needs context to be interpretted is here.
@@ -59,7 +64,30 @@ if __name__ == "__main__":
         tf=200,
         args=static_params.get_parameters(),
     )
-
+    # using this run, generate some synthetic hosp data using set IHR per age bin
+    ihr = [0.002, 0.004, 0.008, 0.06]
+    model_incidence = jnp.sum(solution.ys[3], axis=(2, 3, 4))
+    model_incidence = jnp.diff(model_incidence, axis=0)
+    rng = np.random.default_rng(seed=8675309)
+    m = np.asarray(model_incidence) * ihr
+    k = 10.0
+    p = k / (k + m)
+    synthetic_obs = rng.negative_binomial(k, p)
+    inferer = MechanisticInferer(
+        GLOBAL_CONFIG_PATH,
+        INFERER_CONFIG_PATH,
+        runner,
+        initializer.get_initial_state(),
+    )
+    # this will print a summary of the inferred variables
+    # those distributions in the Config are now posteriors
+    mcmc = inferer.infer(synthetic_obs)
+    samples = mcmc.get_samples(group_by_chain=False)
+    print(
+        "Toy inference finished, see the distributions of posteriors above, "
+        "in only 60 samples how well do they match with the actual parameters "
+        "used to generate the fake data? \n"
+    )
     # interpret the solution object in a variety of ways
     interpreter = SolutionInterpreter(
         solution, INTERPRETER_CONFIG_PATH, GLOBAL_CONFIG_PATH
@@ -67,10 +95,34 @@ if __name__ == "__main__":
     # plot the 4 compartments summed across all age bins and immunity status
     fig, ax = interpreter.summarize_solution()
     save_path = (
-        "/output/three_state_experiment/%s/example_end_to_end_run_.png"
+        "/output/five_state_inference_experiment/%s/static_params_run.png"
         % args.state
     )
     if not os.path.exists(save_path):
-        os.makedirs("/output/three_state_experiment/%s" % args.state)
+        os.makedirs("/output/five_state_inference_experiment/%s" % args.state)
+    print("Please see %s for your plot!" % save_path)
+    plt.savefig(save_path)
+    # now we override the static params with the fitted ones and plot the line again.
+    static_params.config.INTRODUCTION_TIMES = [
+        np.median(samples["INTRODUCTION_TIMES_0"])
+    ]
+    static_params.config.INFECTIOUS_PERIOD = np.median(
+        samples["INFECTIOUS_PERIOD"]
+    )
+    static_params.config.STRAIN_R0s[2] = np.median(samples["STRAIN_R0s_2"])
+    solution = runner.run(
+        initializer.get_initial_state(),
+        tf=200,
+        args=static_params.get_parameters(),
+    )
+    interpreter = SolutionInterpreter(
+        solution, INTERPRETER_CONFIG_PATH, GLOBAL_CONFIG_PATH
+    )
+    # plot the 4 compartments summed across all age bins and immunity status
+    fig, ax = interpreter.summarize_solution()
+    save_path = (
+        "/output/five_state_inference_experiment/%s/infered_params_run.png"
+        % args.state
+    )
     print("Please see %s for your plot!" % save_path)
     plt.savefig(save_path)
