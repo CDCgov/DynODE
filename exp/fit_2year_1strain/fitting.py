@@ -36,10 +36,10 @@ RUNNER_CONFIG_PATH = EXP_ROOT_PATH + "config_runner.json"
 INFERER_CONFIG_PATH = EXP_ROOT_PATH + "config_inferer.json"
 
 # Global
-model_day = 567 # 2020-07-26 to 2022-02-11
+model_day = 567  # 2020-07-26 to 2022-02-11
 knot_upper_bound = 570  # divisible by 30 but larger than model_day
-ihr_knot_ub = 600 # divisible by 60 but larger than model_day
-vax_start_day = 154 # 2020-12-13 but pushed back by 14 days because vax takes time to be effective
+ihr_knot_ub = 600  # divisible by 60 but larger than model_day
+vax_start_day = 154  # 2020-12-13 but pushed back by 14 days because vax takes time to be effective
 
 
 # %%
@@ -51,13 +51,15 @@ obs_reduced = (
     obs_df.groupby(["year", "week", "agegroup"])
     .agg({"date": "max", "new_admission_7": "mean"})
     .reset_index()
-) # Only taking last day per week
+)  # Only taking last day per week
 obs_reduced["day"] = (
     obs_reduced["date"] - pd.to_datetime("2020-07-26")
-).dt.days - 7 # Assume infection to hospitalization delay by 7 days
+).dt.days - 7  # Assume infection to hospitalization delay by 7 days
 obs_reduced = obs_reduced[obs_reduced["day"] <= model_day].reset_index()
 obs_incidence = obs_reduced.groupby(["day"])["new_admission_7"].apply(np.array)
-obs_days = jnp.array(list(obs_incidence.index)) # which days are the observations
+obs_days = jnp.array(
+    list(obs_incidence.index)
+)  # which days are the observations
 obs_incidence = jnp.int64(jnp.array(obs_incidence.tolist()))
 
 fig, ax = plt.subplots(1)
@@ -76,10 +78,10 @@ sero_df = pd.read_csv("data/serological-data/serology_all.csv")
 sero_us = sero_df[sero_df.Site == "US"]
 sero_us = sero_us[
     pd.to_datetime(sero_us.mid_date) >= pd.to_datetime("2020-08-10")
-] # Serology before 2020-08-10 is before the fitting horizon
+]  # Serology before 2020-08-10 is before the fitting horizon
 obs_sero_lmean = sero_us.groupby(["mid_date"])["lmean"].apply(np.array)
 sero_days = pd.to_datetime(obs_sero_lmean.index) - pd.to_datetime("2020-07-26")
-sero_days = list(sero_days.days - 14) # ASsume seroconversion takes two weeks
+sero_days = list(sero_days.days - 14)  # ASsume seroconversion takes two weeks
 obs_sero_lmean = jnp.array(obs_sero_lmean.to_list())
 obs_sero_lsd = sero_us.groupby(["mid_date"])["lsd"].apply(np.array)
 obs_sero_lsd = jnp.array(obs_sero_lsd.to_list())
@@ -87,17 +89,18 @@ obs_sero_lsd = jnp.array(obs_sero_lsd.to_list())
 cond = [(d >= 9) and (d < model_day) for d in sero_days]
 obs_sero_lmean = obs_sero_lmean[cond,]
 obs_sero_lsd = obs_sero_lsd[cond,]
-obs_sero_lsd = jnp.nanmean(obs_sero_lsd) * jnp.ones(obs_sero_lsd.shape) # Make even fit to seroprevalences
+obs_sero_lsd = jnp.nanmean(obs_sero_lsd) * jnp.ones(obs_sero_lsd.shape)
+# Make even fit to seroprevalences
 sero_days = jnp.array(sero_days)[cond,]
 
 # %%
 # Initialize
 initializer = EarlyCovidInitializer(
     INITIALIZER_CONFIG_PATH, GLOBAL_CONFIG_PATH, [0.102, 0.088, 0.065, 0.033]
-) # Serology informed how many already infected
+)  # Serology informed how many already infected
 initializer.load_init_infection_dist(
     age_split=jnp.array([0.40, 0.50, 0.05, 0.05])
-) # Arbitrarily set some good initial age split of infections
+)  # Arbitrarily set some good initial age split of infections
 init_state = initializer.get_initial_state()
 
 
@@ -122,8 +125,9 @@ k = list(np.arange(0.0, knot_upper_bound + 1, 30.0))
 k = [0.0] * 3 + k + [knot_upper_bound] * 3
 J = len(k) - 5
 
-inferer.config.BSPLINE_KNOTS = jnp.array(k) # BSPLINE here code for beta multiplier
+inferer.config.BSPLINE_KNOTS = jnp.array(k)
 inferer.config.BSPLINE_COEFFS = jnp.array([1.0] * (J + 1))
+# BSPLINE here code for beta multiplier
 
 ihr_knots = list(np.arange(0.0, ihr_knot_ub + 1, 60.0))
 ihr_knots = jnp.array([0.0] * 3 + ihr_knots + [ihr_knot_ub] * 3)
@@ -199,7 +203,8 @@ with numpyro.validation_enabled(is_validate=True):
         obs_incidence=obs_incidence,
         obs_days=obs_days,
         obs_sero_lmean=obs_sero_lmean,
-        obs_sero_lsd=obs_sero_lsd / 20, # Increase weightage to seroprevalence vs hospitalization
+        obs_sero_lsd=obs_sero_lsd / 20,
+        # Increase weightage to seroprevalence vs hospitalization
         sero_days=sero_days,
         J=J,
         model_day=model_day,

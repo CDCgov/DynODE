@@ -27,7 +27,7 @@ def infer_model(
     inference model tries to estimate the coefficients of the b-splines. The "intercept"
     of the b-spline is set to 1.0, meaning the beta and ihr multiplier would start with
     1.0 on t=0. Also estimated are intrinsic ihr, ihr multiplier for people with immunogenic
-    history and initial infections. The input data includes hospitalization, the 
+    history and initial infections. The input data includes hospitalization, the
     corresponding days of hospitalization in the model, seroprevalence, the corresponding
     days of seroprevalence in the model.
 
