@@ -1,0 +1,56 @@
+{
+    "SCENARIO_NAME": "single strain with timevarying beta",
+    "CONTACT_MATRIX_PATH": "data/demographic-data/contact_matrices",
+    "SAVE_PATH": "output/",
+    "HOSP_PATH": "data/hospital_220213_220108.csv",
+    "VAX_MODEL_DATA": "exp/fit_3year_1strain/spline_fits_total_pop_201213.csv",
+    "VAX_MODEL_NUM_KNOTS": 29,
+    "STRAIN_R0s": [
+        1.0
+    ],
+    "INFECTIOUS_PERIOD": 7.0,
+    "EXPOSED_TO_INFECTIOUS": 3.6,
+    "INITIAL_INFECTIONS_SCALE": 1.0,
+    "INTRODUCTION_TIMES": [],
+    "INTRODUCTION_PERCENTAGE": 0.055,
+    "INTRODUCTION_SCALE": 13,
+    "INTRODUCTION_AGE_MASK": [
+        false,
+        true,
+        false,
+        false
+    ],
+    "WANING_PROTECTIONS": [
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0
+    ],
+    "STRAIN_INTERACTIONS": [
+        [
+            0.80
+        ]
+    ],
+    "VAX_EFF_MATRIX": [
+        [
+            0,
+            0.40,
+            0.80
+        ]
+    ],
+    "BETA_TIMES": [
+        0.0,
+        154.0
+    ],
+    "BETA_COEFICIENTS": [
+        1.0,
+        1.0
+    ],
+    "INFERENCE_PRNGKEY": 8675309,
+    "INFERENCE_NUM_WARMUP": 300,
+    "INFERENCE_NUM_SAMPLES": 300,
+    "INFERENCE_NUM_CHAINS": 5,
+    "INFERENCE_PROGRESS_BAR": true,
+    "MODEL_RAND_SEED": 8675309
+}
