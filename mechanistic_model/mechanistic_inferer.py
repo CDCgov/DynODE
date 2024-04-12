@@ -307,6 +307,7 @@ class MechanisticInferer(AbstractParameters):
             "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
             "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
             "INITIAL_INFECTIONS_SCALE": freeze_params.INITIAL_INFECTIONS_SCALE,
+            "CONSTANT_STEP_SIZE": freeze_params.CONSTANT_STEP_SIZE,
         }
         parameters = self.sample_if_distribution(parameters)
         # create parameters based on other possibly sampled parameters
@@ -332,6 +333,7 @@ class MechanisticInferer(AbstractParameters):
                 "EXTERNAL_I": self.external_i,
                 "VACCINATION_RATES": self.vaccination_rate,
                 "BETA_COEF": self.beta_coef,
+                "SEASONAL_VACCINATION_RESET": self.seasonal_vaccination_reset,
             }
         )
 

@@ -15,11 +15,11 @@ import pandas as pd
 # these are the configs that will be copied into each state-level directory
 # their REGIONS key will be modified to match the state they work with.
 CONFIG_MOLDS = [
-    "config/config_global.json",
-    "config/config_inferer_covid.json",
-    "config/config_initializer_covid.json",
-    "config/config_runner_covid.json",
-    "config/config_interpreter_covid.json",
+    "docker_template_configs/config_global.json",
+    "docker_template_configs/config_inferer_covid.json",
+    "docker_template_configs/config_initializer_covid.json",
+    "docker_template_configs/config_runner_covid.json",
+    "docker_template_configs/config_interpreter_covid.json",
 ]
 
 
@@ -121,6 +121,8 @@ def populate_config_files(dir, configs):
                 )
                 # if the config file already exists, we remove and override it.
                 if os.path.exists(new_config_file_path):
+                    # change back from readonly so it can be deleted, otherwise get PermissionError
+                    os.chmod(new_config_file_path, 0o777)
                     os.remove(new_config_file_path)
 
                 with open(new_config_file_path, "w") as f:
@@ -204,7 +206,7 @@ if __name__ == "__main__":
     state_names = pd.read_csv("data/fips_to_name.csv")
     pops = pd.read_csv("data/demographic-data/CenPop2020_Mean_ST.csv")
     # adding a USA row with the sum of all state pops
-    pops.loc[len(pops.index)] = [
+    pops.loc[-1] = [
         "US",
         "United States",
         sum(pops["POPULATION"]),
