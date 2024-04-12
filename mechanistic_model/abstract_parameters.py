@@ -217,11 +217,22 @@ class AbstractParameters:
             (age_bins, vax_bins, self.config.VAX_MODEL_NUM_KNOTS)
         )
         vax_base_equations = np.zeros((age_bins, vax_bins, 4))  # always 4
-        for row in parameters.itertuples():
-            _, age_group, vaccination = row[0:3]
-            intersect_and_ts = row[3:7]
-            knot_coefficients = row[7 : 7 + self.config.VAX_MODEL_NUM_KNOTS]
-            knot_locations = row[7 + self.config.VAX_MODEL_NUM_KNOTS :]
+        for _, row in parameters.iterrows():
+            age_group, vaccination = row["age_group"], row["dose"]
+            intersect_and_ts = row[["intersect", "t", "t2", "t3"]].values
+            knot_coefficients = row[
+                [col for col in parameters.columns if "coef" in col]
+            ].values
+            knot_locations = row[
+                [col for col in parameters.columns if "location" in col]
+            ].values
+            assert len(knot_coefficients) == len(
+                knot_locations
+            ), "number of knot_coefficients and number of knot locations found do not match"
+            assert len(knot_coefficients) == self.config.VAX_MODEL_NUM_KNOTS, (
+                "number of knots found in %s does not match number specified in self.config.VAX_MODEL_NUM_KNOTS"
+                % self.config.VAX_MODEL_DATA
+            )
             age_group_idx = self.config.AGE_GROUP_IDX[age_group]
             vax_idx = vaccination - 1
             vax_base_equations[age_group_idx, vax_idx, :] = np.array(
