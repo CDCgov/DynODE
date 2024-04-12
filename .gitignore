@@ -64,6 +64,7 @@ testing.py
 !docker_template_configs/*.json
 !data/serological-data/*.csv
 !data/hospitalization-data/*.csv
+!data/serological-data/sero-initializer-csvs/*.csv
 
 #####
 # Python
