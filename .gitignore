@@ -61,6 +61,7 @@ testing.py
 !config/*.json
 !tests/*.json
 !exp/*/*.json
+!data/serological-data/fitting-2022/*.csv
 
 
 #####
