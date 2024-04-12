@@ -25,7 +25,7 @@ theme_update(
 )
 
 # Waning equation is logistic curve based on Pfizer's 6 month data
-waning_equation <- function(x) 1 / (1 + exp(-(2.46 - 0.2 * x / 30)))
+waning_equation <- function(x) 1 / (1 + exp(-(2.396 - 0.0143 * x))) # 2.46 0.2/30 for longer # nolint: line_length_linter.
 waning_df <- data.frame(time = 0:1000) |>
   mutate(eqn_immunity = ifelse(time <= 21,
     1.0, waning_equation(time - 21) / waning_equation(0)
@@ -78,7 +78,7 @@ fit1_vector <- function(vec, init_protection, waning_df) {
 }
 
 # Some starting values to guide the genetic algorithm
-v <- c(158, 158, 121, 59, 0.994, 0.888, 0.469, 0)
+v <- c(50, 50, 50, 50, 0.8, 0.8, 0.8, 0.8)
 
 # Start GA
 ga_object <- ga(

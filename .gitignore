@@ -65,6 +65,7 @@ testing.py
 !data/serological-data/*.csv
 !data/hospitalization-data/*.csv
 !data/vaccination-data/state-spline-fits/*.csv
+!data/serological-data/fitting-2022/*.csv
 
 #####
 # Python

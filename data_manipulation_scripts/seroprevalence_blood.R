@@ -22,14 +22,14 @@ theme_update(
 
 # Input
 ## Nationwide commercial lab seroprevalence
+## Using the derived/adjusted version out of seroprevalence_rnd1to30_adj.R
 lab_csv <- file.path(
   "data",
   "serological-data",
-  "serology_flus.csv"
+  "seroprevalence_50states.csv"
 )
 lab_df <- data.table::fread(lab_csv) |>
-  filter(Site == "US") |>
-  filter(year(mid_date) <= 2021)
+  filter(year(date) < 2022)
 
 ## 2020-2021 Blood donor seroprevalence
 donor1_csv <- file.path(
@@ -37,29 +37,64 @@ donor1_csv <- file.path(
   "serological-data",
   "2020-2021_Nationwide_Blood_Donor_Seroprevalence_Survey_Infection-Induced_Seroprevalence_Estimates_20231018.csv" # nolint: line_length_linter.
 )
-donor1_df <- data.table::fread(donor1_csv) |>
-  filter(`Region Abbreviation` == "All")
+donor1_df <- data.table::fread(donor1_csv)
 
-### Manipulate into long form
+### Manipulate into long form and extract n and rates
+### Then pivot back to wide form with n and rates as column
 donor1_long <- donor1_df |>
+  rename(region = `Region Abbreviation`) |>
   select(
     date = `Median\nDonation Date`,
-    contains("Years Prevalence") & contains("Rate")
+    region,
+    contains("Years Prevalence") & (starts_with("Rate") | starts_with("n"))
   ) |>
   mutate(date = mdy(date)) |>
-  pivot_longer(-date,
-    names_to = "age",
-    names_pattern = "Rate \\(%\\) \\[(.*) Years Prevalence\\]"
+  pivot_longer(-c(date, region),
+    names_to = c("metric", "age"),
+    names_pattern = "^(.*) \\[(.*) Years Prevalence\\]"
+  ) |>
+  mutate(age = trimws(age, which = "both"))
+
+donor1_wide <- donor1_long |>
+  mutate(metric = ifelse(metric == "n", "n", "rate")) |>
+  pivot_wider(
+    id_cols = c("date", "region", "age"),
+    names_from = "metric", values_from = "value"
   )
 
-donor1_long <- donor1_long |>
+### Consolidate 18-49 age group (assume 16-29 == 18-29)
+donor1_wide <- donor1_wide |>
   mutate(age = case_when(
     age == "16-29" ~ "18-49",
     age == "30-49" ~ "18-49",
     TRUE ~ age
   )) |>
-  group_by(date, age) |>
-  summarise(value = mean(value))
+  group_by(region, date, age) |>
+  summarise(
+    rate = sum(rate * n) / sum(n),
+    n = sum(n)
+  )
+
+### Consolidate by states (Because 2022 only has states)
+### Some states have multiple sites, each site has different dates,
+### standardize them by aligning year-month
+donor1_region <- donor1_wide |>
+  mutate(
+    region = stringr::str_extract(region, "^([A-Z]+)"),
+    region = ifelse(region == "A", "US", region),
+    month = month(date),
+    year = year(date)
+  ) |>
+  group_by(region, year, month, age) |>
+  summarise(
+    rate = sum(rate * n) / sum(n),
+    n = sum(n),
+    date = mean(date)
+  )
+
+ggplot(donor1_region) +
+  geom_line(aes(x = date, y = rate, colour = age)) +
+  facet_wrap(~region)
 
 ## 2022 Blood donor seroprevalence
 donor2_csv <- file.path(
@@ -69,82 +104,98 @@ donor2_csv <- file.path(
 )
 donor2_df <- data.table::fread(donor2_csv) |>
   filter(
-    `Geographic Identifier` == "USA",
     Race == "Overall",
     Sex == "Overall",
     Indicator == "Past infection with or without vaccination"
   ) |>
   filter(Age != "Overall")
 
-### Manipulate age and mean+-CI
-donor2_df <- donor2_df |>
-  mutate(age = case_when(
-    Age == "16 to 29" ~ "18-49",
-    Age == "30 to 49" ~ "18-49",
-    Age == "50 to 64" ~ "50-64",
-    TRUE ~ "65+"
-  )) |>
-  group_by(date = `Time Period`, age) |>
+### Rate and n by age, assuming 16-29 = 18-29
+donor2_region <- donor2_df |>
+  mutate(
+    age = case_when(
+      Age == "16 to 29" ~ "18-49",
+      Age == "30 to 49" ~ "18-49",
+      Age == "50 to 64" ~ "50-64",
+      TRUE ~ "65+"
+    ),
+    rate = `Estimate % (weighted)`,
+    n = `n (Unweighted)`
+  ) |>
+  group_by(region = `Geographic Area`, date = `Time Period`, age) |>
   summarise(
-    value = mean(`Estimate % (weighted)`),
-    lci = mean(`2.5%`),
-    uci = mean(`97.5%`)
+    rate = sum(rate * n) / sum(n),
+    n = sum(n)
   )
 
-donor2_df <- donor2_df |>
+### Apply state abbreviation, and fix date for donor2
+donor2_region <- donor2_region |>
+  ungroup() |>
+  mutate(
+    region2 = state.abb[match(region, state.name)],
+    region2 = ifelse(region == "Overall", "US", region2)
+  ) |>
+  filter(!is.na(region2)) |>
   mutate(
     quarter = stringr::str_remove(date, "2022 Quarter ") |> as.numeric(),
     date = ymd("2022-02-15")
-  )
-month(donor2_df$date) <- month(donor2_df$date) + (donor2_df$quarter - 1) * 3
+  ) |>
+  select(-region) |>
+  rename(region = region2)
+month(donor2_region$date) <- month(donor2_region$date) + (donor2_region$quarter - 1) * 3 # nolint: line_length_linter.
 
 # Adjust blood donor 2022 seroprevalence
 ## Take relationship between commercial lab and blood donor
 ## in pre-2022, then apply to blood donor 2022 to obtain
 ## commercial lab equivalent of 2022 (deeming commercial lab)
 ## as more representative of actual seroprevalence
+states <- donor2_region$region |> unique()
+states <- setdiff(states, "ND") # excluding ND here because no donor1 data
 donor2_adj_df <- data.frame()
-for (ag in c("18-49", "50-64", "65+")) {
-  donor1_age <- donor1_long |> filter(age == ag)
-  donor2_age <- donor2_df |> filter(age == ag)
-  lab_age <- lab_df |> filter(age == ag)
+for (st in states) {
+  for (ag in c("18-49", "50-64", "65+")) {
+    donor1_age <- donor1_region |>
+      filter(region == st, age == ag)
+    donor2_age <- donor2_region |>
+      filter(region == st, age == ag)
+    lab_age <- lab_df |>
+      filter(Site == st, age == ag)
 
-  # match lab dates with donor dates
-  lab_prev <- approx(lab_age$mid_date,
-    lab_age$value,
-    xout = donor1_age$date
-  )$y
+    # match lab dates with donor dates
+    lab_prev <- approx(lab_age$date,
+      lab_age$infected,
+      xout = donor1_age$date
+    )$y
 
-  # calculate ratio in between lab and donor in logit space
-  donor1_lprev <- arm::logit(donor1_age$value / 100)
-  lab_lprev <- arm::logit(lab_prev / 100)
-  m <- mean(lab_lprev - donor1_lprev, na.rm = TRUE)
+    # calculate ratio in between lab and donor in logit space
+    donor1_lprev <- arm::logit(donor1_age$rate / 100)
+    lab_lprev <- arm::logit(lab_prev)
+    diff <- lab_lprev - donor1_lprev
+    cond <- !is.na(diff) & is.finite(diff)
+    diff <- diff[cond]
+    n <- donor1_age$n[cond]
+    m <- sum(diff * n) / sum(n)
 
-  # apply the ratio to donor 2022 data
-  donor2_mat <- as.matrix(
-    donor2_age[, c("value", "lci", "uci")] / 100
-  )
-  adj_donor2_mat <- (arm::logit(donor2_mat) + m) |>
-    arm::invlogit()
+    # apply the ratio to donor 2022 data
+    adj_donor2_prev <- (arm::logit(donor2_age$rate / 100) + m) |>
+      arm::invlogit()
 
-  # collect
-  donor2_age[, c("value", "lci", "uci")] <- adj_donor2_mat * 100
-  donor2_adj_df <- bind_rows(donor2_adj_df, donor2_age)
+    # collect
+    donor2_age$rate <- adj_donor2_prev * 100
+    donor2_adj_df <- bind_rows(donor2_adj_df, donor2_age)
+  }
 }
 
-# simple visualization
-donor2_adj_df |>
-  ggplot() +
-  geom_line(aes(x = date, y = value, colour = age))
+# Add ND without adjustment here (only data we have about ND)
+donor2_nd <- donor2_region |>
+  filter(region == "ND")
+donor2_adj_fin <- bind_rows(donor2_adj_df, donor2_nd)
 
-# calculate logit scale mean and sd
-donor2_adj_fin <- donor2_adj_df |>
-  mutate(across(value:uci, ~ arm::logit(.x / 100), .names = "logit_{.col}")) |>
-  mutate(
-    logit_sd = ((logit_uci - logit_value) + (logit_value - logit_lci)) /
-      (2 * 1.96)
-  ) |>
-  select(-logit_lci, -logit_uci) |>
-  rename(logit_mean = logit_value)
+# simple visualization
+donor2_adj_fin |>
+  filter(region != "US") |>
+  ggplot() +
+  geom_point(aes(x = date, y = rate, colour = age, size = n)) +
+  facet_wrap(~region)
 
 data.table::fwrite(donor2_adj_fin, "data/serological-data/donor2022.csv")
