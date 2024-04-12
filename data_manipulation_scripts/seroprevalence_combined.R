@@ -76,6 +76,7 @@ comb_df |>
   facet_wrap(~region)
 
 # Output by state
+agegroups <- c("0-17", "18-49", "50-64", "65+")
 states <- data.table::fread("./data/fips_to_name.csv")
 for (st in unique(comb_df$region)) {
   dat_st <- comb_df |>
@@ -85,7 +86,7 @@ for (st in unique(comb_df$region)) {
   dat_st_fill <- dat_st |>
     tidyr::complete(
       date = unique(dat_st$date),
-      age = unique(dat_st$age)
+      age = agegroups
     ) |>
     arrange(date, age)
   stname <- states$stname[states$stusps == st]
