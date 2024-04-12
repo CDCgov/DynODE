@@ -64,8 +64,9 @@ lab_pediatric <- lab_pediatric |>
   filter(rate < 100) |>
   mutate(age = "0-17")
 
-# Stack lab and donor and output
-comb_df <- bind_rows(donor_df, lab_pediatric)
+# Stack lab and donor
+comb_df <- bind_rows(donor_df, lab_pediatric) |>
+  filter(!region %in% c("DC", "PR"))
 with(comb_df, table(region, age))
 
 comb_df |>
@@ -74,4 +75,25 @@ comb_df |>
   geom_point(aes(x = date, y = rate, colour = age, size = n)) +
   facet_wrap(~region)
 
-data.table::fwrite(comb_df, "./data/serological-data/combined2022.csv")
+# Output by state
+states <- data.table::fread("./data/fips_to_name.csv")
+for (st in unique(comb_df$region)) {
+  dat_st <- comb_df |>
+    filter(region == st) |>
+    select(-region)
+  # Add NAs where needed
+  dat_st_fill <- dat_st |>
+    tidyr::complete(
+      date = unique(dat_st$date),
+      age = unique(dat_st$age)
+    ) |>
+    arrange(date, age)
+  stname <- states$stname[states$stusps == st]
+  stname <- stringr::str_replace_all(stname, " ", "_")
+  outfile <- file.path(
+    "./data/serological-data/fitting-2022",
+    glue::glue("{stname}_sero.csv")
+  )
+  dat_st_fill |>
+    data.table::fwrite(outfile)
+}
