@@ -64,6 +64,7 @@ testing.py
 !docker_template_configs/*.json
 !data/serological-data/*.csv
 !data/hospitalization-data/*.csv
+!data/vaccination-fits/*.csv
 
 #####
 # Python
