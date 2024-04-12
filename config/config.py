@@ -39,7 +39,12 @@ class Config:
                 cast_type = parameter["type"]
                 # make sure we actually have the value in our incoming config
                 if key in config.keys():
-                    config[key] = cast_type(config[key])
+                    try:
+                        config[key] = cast_type(config[key])
+                    except Exception as e:
+                        raise ConfigParserError(
+                            "Unable to cast %s into %s" % (key, str(cast_type))
+                        ) from e
         return config
 
     def set_downstream_parameters(self):
@@ -432,6 +437,15 @@ PARAMETERS = [
         "name": "INITIAL_INFECTIONS",
         "validate": [
             partial(test_type, tested_type=(int, float)),
+            test_not_negative,
+        ],
+    },
+    {
+        "name": "INITIAL_INFECTIONS_SCALE",
+        "validate": [
+            partial(
+                test_type, tested_type=(int, float, distributions.Distribution)
+            ),
             test_not_negative,
         ],
     },

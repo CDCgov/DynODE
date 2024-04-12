@@ -102,6 +102,12 @@ def test_negative_initial_infections():
         Config(input_json)
 
 
+def test_negative_initial_infections_scale():
+    input_json = """{"INITIAL_INFECTIONS_SCALE": -1.2}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
 def test_negative_tree_depth():
     input_json = """{"MAX_TREE_DEPTH": -1}"""
     with pytest.raises(AssertionError):

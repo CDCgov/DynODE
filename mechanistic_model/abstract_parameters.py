@@ -288,3 +288,63 @@ class AbstractParameters:
             self.config.AGE_LIMITS[0],
             self.config.AGE_LIMITS,
         )[self.config.REGIONS[0]]["avg_CM"]
+
+    def scale_initial_infections(self, scale_factor):
+        """
+        a function which modifies returns a modified version of
+        self.INITIAL_STATE scaling the number of initial infections by `scale_factor`.
+
+        Preserves the ratio of the Exposed/Infectious compartment population sizes.
+        Does not modified self.INITIAL_STATE, returns a copy.
+
+        Parameters
+        ----------
+        scale_factor: float
+            a multiplier value >=0.0.
+            `scale_factor` < 1 reduces number of initial infections,
+            `scale_factor` == 1.0 leaves initial infections unchanged,
+            `scale_factor` > 1 increases number of initial infections.
+
+        Returns
+        ---------
+        A copy of INITIAL_INFECTIONS with each compartment being scaled according to `scale_factor`
+        """
+        pop_counts_by_compartment = jnp.array(
+            [
+                jnp.sum(compartment)
+                for compartment in self.INITIAL_STATE[
+                    : self.config.COMPARTMENT_IDX.C
+                ]
+            ]
+        )
+        initial_infections = (
+            pop_counts_by_compartment[self.config.COMPARTMENT_IDX.E]
+            + pop_counts_by_compartment[self.config.COMPARTMENT_IDX.I]
+        )
+        initial_susceptibles = pop_counts_by_compartment[
+            self.config.COMPARTMENT_IDX.S
+        ]
+        # total_pop_size = initial_susceptibles + initial_infections
+        new_infections_size = scale_factor * initial_infections
+        # negative if scale_factor < 1.0
+        gained_infections = new_infections_size - initial_infections
+        scale_factor_susceptible_compartment = 1 - (
+            gained_infections / initial_susceptibles
+        )
+        # multiplying E and I by the same scale_factor preserves their relative ratio
+        scale_factors = [
+            scale_factor_susceptible_compartment,
+            scale_factor,
+            scale_factor,
+            1.0,  # for the C compartment, unchanged.
+        ]
+        # scale each compartment and return
+        initial_state = tuple(
+            [
+                compartment * factor
+                for compartment, factor in zip(
+                    self.INITIAL_STATE, scale_factors
+                )
+            ]
+        )
+        return initial_state
