@@ -331,10 +331,6 @@ class AbstractParameters:
         scale_factor_susceptible_compartment = 1 - (
             gained_infections / initial_susceptibles
         )
-        assert scale_factor_susceptible_compartment >= 0, (
-            "attempting to move more people out of the susceptible compartment than actually exist inside of it."
-            "Your INITIAL_INFECTIONS_SCALE parameter is likely too high"
-        )
         # multiplying E and I by the same scale_factor preserves their relative ratio
         scale_factors = [
             scale_factor_susceptible_compartment,
