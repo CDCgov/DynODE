@@ -53,6 +53,7 @@ class StaticValueParameters(AbstractParameters):
             "CROSSIMMUNITY_MATRIX": self.config.CROSSIMMUNITY_MATRIX,
             "VAX_EFF_MATRIX": self.config.VAX_EFF_MATRIX,
             "BETA_TIMES": self.config.BETA_TIMES,
+            "CONSTANT_STEP_SIZE": self.config.CONSTANT_STEP_SIZE,
             "INTRODUCTION_TIMES": self.config.INTRODUCTION_TIMES,
         }
         beta = self.config.STRAIN_R0s / self.config.INFECTIOUS_PERIOD
@@ -77,6 +78,7 @@ class StaticValueParameters(AbstractParameters):
                 "EXTERNAL_I": self.external_i,
                 "VACCINATION_RATES": self.vaccination_rate,
                 "BETA_COEF": self.beta_coef,
+                "SEASONAL_VACCINATION_RESET": self.seasonal_vaccination_reset,
             }
         )
         for key, val in args.items():

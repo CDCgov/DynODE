@@ -102,6 +102,12 @@ def test_negative_initial_infections():
         Config(input_json)
 
 
+def test_negative_initial_infections_scale():
+    input_json = """{"INITIAL_INFECTIONS_SCALE": -1.2}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
 def test_negative_tree_depth():
     input_json = """{"MAX_TREE_DEPTH": -1}"""
     with pytest.raises(AssertionError):
@@ -175,6 +181,18 @@ def test_valid_support_infectious_period():
     input_json = """{"INFECTIOUS_PERIOD": {"distribution": "TruncatedNormal", "params": {"loc": 2, "scale":1, "low":1}}}"""
     c = Config(input_json)
     assert issubclass(type(c.INFECTIOUS_PERIOD), dist.Distribution)
+
+
+def test_invalid_step_size():
+    input_json = """{"CONSTANT_STEP_SIZE": -1.0}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_valid_step_size():
+    input_json = """{"CONSTANT_STEP_SIZE": 0.0}"""
+    c = Config(input_json)
+    assert c.CONSTANT_STEP_SIZE == 0.0
 
 
 def test_valid_nested_distribution_infectious_period():

@@ -139,9 +139,15 @@ class AbstractParameters:
         """
         # a smart lookup function that works with JAX just in time compilation
         # if t > self.config.BETA_TIMES_i, return self.config.BETA_COEFICIENTS_i
-        return self.config.BETA_COEFICIENTS[
-            jnp.maximum(0, jnp.searchsorted(self.config.BETA_TIMES, t) - 1)
-        ]
+        if hasattr(self.config, "BETA_COEFICIENTS") and hasattr(
+            self.config, "BETA_TIMES"
+        ):
+            # this will trigger the runner to use adaptive step size with jump_ts
+            return self.config.BETA_COEFICIENTS[
+                jnp.maximum(0, jnp.searchsorted(self.config.BETA_TIMES, t) - 1)
+            ]
+        else:  # dont modify beta
+            return 1.0
 
     def retrieve_population_counts(self):
         """
@@ -229,6 +235,42 @@ class AbstractParameters:
         self.config.VAX_MODEL_KNOT_LOCATIONS = jnp.array(vax_knot_locations)
         self.config.VAX_MODEL_BASE_EQUATIONS = jnp.array(vax_base_equations)
 
+    def seasonal_vaccination_reset(self, t):
+        """
+        if model implements seasonal vaccination, returns evaluation of a continuously differentiable function
+        at x=t to outflow individuals from the top most vaccination bin (labeled the seasonal bin)
+        into the second highest bin.
+
+        Example
+        ----------
+        if self.config.SEASONAL_VACCINATION == True
+
+        at `t=utils.date_to_sim_day(self.config.VAX_SEASON_CHANGE)` returns 1
+        else returns near 0 for t far from self.config.VAX_SEASON_CHANGE.
+        """
+        if (
+            hasattr(self.config, "SEASONAL_VACCINATION")
+            and self.config.SEASONAL_VACCINATION
+        ):
+            # outflow function must be positive if and only if
+            # it is time to move people from seasonal bin back to max ordinal bin
+            # use a sine wave that occurs once a year to achieve this effect
+            peak_of_function = 182.5
+            # shift this value using shift_t to align with self.config.VAX_SEASON_CHANGE
+            # such that outflow_fn(self.config.VAX_SEASON_CHANGE) == 1.0 always
+            shift_t = (
+                peak_of_function
+                - (self.config.VAX_SEASON_CHANGE - self.config.INIT_DATE).days
+            )
+            # raise to an even exponent to remove negatives,
+            # pick 1000 since too high of a value likely to be stepped over by adaptive step size
+            # divide by 730 so wave only occurs 1 per every 365 days
+            # multiply by 2pi since we pass days as int
+            return jnp.sin((2 * jnp.pi * (t + shift_t) / 730)) ** 1000
+        else:
+            # if no seasonal vaccination, this function always returns zero
+            return 0
+
     def load_contact_matrix(self):
         """
         a wrapper function that loads a contact matrix for the USA based on mixing paterns data found here:
@@ -246,3 +288,63 @@ class AbstractParameters:
             self.config.AGE_LIMITS[0],
             self.config.AGE_LIMITS,
         )[self.config.REGIONS[0]]["avg_CM"]
+
+    def scale_initial_infections(self, scale_factor):
+        """
+        a function which modifies returns a modified version of
+        self.INITIAL_STATE scaling the number of initial infections by `scale_factor`.
+
+        Preserves the ratio of the Exposed/Infectious compartment population sizes.
+        Does not modified self.INITIAL_STATE, returns a copy.
+
+        Parameters
+        ----------
+        scale_factor: float
+            a multiplier value >=0.0.
+            `scale_factor` < 1 reduces number of initial infections,
+            `scale_factor` == 1.0 leaves initial infections unchanged,
+            `scale_factor` > 1 increases number of initial infections.
+
+        Returns
+        ---------
+        A copy of INITIAL_INFECTIONS with each compartment being scaled according to `scale_factor`
+        """
+        pop_counts_by_compartment = jnp.array(
+            [
+                jnp.sum(compartment)
+                for compartment in self.INITIAL_STATE[
+                    : self.config.COMPARTMENT_IDX.C
+                ]
+            ]
+        )
+        initial_infections = (
+            pop_counts_by_compartment[self.config.COMPARTMENT_IDX.E]
+            + pop_counts_by_compartment[self.config.COMPARTMENT_IDX.I]
+        )
+        initial_susceptibles = pop_counts_by_compartment[
+            self.config.COMPARTMENT_IDX.S
+        ]
+        # total_pop_size = initial_susceptibles + initial_infections
+        new_infections_size = scale_factor * initial_infections
+        # negative if scale_factor < 1.0
+        gained_infections = new_infections_size - initial_infections
+        scale_factor_susceptible_compartment = 1 - (
+            gained_infections / initial_susceptibles
+        )
+        # multiplying E and I by the same scale_factor preserves their relative ratio
+        scale_factors = [
+            scale_factor_susceptible_compartment,
+            scale_factor,
+            scale_factor,
+            1.0,  # for the C compartment, unchanged.
+        ]
+        # scale each compartment and return
+        initial_state = tuple(
+            [
+                compartment * factor
+                for compartment, factor in zip(
+                    self.INITIAL_STATE, scale_factors
+                )
+            ]
+        )
+        return initial_state

@@ -153,4 +153,29 @@ def seip_ode(state, t, parameters):
     )
     ds = ds - vax_counts
 
+    # if we are not implementing seasonal vaccination p.SEASONAL_VACCINATION_RESET(t) = 0 forall t
+    # and you can safely ignore this section
+    seasonal_vaccination_outflow = p.SEASONAL_VACCINATION_RESET(t)
+    # flow seasonal_vaccination_outflow% of seasonal vaxers back to max ordinal tier
+    ds = ds.at[:, :, p.MAX_VAX_COUNT - 1, :].add(
+        seasonal_vaccination_outflow * s[:, :, p.MAX_VAX_COUNT, :]
+    )
+    # remove these people from the seasonal vaccination tier
+    ds = ds.at[:, :, p.MAX_VAX_COUNT, :].add(
+        -seasonal_vaccination_outflow * s[:, :, p.MAX_VAX_COUNT, :]
+    )
+    # do the same process for e and i compartments
+    de = de.at[:, :, p.MAX_VAX_COUNT - 1, :].add(
+        seasonal_vaccination_outflow * e[:, :, p.MAX_VAX_COUNT, :]
+    )
+    de = de.at[:, :, p.MAX_VAX_COUNT, :].add(
+        -seasonal_vaccination_outflow * e[:, :, p.MAX_VAX_COUNT, :]
+    )
+    di = di.at[:, :, p.MAX_VAX_COUNT - 1, :].add(
+        seasonal_vaccination_outflow * i[:, :, p.MAX_VAX_COUNT, :]
+    )
+    di = di.at[:, :, p.MAX_VAX_COUNT, :].add(
+        -seasonal_vaccination_outflow * i[:, :, p.MAX_VAX_COUNT, :]
+    )
+
     return (ds, de, di, dc)

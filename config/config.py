@@ -5,7 +5,6 @@ import warnings
 from enum import IntEnum
 from functools import partial
 
-import git
 import jax.numpy as jnp
 import numpy as np
 import numpyro.distributions as distributions
@@ -40,7 +39,12 @@ class Config:
                 cast_type = parameter["type"]
                 # make sure we actually have the value in our incoming config
                 if key in config.keys():
-                    config[key] = cast_type(config[key])
+                    try:
+                        config[key] = cast_type(config[key])
+                    except Exception as e:
+                        raise ConfigParserError(
+                            "Unable to cast %s into %s" % (key, str(cast_type))
+                        ) from e
         return config
 
     def set_downstream_parameters(self):
@@ -60,9 +64,6 @@ class Config:
                 # dont try to create downstream unless config has all necessary keys
                 if all([hasattr(self, k) for k in key]):
                     downstream_function(self, key)
-        # take note of the current git hash for reproducibility reasons
-        self.LOCAL_REPO = git.Repo()
-        self.GIT_HASH = self.LOCAL_REPO.head.object.hexsha
 
     def assert_valid_configuration(self):
         """
@@ -440,6 +441,15 @@ PARAMETERS = [
         ],
     },
     {
+        "name": "INITIAL_INFECTIONS_SCALE",
+        "validate": [
+            partial(
+                test_type, tested_type=(int, float, distributions.Distribution)
+            ),
+            test_not_negative,
+        ],
+    },
+    {
         "name": ["POP_SIZE", "INITIAL_INFECTIONS"],
         "validate": compare_geq,
     },
@@ -537,6 +547,14 @@ PARAMETERS = [
         "type": jnp.array,
     },
     {
+        "name": "CONSTANT_STEP_SIZE",
+        "validate": [
+            test_not_negative,
+            partial(test_type, tested_type=(int, float)),
+        ],
+        "type": float,
+    },
+    {
         "name": "STRAIN_R0s",
         "validate": [
             partial(test_type, tested_type=np.ndarray),
@@ -563,6 +581,15 @@ PARAMETERS = [
         "name": "INIT_DATE",
         # "validate": do_nothing,
         "type": lambda s: datetime.datetime.strptime(s, "%Y-%m-%d").date(),
+    },
+    {
+        "name": "VAX_SEASON_CHANGE",
+        # "validate": do_nothing,
+        "type": lambda s: datetime.datetime.strptime(s, "%Y-%m-%d").date(),
+    },
+    {
+        "name": "SEASONAL_VACCINATION",
+        "validate": partial(test_type, tested_type=(bool)),
     },
     {
         "name": "COMPARTMENT_IDX",

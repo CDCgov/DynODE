@@ -1,6 +1,9 @@
+import datetime
+
 import jax.numpy as jnp
 import pytest
 
+import utils
 from config.config import Config
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 from mechanistic_model.static_value_parameters import StaticValueParameters
@@ -66,6 +69,84 @@ def test_external_i_shape():
     assert (
         external_i_shape == expected_shape
     ), "external infections shape incompatible with I compartment"
+
+
+def test_scale_initial_infections():
+    e = static_params.INITIAL_STATE[static_params.config.COMPARTMENT_IDX.E]
+    i = static_params.INITIAL_STATE[static_params.config.COMPARTMENT_IDX.I]
+    num_initial_infections = jnp.sum(e + i)
+    # should always be zero since our fake state does not have exposures.
+    # this is still fine to test because the ratios must sum to 1
+    ratio_infections_exposed = jnp.sum(e) / num_initial_infections
+    ratio_infections_infectious = jnp.sum(i) / num_initial_infections
+
+    # test_config provides coverage for negative value test cases.
+    # lets go through some common scale factors as well as the unchanged one and ensure that it remained the same
+    for scale_factor in [0.5, 0.75, 1.0, 1.25, 1.5]:
+        modified_initial_state = static_params.scale_initial_infections(
+            scale_factor
+        )
+        e_modified = modified_initial_state[
+            static_params.config.COMPARTMENT_IDX.E
+        ]
+        i_modified = modified_initial_state[
+            static_params.config.COMPARTMENT_IDX.I
+        ]
+        num_initial_infections_modified = jnp.sum(e_modified + i_modified)
+        ratio_infections_exposed_modified = (
+            jnp.sum(e_modified) / num_initial_infections_modified
+        )
+        ratio_infections_infectious_modified = (
+            jnp.sum(i_modified) / num_initial_infections_modified
+        )
+        # test that the number of infections actually increased by the correct number
+        assert jnp.isclose(
+            num_initial_infections * scale_factor,
+            num_initial_infections_modified,
+        ), (
+            "scaling initial infections does not produce the correct number of new infections, "
+            "began with %s infections, scaled by a factor of %d, ended with %s"
+        ) % (
+            str(num_initial_infections),
+            scale_factor,
+            str(num_initial_infections_modified),
+        )
+        # test that the E and I ratios are preserved.
+        for ratio_start, ratio_end in zip(
+            [ratio_infections_exposed, ratio_infections_infectious],
+            [
+                ratio_infections_exposed_modified,
+                ratio_infections_infectious_modified,
+            ],
+        ):
+            assert jnp.isclose(ratio_start, ratio_end), (
+                "the ratio of infections into the exposed/infectious "
+                "compartments changed after scaling initial infections. Started with ratio of %s ended with %s"
+            ) % (str(ratio_start), str(ratio_end))
+
+
+def test_seasonal_vaccination_reset():
+    static_params = StaticValueParameters(
+        fake_initial_state,
+        RUNNER_CONFIG_PATH,
+        CONFIG_GLOBAL_PATH,
+    )
+    static_params.config.SEASONAL_VACCINATION = True
+    # set a number of season change points and test the function for each one
+    for month in range(1, 13):
+        season_change = static_params.config.INIT_DATE + datetime.timedelta(
+            days=30 * month
+        )
+        static_params.config.VAX_SEASON_CHANGE = season_change
+        outflow_val = static_params.seasonal_vaccination_reset(
+            utils.date_to_sim_day(
+                season_change, static_params.config.INIT_DATE
+            )
+        )
+        assert outflow_val == 1, (
+            "seasonal outflow function does not peak on static_params.config.VAX_SEASON_CHANGE like it should %s"
+            % str(outflow_val)
+        )
 
 
 def test_output_shapes():
