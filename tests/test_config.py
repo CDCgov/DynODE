@@ -74,6 +74,57 @@ def test_float_ages():
         Config(input_json)
 
 
+def test_invalid_introduction_perc_type():
+    input_json = """{"INTRODUCTION_PERCS": 0.1}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_invalid_introduction_perc_val():
+    input_json = """{"INTRODUCTION_PERCS":[-1]}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_valid_introduction_perc():
+    input_json = """{"INTRODUCTION_PERCS": [0.1]}"""
+    assert Config(input_json).INTRODUCTION_PERCS == [0.1]
+
+
+def test_invalid_introduction_times_type():
+    input_json = """{"INTRODUCTION_TIMES": 0}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_invalid_introduction_times_val():
+    input_json = """{"INTRODUCTION_TIMES": [-1]}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_valid_introduction_times_val():
+    input_json = """{"INTRODUCTION_TIMES": [10]}"""
+    assert Config(input_json).INTRODUCTION_TIMES == [10]
+
+
+def test_invalid_introduction_scale_type():
+    input_json = """{"INTRODUCTION_SCALES": 5}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_invalid_introduction_scale_val():
+    input_json = """{"INTRODUCTION_SCALES": [-1]}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_valid_introduction_scale_val():
+    input_json = """{"INTRODUCTION_SCALES": [10]}"""
+    assert Config(input_json).INTRODUCTION_SCALES == [10]
+
+
 def test_valid_age_limits():
     input_json = """{"AGE_LIMITS": [0, 5, 18, 50, 64]}"""
     assert Config(input_json).AGE_LIMITS == [0, 5, 18, 50, 64]

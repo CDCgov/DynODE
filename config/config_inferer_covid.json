@@ -54,8 +54,12 @@
         }
     ],
     "CONSTANT_STEP_SIZE": 0,
-    "INTRODUCTION_PERCENTAGE": 0.01,
-    "INTRODUCTION_SCALE": 10,
+    "INTRODUCTION_PERCS": [
+        0.01
+    ],
+    "INTRODUCTION_SCALES": [
+        10
+    ],
     "INTRODUCTION_AGE_MASK": [
         false,
         true,

@@ -23,12 +23,19 @@ class AbstractParameters:
         pass
 
     @partial(jax.jit, static_argnums=(0))
-    def external_i(self, t, introduction_times):
+    def external_i(
+        self, t, introduction_times, introduction_scales, introduction_percs
+    ):
         """
         Given some time t, returns jnp.array of shape self.INITIAL_STATE[self.config.COMPARTMENT_IDX.I] representing external infected persons
         interacting with the population. it does so by calling some function f_s(t) for each strain s.
 
         MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t.
+
+        The stratafication of the external population is decided by the introduced strains, which are defined by
+        3 parallel lists of the time they peak (`introduction_times`),
+        the number of external infected individuals introduced as a % of the tracked population (`introduction_percs`)
+        and how quickly or slowly those individuals contact the tracked population (`introduction_scales`)
 
         Parameters
         ----------
@@ -38,8 +45,19 @@ class AbstractParameters:
 
         `introduction_times`: list[int]
             a list representing the times at which external strains should be introduced, in days, after t=0 of the model
-            This list is ordered inversely to self.config.STRAIN_R0s. Meaning the first element in `introduction_times`
-            is modeling the introduction of the last strain in self.config.STRAIN_R0s.
+            This list is ordered inversely to self.config.STRAIN_R0s. If 2 external strains are defined, the two
+            values in `introduction_times` will refer to the last 2 STRAIN_R0s, not the first two.
+
+        `introduction_scales`: list[float]
+            a list representing the standard deviation of the curve that external strains are introduced with, in days
+            This list is ordered inversely to self.config.STRAIN_R0s. If 2 external strains are defined, the two
+            values in `introduction_times` will refer to the last 2 STRAIN_R0s, not the first two.
+
+        `introduction_percs`: list[float]
+            a list representing the proportion of each age bin in self.POPULATION[self.config.INTRODUCTION_AGE_MASK]
+            that will be exposed to the introduced strain over the entire course of the introduction.
+            This list is ordered inversely to self.config.STRAIN_R0s. If 2 external strains are defined, the two
+            values in `introduction_times` will refer to the last 2 STRAIN_R0s, not the first two.
 
         Returns
         -----------
@@ -55,8 +73,13 @@ class AbstractParameters:
         external_i_distributions = [
             zero_function for _ in range(self.config.NUM_STRAINS)
         ]
-        for introduced_strain_idx, introduced_time in enumerate(
-            introduction_times
+        introduction_percentage_by_strain = [0] * self.config.NUM_STRAINS
+        for introduced_strain_idx, (
+            introduced_time,
+            introduction_scale,
+            introduction_perc,
+        ) in enumerate(
+            zip(introduction_times, introduction_scales, introduction_percs)
         ):
             # earlier introduced strains earlier will be placed closer to historical strains (0 and 1)
             dist_idx = (
@@ -66,8 +89,9 @@ class AbstractParameters:
             )
             # use a normal PDF with std dv
             external_i_distributions[dist_idx] = partial(
-                pdf, loc=introduced_time, scale=self.config.INTRODUCTION_SCALE
+                pdf, loc=introduced_time, scale=introduction_scale
             )
+            introduction_percentage_by_strain[dist_idx] = introduction_perc
         # with our external_i_distributions set up, now we can execute them on `t`
         # set up our return value
         external_i_compartment = jnp.zeros(
@@ -80,11 +104,12 @@ class AbstractParameters:
         )
         for strain in self.config.STRAIN_IDX:
             external_i_distribution = external_i_distributions[strain]
+            introduction_perc = introduction_percentage_by_strain[strain]
             external_i_compartment = external_i_compartment.at[
                 introduction_age_mask, 0, 0, strain
             ].set(
                 external_i_distribution(t)
-                * self.config.INTRODUCTION_PERCENTAGE
+                * introduction_perc
                 * self.config.POPULATION[self.config.INTRODUCTION_AGE_MASK]
             )
         return external_i_compartment

@@ -348,6 +348,10 @@ def test_len(keys, vals):
     )
 
 
+def test_equal_len(keys, vals):
+    test_len(keys, [len(vals[0]), vals[1]])
+
+
 def test_shape(keys, vals):
     key1, key2 = keys[0], keys[1]
     shape_of_matrix, array = vals[0], vals[1]
@@ -572,10 +576,47 @@ PARAMETERS = [
     },
     {
         "name": "INTRODUCTION_TIMES",
-        "validate": lambda key, val: [
-            [test_not_negative(key, intro_time) for intro_time in val]
+        "validate": [
+            partial(test_type, tested_type=list),
+            lambda key, val: [
+                [test_not_negative(key, intro_time) for intro_time in val]
+            ],
         ],
         "downstream": set_num_introduced_strains,
+    },
+    {
+        "name": "INTRODUCTION_SCALES",
+        "validate": [
+            partial(test_type, tested_type=list),
+            lambda key, val: [
+                [test_positive(key, intro_scale) for intro_scale in val]
+            ],
+        ],
+    },
+    {
+        "name": "INTRODUCTION_PERCS",
+        "validate": [
+            partial(test_type, tested_type=list),
+            lambda key, val: [
+                [test_not_negative(key, intro_perc) for intro_perc in val]
+            ],
+        ],
+    },
+    {
+        "name": [
+            "INTRODUCTION_TIMES",
+            "INTRODUCTION_SCALES",
+            "INTRODUCTION_PERCS",
+        ],
+        "validate": [
+            lambda key, val: test_equal_len(
+                [key[0], key[1]], [val[0], val[1]]
+            ),
+            lambda key, val: test_equal_len(
+                [key[1], key[2]], [val[1], val[2]]
+            ),
+            # by transitive property, len(INTRODUCTION_TIMES) == len(INTRODUCTION_PERCS)
+        ],
     },
     {
         "name": "INIT_DATE",

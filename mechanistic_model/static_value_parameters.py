@@ -55,6 +55,8 @@ class StaticValueParameters(AbstractParameters):
             "BETA_TIMES": self.config.BETA_TIMES,
             "CONSTANT_STEP_SIZE": self.config.CONSTANT_STEP_SIZE,
             "INTRODUCTION_TIMES": self.config.INTRODUCTION_TIMES,
+            "INTRODUCTION_SCALES": self.config.INTRODUCTION_SCALES,
+            "INTRODUCTION_PERCS": self.config.INTRODUCTION_PERCS,
         }
         beta = self.config.STRAIN_R0s / self.config.INFECTIOUS_PERIOD
         gamma = 1 / self.config.INFECTIOUS_PERIOD
