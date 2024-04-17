@@ -109,6 +109,8 @@ def test_vaccination_rates(temp_config_files):
     runner = json.load(open(temp_runner_path, "r"))
     runner["STRAIN_R0s"] = [0.0, 0.0, 0.0]  # no new infections
     runner["INTRODUCTION_TIMES"] = []  # turn off external introductions
+    runner["INTRODUCTION_SCALES"] = []  # turn off external introductions
+    runner["INTRODUCTION_PERCS"] = []  # turn off external introductions
     # saving runner changes
     json.dump(runner, open(temp_runner_path, "w"))
 
@@ -204,6 +206,8 @@ def test_seasonal_vaccination(temp_config_files):
     runner = json.load(open(temp_runner_path, "r"))
     runner["STRAIN_R0s"] = [0.0, 0.0, 0.0]  # no new infections
     runner["INTRODUCTION_TIMES"] = []  # turn off external introductions
+    runner["INTRODUCTION_SCALES"] = []  # turn off external introductions
+    runner["INTRODUCTION_PERCS"] = []  # turn off external introductions
     runner["SEASONAL_VACCINATION"] = True  # turn on seasonal vaccination
     # saving runner changes
     json.dump(runner, open(temp_runner_path, "w"))

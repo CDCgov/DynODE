@@ -306,6 +306,8 @@ class MechanisticInferer(AbstractParameters):
             "INFECTIOUS_PERIOD": freeze_params.INFECTIOUS_PERIOD,
             "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
             "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
+            "INTRODUCTION_SCALES": freeze_params.INTRODUCTION_SCALES,
+            "INTRODUCTION_PERCS": freeze_params.INTRODUCTION_PERCS,
             "INITIAL_INFECTIONS_SCALE": freeze_params.INITIAL_INFECTIONS_SCALE,
             "CONSTANT_STEP_SIZE": freeze_params.CONSTANT_STEP_SIZE,
         }

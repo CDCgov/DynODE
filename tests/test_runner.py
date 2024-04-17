@@ -62,7 +62,7 @@ def test_invalid_paths_raise():
 
 
 def test_external_i_shape():
-    external_i_shape = static_params.external_i(100, []).shape
+    external_i_shape = static_params.external_i(100, [], [], []).shape
     expected_shape = static_params.INITIAL_STATE[
         static_params.config.COMPARTMENT_IDX.I
     ].shape
