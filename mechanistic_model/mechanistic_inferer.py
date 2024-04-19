@@ -39,7 +39,6 @@ class MechanisticInferer(AbstractParameters):
         self.infer_complete = False  # flag once inference completes
         self.set_infer_algo(prior_inferer=prior_inferer)
         self.retrieve_population_counts()
-        self.load_cross_immunity_matrix()
         self.load_vaccination_model()
         self.load_contact_matrix()
 
@@ -257,22 +256,30 @@ class MechanisticInferer(AbstractParameters):
             if issubclass(type(param), Dist.Distribution):
                 param = numpyro.sample(key, param)
             # if list, check for distributions within and replace them
-            elif isinstance(param, (np.ndarray, list)) and any(
-                [
-                    issubclass(type(param_lst), Dist.Distribution)
-                    for param_lst in param
-                ]
-            ):
-                param = jnp.array(
+            elif isinstance(param, (np.ndarray, list)):
+                param = np.array(param)  # cast np.array so we get .shape
+                flat_param = np.ravel(param)  # Flatten the parameter array
+                # check for distributions inside of the flattened parameter list
+                if any(
                     [
-                        (
-                            numpyro.sample(key + "_" + str(i), param_lst)
-                            if issubclass(type(param_lst), Dist.Distribution)
-                            else param_lst
-                        )
-                        for i, param_lst in enumerate(param)
+                        issubclass(type(param_lst), Dist.Distribution)
+                        for param_lst in flat_param
                     ]
-                )
+                ):
+                    # if we find distributions, sample them, then reshape back to the original shape
+                    flat_param = jnp.array(
+                        [
+                            (
+                                numpyro.sample(key + "_" + str(i), param_lst)
+                                if issubclass(
+                                    type(param_lst), Dist.Distribution
+                                )
+                                else param_lst
+                            )
+                            for i, param_lst in enumerate(flat_param)
+                        ]
+                    )
+                    param = jnp.reshape(flat_param, param.shape)
             # else static param, do nothing
             parameters[key] = param
         return parameters
@@ -299,7 +306,7 @@ class MechanisticInferer(AbstractParameters):
             "NUM_WANING_COMPARTMENTS": freeze_params.NUM_WANING_COMPARTMENTS,
             "WANING_PROTECTIONS": freeze_params.WANING_PROTECTIONS,
             "MAX_VAX_COUNT": freeze_params.MAX_VAX_COUNT,
-            "CROSSIMMUNITY_MATRIX": freeze_params.CROSSIMMUNITY_MATRIX,
+            "STRAIN_INTERACTIONS": freeze_params.STRAIN_INTERACTIONS,
             "VAX_EFF_MATRIX": freeze_params.VAX_EFF_MATRIX,
             "BETA_TIMES": freeze_params.BETA_TIMES,
             "STRAIN_R0s": freeze_params.STRAIN_R0s,
@@ -312,6 +319,12 @@ class MechanisticInferer(AbstractParameters):
             "CONSTANT_STEP_SIZE": freeze_params.CONSTANT_STEP_SIZE,
         }
         parameters = self.sample_if_distribution(parameters)
+        # re-create the CROSSIMMUNITY_MATRIX since we may be sampling the STRAIN_INTERACTIONS matrix now
+        parameters[
+            "CROSSIMMUNITY_MATRIX"
+        ] = utils.strain_interaction_to_cross_immunity(
+            self.config.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
+        )
         # create parameters based on other possibly sampled parameters
         beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
         gamma = 1 / parameters["INFECTIOUS_PERIOD"]
