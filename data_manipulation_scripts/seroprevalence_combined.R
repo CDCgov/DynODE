@@ -98,3 +98,5 @@ for (st in unique(comb_df$region)) {
   dat_st_fill |>
     data.table::fwrite(outfile)
 }
+
+data.table::fwrite(comb_df, "./data/serological-data/combined2022.csv")
