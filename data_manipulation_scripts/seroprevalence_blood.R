@@ -28,7 +28,8 @@ lab_csv <- file.path(
   "serological-data",
   "seroprevalence_50states.csv"
 )
-lab_df <- data.table::fread(lab_csv) |>
+lab_df <- data.table::fread(lab_csv)
+lab_df2021 <- data.table::fread(lab_csv) |>
   filter(year(date) < 2022)
 
 ## 2020-2021 Blood donor seroprevalence
@@ -158,7 +159,7 @@ for (st in states) {
       filter(region == st, age == ag)
     donor2_age <- donor2_region |>
       filter(region == st, age == ag)
-    lab_age <- lab_df |>
+    lab_age <- lab_df2021 |>
       filter(Site == st, age == ag)
 
     # match lab dates with donor dates
@@ -182,6 +183,7 @@ for (st in states) {
 
     # collect
     donor2_age$rate <- adj_donor2_prev * 100
+    donor2_age$m <- m
     donor2_adj_df <- bind_rows(donor2_adj_df, donor2_age)
   }
 }
@@ -189,7 +191,23 @@ for (st in states) {
 # Add ND without adjustment here (only data we have about ND)
 donor2_nd <- donor2_region |>
   filter(region == "ND")
-donor2_adj_fin <- bind_rows(donor2_adj_df, donor2_nd)
+donor2_adj_stack <- bind_rows(donor2_adj_df, donor2_nd)
+
+# "Lifting" the seroprevalence up so that feb donor matches with
+# feb lab
+lab_feb <- lab_df |>
+  filter(date > ymd("2022-02-01")) |>
+  select(-date)
+donor2_adj_fin <- donor2_adj_stack |>
+  left_join(lab_feb, by = c("region" = "Site", "age")) |>
+  group_by(region, age) |>
+  mutate(lift = arm::logit(infected) - arm::logit(rate[quarter == 1] / 100)) |>
+  mutate(
+    lifted_rate = arm::logit(rate / 100) + lift,
+    lifted_rate = arm::invlogit(lifted_rate)
+  ) |>
+  mutate(rate = coalesce(lifted_rate * 100, rate)) |>
+  select(-c(lift, m, lifted_rate))
 
 # simple visualization
 donor2_adj_fin |>
