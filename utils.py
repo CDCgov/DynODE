@@ -754,13 +754,13 @@ def strain_interaction_to_cross_immunity(
         immune history to a challenging strain.
     """
     infection_history = range(2**num_strains)
-    crossimmunity_matrix = np.zeros((num_strains, len(infection_history)))
+    crossimmunity_matrix = jnp.zeros((num_strains, len(infection_history)))
     for challenging_strain in range(num_strains):
         # if immune history already contains exposure to challenging_strain, this is a reinfection.
-        crossimmunity_matrix[
+        crossimmunity_matrix = crossimmunity_matrix.at[
             challenging_strain,
             all_immune_states_with(challenging_strain, num_strains),
-        ] = strain_interactions[challenging_strain, challenging_strain]
+        ].set(strain_interactions[challenging_strain, challenging_strain])
         # for individuals without previous exposure to this strain, use protection from most recent infection.
         states_without_strain = all_immune_states_without(
             challenging_strain, num_strains
@@ -768,9 +768,9 @@ def strain_interaction_to_cross_immunity(
         for state_without_strain in states_without_strain:
             # if state = 0, they have no most recent infection, thus 0 immunity
             if state_without_strain == 0:
-                crossimmunity_matrix[
+                crossimmunity_matrix = crossimmunity_matrix.at[
                     challenging_strain, state_without_strain
-                ] = 0
+                ].set(0)
             else:  # find last most recent infection
                 # turn state into binary, find the 1 correlating to the most recent strain
                 state_binary = str(bin(state_without_strain))[2:]  # 0b remove
@@ -781,21 +781,20 @@ def strain_interaction_to_cross_immunity(
                     else ("0" * (num_strains - len(state_binary)))
                     + state_binary
                 )
+                # convert the state to a list of strain exposures
                 state_list = [int(d) for d in state_binary][::-1]
                 strains = np.where(np.array(state_list) == 1)[0]
-                immunities = np.array(
-                    [
-                        strain_interactions[challenging_strain, strain]
-                        for strain in strains
+                # find the most recent strain that has been exposed to
+                # this is often the same thing as the most recent exposed strain
+                # people can be reinfected by older strains after newer ones
+                most_recent_immune_strain = strains[np.argmax(strains)]
+                crossimmunity_matrix = crossimmunity_matrix.at[
+                    challenging_strain, state_without_strain
+                ].set(
+                    strain_interactions[
+                        challenging_strain, most_recent_immune_strain
                     ]
                 )
-                # pick the strain in this state with the highest immunity to challenging strain
-                highest_immunity_strain = strains[np.argmax(immunities)]
-                crossimmunity_matrix[
-                    challenging_strain, state_without_strain
-                ] = strain_interactions[
-                    challenging_strain, highest_immunity_strain
-                ]
     return crossimmunity_matrix
 
 
