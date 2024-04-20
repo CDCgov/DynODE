@@ -57,6 +57,9 @@ class StaticValueParameters(AbstractParameters):
             "INTRODUCTION_TIMES": self.config.INTRODUCTION_TIMES,
             "INTRODUCTION_SCALES": self.config.INTRODUCTION_SCALES,
             "INTRODUCTION_PERCS": self.config.INTRODUCTION_PERCS,
+            "SEASONALITY_AMPLITUDE": self.config.SEASONALITY_AMPLITUDE,
+            "SEASONALITY_SECOND_WAVE": self.config.SEASONALITY_SECOND_WAVE,
+            "SEASONALITY_SHIFT": self.config.SEASONALITY_SHIFT,
         }
         beta = self.config.STRAIN_R0s / self.config.INFECTIOUS_PERIOD
         gamma = 1 / self.config.INFECTIOUS_PERIOD
@@ -69,6 +72,21 @@ class StaticValueParameters(AbstractParameters):
                 for waning_time in self.config.WANING_TIMES
             ]
         )
+        # allows the ODEs to just pass time as a parameter, makes them look cleaner
+        # external_i_function_prefilled = partial(
+        #     self.external_i,
+        #     introduction_times=args["INTRODUCTION_TIMES"],
+        #     introduction_scales=args["INTRODUCTION_SCALES"],
+        #     introduction_percs=args["INTRODUCTION_PERCS"],
+        # )
+        # pre-calculate the minimum value of the seasonality curves
+        # seasonality_function_prefilled = partial(
+        #     self.seasonality,
+        #     seasonality_amplitude=args["SEASONALITY_AMPLITUDE"],
+        #     seasonality_second_wave=args["SEASONALITY_SECOND_WAVE"],
+        #     seasonality_shift=args["SEASONALITY_SHIFT"],
+        #     m=m,
+        # )
         # add final parameters, if your model expects added parameters, add them here
         args = dict(
             args,
@@ -81,6 +99,7 @@ class StaticValueParameters(AbstractParameters):
                 "VACCINATION_RATES": self.vaccination_rate,
                 "BETA_COEF": self.beta_coef,
                 "SEASONAL_VACCINATION_RESET": self.seasonal_vaccination_reset,
+                "SEASONALITY": self.seasonality,
             }
         )
         for key, val in args.items():

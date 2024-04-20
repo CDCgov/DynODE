@@ -74,6 +74,149 @@ def test_float_ages():
         Config(input_json)
 
 
+def test_invalid_seasonality_amplitude_type():
+    input_json = """{"SEASONALITY_AMPLITUDE": [0]}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_invalid_seasonality_amplitude_val():
+    input_json = """{"SEASONALITY_AMPLITUDE": 4.0}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_invalid_seasonality_amplitude_val_negative():
+    input_json = """{"SEASONALITY_AMPLITUDE": -4.0}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_invalid_seasonality_amplitude_dist():
+    input_json = """{"SEASONALITY_AMPLITUDE": {
+        "distribution": "Normal",
+        "params": {
+            "scale": 1,
+            "loc": 0
+        }
+    }}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_valid_seasonality_amplitude():
+    input_json = """{"SEASONALITY_AMPLITUDE": 0.15}"""
+    assert Config(input_json).SEASONALITY_AMPLITUDE == 0.15
+
+
+def test_valid_seasonality_amplitude_dist():
+    input_json = """{"SEASONALITY_AMPLITUDE": {
+        "distribution": "Beta",
+        "params": {
+            "concentration1": 1,
+            "concentration0": 19
+        }
+    }}"""
+    assert isinstance(Config(input_json).SEASONALITY_AMPLITUDE, dist.Beta)
+
+
+def test_invalid_seasonality_second_wave_type():
+    input_json = """{"SEASONALITY_SECOND_WAVE": [0]}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_invalid_seasonality_second_wave_val():
+    input_json = """{"SEASONALITY_SECOND_WAVE": 1.5}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_invalid_seasonality_second_wave_val_negative():
+    input_json = """{"SEASONALITY_SECOND_WAVE": -1.5}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_invalid_seasonalit_second_wave_dist():
+    input_json = """{"SEASONALITY_SECOND_WAVE": {
+        "distribution": "Normal",
+        "params": {
+            "scale": 1,
+            "loc": 0
+        }
+    }}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_valid_seasonality_second_wave():
+    input_json = """{"SEASONALITY_SECOND_WAVE": 0.15}"""
+    assert Config(input_json).SEASONALITY_SECOND_WAVE == 0.15
+
+
+def test_valid_seasonality_second_wave_dist():
+    input_json = """{"SEASONALITY_SECOND_WAVE":{
+        "distribution": "Beta",
+        "params": {
+            "concentration1": 1,
+            "concentration0": 19
+        }
+    }}"""
+    assert isinstance(Config(input_json).SEASONALITY_SECOND_WAVE, dist.Beta)
+
+
+def test_invalid_seasonality_shift_type():
+    input_json = """{"SEASONALITY_SHIFT": [0]}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_invalid_seasonality_shift_val():
+    input_json = """{"SEASONALITY_SHIFT": 183}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_invalid_seasonality_shift_val_negative():
+    input_json = """{"SEASONALITY_SHIFT": -183}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_invalid_seasonalit_shift_dist():
+    input_json = """{"SEASONALITY_SHIFT": {
+        "distribution": "Normal",
+        "params": {
+            "scale": 1,
+            "loc": 0
+        }
+    }}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_valid_seasonality_shift():
+    input_json = """{"SEASONALITY_SHIFT": 10}"""
+    assert Config(input_json).SEASONALITY_SHIFT == 10
+
+
+def test_valid_seasonality_shift_dist():
+    input_json = """{"SEASONALITY_SHIFT":{
+        "distribution": "TruncatedNormal",
+        "params": {
+            "loc": 50,
+            "scale": 20,
+            "low": -180,
+            "high": 180
+        }
+    }}"""
+    assert issubclass(
+        dist.TwoSidedTruncatedDistribution,
+        type(Config(input_json).SEASONALITY_SHIFT),
+    )
+
+
 def test_invalid_introduction_perc_type():
     input_json = """{"INTRODUCTION_PERCS": 0.1}"""
     with pytest.raises(AssertionError):

@@ -174,6 +174,62 @@ class AbstractParameters:
         else:  # dont modify beta
             return 1.0
 
+    def seasonality(
+        self,
+        t,
+        seasonality_amplitude,
+        seasonality_second_wave,
+        seasonality_shift,
+    ):
+        """Returns the seasonlity coefficient for Beta as determined by two cosine waves
+        multiplied by `seasonality_peak` and `seasonality_second_wave` and shifted by `seasonality_shift` days.
+
+        Parameters
+        -----------
+        t: int
+
+        seasonality_amplitude: float/Traced<ShapedArray(float32[])>
+            maximum and minimum of the combined curves,
+            taking values of `+/-seasonality_amplitude` respectively
+        seasonality_second_wave: float/Traced<ShapedArray(float32[])>
+            enforced 0 <= seasonality_second_wave <= 1.0
+            adjusts how pronouced the summer wave is,
+            with 1.0 being equally sized winter and summer waves, and 0 being no summer wave
+        seasonality_shift: float/Traced<ShapedArray(float32[])>
+            horizontal shift across time in days, cant not exceed +/-(365/2)
+            if seasonality_shift=0, peak occurs at t=0.
+        m: float/Traced<ShapedArray(float32[])>
+            the minimum value of the two cosine curves over the year
+            for optimal efficiency this is computed in advance
+
+        """
+        # shift our curve an additional number of days to account for t=0=INIT_DATE and not jan 1st
+        seasonality_shift = (
+            seasonality_shift - self.config.INIT_DATE.timetuple().tm_yday
+        )
+        m = float("inf")
+        for t1 in range(365):
+            m = jnp.minimum(
+                m,
+                utils.season_1peak(
+                    t1,
+                    seasonality_second_wave,
+                    seasonality_shift,
+                )
+                + utils.season_2peak(
+                    t1,
+                    seasonality_second_wave,
+                    seasonality_shift,
+                ),
+            )
+
+        season_curve = utils.season_1peak(
+            t, seasonality_second_wave, seasonality_shift
+        ) + utils.season_2peak(t, seasonality_second_wave, seasonality_shift)
+        return 1 + (
+            seasonality_amplitude * (2 * (season_curve - m) / (1 - m) - 1)
+        )
+
     def retrieve_population_counts(self):
         """
         A wrapper function which takes retrieves the age stratified population counts across all the INITIAL_STATE compartments

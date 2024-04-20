@@ -128,6 +128,28 @@ def evaluate_cubic_spline(
     return base + knots
 
 
+def season_1peak(t, seasonality_second_wave, seasonality_shift):
+    """
+    a utils function used to calculate seasonality,
+    this one is for the winter wave occuring at t=0 if `seasonality_shift=0`
+    and `seasonality_second_wave=0`
+    """
+    return (1 - seasonality_second_wave) * jnp.cos(
+        2 * jnp.pi * (t - seasonality_shift) / 365
+    )
+
+
+def season_2peak(t, seasonality_second_wave, seasonality_shift):
+    """
+    a utils function used to calculate seasonality,
+    this one is for the summer wave occuring at t=182.5 if `seasonality_shift=0`
+    and `seasonality_second_wave=1`
+    """
+    return seasonality_second_wave * jnp.cos(
+        4 * jnp.pi * (t - seasonality_shift) / 365
+    )
+
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # INDEXING FUNCTIONS
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
