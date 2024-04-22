@@ -67,6 +67,8 @@ testing.py
 !data/vaccination-data/state-spline-fits/*.csv
 !data/serological-data/fitting-2022/*.csv
 !data/serological-data/sero-initializer-csvs/*.csv
+!data/variant-data/*.csv
+!data/variant-data/fitting-2022/*.csv
 
 #####
 # Python
