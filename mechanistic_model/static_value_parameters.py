@@ -95,11 +95,11 @@ class StaticValueParameters(AbstractParameters):
                 "SIGMA": sigma,
                 "GAMMA": gamma,
                 "WANING_RATES": waning_rates,
-                "EXTERNAL_I": external_i_function_prefilled,  # self.external_i,
+                "EXTERNAL_I": external_i_function_prefilled,
                 "VACCINATION_RATES": self.vaccination_rate,
                 "BETA_COEF": self.beta_coef,
                 "SEASONAL_VACCINATION_RESET": self.seasonal_vaccination_reset,
-                "SEASONALITY": seasonality_function_prefilled,  # self.seasonality,
+                "SEASONALITY": seasonality_function_prefilled,
             }
         )
         for key, val in args.items():
