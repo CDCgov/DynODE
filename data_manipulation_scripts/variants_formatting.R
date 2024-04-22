@@ -113,7 +113,7 @@ for (i in seq_len(nrow(states))) {
   stname <- states$stname[i] |>
     stringr::str_replace_all(" ", "_")
   reg <- ifelse(
-    st == "US",
+    stusps == "US",
     "USA",
     hhs_lookup$hhs[hhs_lookup$state == stusps] |> as.character()
   )
