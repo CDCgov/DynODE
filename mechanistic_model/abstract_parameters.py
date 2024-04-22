@@ -207,27 +207,34 @@ class AbstractParameters:
         seasonality_shift = (
             seasonality_shift - self.config.INIT_DATE.timetuple().tm_yday
         )
-        m = float("inf")
-        for t1 in range(365):
-            m = jnp.minimum(
-                m,
-                utils.season_1peak(
-                    t1,
-                    seasonality_second_wave,
-                    seasonality_shift,
-                )
-                + utils.season_2peak(
-                    t1,
-                    seasonality_second_wave,
-                    seasonality_shift,
-                ),
-            )
-
+        k = 2 * jnp.pi / 365.0
+        cos_val = jnp.where(
+            seasonality_second_wave > 0.2,
+            (seasonality_second_wave - 1)
+            / (4 * seasonality_second_wave + 1e-6),
+            -1,
+        )
+        min_day = jnp.arccos(cos_val) / k + seasonality_shift
+        curve_normalizing_factor = utils.season_1peak(
+            min_day,
+            seasonality_second_wave,
+            seasonality_shift,
+        ) + utils.season_2peak(
+            min_day,
+            seasonality_second_wave,
+            seasonality_shift,
+        )
         season_curve = utils.season_1peak(
             t, seasonality_second_wave, seasonality_shift
         ) + utils.season_2peak(t, seasonality_second_wave, seasonality_shift)
         return 1 + (
-            seasonality_amplitude * (2 * (season_curve - m) / (1 - m) - 1)
+            seasonality_amplitude
+            * (
+                2
+                * (season_curve - curve_normalizing_factor)
+                / (1 - curve_normalizing_factor)
+                - 1
+            )
         )
 
     def retrieve_population_counts(self):

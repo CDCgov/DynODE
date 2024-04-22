@@ -60,12 +60,7 @@ def seip_ode(state, t, parameters):
         jnp.zeros(c.shape),
     )
     beta_coef = p.BETA_COEF(t)
-    seasonality_coef = p.SEASONALITY(
-        t,
-        p.SEASONALITY_AMPLITUDE,
-        p.SEASONALITY_SECOND_WAVE,
-        p.SEASONALITY_SHIFT,
-    )
+    seasonality_coef = p.SEASONALITY(t)
     # CALCULATING SUCCESSFULL INFECTIONS OF (partially) SUSCEPTIBLE INDIVIDUALS
     # including externally infected individuals to introduce new strains
     force_of_infection = (
@@ -76,13 +71,7 @@ def seip_ode(state, t, parameters):
             * jnp.einsum(
                 "ab,bijk->ak",
                 p.CONTACT_MATRIX,
-                i
-                + p.EXTERNAL_I(
-                    t,
-                    p.INTRODUCTION_TIMES,
-                    p.INTRODUCTION_SCALES,
-                    p.INTRODUCTION_PERCS,
-                ),
+                i + p.EXTERNAL_I(t),
             )
         ).transpose()
         / p.POPULATION

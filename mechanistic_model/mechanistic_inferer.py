@@ -6,6 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 import numpyro
 from jax.random import PRNGKey
+from jax.tree_util import Partial as partial
 from numpyro import distributions as Dist
 from numpyro.diagnostics import summary
 from numpyro.infer import MCMC, NUTS
@@ -341,35 +342,19 @@ class MechanisticInferer(AbstractParameters):
             ]
         )
         # allows the ODEs to just pass time as a parameter, makes them look cleaner
-        # external_i_function_prefilled = partial(
-        #     self.external_i,
-        #     introduction_times=parameters["INTRODUCTION_TIMES"],
-        #     introduction_scales=parameters["INTRODUCTION_SCALES"],
-        #     introduction_percs=parameters["INTRODUCTION_PERCS"],
-        # )
+        external_i_function_prefilled = partial(
+            self.external_i,
+            introduction_times=parameters["INTRODUCTION_TIMES"],
+            introduction_scales=parameters["INTRODUCTION_SCALES"],
+            introduction_percs=parameters["INTRODUCTION_PERCS"],
+        )
         # # pre-calculate the minimum value of the seasonality curves
-        ms = jnp.ones((365))
-        for t in range(365):
-            ms.at[t].set(
-                utils.season_1peak(
-                    t,
-                    parameters["SEASONALITY_SECOND_WAVE"],
-                    parameters["SEASONALITY_SHIFT"],
-                )
-                + utils.season_2peak(
-                    t,
-                    parameters["SEASONALITY_SECOND_WAVE"],
-                    parameters["SEASONALITY_SHIFT"],
-                ),
-            )
-        # m = jnp.min(ms)
-        # seasonality_function_prefilled = partial(
-        #     self.seasonality,
-        #     seasonality_amplitude=parameters["SEASONALITY_AMPLITUDE"],
-        #     seasonality_second_wave=parameters["SEASONALITY_SECOND_WAVE"],
-        #     seasonality_shift=parameters["SEASONALITY_SHIFT"],
-        #     m=m,
-        # )
+        seasonality_function_prefilled = partial(
+            self.seasonality,
+            seasonality_amplitude=parameters["SEASONALITY_AMPLITUDE"],
+            seasonality_second_wave=parameters["SEASONALITY_SECOND_WAVE"],
+            seasonality_shift=parameters["SEASONALITY_SHIFT"],
+        )
         # add final parameters, if your model expects added parameters, add them here
         parameters = dict(
             parameters,
@@ -378,11 +363,11 @@ class MechanisticInferer(AbstractParameters):
                 "SIGMA": sigma,
                 "GAMMA": gamma,
                 "WANING_RATES": waning_rates,
-                "EXTERNAL_I": self.external_i,
+                "EXTERNAL_I": external_i_function_prefilled,
                 "VACCINATION_RATES": self.vaccination_rate,
                 "BETA_COEF": self.beta_coef,
                 "SEASONAL_VACCINATION_RESET": self.seasonal_vaccination_reset,
-                "SEASONALITY": self.seasonality,
+                "SEASONALITY": seasonality_function_prefilled,
             }
         )
 

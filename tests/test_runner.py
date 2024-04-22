@@ -156,14 +156,8 @@ def test_seasonality_amplitude():
         CONFIG_GLOBAL_PATH,
     )
     static_params.config.SEASONALITY_AMPLITUDE = 0.15
-    parameters = static_params.get_parameters()
-    amp = parameters["SEASONALITY_AMPLITUDE"]
-    second_wave = parameters["SEASONALITY_SECOND_WAVE"]
-    shift = parameters["SEASONALITY_SHIFT"]
     seasonality_function = static_params.get_parameters()["SEASONALITY"]
-    year_of_seasonality_curve = [
-        seasonality_function(t, amp, second_wave, shift) for t in range(365)
-    ]
+    year_of_seasonality_curve = [seasonality_function(t) for t in range(365)]
     assert max(year_of_seasonality_curve) == 1.15
 
 

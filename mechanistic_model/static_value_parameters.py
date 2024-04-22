@@ -1,5 +1,6 @@
 import jax.numpy as jnp
 import numpy as np
+from jax.tree_util import Partial as partial
 
 from config.config import Config
 from mechanistic_model.abstract_parameters import AbstractParameters
@@ -73,20 +74,19 @@ class StaticValueParameters(AbstractParameters):
             ]
         )
         # allows the ODEs to just pass time as a parameter, makes them look cleaner
-        # external_i_function_prefilled = partial(
-        #     self.external_i,
-        #     introduction_times=args["INTRODUCTION_TIMES"],
-        #     introduction_scales=args["INTRODUCTION_SCALES"],
-        #     introduction_percs=args["INTRODUCTION_PERCS"],
-        # )
+        external_i_function_prefilled = partial(
+            self.external_i,
+            introduction_times=args["INTRODUCTION_TIMES"],
+            introduction_scales=args["INTRODUCTION_SCALES"],
+            introduction_percs=args["INTRODUCTION_PERCS"],
+        )
         # pre-calculate the minimum value of the seasonality curves
-        # seasonality_function_prefilled = partial(
-        #     self.seasonality,
-        #     seasonality_amplitude=args["SEASONALITY_AMPLITUDE"],
-        #     seasonality_second_wave=args["SEASONALITY_SECOND_WAVE"],
-        #     seasonality_shift=args["SEASONALITY_SHIFT"],
-        #     m=m,
-        # )
+        seasonality_function_prefilled = partial(
+            self.seasonality,
+            seasonality_amplitude=args["SEASONALITY_AMPLITUDE"],
+            seasonality_second_wave=args["SEASONALITY_SECOND_WAVE"],
+            seasonality_shift=args["SEASONALITY_SHIFT"],
+        )
         # add final parameters, if your model expects added parameters, add them here
         args = dict(
             args,
@@ -95,11 +95,11 @@ class StaticValueParameters(AbstractParameters):
                 "SIGMA": sigma,
                 "GAMMA": gamma,
                 "WANING_RATES": waning_rates,
-                "EXTERNAL_I": self.external_i,
+                "EXTERNAL_I": external_i_function_prefilled,  # self.external_i,
                 "VACCINATION_RATES": self.vaccination_rate,
                 "BETA_COEF": self.beta_coef,
                 "SEASONAL_VACCINATION_RESET": self.seasonal_vaccination_reset,
-                "SEASONALITY": self.seasonality,
+                "SEASONALITY": seasonality_function_prefilled,  # self.seasonality,
             }
         )
         for key, val in args.items():
