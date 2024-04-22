@@ -35,6 +35,7 @@ hhs_lookup <- data.frame(state = state.abb, hhs = hhs)
 
 # process raw data taking only biweekly "weighted" data which
 # is more systematic
+# data source: https://data.cdc.gov/Laboratory-Surveillance/SARS-CoV-2-Variant-Proportions/jr58-6ysp #nolint
 dat_csv <- file.path(
   "data",
   "variant-data",
