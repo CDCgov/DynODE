@@ -66,6 +66,7 @@
         false,
         false
     ],
+    "MIN_HOMOLOGOUS_IMMUNITY": 0.1,
     "WANING_PROTECTIONS": [
         1.0,
         0.942,

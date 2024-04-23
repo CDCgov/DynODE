@@ -57,6 +57,7 @@ class StaticValueParameters(AbstractParameters):
             "INTRODUCTION_TIMES": self.config.INTRODUCTION_TIMES,
             "INTRODUCTION_SCALES": self.config.INTRODUCTION_SCALES,
             "INTRODUCTION_PERCS": self.config.INTRODUCTION_PERCS,
+            "MIN_HOMOLOGOUS_IMMUNITY": self.config.MIN_HOMOLOGOUS_IMMUNITY,
         }
         beta = self.config.STRAIN_R0s / self.config.INFECTIOUS_PERIOD
         gamma = 1 / self.config.INFECTIOUS_PERIOD

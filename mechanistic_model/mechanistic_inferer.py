@@ -317,6 +317,7 @@ class MechanisticInferer(AbstractParameters):
             "INTRODUCTION_PERCS": freeze_params.INTRODUCTION_PERCS,
             "INITIAL_INFECTIONS_SCALE": freeze_params.INITIAL_INFECTIONS_SCALE,
             "CONSTANT_STEP_SIZE": freeze_params.CONSTANT_STEP_SIZE,
+            "MIN_HOMOLOGOUS_IMMUNITY": freeze_params.MIN_HOMOLOGOUS_IMMUNITY,
         }
         parameters = self.sample_if_distribution(parameters)
         # re-create the CROSSIMMUNITY_MATRIX since we may be sampling the STRAIN_INTERACTIONS matrix now
