@@ -321,6 +321,7 @@ class MechanisticInferer(AbstractParameters):
             "SEASONALITY_AMPLITUDE": freeze_params.SEASONALITY_AMPLITUDE,
             "SEASONALITY_SECOND_WAVE": freeze_params.SEASONALITY_SECOND_WAVE,
             "SEASONALITY_SHIFT": freeze_params.SEASONALITY_SHIFT,
+            "MIN_HOMOLOGOUS_IMMUNITY": freeze_params.MIN_HOMOLOGOUS_IMMUNITY,
         }
         parameters = self.sample_if_distribution(parameters)
         # re-create the CROSSIMMUNITY_MATRIX since we may be sampling the STRAIN_INTERACTIONS matrix now

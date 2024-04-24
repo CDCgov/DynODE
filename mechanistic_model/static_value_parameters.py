@@ -61,6 +61,7 @@ class StaticValueParameters(AbstractParameters):
             "SEASONALITY_AMPLITUDE": self.config.SEASONALITY_AMPLITUDE,
             "SEASONALITY_SECOND_WAVE": self.config.SEASONALITY_SECOND_WAVE,
             "SEASONALITY_SHIFT": self.config.SEASONALITY_SHIFT,
+            "MIN_HOMOLOGOUS_IMMUNITY": self.config.MIN_HOMOLOGOUS_IMMUNITY,
         }
         beta = self.config.STRAIN_R0s / self.config.INFECTIOUS_PERIOD
         gamma = 1 / self.config.INFECTIOUS_PERIOD
