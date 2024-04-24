@@ -319,12 +319,105 @@ def age_limit_checks(key, age_limits):
 
 
 def compare_geq(keys, vals):
-    assert vals[0] >= vals[1], "%s must be >= %s, however got %d >= %d" % (
-        keys[0],
-        keys[1],
-        vals[0],
-        vals[1],
-    )
+    """
+    compares that vals[0] >= vals[1],
+    attempting to compare the upper and lower bounds of
+    vals[0] and vals[1] if either or both are distributions.
+    some distribution `a` is considered >= distribution `b` if
+    a.support.lower_bound >= b.support.upper_bound
+    """
+    # both keys are distributions, compare the lower vs upper bound
+    if issubclass(type(vals[0]), distributions.Distribution) and issubclass(
+        type(vals[1]), distributions.Distribution
+    ):
+        lower_dist = vals[0]
+        higher_dist = vals[1]
+        if hasattr(higher_dist.support, "lower_bound") and hasattr(
+            lower_dist.support, "upper_bound"
+        ):
+            assert (
+                higher_dist.support.lower_bound
+                >= lower_dist.support.upper_bound
+            ), (
+                "the support for the distribution in %s must have a lower bound that is greater than, the upper bound of %s"
+                "got %s >= %s. Try specifying a support constraint on the distribution"
+                % (
+                    keys[0],
+                    keys[1],
+                    str(higher_dist.support.lower_bound),
+                    str(lower_dist.support.ipper_bound),
+                )
+            )
+        elif isinstance(lower_dist.support, distributions.constraints._Real):
+            assert False, (
+                "the support for the distribution in %s spans the entire number line,"
+                "thus you cant guarantee that independent draws from %s will always be greater"
+                % (keys[0], keys[1])
+            )
+        elif isinstance(higher_dist.support, distributions.constraints._Real):
+            assert False, (
+                "the support for the distribution in %s spans the entire number line,"
+                "thus you cant guarantee that independent draws from %s will always be lower"
+                % (keys[1], keys[0])
+            )
+        else:
+            warnings.warn(
+                "both %s and %s lack support bounds, can not validate the distribution relationship"
+                % (keys[0], keys[1])
+            )
+    # check lower bound is >= some static value
+    elif issubclass(type(vals[0]), distributions.Distribution):
+        dist = vals[0]
+        if hasattr(dist.support, "lower_bound"):
+            assert (
+                dist.support.lower_bound >= vals[1]
+            ), "lower bound of %s must be >= %s, got %s >= %s" % (
+                keys[0],
+                keys[1],
+                str(higher_dist.support.lower_bound),
+                str(vals[1]),
+            )
+        elif isinstance(dist.support, distributions.constraints._Real):
+            assert False, (
+                "the support for the distribution in %s spans the entire number line,"
+                "thus you cant guarantee that independent draws from %s will always be lower"
+                % (keys[0], keys[1])
+            )
+        else:
+            warnings.warn(
+                "%s lack support bounds, can not validate the distribution relationship"
+                % (keys[0])
+            )
+    # check some static value is always >= upper bound of the distribution
+    elif issubclass(type(vals[1]), distributions.Distribution):
+        dist = vals[1]
+        if hasattr(dist.support, "upper_bound"):
+            assert (
+                vals[0] >= dist.support.upper_bound
+            ), " %s must be >= upper bound of %s, got %s >= %s" % (
+                keys[0],
+                keys[1],
+                str(vals[0]),
+                str(dist.support.upper_bound),
+            )
+        elif isinstance(dist.support, distributions.constraints._Real):
+            assert False, (
+                "the support for the distribution in %s spans the entire number line,"
+                "thus you cant guarantee that %s will always be greater"
+                % (keys[1], keys[0])
+            )
+        else:
+            warnings.warn(
+                "%s lack support bounds, can not validate the distribution relationship"
+                % (keys[1])
+            )
+    else:  # both static values
+        assert vals[0] >= vals[1], "%s must be >= %s, however got %d >= %d" % (
+            keys[0],
+            keys[1],
+            vals[0],
+            vals[1],
+        )
 
 
 def test_type(key, val, tested_type):
@@ -616,6 +709,39 @@ PARAMETERS = [
                 [key[1], key[2]], [val[1], val[2]]
             ),
             # by transitive property, len(INTRODUCTION_TIMES) == len(INTRODUCTION_PERCS)
+        ],
+    },
+    {
+        "name": "SEASONALITY_AMPLITUDE",
+        "validate": [
+            partial(
+                test_type, tested_type=(float, int, distributions.Distribution)
+            ),
+            # -1.0 <= SEASONALITY_PEAK <= 1.0
+            lambda key, val: compare_geq([key, "-1.0"], [val, -1.0]),
+            lambda key, val: compare_geq(["1.0", key], [1.0, val]),
+        ],
+    },
+    {
+        "name": "SEASONALITY_SECOND_WAVE",
+        "validate": [
+            partial(
+                test_type, tested_type=(float, int, distributions.Distribution)
+            ),
+            # 0 <= SEASONALITY_SECOND_WAVE <= 1.0
+            lambda key, val: compare_geq([key, "0"], [val, 0]),
+            lambda key, val: compare_geq(["1.0", key], [1.0, val]),
+        ],
+    },
+    {
+        "name": "SEASONALITY_SHIFT",
+        "validate": [
+            partial(
+                test_type, tested_type=(float, int, distributions.Distribution)
+            ),
+            # -365/2 <= SEASONALITY_SHIFT <= 365/2
+            lambda key, val: compare_geq([key, "-365/2"], [val, -182.5]),
+            lambda key, val: compare_geq(["365/2", key], [182.5, val]),
         ],
     },
     {

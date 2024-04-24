@@ -149,6 +149,18 @@ def test_seasonal_vaccination_reset():
         )
 
 
+def test_seasonality_amplitude():
+    static_params = StaticValueParameters(
+        fake_initial_state,
+        RUNNER_CONFIG_PATH,
+        CONFIG_GLOBAL_PATH,
+    )
+    static_params.config.SEASONALITY_AMPLITUDE = 0.15
+    seasonality_function = static_params.get_parameters()["SEASONALITY"]
+    year_of_seasonality_curve = [seasonality_function(t) for t in range(365)]
+    assert max(year_of_seasonality_curve) == 1.15
+
+
 def test_output_shapes():
     """tests that the ode-model outputs the correct compartment shapes according to the config file it was run in."""
     first_derivatives = ODES(
