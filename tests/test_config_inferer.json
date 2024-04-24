@@ -57,6 +57,7 @@
         0.942,
         0.0
     ],
+    "MIN_HOMOLOGOUS_IMMUNITY": 0.0,
     "STRAIN_INTERACTIONS": [
         [
             1.0,
