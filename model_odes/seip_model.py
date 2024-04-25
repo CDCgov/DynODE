@@ -2,7 +2,7 @@ from itertools import product
 
 import jax.numpy as jnp
 
-from utils import new_immune_state
+from utils import all_immune_states_with, new_immune_state
 
 
 class Parameters(object):
@@ -60,22 +60,18 @@ def seip_ode(state, t, parameters):
         jnp.zeros(c.shape),
     )
     beta_coef = p.BETA_COEF(t)
+    seasonality_coef = p.SEASONALITY(t)
     # CALCULATING SUCCESSFULL INFECTIONS OF (partially) SUSCEPTIBLE INDIVIDUALS
     # including externally infected individuals to introduce new strains
     force_of_infection = (
         (
             p.BETA
             * beta_coef
+            * seasonality_coef
             * jnp.einsum(
                 "ab,bijk->ak",
                 p.CONTACT_MATRIX,
-                i
-                + p.EXTERNAL_I(
-                    t,
-                    p.INTRODUCTION_TIMES,
-                    p.INTRODUCTION_SCALES,
-                    p.INTRODUCTION_PERCS,
-                ),
+                i + p.EXTERNAL_I(t),
             )
         ).transpose()
         / p.POPULATION
@@ -90,15 +86,28 @@ def seip_ode(state, t, parameters):
         crossimmunity_matrix = p.CROSSIMMUNITY_MATRIX[strain, :]
         # p.vax_susceptibility_strain.shape = (MAX_VAX_COUNT,)
         vax_efficacy_strain = p.VAX_EFF_MATRIX[strain, :]
-
+        # (hist, MAX_VAX_COUNT)
         initial_immunity = 1 - jnp.einsum(
             "j, k",
             1 - crossimmunity_matrix,
             1 - vax_efficacy_strain,
         )
-        waned_immunity = jnp.einsum(
-            "jk,l", initial_immunity, p.WANING_PROTECTIONS
+        # renormalize the waning curve to have minimum of `final_immunity` after full waning
+        # and maximum of `initial_immunity` right after recovery
+        final_immunity = jnp.zeros(shape=initial_immunity.shape)
+        final_immunity = final_immunity.at[
+            all_immune_states_with(strain, p.NUM_STRAINS), :
+        ].set(p.MIN_HOMOLOGOUS_IMMUNITY)
+        waned_immunity_baseline = jnp.einsum(
+            "jk,l",
+            initial_immunity,
+            p.WANING_PROTECTIONS,
         )
+        # find the lower bound of immunity for a homologous exposure against this challenging strain
+        waned_immunity_min = (1 - waned_immunity_baseline) * final_immunity[
+            :, :, jnp.newaxis
+        ]
+        waned_immunity = waned_immunity_baseline + waned_immunity_min
         foi_suscept = jnp.einsum(
             "i, jkl", force_of_infection_strain, 1 - waned_immunity
         )
@@ -112,8 +121,6 @@ def seip_ode(state, t, parameters):
     di_to_w0 = p.GAMMA * i  # infectious -> new_immune_state
     di = jnp.add(de_to_i, -di_to_w0)
     de = jnp.add(de, -de_to_i)
-    # jax.debug.print("inf period: {}", p.INFECTIOUS_PERIOD)
-    # jax.debug.print("beta: {}", p.BETA)
 
     # go through all combinations of immune history and exposing strain
     # calculate new immune history after recovery, place them there.

@@ -6,6 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 import numpyro
 from jax.random import PRNGKey
+from jax.tree_util import Partial as partial
 from numpyro import distributions as Dist
 from numpyro.diagnostics import summary
 from numpyro.infer import MCMC, NUTS
@@ -317,6 +318,10 @@ class MechanisticInferer(AbstractParameters):
             "INTRODUCTION_PERCS": freeze_params.INTRODUCTION_PERCS,
             "INITIAL_INFECTIONS_SCALE": freeze_params.INITIAL_INFECTIONS_SCALE,
             "CONSTANT_STEP_SIZE": freeze_params.CONSTANT_STEP_SIZE,
+            "SEASONALITY_AMPLITUDE": freeze_params.SEASONALITY_AMPLITUDE,
+            "SEASONALITY_SECOND_WAVE": freeze_params.SEASONALITY_SECOND_WAVE,
+            "SEASONALITY_SHIFT": freeze_params.SEASONALITY_SHIFT,
+            "MIN_HOMOLOGOUS_IMMUNITY": freeze_params.MIN_HOMOLOGOUS_IMMUNITY,
         }
         parameters = self.sample_if_distribution(parameters)
         # re-create the CROSSIMMUNITY_MATRIX since we may be sampling the STRAIN_INTERACTIONS matrix now
@@ -337,6 +342,20 @@ class MechanisticInferer(AbstractParameters):
                 for waning_time in freeze_params.WANING_TIMES
             ]
         )
+        # allows the ODEs to just pass time as a parameter, makes them look cleaner
+        external_i_function_prefilled = partial(
+            self.external_i,
+            introduction_times=parameters["INTRODUCTION_TIMES"],
+            introduction_scales=parameters["INTRODUCTION_SCALES"],
+            introduction_percs=parameters["INTRODUCTION_PERCS"],
+        )
+        # # pre-calculate the minimum value of the seasonality curves
+        seasonality_function_prefilled = partial(
+            self.seasonality,
+            seasonality_amplitude=parameters["SEASONALITY_AMPLITUDE"],
+            seasonality_second_wave=parameters["SEASONALITY_SECOND_WAVE"],
+            seasonality_shift=parameters["SEASONALITY_SHIFT"],
+        )
         # add final parameters, if your model expects added parameters, add them here
         parameters = dict(
             parameters,
@@ -345,10 +364,11 @@ class MechanisticInferer(AbstractParameters):
                 "SIGMA": sigma,
                 "GAMMA": gamma,
                 "WANING_RATES": waning_rates,
-                "EXTERNAL_I": self.external_i,
+                "EXTERNAL_I": external_i_function_prefilled,
                 "VACCINATION_RATES": self.vaccination_rate,
                 "BETA_COEF": self.beta_coef,
                 "SEASONAL_VACCINATION_RESET": self.seasonal_vaccination_reset,
+                "SEASONALITY": seasonality_function_prefilled,
             }
         )
 

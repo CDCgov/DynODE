@@ -57,8 +57,8 @@ def test_no_memory_leaking():
     try:
         with jax.check_tracer_leaks():
             inferer.infer(synthetic_hosp_obs)
-    except Exception:
+    except Exception as e:
         pytest.fail(
-            "A memory leak occured somewhere within the inferer! "
-            "Use jax.check_tracer_leaks to diagnose"
+            "jax.check_tracer_leaks raised %s A memory leak likely occured somewhere within the inferer!"
+            % e
         )
