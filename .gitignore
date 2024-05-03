@@ -66,6 +66,7 @@ testing.py
 !data/hospitalization-data/*.csv
 !data/vaccination-data/state-spline-fits/*.csv
 !data/vaccination-data/seasonal-spline-fits/*.csv
+!data/vaccination-data/seasonal-spline-fits-4transitions/*.csv
 !data/serological-data/fitting-2022/*.csv
 !data/serological-data/sero-initializer-csvs/*.csv
 !data/variant-data/*.csv
