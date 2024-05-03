@@ -18,7 +18,7 @@ theme_update(
 dat_csv <- file.path(
   "data",
   "hospitalization-data",
-  "COVID-19_Reported_Patient_Impact_and_Hospital_Capacity_by_State_Timeseries_20240304.csv" # nolint: line_length_linter.
+  "COVID-19_Reported_Patient_Impact_and_Hospital_Capacity_by_State_Timeseries_20240424.csv" # nolint: line_length_linter.
 )
 dat <- data.table::fread(dat_csv)
 
@@ -97,7 +97,7 @@ dat_agegroup <- bind_rows(dat_pedia, dat_adult_grouped) |>
 ## Subsetting to Feb 2022 to end of 2023
 dat_agegroup_subset <- dat_agegroup |>
   filter(state %in% state.abb) |>
-  filter(date >= ymd("2022-02-13"), date <= ymd("2023-12-31")) |>
+  filter(date >= ymd("2022-02-13")) |>
   mutate(
     week = epiweek(date),
     year = ifelse(week %in% 52:53 & month(date) == 1,
@@ -130,7 +130,7 @@ dat_all <- bind_rows(dat_agegroup_weekly, dat_us) |>
 # Visualization
 dat_all |>
   ggplot() +
-  geom_line(aes(x = date, y = new_admission_7, colour = agegroup)) +
+  geom_line(aes(x = date, y = hosp, colour = agegroup)) +
   theme_bw() +
   scale_y_log10() +
   facet_wrap(~state)
