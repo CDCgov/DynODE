@@ -625,6 +625,13 @@ PARAMETERS = [
         "validate": test_not_negative,
     },
     {
+        "name": "AGE_SPECIFIC_VAX_COEF",
+        "validate": [
+            partial(test_type, tested_type=list),
+            lambda key, val: test_all_in_list(key, val, test_not_negative),
+        ],
+    },
+    {
         "name": "VAX_EFF_MATRIX",
         "validate": test_non_empty,
         "type": np.array,

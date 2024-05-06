@@ -86,6 +86,23 @@ def test_invalid_seasonality_amplitude_val():
         Config(input_json)
 
 
+def test_invalid_vax_age_coefs_type():
+    input_json = """{"AGE_SPECIFIC_VAX_COEF": "blah"}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_invalid_vax_age_coefs_vals():
+    input_json = """{"AGE_SPECIFIC_VAX_COEF": [-1, 0, 1]}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
+def test_valid_vax_age_coefs():
+    input_json = """{"AGE_SPECIFIC_VAX_COEF": [0, 0, 1]}"""
+    assert Config(input_json).AGE_SPECIFIC_VAX_COEF == [0, 0, 1]
+
+
 def test_invalid_seasonality_amplitude_val_negative():
     input_json = """{"SEASONALITY_AMPLITUDE": -4.0}"""
     with pytest.raises(AssertionError):
