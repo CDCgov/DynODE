@@ -87,20 +87,32 @@ def test_invalid_seasonality_amplitude_val():
 
 
 def test_invalid_vax_age_coefs_type():
-    input_json = """{"AGE_SPECIFIC_VAX_COEF": "blah"}"""
+    input_json = """{"AGE_DOSE_SPECIFIC_VAX_COEF": "blah"}"""
     with pytest.raises(AssertionError):
         Config(input_json)
 
 
 def test_invalid_vax_age_coefs_vals():
-    input_json = """{"AGE_SPECIFIC_VAX_COEF": [-1, 0, 1]}"""
+    # will fail because we have 4 rows instead of 3
+    input_json = """{"AGE_DOSE_SPECIFIC_VAX_COEF":
+                        [[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
+                    "NUM_AGE_GROUPS":3,
+                    "MAX_VAX_COUNT": 2
+                        }"""
     with pytest.raises(AssertionError):
         Config(input_json)
 
 
 def test_valid_vax_age_coefs():
-    input_json = """{"AGE_SPECIFIC_VAX_COEF": [0, 0, 1]}"""
-    assert Config(input_json).AGE_SPECIFIC_VAX_COEF == [0, 0, 1]
+    input_json = """{"AGE_DOSE_SPECIFIC_VAX_COEF":
+                        [[1, 1, 1], [1, 1, 1]],
+                    "NUM_AGE_GROUPS":2,
+                    "MAX_VAX_COUNT": 2
+                        }"""
+    assert Config(input_json).AGE_DOSE_SPECIFIC_VAX_COEF.tolist() == [
+        [1, 1, 1],
+        [1, 1, 1],
+    ]
 
 
 def test_invalid_seasonality_amplitude_val_negative():
