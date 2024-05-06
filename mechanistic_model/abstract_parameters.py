@@ -137,8 +137,19 @@ class AbstractParameters:
         vaccination_rates: jnp.array()
             jnp.array(shape=(self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
         """
+        # shifting splines if needed for multi-epochs, 0 by default
         t_added = getattr(self.config, "VAX_MODEL_DAYS_SHIFT", 0)
-        return jnp.exp(
+        # default to 1.0 (unchanged) if parameter does not exist
+        vax_coeffs = jnp.array(
+            getattr(
+                self.config,
+                "AGE_DOSE_SPECIFIC_VAX_COEF",
+                np.ones(
+                    (self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)
+                ),
+            )
+        )
+        return vax_coeffs * jnp.exp(
             utils.evaluate_cubic_spline(
                 t + t_added,
                 self.config.VAX_MODEL_KNOT_LOCATIONS,

@@ -625,6 +625,25 @@ PARAMETERS = [
         "validate": test_not_negative,
     },
     {
+        "name": "AGE_DOSE_SPECIFIC_VAX_COEF",
+        "type": np.array,
+        "validate": [
+            lambda key, val: test_all_in_list(
+                key, val.flatten(), test_not_negative
+            ),
+        ],
+    },
+    {  # check that AGE_DOSE_SPECIFIC_VAX_COEF.shape = (NUM_AGE_GROUPS, MAX_VAX_COUNT + 1)
+        "name": [
+            "AGE_DOSE_SPECIFIC_VAX_COEF",
+            "NUM_AGE_GROUPS",
+            "MAX_VAX_COUNT",
+        ],
+        "validate": lambda keys, vals: test_shape(
+            keys, ((vals[1], vals[2] + 1), vals[0])
+        ),
+    },
+    {
         "name": "VAX_EFF_MATRIX",
         "validate": test_non_empty,
         "type": np.array,
