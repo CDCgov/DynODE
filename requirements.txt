@@ -1,7 +1,8 @@
 cycler>=0.11.0
 diffrax>=0.4.1
 GitPython>=3.1.41
-jax>=0.4.16
+jax<=0.4.26
+jaxlib<=0.4.26
 matplotlib>=3.7.2
 numpy>=1.25.2
 numpyro>=0.13.2
