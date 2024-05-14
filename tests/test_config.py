@@ -92,6 +92,12 @@ def test_invalid_vax_age_coefs_type():
         Config(input_json)
 
 
+def test_invalid_vax_path():
+    input_json = """{"VAX_MODEL_DATA": "blah"}"""
+    with pytest.raises(AssertionError):
+        Config(input_json)
+
+
 def test_invalid_vax_age_coefs_vals():
     # will fail because we have 4 rows instead of 3
     input_json = """{"AGE_DOSE_SPECIFIC_VAX_COEF":

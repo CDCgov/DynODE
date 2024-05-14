@@ -1,3 +1,4 @@
+import os
 from abc import abstractmethod
 from functools import partial
 
@@ -6,7 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import pandas as pd
 from jax.scipy.stats.norm import pdf
-import os
+
 import utils
 
 
@@ -293,8 +294,13 @@ class AbstractParameters:
 
     def load_vaccination_model(self):
         """
-        loads parameters of a polynomial spline vaccination model stratified on age bin and current vaccination status.
-        also loads in the spline knot locations.
+        loads parameters of a polynomial spline vaccination model
+        stratified on age bin and current vaccination status.
+
+        Raises FileNotFoundError if directory given does not contain the state-specific
+        filename. Formatted as spline_fits_state_name.csv.
+
+        Also raises FileNotFoundError if passed non-csv or non-file paths.
         """
         # if the user passes a directory instead of a file path
         # check to see if the state exists in the directory and use that
@@ -320,8 +326,9 @@ class AbstractParameters:
         else:
             raise FileNotFoundError(
                 "Path given to VAX_MODEL_DATA is something other than a "
-                "directory or file path. Check configuration and provide "
+                "directory or file path, got %s. Check configuration and provide "
                 "a valid directory path or filepath to vaccination splines"
+                % self.config.VAX_MODEL_DATA
             )
         age_bins = len(parameters["age_group"].unique())
         vax_bins = len(parameters["dose"].unique())
