@@ -73,6 +73,7 @@ testing.py
 !data/serological-data/sero-initializer-csvs/*.csv
 !data/variant-data/*.csv
 !data/variant-data/fitting-2022/*.csv
+!data/vaccination-data/2022_02_11_to_2024_04_27/*.csv
 
 #####
 # Python
