@@ -218,12 +218,8 @@ def test_seasonal_vaccination(temp_config_files):
         initializer.get_initial_state(), temp_runner_path, temp_global_path
     )
     # overriding the coefficients to be all zeros, effectively turning off vaccination
-    static_params.config.VAX_MODEL_KNOTS = jnp.zeros(
-        (
-            static_params.config.NUM_AGE_GROUPS,
-            static_params.config.MAX_VAX_COUNT + 1,
-            static_params.config.VAX_MODEL_NUM_KNOTS,
-        )
+    static_params.config.VAX_MODEL_KNOTS = (
+        static_params.config.VAX_MODEL_KNOTS.at[...].set(0)
     )
     runner = MechanisticRunner(seip_ode)
     # run for 50 days and witness the season end at t=5

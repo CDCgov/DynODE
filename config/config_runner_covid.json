@@ -4,7 +4,6 @@
     "SAVE_PATH": "output/",
     "HOSP_PATH": "data/hospital_220213_220108.csv",
     "VAX_MODEL_DATA": "data/spline_fits.csv",
-    "VAX_MODEL_NUM_KNOTS": 18,
     "SEASONAL_VACCINATION": false,
     "STRAIN_R0s": [
         1.2,
