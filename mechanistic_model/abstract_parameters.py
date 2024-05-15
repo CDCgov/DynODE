@@ -1,3 +1,4 @@
+import os
 from abc import abstractmethod
 from functools import partial
 
@@ -293,10 +294,42 @@ class AbstractParameters:
 
     def load_vaccination_model(self):
         """
-        loads parameters of a polynomial spline vaccination model stratified on age bin and current vaccination status.
-        also loads in the spline knot locations.
+        loads parameters of a polynomial spline vaccination model
+        stratified on age bin and current vaccination status.
+
+        Raises FileNotFoundError if directory given does not contain the state-specific
+        filename. Formatted as spline_fits_state_name.csv.
+
+        Also raises FileNotFoundError if passed non-csv or non-file paths.
         """
-        parameters = pd.read_csv(self.config.VAX_MODEL_DATA)
+        # if the user passes a directory instead of a file path
+        # check to see if the state exists in the directory and use that
+        if os.path.isdir(self.config.VAX_MODEL_DATA):
+            vax_spline_filename = "spline_fits_%s.csv" % (
+                self.config.REGIONS[0].lower().replace(" ", "_")
+            )
+            state_path = os.path.join(
+                self.config.VAX_MODEL_DATA, vax_spline_filename
+            )
+            if os.path.exists(state_path):
+                parameters = pd.read_csv(state_path)
+            else:
+                raise FileNotFoundError(
+                    "Directory passed to VAX_MODEL_DATA parameter, "
+                    "this directory does not contain %s which is the "
+                    "expected state-specific vax filename"
+                    % vax_spline_filename
+                )
+        # given a specific file to spline fits, use those
+        elif os.path.isfile(self.config.VAX_MODEL_DATA):
+            parameters = pd.read_csv(self.config.VAX_MODEL_DATA)
+        else:
+            raise FileNotFoundError(
+                "Path given to VAX_MODEL_DATA is something other than a "
+                "directory or file path, got %s. Check configuration and provide "
+                "a valid directory path or filepath to vaccination splines"
+                % self.config.VAX_MODEL_DATA
+            )
         age_bins = len(parameters["age_group"].unique())
         vax_bins = len(parameters["dose"].unique())
         # change this if you start using higher degree polynomials to fit vax model
@@ -309,30 +342,36 @@ class AbstractParameters:
             "the number of vaccination counts in your model does not match the input vaccination parameters, "
             + "please provide your own vaccination parameters that match, or adjust your age bins"
         )
-        vax_knots = np.zeros(
-            (age_bins, vax_bins, self.config.VAX_MODEL_NUM_KNOTS)
+        num_knots = len(
+            parameters.iloc[0][
+                [col for col in parameters.columns if "location" in col]
+            ]
         )
-        vax_knot_locations = np.zeros(
-            (age_bins, vax_bins, self.config.VAX_MODEL_NUM_KNOTS)
-        )
-        vax_base_equations = np.zeros((age_bins, vax_bins, 4))  # always 4
+        # store splines as a series of outward flows
+        # an age_group x dose combo can identify its lost population via
+        # the following 3 matricies in utils.evaluate_cubic_splines()
+        vax_knots = np.zeros((age_bins, vax_bins, num_knots))
+        vax_knot_locations = np.zeros((age_bins, vax_bins, num_knots))
+        # always 4 base terms for cubic splines
+        vax_base_equations = np.zeros((age_bins, vax_bins, 4))
+        # each row in csv is one flow from vax_x -> vax_y for age group z
         for _, row in parameters.iterrows():
             age_group, vaccination = row["age_group"], row["dose"]
             intersect_and_ts = row[["intersect", "t", "t2", "t3"]].values
+            # coef identifies coefficients, location identifies knot locations
             knot_coefficients = row[
                 [col for col in parameters.columns if "coef" in col]
             ].values
             knot_locations = row[
                 [col for col in parameters.columns if "location" in col]
             ].values
+            # check that same number of knots as coefficients
             assert len(knot_coefficients) == len(
                 knot_locations
             ), "number of knot_coefficients and number of knot locations found do not match"
-            assert len(knot_coefficients) == self.config.VAX_MODEL_NUM_KNOTS, (
-                "number of knots found in %s does not match number specified in self.config.VAX_MODEL_NUM_KNOTS"
-                % self.config.VAX_MODEL_DATA
-            )
             age_group_idx = self.config.AGE_GROUP_IDX[age_group]
+            # splines `dose` dictate the `to_dose`, but we store them as outward flows
+            # thus subtract 1, we dont support skipping doses
             vax_idx = vaccination - 1
             vax_base_equations[age_group_idx, vax_idx, :] = np.array(
                 intersect_and_ts

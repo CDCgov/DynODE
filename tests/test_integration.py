@@ -13,7 +13,6 @@ import json
 import os
 import tempfile
 
-import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -81,6 +80,34 @@ def test_temp_config_functionality(temp_config_files):
     # reload the file and make sure the changes are now there
     global_config = json.load(open(temp_global_path, "r"))
     assert global_config["MINIMUM_AGE"] == 25, "changes not pushed"
+
+
+def test_invalid_vax_paths(temp_config_files):
+    """
+    testing that passing an invalid path without state-specific spline files will
+    raise the correct error in runtime.
+    """
+    # make sure the order matches the order of COPIED_TEMP_FILES
+    (
+        temp_global_path,
+        temp_initializer_path,
+        _,
+        _,
+        temp_runner_path,
+    ) = temp_config_files
+    # creating the scenario
+    runner = json.load(open(temp_runner_path, "r"))
+    # this is an invalid directory because it does not have state-specific splines inside it
+    runner["VAX_MODEL_DATA"] = "data/"
+    # saving runner changes
+    json.dump(runner, open(temp_runner_path, "w"))
+
+    # integration test
+    initializer = CovidInitializer(temp_initializer_path, temp_global_path)
+    with pytest.raises(FileNotFoundError):
+        _ = StaticValueParameters(
+            initializer.get_initial_state(), temp_runner_path, temp_global_path
+        )
 
 
 def test_vaccination_rates(temp_config_files):
@@ -218,12 +245,8 @@ def test_seasonal_vaccination(temp_config_files):
         initializer.get_initial_state(), temp_runner_path, temp_global_path
     )
     # overriding the coefficients to be all zeros, effectively turning off vaccination
-    static_params.config.VAX_MODEL_KNOTS = jnp.zeros(
-        (
-            static_params.config.NUM_AGE_GROUPS,
-            static_params.config.MAX_VAX_COUNT + 1,
-            static_params.config.VAX_MODEL_NUM_KNOTS,
-        )
+    static_params.config.VAX_MODEL_KNOTS = (
+        static_params.config.VAX_MODEL_KNOTS.at[...].set(0)
     )
     runner = MechanisticRunner(seip_ode)
     # run for 50 days and witness the season end at t=5
