@@ -1,3 +1,4 @@
+import copy
 import os
 from abc import abstractmethod
 from functools import partial
@@ -16,12 +17,95 @@ class AbstractParameters:
     def __init__(self, parameters_config):
         pass
 
-    @abstractmethod
     def get_parameters(self) -> dict:
         """
-        Returns parameters as floats, lists, or jax dynamic tracers to be used in model ODEs
+        Goes through the parameters passed to the inferer, if they are distributions, it samples them.
+        Otherwise it returns their raw values.
+
+        Converts all list types with sampled values to jax tracers.
+
+        Returns
+        -----------
+        dict{str:obj} where obj may either be a float value,
+        or a jax tracer, in the case of a sampled value or list containing sampled values.
         """
-        pass
+        # multiple chains of MCMC calling get_parameters()
+        # should not share references, deep copy, GH issue for this created
+        freeze_params = copy.deepcopy(self.config)
+        parameters = {
+            "CONTACT_MATRIX": freeze_params.CONTACT_MATRIX,
+            "POPULATION": freeze_params.POPULATION,
+            "NUM_STRAINS": freeze_params.NUM_STRAINS,
+            "NUM_AGE_GROUPS": freeze_params.NUM_AGE_GROUPS,
+            "NUM_WANING_COMPARTMENTS": freeze_params.NUM_WANING_COMPARTMENTS,
+            "WANING_PROTECTIONS": freeze_params.WANING_PROTECTIONS,
+            "MAX_VAX_COUNT": freeze_params.MAX_VAX_COUNT,
+            "STRAIN_INTERACTIONS": freeze_params.STRAIN_INTERACTIONS,
+            "VAX_EFF_MATRIX": freeze_params.VAX_EFF_MATRIX,
+            "BETA_TIMES": freeze_params.BETA_TIMES,
+            "STRAIN_R0s": freeze_params.STRAIN_R0s,
+            "INFECTIOUS_PERIOD": freeze_params.INFECTIOUS_PERIOD,
+            "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
+            "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
+            "INTRODUCTION_SCALES": freeze_params.INTRODUCTION_SCALES,
+            "INTRODUCTION_PERCS": freeze_params.INTRODUCTION_PERCS,
+            "INITIAL_INFECTIONS_SCALE": freeze_params.INITIAL_INFECTIONS_SCALE,
+            "CONSTANT_STEP_SIZE": freeze_params.CONSTANT_STEP_SIZE,
+            "SEASONALITY_AMPLITUDE": freeze_params.SEASONALITY_AMPLITUDE,
+            "SEASONALITY_SECOND_WAVE": freeze_params.SEASONALITY_SECOND_WAVE,
+            "SEASONALITY_SHIFT": freeze_params.SEASONALITY_SHIFT,
+            "MIN_HOMOLOGOUS_IMMUNITY": freeze_params.MIN_HOMOLOGOUS_IMMUNITY,
+        }
+        parameters = utils.sample_if_distribution(parameters)
+        # re-create the CROSSIMMUNITY_MATRIX since we may be sampling the STRAIN_INTERACTIONS matrix now
+        parameters[
+            "CROSSIMMUNITY_MATRIX"
+        ] = utils.strain_interaction_to_cross_immunity(
+            freeze_params.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
+        )
+        # create parameters based on other possibly sampled parameters
+        beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
+        gamma = 1 / parameters["INFECTIOUS_PERIOD"]
+        sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]
+        # last waning time is zero since last compartment does not wane
+        # catch a division by zero error here.
+        waning_rates = np.array(
+            [
+                1 / waning_time if waning_time > 0 else 0
+                for waning_time in freeze_params.WANING_TIMES
+            ]
+        )
+        # allows the ODEs to just pass time as a parameter, makes them look cleaner
+        external_i_function_prefilled = jax.tree_util.Partial(
+            self.external_i,
+            introduction_times=parameters["INTRODUCTION_TIMES"],
+            introduction_scales=parameters["INTRODUCTION_SCALES"],
+            introduction_percs=parameters["INTRODUCTION_PERCS"],
+        )
+        # # pre-calculate the minimum value of the seasonality curves
+        seasonality_function_prefilled = jax.tree_util.Partial(
+            self.seasonality,
+            seasonality_amplitude=parameters["SEASONALITY_AMPLITUDE"],
+            seasonality_second_wave=parameters["SEASONALITY_SECOND_WAVE"],
+            seasonality_shift=parameters["SEASONALITY_SHIFT"],
+        )
+        # add final parameters, if your model expects added parameters, add them here
+        parameters = dict(
+            parameters,
+            **{
+                "BETA": beta,
+                "SIGMA": sigma,
+                "GAMMA": gamma,
+                "WANING_RATES": waning_rates,
+                "EXTERNAL_I": external_i_function_prefilled,
+                "VACCINATION_RATES": self.vaccination_rate,
+                "BETA_COEF": self.beta_coef,
+                "SEASONAL_VACCINATION_RESET": self.seasonal_vaccination_reset,
+                "SEASONALITY": seasonality_function_prefilled,
+            }
+        )
+
+        return parameters
 
     @partial(jax.jit, static_argnums=(0))
     def external_i(
