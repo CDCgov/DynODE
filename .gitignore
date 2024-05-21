@@ -54,7 +54,6 @@ testing.py
 !output/base_model_initial_immune_distribution.png
 !output/base_model_initial_immune_distribution.png_meta.json
 !misc/scenarios_seip_model_diagram_3_11_24.png
-!requirements.txt
 !data/spline_fits.csv
 !data/hospitalization-data/hospital_220213_220108.csv
 !output/example_output_summary_slide.png
@@ -74,6 +73,8 @@ testing.py
 !data/variant-data/*.csv
 !data/variant-data/fitting-2022/*.csv
 !data/vaccination-data/2022_02_11_to_2024_04_27/*.csv
+!poetry*
+!pyproject.toml
 
 #####
 # Python
