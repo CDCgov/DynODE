@@ -9,18 +9,26 @@ individual particles of posteriors produced by an experiment.
 # import seaborn as sn
 # from shiny import App, render, ui
 # import utils
+import os
 
 # from mechanistic_model.covid_initializer import CovidInitializer
 from cfa_azure.clients import AzureClient
 
+INPUT_BLOB_NAME = "scenarios-test-container"
 OUTPUT_BLOB_NAME = "example-output-scenarios-mechanistic"
 client = AzureClient(config_path="secrets/configuration_cfaazurebatchprd.toml")
-container_client = client.in_cont_client
-blobs = container_client.list_blobs()
+client.set_input_container(INPUT_BLOB_NAME, "input")
+client.set_output_container(OUTPUT_BLOB_NAME, "output")
+container_client = client.out_cont_client
+experiment_name = "fifty_state_2304_2404_3strain"
+job_name = "smh_epoch_2_240517"
+state_name = "AK"
+path_for_blobs = os.path.join(experiment_name, job_name, state_name).replace("\\", "/")
+print(path_for_blobs)
+blobs = container_client.list_blobs(name_starts_with=path_for_blobs)
 for blob in blobs:
     print(blob.name)
 
-# blob_client = container_client.get_blob_client(blob_name)
 # app_ui = ui.page_fixed(
 #     ui.h2("Visualizing Immune History"),
 #     ui.markdown(
