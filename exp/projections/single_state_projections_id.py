@@ -1,4 +1,5 @@
 # %%
+# ruff: noqa: E402
 import argparse
 import copy
 import datetime
@@ -24,7 +25,7 @@ from mechanistic_model.mechanistic_runner import MechanisticRunner
 from model_odes.seip_model import seip_ode
 
 """
- 
+
 Scenario A| No booster, low immune escape  | noBoo_lowIE    | A-2024-03-01
 Scenario B| No booster, high immune escape | noBoo_highIE   | B-2024-03-01
 Scenario C| 65+ booster, low immune escape | 65Boo_lowIE    | C-2024-03-01
@@ -355,10 +356,12 @@ def project_and_dump_particle(idx, fitted_sample, inferer, runner):
     scenario_projector = SMHInferer(
         scenario_global, scenario_config, runner, initial_state_particle
     )
-    output, r0s_and_intro_times, immunity_strain = (
-        replace_and_simulate_projection(
-            scenario_projector, fitted_sample, runner, rng
-        )
+    (
+        output,
+        r0s_and_intro_times,
+        immunity_strain,
+    ) = replace_and_simulate_projection(
+        scenario_projector, fitted_sample, runner, rng
     )
     # print("Done Projecting...")
     print(jnp.sum(output.ys[0][-1], axis=(1, 3)))
