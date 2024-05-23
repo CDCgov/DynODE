@@ -7,33 +7,39 @@ import matplotlib.pyplot as plt
 # import numpy as np
 # import pandas as pd
 # import seaborn as sn
-from shiny import App, render, ui
-# from shiny import reactive
-# from shiny.express import input, ui, render, expressify 
-# import utils
+from shiny import App, render, ui, Session, reactive
 import os
 import sys
-sys.path.append("..")
+sys.path.append("c:\\Users\\uva5\\Documents\\GitHub\\cfa-scenarios-model")
 from mechanistic_model.covid_initializer import CovidInitializer
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
+import utils
 from cfa_azure.clients import AzureClient
 INITIALIZER_USED = CovidInitializer
 INFERER_USED = MechanisticInferer
-# INPUT_BLOB_NAME = "scenarios-test-container"
+INPUT_BLOB_NAME = "scenarios-test-container"
 OUTPUT_BLOB_NAME = "example-output-scenarios-mechanistic"
-print("Connecting to Azure Storage")
-client = AzureClient(config_path="secrets/configuration_cfaazurebatchprd.toml")
-# client.set_input_container(INPUT_BLOB_NAME, "input")
-client.set_output_container(OUTPUT_BLOB_NAME, "output")
-container_client = client.out_cont_client
-print("Retrieving and Organizing Azure File Structure (approx 10 seconds)")
-blobs = container_client.list_blob_names()
+
+def build_azure_connection(config_path = "secrets/configuration_cfaazurebatchprd.toml"):    
+    client = AzureClient(config_path=config_path)
+    client.set_input_container(INPUT_BLOB_NAME, "input")
+    client.set_output_container(OUTPUT_BLOB_NAME, "output")
+    return client
+
+def get_blob_names(azure_client: AzureClient):
+    return azure_client.out_cont_client.list_blob_names()
+
 class Node:
+    # a helper class to store directories in a tree
     def __init__(self, name):
         self.name = name
         self.children = {}
  
 def construct_tree(file_paths):
+    """
+    given a list of directories from get_blob_names() returns a tree of each folder and its subdirectories
+    leaf nodes are files with a "." like .txt or .json
+    """
     root = Node("/")
     for path in file_paths:
         if "." in path: # indicates this is an actual file like .txt or .json or .out
@@ -45,15 +51,47 @@ def construct_tree(file_paths):
                 current_node = current_node.children[directory]
             current_node.children[filename] = Node(filename)
     return root
-  
+
+
+def get_azure_files(exp: str, jobid: str, state: str, azure_client: AzureClient, requested_files: list[str]) -> list[str]:
+    """
+    Reads in `requested_files` from the output blob `exp/jobid/state` in `azure_client` 
+    and stores them in the `shiny_cache` directory, returning a list of their names
+    overrides any files of the same name within the shiny_cache folder.
+
+    Raises ValueError error if any(not exists `exp/jobid/state/file` for file in requested_files)`
+    """
+    # will override files in cache
+    loaded_file_names = []
+    for file_name in requested_files:
+        cache_path = os.path.join("shiny_visualizers\\shiny_cache", exp, jobid, state, file_name).replace('\\', "/")
+        azure_blob_path = os.path.join(exp, jobid, state, file_name).replace('\\', "/")
+        blob_client = azure_client.out_cont_client.get_blob_client(OUTPUT_BLOB_NAME, azure_blob_path)
+        if not os.path.exists(cache_path):
+            os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+        print(cache_path)
+        with open(cache_path, "w") as file:
+            download_stream = blob_client.download_blob()
+            file.write(download_stream.readall())
+            loaded_file_names.append(cache_path)
+    return loaded_file_names
+
+
+
+print("Connecting to Azure Storage")
+azure_client = build_azure_connection()
+print("Retrieving and Organizing Azure File Structure (approx 10 seconds)")
+blobs = get_blob_names(azure_client)
 tree_root = construct_tree(blobs)
  
-# print(tree_root.children)
+# now that we have all the paths stored in a Tree, all these operations are quick
+# these are used to initally populate the selectors 
+# and are then dynamically updated based on the experiment chosen
 experiment_names = [node.name for node in tree_root.children.values()]
-# these are used to initally populate the selectors and are then dynamically updated based on the experiment chosen
 default_job_list = [node.name for node in tree_root.children[experiment_names[0]].children.values()]
 default_state_list = [node.name for node in tree_root.children[experiment_names[0]].children[default_job_list[0]].children.values()]
-app_ui = ui.page_fixed(
+####################################### SHINY CODE ################################################
+app_ui = ui.page_fluid(
     ui.h2("Visualizing Immune History"),
     ui.markdown(
         """
@@ -80,13 +118,18 @@ app_ui = ui.page_fixed(
                 "State",
                 default_state_list,
                 selected=default_state_list[0],
-            )
+            ),
+            ui.input_action_button("action_button", "Action"),  
+            ui.output_text("counter"),
         ),
         ui.panel_main(ui.output_plot("plot", height="750px")),
     ),
 )
-    
-def server(input, output, session):
+
+# to avoid unneccessary downloading from blob, we wont download 
+# duplicate files, if cur_* = input.* for all below.
+
+def server(input, output, session: Session):
     @output
     @render.plot
     def plot():
@@ -99,10 +142,36 @@ def server(input, output, session):
         selected_state = input.state() if input.state() in new_state_selections else new_state_selections[0]
         # update the states able to be picked based on the currently selected job
         ui.update_selectize("state", choices=[node.name for node in tree_root.children[experiment].children[selected_jobid].children.values()], selected=selected_state)
-
+        # input is a button that increases by 1 each time it is clicked
+        # download = True if input.run() != cur_run_num else False
+        # cur_run_num = input.run()
+        # if download and (cur_exp != experiment or cur_job_id != selected_jobid or cur_state != selected_state):
+        #     file_names = get_azure_files(experiment, selected_jobid, selected_state)
+        #     print(file_names)
+        #     # once we have downloaded the files from Azure, we save the names to avoid redownloading unneccesarily.
+        #     cur_exp = experiment
+        #     cur_job_id = selected_jobid
+        #     cur_state = selected_state
+        print("plotting")
         fig, axs = plt.subplots(2, 1)
-        download_run
+        #download_state(experiment, selected_jobid, selected_state)
         return fig
+    @render.text()
+    @reactive.event(input.action_button)
+    def counter():
+        print("running")
+        exp = input.experiment()
+        job_id = input.job_id()
+        state = input.state()
+        if os.path.exists(os.path.join("shiny_cache", exp, job_id, state)):
+            print("path exists")
+        else:
+            print("downloading")
+            requested_files = [node.name for node in tree_root.children[exp].children[job_id].children[state].children.values()]
+            print(requested_files)
+            file_names = get_azure_files(exp, job_id, state, azure_client, requested_files)
+            print(file_names)
+        return str(file_names)
 
 app = App(app_ui, server)
 app.run()
