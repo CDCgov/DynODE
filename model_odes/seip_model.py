@@ -2,14 +2,7 @@ from itertools import product
 
 import jax.numpy as jnp
 
-from utils import all_immune_states_with, new_immune_state
-
-
-class Parameters(object):
-    """A dummy container that converts a dictionary into attributes."""
-
-    def __init__(self, dict: dict):
-        self.__dict__ = dict
+from utils import Parameters, all_immune_states_with, new_immune_state
 
 
 def seip_ode(state, t, parameters):

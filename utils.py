@@ -1313,11 +1313,9 @@ def imply_immune_history_dist_from_strains(
     for strain in range(0, num_historical_strains):
         # fill in single strain immune state first. no repeated exposures yet.
         single_strain_state = new_immune_state(0, strain, num_strains)
-        immune_history_dist[
-            :, single_strain_state, 0, :
-        ] = strain_exposure_dist[
-            :, strain, :
-        ]  # TODO remove 0
+        immune_history_dist[:, single_strain_state, 0, :] = (
+            strain_exposure_dist[:, strain, :]
+        )  # TODO remove 0
         # now grab individuals from previous states and infect 1/2 of them with this strain
         multi_strain_states = []
         for prev_state in immune_states:
@@ -1923,6 +1921,147 @@ def from_json(j_str):
     return model_dict
 
 
+def get_var_proportions(inferer, solution):
+    """
+    Calculate _daily_ variant proportions based on a simulation run.
+
+    Parameters
+    ----------
+    `inferer` : AbstractParameters
+        an AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) that
+        is used to produce `solution`.
+    `solution`: tuple(jnp.array)
+        solution object that comes out from an ODE run (specifically through
+        `diffrax.diffeqsolve`)
+
+    Returns
+    ----------
+    jnp.array:
+        an array of strain prevalence by the shape of (num_days, NUM_STRAINS)
+    """
+    strain_incidence = jnp.sum(
+        solution.ys[inferer.config.COMPARTMENT_IDX.C],
+        axis=(
+            inferer.config.I_AXIS_IDX.age + 1,  # offset for day dimension
+            inferer.config.I_AXIS_IDX.hist + 1,
+            inferer.config.I_AXIS_IDX.vax + 1,
+        ),
+    )
+    strain_incidence = jnp.diff(strain_incidence, axis=0)
+    sim_vars = strain_incidence / jnp.sum(strain_incidence, axis=-1)[:, None]
+    return sim_vars
+
+
+def get_seroprevalence(inferer, solution):
+    """
+    Calculate the seroprevalence (more precisely the cumulative attack rate) based on
+    a simulation run.
+
+    Parameters
+    ----------
+    `inferer` : AbstractParameters
+        an AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) that
+        is used to produce `solution`.
+    `solution`: tuple(jnp.array)
+        solution object that comes out from an ODE run (specifically through
+        `diffrax.diffeqsolve`)
+
+    Returns
+    ----------
+    jnp.array:
+        an array of seroprevalence by the shape of (num_days, NUM_AGE_GROUPS)
+    """
+    never_infected = jnp.sum(
+        solution.ys[inferer.config.COMPARTMENT_IDX.S][:, :, 0, :, :],
+        axis=(
+            # offset for day dimension, un-offset by infection history
+            inferer.config.S_AXIS_IDX.vax,
+            inferer.config.S_AXIS_IDX.wane,
+        ),
+    )
+    sim_sero = 1 - never_infected / inferer.config.POPULATION
+    return sim_sero
+
+
+def get_immunity(inferer, solution):
+    """
+    Calculate the age-strain-specific population immunity. Specifically, the expected
+    immunity of a randomly selected person of certain age towards certain strain.
+
+    Parameters
+    ----------
+    `inferer` : AbstractParameters
+        an AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) that
+        is used to produce `solution`.
+    `solution`: tuple(jnp.array)
+        solution object that comes out from an ODE run (specifically through
+        `diffrax.diffeqsolve`)
+
+    Returns
+    ----------
+    jnp.array:
+        an array of immunity protection by the shape of (NUM_STRAINS, num_days,
+        NUM_AGE_GROUPS)
+    """
+    p = Parameters(inferer.get_parameters())
+    immunity_strain = []
+    for strain in range(p.NUM_STRAINS):
+        # Copied over from seip_ode
+        crossimmunity_matrix = p.CROSSIMMUNITY_MATRIX[strain, :]
+        vax_efficacy_strain = p.VAX_EFF_MATRIX[strain, :]
+        initial_immunity = 1 - jnp.einsum(
+            "j, k",
+            1 - crossimmunity_matrix,
+            1 - vax_efficacy_strain,
+        )
+        final_immunity = jnp.zeros(shape=initial_immunity.shape)
+        final_immunity = final_immunity.at[
+            all_immune_states_with(strain, p.NUM_STRAINS), :
+        ].set(p.MIN_HOMOLOGOUS_IMMUNITY)
+        waned_immunity_baseline = jnp.einsum(
+            "jk,l",
+            initial_immunity,
+            p.WANING_PROTECTIONS,
+        )
+        waned_immunity_min = (1 - waned_immunity_baseline) * final_immunity[
+            :, :, jnp.newaxis
+        ]
+        waned_immunity = waned_immunity_baseline + waned_immunity_min
+        foi_suscept = jnp.einsum(
+            "i, jkl", jnp.ones((p.NUM_AGE_GROUPS,)), 1 - waned_immunity
+        )
+        immunity = [
+            1
+            - jnp.sum(foi_suscept * s, axis=(1, 2, 3))
+            / jnp.sum(s, axis=(1, 2, 3))
+            for s in solution.ys[inferer.config.COMPARTMENT_IDX.S]
+        ]
+        immunity_strain.append(immunity)
+    immunity_strain = jnp.array(immunity_strain)
+    return immunity_strain
+
+
+def get_vaccination_rates(inferer, num_day):
+    """
+    Calculate _daily_ vaccination rates over the course of `num_day`.
+
+    Parameters
+    ----------
+    `inferer` : AbstractParameters
+        an AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) that
+        is used to produce `solution`.
+    `num_day`: int
+        number of simulation days
+
+    Returns
+    ----------
+    list:
+        list of `num_day` vaccination rates arrays, each by the shape of (NUM_AGE_GROUPS,
+        MAX_VAX_COUNT + 1)
+    """
+    return [inferer.vaccination_rate(t).tolist() for t in range(num_day)]
+
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # CONTACT MATRIX CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -2172,3 +2311,15 @@ def load_demographic_data(
             )
             raise e
     return demographic_data
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# SPOOFING CODE
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+class Parameters(object):
+    """A dummy container that converts a dictionary into attributes."""
+
+    def __init__(self, dict: dict):
+        self.__dict__ = dict
