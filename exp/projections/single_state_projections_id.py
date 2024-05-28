@@ -17,12 +17,17 @@ sys.path.append("/app")
 sys.path.append("/app/mechanistic_model/")
 
 import utils  # isort:skip
-from exp.fifty_state_2304_2404_3strain.epoch_two_initializer import (
+from exp.fifty_state_2304_2404_3strain.epoch_two_initializer import (  # isort:skip
     smh_initializer_epoch_two,
 )
-from exp.fifty_state_2304_2404_3strain.inferer_smh import SMHInferer
-from mechanistic_model.mechanistic_runner import MechanisticRunner
-from model_odes.seip_model import seip_ode
+from exp.fifty_state_2304_2404_3strain.inferer_smh import (  # isort:skip
+    SMHInferer,
+)
+from mechanistic_model.mechanistic_runner import (  # isort:skip
+    MechanisticRunner,
+)
+
+from model_odes.seip_model import seip_ode  # isort:skip
 
 """
 
