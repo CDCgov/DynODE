@@ -1985,6 +1985,64 @@ def get_seroprevalence(inferer, solution):
     return sim_sero
 
 
+def get_foi_suscept(parameters, force_of_infection):
+    """
+    Calculate the force of infections experienced by the susceptibles, _after_
+    factoring their immunity.
+
+    Parameters
+    ----------
+    `parameters` : Parameters
+        a Parameters object which is a spoofed dictionary for easy referencing,
+        which is an output of `.get_parameters()` from AbstractParameter.
+    `force_of_infection`: jnp.array
+        an array of (NUM_AGE_GROUPS, NUM_STRAINS) that quantifies the force of
+        infection experienced by age group by strain.
+
+    Returns
+    ----------
+    jnp.array:
+        an array of immunity protection by the shape of (NUM_STRAINS, num_days,
+        NUM_AGE_GROUPS)
+    """
+    p = parameters  # to shorten code...
+    foi_suscept = []
+    for strain in range(p.NUM_STRAINS):
+        force_of_infection_strain = force_of_infection[
+            :, strain
+        ]  # (num_age_groups,)
+
+        crossimmunity_matrix = p.CROSSIMMUNITY_MATRIX[strain, :]
+        vax_efficacy_strain = p.VAX_EFF_MATRIX[strain, :]
+        initial_immunity = 1 - jnp.einsum(
+            "j, k",
+            1 - crossimmunity_matrix,
+            1 - vax_efficacy_strain,
+        )
+        # renormalize the waning curve to have minimum of `final_immunity` after full waning
+        # and maximum of `initial_immunity` right after recovery
+        final_immunity = jnp.zeros(shape=initial_immunity.shape)
+        final_immunity = final_immunity.at[
+            all_immune_states_with(strain, p.NUM_STRAINS), :
+        ].set(p.MIN_HOMOLOGOUS_IMMUNITY)
+        waned_immunity_baseline = jnp.einsum(
+            "jk,l",
+            initial_immunity,
+            p.WANING_PROTECTIONS,
+        )
+        # find the lower bound of immunity for a homologous exposure against this challenging strain
+        waned_immunity_min = (1 - waned_immunity_baseline) * final_immunity[
+            :, :, jnp.newaxis
+        ]
+        waned_immunity = waned_immunity_baseline + waned_immunity_min
+        foi_suscept_strain = jnp.einsum(
+            "i, jkl", force_of_infection_strain, 1 - waned_immunity
+        )
+        foi_suscept.append(foi_suscept_strain)
+
+    return foi_suscept
+
+
 def get_immunity(inferer, solution):
     """
     Calculate the age-strain-specific population immunity. Specifically, the expected
@@ -2006,39 +2064,19 @@ def get_immunity(inferer, solution):
         NUM_AGE_GROUPS)
     """
     p = Parameters(inferer.get_parameters())
-    immunity_strain = []
-    for strain in range(p.NUM_STRAINS):
-        # Copied over from seip_ode
-        crossimmunity_matrix = p.CROSSIMMUNITY_MATRIX[strain, :]
-        vax_efficacy_strain = p.VAX_EFF_MATRIX[strain, :]
-        initial_immunity = 1 - jnp.einsum(
-            "j, k",
-            1 - crossimmunity_matrix,
-            1 - vax_efficacy_strain,
-        )
-        final_immunity = jnp.zeros(shape=initial_immunity.shape)
-        final_immunity = final_immunity.at[
-            all_immune_states_with(strain, p.NUM_STRAINS), :
-        ].set(p.MIN_HOMOLOGOUS_IMMUNITY)
-        waned_immunity_baseline = jnp.einsum(
-            "jk,l",
-            initial_immunity,
-            p.WANING_PROTECTIONS,
-        )
-        waned_immunity_min = (1 - waned_immunity_baseline) * final_immunity[
-            :, :, jnp.newaxis
-        ]
-        waned_immunity = waned_immunity_baseline + waned_immunity_min
-        foi_suscept = jnp.einsum(
-            "i, jkl", jnp.ones((p.NUM_AGE_GROUPS,)), 1 - waned_immunity
-        )
-        immunity = [
+    foi_suscept = get_foi_suscept(
+        p, jnp.ones((p.NUM_AGE_GROUPS, p.NUM_STRAINS))
+    )
+    immunity_strain = [
+        [
             1
-            - jnp.sum(foi_suscept * s, axis=(1, 2, 3))
+            - jnp.sum(foi_suscept[strain] * s, axis=(1, 2, 3))
             / jnp.sum(s, axis=(1, 2, 3))
             for s in solution.ys[inferer.config.COMPARTMENT_IDX.S]
         ]
-        immunity_strain.append(immunity)
+        for strain in range(p.NUM_STRAINS)
+    ]
+
     immunity_strain = jnp.array(immunity_strain)
     return immunity_strain
 
