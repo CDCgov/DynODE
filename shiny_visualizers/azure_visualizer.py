@@ -15,6 +15,7 @@ from mechanistic_model.covid_initializer import CovidInitializer
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
 import utils
 from cfa_azure.clients import AzureClient
+from cfa_azure.helpers import download_directory
 INITIALIZER_USED = CovidInitializer
 INFERER_USED = MechanisticInferer
 INPUT_BLOB_NAME = "scenarios-test-container"
@@ -53,29 +54,20 @@ def construct_tree(file_paths):
     return root
 
 
-def get_azure_files(exp: str, jobid: str, state: str, azure_client: AzureClient, requested_files: list[str]) -> list[str]:
+def get_azure_files(exp: str, jobid: str, state: str, azure_client: AzureClient) -> list[str]:
     """
-    Reads in `requested_files` from the output blob `exp/jobid/state` in `azure_client` 
-    and stores them in the `shiny_cache` directory, returning a list of their names
-    overrides any files of the same name within the shiny_cache folder.
+    Reads in all files from the output blob `exp/jobid/state` in `azure_client.out_cont_client` 
+    and stores them in the `shiny_cache` directory. 
+    If the cache path already exists for that run, nothing is downloaded.
 
-    Raises ValueError error if any(not exists `exp/jobid/state/file` for file in requested_files)`
+    Raises ValueError error if `exp/jobid/state/` does not exist in the output blob
     """
+    
     # will override files in cache
-    loaded_file_names = []
-    for file_name in requested_files:
-        cache_path = os.path.join("shiny_visualizers\\shiny_cache", exp, jobid, state, file_name).replace('\\', "/")
-        azure_blob_path = os.path.join(exp, jobid, state, file_name).replace('\\', "/")
-        blob_client = azure_client.out_cont_client.get_blob_client(OUTPUT_BLOB_NAME, azure_blob_path)
-        if not os.path.exists(cache_path):
-            os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-        print(cache_path)
-        with open(cache_path, "w") as file:
-            download_stream = blob_client.download_blob()
-            file.write(download_stream.readall())
-            loaded_file_names.append(cache_path)
-    return loaded_file_names
-
+    shiny_cache_path = "shiny_visualizers\\shiny_cache"
+    azure_blob_path = os.path.join(exp, jobid, state).replace('\\', "/") + "/"
+    download_directory(azure_client.out_cont_client, azure_blob_path, shiny_cache_path)
+    
 
 
 print("Connecting to Azure Storage")
@@ -119,15 +111,12 @@ app_ui = ui.page_fluid(
                 default_state_list,
                 selected=default_state_list[0],
             ),
-            ui.input_action_button("action_button", "Action"),  
+            ui.input_action_button("action_button", "Download Output"),  
             ui.output_text("counter"),
         ),
         ui.panel_main(ui.output_plot("plot", height="750px")),
     ),
 )
-
-# to avoid unneccessary downloading from blob, we wont download 
-# duplicate files, if cur_* = input.* for all below.
 
 def server(input, output, session: Session):
     @output
@@ -142,19 +131,7 @@ def server(input, output, session: Session):
         selected_state = input.state() if input.state() in new_state_selections else new_state_selections[0]
         # update the states able to be picked based on the currently selected job
         ui.update_selectize("state", choices=[node.name for node in tree_root.children[experiment].children[selected_jobid].children.values()], selected=selected_state)
-        # input is a button that increases by 1 each time it is clicked
-        # download = True if input.run() != cur_run_num else False
-        # cur_run_num = input.run()
-        # if download and (cur_exp != experiment or cur_job_id != selected_jobid or cur_state != selected_state):
-        #     file_names = get_azure_files(experiment, selected_jobid, selected_state)
-        #     print(file_names)
-        #     # once we have downloaded the files from Azure, we save the names to avoid redownloading unneccesarily.
-        #     cur_exp = experiment
-        #     cur_job_id = selected_jobid
-        #     cur_state = selected_state
-        print("plotting")
         fig, axs = plt.subplots(2, 1)
-        #download_state(experiment, selected_jobid, selected_state)
         return fig
     @render.text()
     @reactive.event(input.action_button)
