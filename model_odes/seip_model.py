@@ -2,14 +2,7 @@ from itertools import product
 
 import jax.numpy as jnp
 
-from utils import all_immune_states_with, new_immune_state
-
-
-class Parameters(object):
-    """A dummy container that converts a dictionary into attributes."""
-
-    def __init__(self, dict: dict):
-        self.__dict__ = dict
+from utils import Parameters, get_foi_suscept, new_immune_state
 
 
 def seip_ode(state, t, parameters):
@@ -77,41 +70,9 @@ def seip_ode(state, t, parameters):
         / p.POPULATION
     ).transpose()  # (NUM_AGE_GROUPS, strain)
 
+    foi_suscept = get_foi_suscept(p, force_of_infection)
     for strain in range(p.NUM_STRAINS):
-        force_of_infection_strain = force_of_infection[
-            :, strain
-        ]  # (num_age_groups,)
-
-        # partial_suseptibility = (hist,)
-        crossimmunity_matrix = p.CROSSIMMUNITY_MATRIX[strain, :]
-        # p.vax_susceptibility_strain.shape = (MAX_VAX_COUNT,)
-        vax_efficacy_strain = p.VAX_EFF_MATRIX[strain, :]
-        # (hist, MAX_VAX_COUNT)
-        initial_immunity = 1 - jnp.einsum(
-            "j, k",
-            1 - crossimmunity_matrix,
-            1 - vax_efficacy_strain,
-        )
-        # renormalize the waning curve to have minimum of `final_immunity` after full waning
-        # and maximum of `initial_immunity` right after recovery
-        final_immunity = jnp.zeros(shape=initial_immunity.shape)
-        final_immunity = final_immunity.at[
-            all_immune_states_with(strain, p.NUM_STRAINS), :
-        ].set(p.MIN_HOMOLOGOUS_IMMUNITY)
-        waned_immunity_baseline = jnp.einsum(
-            "jk,l",
-            initial_immunity,
-            p.WANING_PROTECTIONS,
-        )
-        # find the lower bound of immunity for a homologous exposure against this challenging strain
-        waned_immunity_min = (1 - waned_immunity_baseline) * final_immunity[
-            :, :, jnp.newaxis
-        ]
-        waned_immunity = waned_immunity_baseline + waned_immunity_min
-        foi_suscept = jnp.einsum(
-            "i, jkl", force_of_infection_strain, 1 - waned_immunity
-        )
-        exposed_s = s * foi_suscept
+        exposed_s = s * foi_suscept[strain]
         # we know `strain` is infecting people, de has no waning compartments, so sum over those.
         de = de.at[:, :, :, strain].add(jnp.sum(exposed_s, axis=-1))
         ds = jnp.add(ds, -exposed_s)
