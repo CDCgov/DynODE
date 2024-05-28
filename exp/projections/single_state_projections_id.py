@@ -397,7 +397,7 @@ def project_and_dump_particle(idx, fitted_sample, inferer, runner):
     f = open(
         os.path.join(
             save_path,
-            "c_compartment_%s_%s_%s.json" % (scenario, idx[0], idx[1]),
+            "checkpoint_%s_%s_%s.json" % (scenario, idx[0], idx[1]),
         ),
         "w",
     )
