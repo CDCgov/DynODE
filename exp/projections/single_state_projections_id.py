@@ -16,7 +16,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 sys.path.append("/app")
 sys.path.append("/app/mechanistic_model/")
 
-import utils
+import utils  # isort:skip
 from exp.fifty_state_2304_2404_3strain.epoch_two_initializer import (
     smh_initializer_epoch_two,
 )
