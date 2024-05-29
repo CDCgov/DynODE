@@ -8,8 +8,13 @@ import matplotlib.pyplot as plt
 # import pandas as pd
 # import seaborn as sn
 from shiny import App, render, ui, Session, reactive
+from shinywidgets import output_widget, render_widget  
 import os
 import sys
+import plotly.express as px
+import pandas as pd
+import numpy as np
+import json
 sys.path.append("c:\\Users\\uva5\\Documents\\GitHub\\cfa-scenarios-model")
 from mechanistic_model.covid_initializer import CovidInitializer
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
@@ -54,7 +59,7 @@ def construct_tree(file_paths):
     return root
 
 
-def get_azure_files(exp: str, jobid: str, state: str, azure_client: AzureClient) -> list[str]:
+def get_azure_files(exp: str, jobid: str, state: str, scenario: str, azure_client: AzureClient) -> list[str]:
     """
     Reads in all files from the output blob `exp/jobid/state` in `azure_client.out_cont_client` 
     and stores them in the `shiny_cache` directory. 
@@ -65,9 +70,62 @@ def get_azure_files(exp: str, jobid: str, state: str, azure_client: AzureClient)
     
     # will override files in cache
     shiny_cache_path = "shiny_visualizers\\shiny_cache"
-    azure_blob_path = os.path.join(exp, jobid, state).replace('\\', "/") + "/"
+    azure_blob_path = os.path.join(exp, jobid, state)
+    if scenario != "N/A": # if visualizing a scenario append to the path
+        azure_blob_path = os.path.join(azure_blob_path, scenario)
+    azure_blob_path = azure_blob_path.replace('\\', "/") + "/"
+
     download_directory(azure_client.out_cont_client, azure_blob_path, shiny_cache_path)
+    return os.path.join(shiny_cache_path, azure_blob_path)
     
+def visualize_vax_rates(cache_path):
+    vax_rate = np.array(d["VACCINATION_RATES"])
+    shp = vax_rate.shape
+    age = ["0-17", "18-49", "50-64", "65+"]
+    vax_dose = ["0 -> 1", "1 -> 2", "2 -> 3", "3 -> 3"]
+    days = pd.Series(np.arange(shp[0])).repeat(shp[1] * shp[2]).to_list()
+    ages = pd.Series(age * shp[0]).repeat(shp[2]).to_list()
+    vax_doses = vax_dose * (shp[0] * shp[1])
+
+    df = pd.DataFrame({
+        "day": days,
+        "age": ages,
+        "vax_dose": vax_doses,
+        "vax_rate": vax_rate.flatten()
+    })
+    fig = px.line(df, x="day", y="vax_rate", color="age", facet_col="vax_dose",
+              facet_col_wrap=2, template="plotly_white")
+    fig.update_traces(mode="lines", hovertemplate=None)
+    fig.update_layout(hovermode="x")
+    fig.show()
+    
+#shiny_visualizers\shiny_cache\projections\test_3\IL\noBoo_highIE\checkpoint_noBoo_highIE_0_214.json
+def visualize_immunity(cache_path):
+    f = open(os.path.join(cache_path, "checkpoint_noBoo_highIE_1_214.json").replace("\\", "/"), "r")
+    d = json.load(f)
+    age = ["0-17", "18-49", "50-64", "65+"]
+    strain = ["XBB1", "XBB2", "JN1", "W", "X", "Y", "Z"]
+    vax_rate = np.array(d["VACCINATION_RATES"])
+    df = pd.DataFrame({
+        'days': np.arange(365),
+        'vax_rate': [v for v in vax_rate]
+    })
+    immunity = np.array(d["IMMUNITY_STRAIN"]).transpose((1, 2, 0))
+    shp = immunity.shape
+
+    days = pd.Series(np.arange(shp[0])).repeat(shp[1] * shp[2]).to_list()
+    ages = pd.Series(age * shp[0]).repeat(shp[2]).to_list()
+    strains = strain * (shp[0] * shp[1])
+
+    df = pd.DataFrame({
+        "day": days,
+        "age": ages,
+        "strain": strains,
+        "immunity": immunity.flatten()
+    })
+    fig = px.line(df, x="day", y="immunity", color="age", facet_col="strain", facet_col_wrap=4, template="plotly_white")
+    fig.update_yaxes(range=[0, 1])
+    return fig
 
 
 print("Connecting to Azure Storage")
@@ -82,6 +140,7 @@ tree_root = construct_tree(blobs)
 experiment_names = [node.name for node in tree_root.children.values()]
 default_job_list = [node.name for node in tree_root.children[experiment_names[0]].children.values()]
 default_state_list = [node.name for node in tree_root.children[experiment_names[0]].children[default_job_list[0]].children.values()]
+default_scenario_list=["N/A"]
 ####################################### SHINY CODE ################################################
 app_ui = ui.page_fluid(
     ui.h2("Visualizing Immune History"),
@@ -111,7 +170,13 @@ app_ui = ui.page_fluid(
                 default_state_list,
                 selected=default_state_list[0],
             ),
-            ui.input_action_button("action_button", "Download Output"),  
+            ui.input_selectize(
+                "scenario",
+                "Scenario",
+                default_scenario_list,
+                selected=default_scenario_list[0],
+            ),
+            ui.input_action_button("action_button", "Visualize Output"),  
             ui.output_text("counter"),
         ),
         ui.panel_main(ui.output_plot("plot", height="750px")),
@@ -121,34 +186,36 @@ app_ui = ui.page_fluid(
 def server(input, output, session: Session):
     @output
     @render.plot
-    def plot():
+    def plot(fig=None):
         experiment = input.experiment()
-        new_job_id_selections = [node.name for node in tree_root.children[experiment].children.values()]
+        tree_exp = tree_root.children[experiment]
+        new_job_id_selections = [node.name for node in tree_exp.children.values()]
         # update the jobs able to be picked based on the currently selected experiment
         selected_jobid = input.job_id() if input.job_id() in new_job_id_selections else new_job_id_selections[0]
         ui.update_selectize("job_id", choices=new_job_id_selections, selected=selected_jobid)
-        new_state_selections = [node.name for node in tree_root.children[experiment].children[selected_jobid].children.values()]
+        tree_job = tree_exp.children[selected_jobid]
+        new_state_selections = [node.name for node in tree_job.children.values()]
         selected_state = input.state() if input.state() in new_state_selections else new_state_selections[0]
         # update the states able to be picked based on the currently selected job
-        ui.update_selectize("state", choices=[node.name for node in tree_root.children[experiment].children[selected_jobid].children.values()], selected=selected_state)
-        fig, axs = plt.subplots(2, 1)
+        ui.update_selectize("state", choices=[node.name for node in tree_job.children.values()], selected=selected_state)
+        tree_state = tree_job.children[selected_state]
+        if list(tree_state.children.values())[0].children:
+            new_scenario_selections = [node.name for node in tree_state.children.values()]
+            selected_scenario = input.scenario() if input.scenario() in new_scenario_selections else new_scenario_selections[0]
+            ui.update_selectize("scenario", choices=new_scenario_selections, selected=selected_scenario)
         return fig
-    @render.text()
+    @render_widget
     @reactive.event(input.action_button)
     def counter():
         print("running")
         exp = input.experiment()
         job_id = input.job_id()
         state = input.state()
-        if os.path.exists(os.path.join("shiny_cache", exp, job_id, state)):
-            print("path exists")
-        else:
-            print("downloading")
-            requested_files = [node.name for node in tree_root.children[exp].children[job_id].children[state].children.values()]
-            print(requested_files)
-            file_names = get_azure_files(exp, job_id, state, azure_client, requested_files)
-            print(file_names)
-        return str(file_names)
+        scenario = input.scenario()
+        cache_path = get_azure_files(exp, job_id, state, scenario, azure_client)
+        fig = visualize_immunity(cache_path)
+        plot(fig=fig)
+        return fig
 
 app = App(app_ui, server)
 app.run()
