@@ -4,11 +4,12 @@ initialized with the config_base.py config file. This file is an active work in 
 get an understanding of the context that their mechanistic model is being run in.
 """
 
+import json
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sn
-import json
 from shiny import App, render, ui
 
 import utils
