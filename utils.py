@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import numpyro
-import numpyro.distributions as dist
+import numpyro.distributions as Dist
 import pandas as pd
 
 pd.options.mode.chained_assignment = None
@@ -18,38 +18,72 @@ pd.options.mode.chained_assignment = None
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # SAMPLING FUNCTIONS
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-def sample_r0():
-    """sample r0 for each a single strain according to an exponential distribution with rate 1.0
-
-    Returns
-    ----------
-    numpro.sample object with name `r0` containing a deterministic object 1+exp(1.0)
+def sample_if_distribution(parameters):
     """
+    given a dictionary of keys and parameters, searches through all keys
+    and samples the distribution associated with that key, if it exists.
+    Otherwise keeps the value associated with that key.
+    Converts lists with distributions inside to `jnp.ndarray`
 
-    excess_r0 = numpyro.sample(
-        "excess_r0", numpyro.distributions.Exponential(1.0)
-    )
-    r0 = numpyro.deterministic("r0", 1 + excess_r0)
-    return r0
-
-
-def sample_waning_protections(waning_protect_means):
-    """Sample a waning rate for each of the waning comparments according to an exponential distribution
-    with rate equal to 1 / waning_protect_means
+    Lists containing distributions will have the parameter's index
+    marked according to its position in the matrix.
+    For some 2x2 matrix `x`, `x_1_1` refers to the sampled
+    version of the last element of `x`
 
     Parameters
     ----------
-    waning_protect_means: list(int)
-        list of mean waning protection for each waning compartment
-        len(waning_protect_means) = # of waning compartments in your model.
+    `parameters: dict{str: obj}`
+    a dictionary mapping a parameter name to an object, either a value or a distribution.
+    `numpyro.distribution` objects are sampled, and their sampled value replaces the distribution object
+    within parameters. Capable of sampling lists with static values and distributions together.
+
+    Returns
+    ----------
+    parameters dictionary with any `numpyro.distribution` objects replaced with jax.tracer samples
+    of those distributions from `numpyro.sample`
     """
-    waning_rates = []
-    for i, sample_mean in enumerate(waning_protect_means):
-        waning_protection = numpyro.sample(
-            "waning_protection_" + str(i), dist.Exponential(1 / sample_mean)
-        )
-        waning_rates.append(waning_protection)
-    return waning_rates
+    for key, param in parameters.items():
+        # if distribution, sample and replace
+        if issubclass(type(param), Dist.Distribution):
+            param = numpyro.sample(key, param)
+        # if list, check for distributions within and replace them
+        elif isinstance(param, (np.ndarray, list)):
+            param = np.array(param)  # cast np.array so we get .shape
+            flat_param = np.ravel(param)  # Flatten the parameter array
+            # check for distributions inside of the flattened parameter list
+            if any(
+                [
+                    issubclass(type(param_lst), Dist.Distribution)
+                    for param_lst in flat_param
+                ]
+            ):
+                dim_idxs = np.unravel_index(
+                    np.arange(flat_param.size), param.shape
+                )
+                # if we find distributions, sample them, then reshape back to the original shape
+                # all this code with dim_idxs and joining strings is to properly display the
+                # row/col indexes in any number of dimensions, not just 1 and 2D matrix
+                flat_param = jnp.array(
+                    [
+                        (
+                            numpyro.sample(
+                                key
+                                + "_"
+                                + "_".join(
+                                    [str(dim_idx[i]) for dim_idx in dim_idxs]
+                                ),
+                                param_lst,
+                            )
+                            if issubclass(type(param_lst), Dist.Distribution)
+                            else param_lst
+                        )
+                        for i, param_lst in enumerate(flat_param)
+                    ]
+                )
+                param = jnp.reshape(flat_param, param.shape)
+        # else static param, do nothing
+        parameters[key] = param
+    return parameters
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1923,6 +1957,185 @@ def from_json(j_str):
     return model_dict
 
 
+def get_var_proportions(inferer, solution):
+    """
+    Calculate _daily_ variant proportions based on a simulation run.
+
+    Parameters
+    ----------
+    `inferer` : AbstractParameters
+        an AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) that
+        is used to produce `solution`.
+    `solution`: tuple(jnp.array)
+        solution object that comes out from an ODE run (specifically through
+        `diffrax.diffeqsolve`)
+
+    Returns
+    ----------
+    jnp.array:
+        an array of strain prevalence by the shape of (num_days, NUM_STRAINS)
+    """
+    strain_incidence = jnp.sum(
+        solution.ys[inferer.config.COMPARTMENT_IDX.C],
+        axis=(
+            inferer.config.I_AXIS_IDX.age + 1,  # offset for day dimension
+            inferer.config.I_AXIS_IDX.hist + 1,
+            inferer.config.I_AXIS_IDX.vax + 1,
+        ),
+    )
+    strain_incidence = jnp.diff(strain_incidence, axis=0)
+    sim_vars = strain_incidence / jnp.sum(strain_incidence, axis=-1)[:, None]
+    return sim_vars
+
+
+def get_seroprevalence(inferer, solution):
+    """
+    Calculate the seroprevalence (more precisely the cumulative attack rate) based on
+    a simulation run.
+
+    Parameters
+    ----------
+    `inferer` : AbstractParameters
+        an AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) that
+        is used to produce `solution`.
+    `solution`: tuple(jnp.array)
+        solution object that comes out from an ODE run (specifically through
+        `diffrax.diffeqsolve`)
+
+    Returns
+    ----------
+    jnp.array:
+        an array of seroprevalence by the shape of (num_days, NUM_AGE_GROUPS)
+    """
+    never_infected = jnp.sum(
+        solution.ys[inferer.config.COMPARTMENT_IDX.S][:, :, 0, :, :],
+        axis=(
+            # offset for day dimension, un-offset by infection history
+            inferer.config.S_AXIS_IDX.vax,
+            inferer.config.S_AXIS_IDX.wane,
+        ),
+    )
+    sim_sero = 1 - never_infected / inferer.config.POPULATION
+    return sim_sero
+
+
+def get_foi_suscept(parameters, force_of_infection):
+    """
+    Calculate the force of infections experienced by the susceptibles, _after_
+    factoring their immunity.
+
+    Parameters
+    ----------
+    `parameters` : Parameters
+        a Parameters object which is a spoofed dictionary for easy referencing,
+        which is an output of `.get_parameters()` from AbstractParameter.
+    `force_of_infection`: jnp.array
+        an array of (NUM_AGE_GROUPS, NUM_STRAINS) that quantifies the force of
+        infection experienced by age group by strain.
+
+    Returns
+    ----------
+    jnp.array:
+        an array of immunity protection by the shape of (NUM_STRAINS, num_days,
+        NUM_AGE_GROUPS)
+    """
+    p = parameters  # to shorten code...
+    foi_suscept = []
+    for strain in range(p.NUM_STRAINS):
+        force_of_infection_strain = force_of_infection[
+            :, strain
+        ]  # (num_age_groups,)
+
+        crossimmunity_matrix = p.CROSSIMMUNITY_MATRIX[strain, :]
+        vax_efficacy_strain = p.VAX_EFF_MATRIX[strain, :]
+        initial_immunity = 1 - jnp.einsum(
+            "j, k",
+            1 - crossimmunity_matrix,
+            1 - vax_efficacy_strain,
+        )
+        # renormalize the waning curve to have minimum of `final_immunity` after full waning
+        # and maximum of `initial_immunity` right after recovery
+        final_immunity = jnp.zeros(shape=initial_immunity.shape)
+        final_immunity = final_immunity.at[
+            all_immune_states_with(strain, p.NUM_STRAINS), :
+        ].set(p.MIN_HOMOLOGOUS_IMMUNITY)
+        waned_immunity_baseline = jnp.einsum(
+            "jk,l",
+            initial_immunity,
+            p.WANING_PROTECTIONS,
+        )
+        # find the lower bound of immunity for a homologous exposure against this challenging strain
+        waned_immunity_min = (1 - waned_immunity_baseline) * final_immunity[
+            :, :, jnp.newaxis
+        ]
+        waned_immunity = waned_immunity_baseline + waned_immunity_min
+        foi_suscept_strain = jnp.einsum(
+            "i, jkl", force_of_infection_strain, 1 - waned_immunity
+        )
+        foi_suscept.append(foi_suscept_strain)
+
+    return foi_suscept
+
+
+def get_immunity(inferer, solution):
+    """
+    Calculate the age-strain-specific population immunity. Specifically, the expected
+    immunity of a randomly selected person of certain age towards certain strain.
+
+    Parameters
+    ----------
+    `inferer` : AbstractParameters
+        an AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) that
+        is used to produce `solution`.
+    `solution`: tuple(jnp.array)
+        solution object that comes out from an ODE run (specifically through
+        `diffrax.diffeqsolve`)
+
+    Returns
+    ----------
+    jnp.array:
+        an array of immunity protection by the shape of (NUM_STRAINS, num_days,
+        NUM_AGE_GROUPS)
+    """
+    p = Parameters(inferer.get_parameters())
+    foi_suscept = get_foi_suscept(
+        p, jnp.ones((p.NUM_AGE_GROUPS, p.NUM_STRAINS))
+    )
+    immunity_strain = [
+        [
+            1
+            - jnp.sum(foi_suscept[strain] * s, axis=(1, 2, 3))
+            / jnp.sum(s, axis=(1, 2, 3))
+            for s in solution.ys[inferer.config.COMPARTMENT_IDX.S]
+        ]
+        for strain in range(p.NUM_STRAINS)
+    ]
+
+    immunity_strain = jnp.array(immunity_strain)
+    return immunity_strain
+
+
+def get_vaccination_rates(inferer, num_day):
+    """
+    Calculate _daily_ vaccination rates over the course of `num_day`.
+
+    Parameters
+    ----------
+    `inferer` : AbstractParameters
+        an AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) that
+        is used to produce `solution`.
+    `num_day`: int
+        number of simulation days
+
+    Returns
+    ----------
+    list:
+        list of `num_day` vaccination rates arrays, each by the shape of (NUM_AGE_GROUPS,
+        MAX_VAX_COUNT + 1)
+    """
+    return [inferer.vaccination_rate(t).tolist() for t in range(num_day)]
+
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # CONTACT MATRIX CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -2172,3 +2385,15 @@ def load_demographic_data(
             )
             raise e
     return demographic_data
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# SPOOFING CODE
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+class Parameters(object):
+    """A dummy container that converts a dictionary into attributes."""
+
+    def __init__(self, dict: dict):
+        self.__dict__ = dict
