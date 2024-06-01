@@ -26,7 +26,7 @@ INFERER_USED = MechanisticInferer
 INPUT_BLOB_NAME = "scenarios-test-container"
 OUTPUT_BLOB_NAME = "example-output-scenarios-mechanistic"
 
-def build_azure_connection(config_path = "secrets/configuration_cfaazurebatchprd.toml"):    
+def build_azure_connection(config_path = "secrets/configuration_cfaazurebatchprd_new_sp.toml"):    
     client = AzureClient(config_path=config_path)
     client.set_input_container(INPUT_BLOB_NAME, "input")
     client.set_output_container(OUTPUT_BLOB_NAME, "output")
@@ -99,7 +99,6 @@ def visualize_vax_rates(cache_path):
     fig.update_layout(hovermode="x")
     fig.show()
     
-#shiny_visualizers\shiny_cache\projections\test_3\IL\noBoo_highIE\checkpoint_noBoo_highIE_0_214.json
 def visualize_immunity(cache_path):
     f = open(os.path.join(cache_path, "checkpoint_noBoo_highIE_1_214.json").replace("\\", "/"), "r")
     d = json.load(f)
@@ -184,9 +183,9 @@ app_ui = ui.page_fluid(
 )
 
 def server(input, output, session: Session):
-    @output
-    @render.plot
-    def plot(fig=None):
+
+    @reactive.event(input.experiment(), input.job_id(), input.state())
+    def update_selections():
         experiment = input.experiment()
         tree_exp = tree_root.children[experiment]
         new_job_id_selections = [node.name for node in tree_exp.children.values()]
@@ -203,6 +202,11 @@ def server(input, output, session: Session):
             new_scenario_selections = [node.name for node in tree_state.children.values()]
             selected_scenario = input.scenario() if input.scenario() in new_scenario_selections else new_scenario_selections[0]
             ui.update_selectize("scenario", choices=new_scenario_selections, selected=selected_scenario)
+
+    @output
+    @render.plot
+    def plot(fig=None):
+        fig, axs = plt.subplot(2, 1)
         return fig
     @render_widget
     @reactive.event(input.action_button)
@@ -214,7 +218,6 @@ def server(input, output, session: Session):
         scenario = input.scenario()
         cache_path = get_azure_files(exp, job_id, state, scenario, azure_client)
         fig = visualize_immunity(cache_path)
-        plot(fig=fig)
         return fig
 
 app = App(app_ui, server)
