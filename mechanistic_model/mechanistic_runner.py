@@ -6,8 +6,8 @@ from collections.abc import Callable
 
 import jax
 import jax.numpy as jnp
-import numpyro
-from diffrax import (  # Solution,
+import numpyro  # type: ignore
+from diffrax import (  # type: ignore
     ConstantStepSize,
     ODETerm,
     PIDController,

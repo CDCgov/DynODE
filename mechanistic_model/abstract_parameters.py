@@ -13,7 +13,7 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pandas as pd
+import pandas as pd  # type: ignore
 from jax.scipy.stats.norm import pdf
 from jax.typing import ArrayLike
 
@@ -23,6 +23,9 @@ import utils
 class AbstractParameters:
     @abstractmethod
     def __init__(self, parameters_config):
+        # add these for mypy type checker
+        self.config = {}
+        self.INITIAL_STATE = tuple()
         pass
 
     def get_parameters(self) -> dict:

@@ -10,11 +10,11 @@ import warnings
 import jax.numpy as jnp
 import jax.typing
 import numpy as np
-import numpyro
+import numpyro  # type: ignore
 from jax.random import PRNGKey
 from numpyro import distributions as Dist
-from numpyro.diagnostics import summary
-from numpyro.infer import MCMC, NUTS
+from numpyro.diagnostics import summary  # type: ignore
+from numpyro.infer import MCMC, NUTS  # type: ignore
 
 import utils
 from config.config import Config
@@ -92,7 +92,7 @@ class MechanisticInferer(AbstractParameters):
                 ), "the previous inferer is not of the same type."
                 self.set_posteriors_if_exist(prior_inferer)
 
-    def likelihood(self, obs_metrics: jax.typing.ArrayLike) -> None:
+    def likelihood(self, obs_metrics: jax.Array) -> None:
         """
         Given some observed metrics, samples the likelihood of them occuring
         under a set of parameter distributions sampled by self.inference_algo.
@@ -202,7 +202,7 @@ class MechanisticInferer(AbstractParameters):
             sample_summaries = summary(samples)
             # do some sort of testing to ensure the chains are properly converging.
             # lets all flatten all the samples from all chains together
-            samples_array_flattened = None
+            samples_array_flattened = np.array([])
             for sample in samples.keys():
                 sample_summary = sample_summaries[sample]
                 divergent_chains = False
@@ -218,11 +218,16 @@ class MechanisticInferer(AbstractParameters):
                     )
                     divergent_chains = True
                 # now we add the parameter in flattened form for later
-                if samples_array_flattened is None:
-                    samples_array_flattened = [samples[sample].flatten()]
+                if not len(samples_array_flattened):
+                    samples_array_flattened = np.array(
+                        [samples[sample].flatten()]
+                    )
                 else:
                     samples_array_flattened = np.concatenate(
-                        (samples_array_flattened, [samples[sample].flatten()]),
+                        (
+                            samples_array_flattened,
+                            np.array([samples[sample].flatten()]),
+                        ),
                         axis=0,
                     )
             # if we have divergent chains, warn and show them to the user

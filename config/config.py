@@ -7,8 +7,8 @@ from functools import partial
 
 import jax.numpy as jnp
 import numpy as np
-import numpyro.distributions as distributions
-import numpyro.distributions.transforms as transforms
+import numpyro.distributions as distributions  # type: ignore
+import numpyro.distributions.transforms as transforms  # type: ignore
 from jax.random import PRNGKey
 
 

@@ -15,7 +15,9 @@ import utils
 class MechanisticInitializer(ABC):
     @abstractmethod
     def __init__(self, initializer_config):
-        self.INITIAL_STATE
+        # add these for mypy
+        self.INITIAL_STATE = tuple()
+        self.config = {}
         pass
 
     def get_initial_state(
