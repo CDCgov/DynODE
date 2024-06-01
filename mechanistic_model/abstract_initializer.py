@@ -7,6 +7,8 @@ to produce an initial state representing some analyzed population
 
 from abc import ABC, abstractmethod
 
+from jax import Array
+
 import utils
 
 
@@ -16,13 +18,15 @@ class MechanisticInitializer(ABC):
         self.INITIAL_STATE
         pass
 
-    def get_initial_state(self):
+    def get_initial_state(
+        self,
+    ) -> tuple[Array, Array, Array, Array]:
         """
         Returns the initial state of the model as defined by the child class in __init__
         """
         return self.INITIAL_STATE
 
-    def load_initial_population_fractions(self):
+    def load_initial_population_fractions(self) -> None:
         """
         a wrapper function which loads age demographics for the US and sets the inital population fraction by age bin.
 

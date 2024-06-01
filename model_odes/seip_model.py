@@ -45,6 +45,7 @@ def seip_ode(state, t, parameters):
     # e/i/c .shape = (NUM_AGE_GROUPS, hist, prev_vax_count, strain)
     # we dont have waning state once infection successful, waning state only impacts infection chances.
     s, e, i, c = state
+    # spoof the dict into a class so we can use `p.` notation instead of dicts
     p = Parameters(parameters)
     ds, de, di, dc = (
         jnp.zeros(s.shape),

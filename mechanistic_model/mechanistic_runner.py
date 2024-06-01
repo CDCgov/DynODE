@@ -1,6 +1,8 @@
 """
-The following is a class which runs a series of ODE equations, performs inference, and returns Solution objects for analysis.
+The following is a class which runs a series of ODE equations, and returns Solution objects for analysis or fitting.
 """
+
+from collections.abc import Callable
 
 import jax
 import jax.numpy as jnp
@@ -13,16 +15,34 @@ from diffrax import (  # Solution,
     Tsit5,
     diffeqsolve,
 )
+from jaxtyping import PyTree
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
 
 
 class MechanisticRunner:
-    def __init__(self, model):
+    def __init__(
+        self,
+        model: Callable[
+            [jax.typing.ArrayLike, PyTree, dict],
+            tuple[
+                jax.Array,
+                jax.Array,
+                jax.Array,
+                jax.Array,
+            ],
+        ],
+    ):
         self.model = model
 
-    def run(self, initial_state, args, tf: int = 100):
+    def run(
+        self,
+        initial_state: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+        args: dict,
+        tf: int = 100,  # default 100 days
+    ):
+        # utils.Parameters is just a spoofing class so ODEs dont need to deal with dict logic
         term = ODETerm(
             lambda t, state, parameters: self.model(state, t, parameters)
         )
