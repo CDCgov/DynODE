@@ -11,6 +11,7 @@ import numpy as np
 import numpyro
 import numpyro.distributions as Dist
 import pandas as pd
+from scipy.stats import gamma
 
 pd.options.mode.chained_assignment = None
 
@@ -2134,6 +2135,62 @@ def get_vaccination_rates(inferer, num_day):
         MAX_VAX_COUNT + 1)
     """
     return [inferer.vaccination_rate(t).tolist() for t in range(num_day)]
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# DEATH CALCULATION CODE
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+def convolve_hosp_to_death(hosp, hfr, shape, scale, padding="nan"):
+    """
+    Model deaths based on hospitalizations. The function calculates expected deaths based
+    on input weekly age-specific `hospitalization` and hospitalization fatality risk
+    (`hfr`), then delay the deaths (relative to hospitalization) based on a gamma
+    distribution of parameters `shape` and `scale`. The gamma specification is _daily_,
+    which then gets discretized into 5 weeks for convolution.
+
+    Parameters
+    ----------
+    `hosp` : numpy.array
+        age-specific weekly hospitalization with shape of (num_weeks, NUM_AGE_GROUPS)
+    `hfr`: numpy.array
+        age-specific hospitalization fatality risk with shape of (NUM_AGE_GROUPS)
+    shape: float
+        shape parameter of the gamma delay distribution, is > 0
+    scale: float
+        scale parameter of the gamma delay distribution, is > 0 and 1/rate
+    padding: str "nan", "nearest" or "no"
+        boolean flag determining if the output array is of same length as `hosp` with
+        first 4 weeks padded with nan or not. Note: the "valid" modelled deaths would always
+        be 4 weeks less than input hospitalization.
+
+    Returns
+    ----------
+    numpy.array:
+        list of `num_day` vaccination rates arrays, each by the shape of (NUM_AGE_GROUPS,
+        MAX_VAX_COUNT + 1)
+    """
+    expected_deaths = hosp * hfr[None, :]
+    disc_gamma = gamma.cdf(np.arange(0, 36, 7), shape, scale=scale)
+    disc_gamma = np.diff(disc_gamma)
+    daily_deaths = np.array(
+        [np.convolve(d, disc_gamma, "valid") for d in expected_deaths.T]
+    ).T
+    if padding == "nan":
+        daily_deaths = np.append(
+            np.array([[np.nan] * 4] * (len(disc_gamma) - 1)),
+            daily_deaths,
+            axis=0,
+        )
+    elif padding == "nearest":
+        daily_deaths = np.append(
+            np.repeat([daily_deaths[0]], len(disc_gamma) - 1, axis=0),
+            daily_deaths,
+            axis=0,
+        )
+
+    return daily_deaths
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
