@@ -2,6 +2,7 @@ import datetime
 import glob
 import json
 import os
+import sys
 from enum import IntEnum
 
 import epiweeks
@@ -2397,3 +2398,49 @@ class Parameters(object):
 
     def __init__(self, dict: dict):
         self.__dict__ = dict
+
+
+class dual_logger_out(object):
+    """
+    a class that splits stdout, flushing its contents to a file as well as to stdout
+    this is useful for Azure Batch to save logs but also see the output live on the node
+    """
+
+    def __init__(self, name, mode):
+        self.file = open(name, mode)
+        self.stdout = sys.stdout
+        sys.stdout = self
+
+    def close(self):
+        sys.stdout = self.stdout
+        self.file.close()
+
+    def write(self, data):
+        self.file.write(data)
+        self.stdout.write(data)
+
+    def flush(self):
+        self.file.flush()
+
+
+class dual_logger_err(object):
+    """
+    a class that splits stderror, flushing its contents to a file as well as to terminal if an error occurs
+    this is useful for Azure Batch to save logs but also see the output live on the node
+    """
+
+    def __init__(self, name, mode):
+        self.file = open(name, mode)
+        self.stderr = sys.stderr
+        sys.stderr = self
+
+    def close(self):
+        sys.stderr = self.stderr
+        self.file.close()
+
+    def write(self, data):
+        self.file.write(data)
+        self.stderr.write(data)
+
+    def flush(self):
+        self.file.flush()
