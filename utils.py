@@ -105,10 +105,10 @@ def base_equation(t, coefficients):
         a jax tracer containing within it the time in days since model simulation start
     intercepts: jnp.array()
         intercepts of each cubic spline base equation for all combinations of age bin and vax history
-        intercepts.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1)
+        intercepts.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1)
     coefficients: jnp.array()
         coefficients of each cubic spline base equation for all combinations of age bin and vax history
-        coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, 3)
+        coefficients.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, 3)
     """
     return jnp.sum(
         coefficients
@@ -146,14 +146,14 @@ def evaluate_cubic_spline(
         a jax tracer containing within it the time in days since model simulation start
     knot_locations: jnp.ndarray
         knot locations of each cubic spline for all combinations of age bin and vax history
-        knots.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline)
+        knots.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, # knots in each spline)
     base_equations" jnp.ndarray
         the base equation coefficients (a + bt + ct^2 + dt^3) of each cubic spline for all combinations of age bin and vax history
-        knots.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, 4)
+        knots.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, 4)
     knot_coefficients: jnp.ndarray
         knot coefficients of each cubic spline for all combinations of age bin and vax history.
         including first 4 coefficients for the base equation.
-        coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline + 4)
+        coefficients.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, # knots in each spline + 4)
 
     Returns
     ----------
@@ -1581,7 +1581,7 @@ def past_immune_dist_from_abm(
     abm_path: str,
     num_age_groups: int,
     age_limits: list[int],
-    max_vax_count: int,
+    max_vaccination_count: int,
     waning_times: list[int],
     num_waning_compartments: int,
     num_strains: int,
@@ -1602,7 +1602,7 @@ def past_immune_dist_from_abm(
     age_limits: list(int)
         The age limits of your model that you wish to initialize compartments of.
         Example: for bins of 0-17, 18-49, 50-64, 65+ age_limits = [0, 18, 50, 65]
-    max_vax_count: int
+    max_vaccination_count: int
         the number of doses maximum before all subsequent doses are no longer counted. ex: 2 -> 0, 1, 2+ doses (3 bins)
     waning_times: list(int)
         Time in days it takes for a person to wane from a waning compartment to the next level of protection.
@@ -1625,7 +1625,7 @@ def past_immune_dist_from_abm(
     abm_population = abm_population[abm_population["TSLIE"] >= 0]
     abm_population = prep_abm_data(
         abm_population,
-        max_vax_count,
+        max_vaccination_count,
         age_limits,
         waning_times,
         num_strains,
@@ -1635,7 +1635,7 @@ def past_immune_dist_from_abm(
         (
             num_age_groups,
             num_immune_hist,
-            max_vax_count + 1,
+            max_vaccination_count + 1,
             num_waning_compartments,
         )
     )
@@ -1664,7 +1664,7 @@ def init_infections_from_abm(
     abm_path: str,
     num_age_groups: int,
     age_limits: list[int],
-    max_vax_count: int,
+    max_vaccination_count: int,
     waning_times: list[int],
     num_strains: int,
     STRAIN_IDXs: IntEnum,
@@ -1684,7 +1684,7 @@ def init_infections_from_abm(
     age_limits: list(int)
         The age limits of your model that you wish to initialize compartments of.
         Example: for bins of 0-17, 18-49, 50-64, 65+ age_limits = [0, 18, 50, 65]
-    max_vax_count: int
+    max_vaccination_count: int
         the number of doses maximum before all subsequent doses are no longer counted. ex: 2 -> 0, 1, 2+ doses (3 bins)
     waning_times: list(int)
         Time in days it takes for a person to wane from a waning compartment to the next level of protection.
@@ -1722,7 +1722,7 @@ def init_infections_from_abm(
     )
     active_infections_abm = prep_abm_data(
         active_infections_abm,
-        max_vax_count,
+        max_vaccination_count,
         age_limits,
         waning_times,
         num_strains,
@@ -1733,7 +1733,7 @@ def init_infections_from_abm(
         (
             num_age_groups,
             num_immune_hist,
-            max_vax_count + 1,
+            max_vaccination_count + 1,
             num_strains,
         )
     )
@@ -2049,7 +2049,7 @@ def get_foi_suscept(parameters, force_of_infection):
         ]  # (num_age_groups,)
 
         crossimmunity_matrix = p.CROSSIMMUNITY_MATRIX[strain, :]
-        vax_efficacy_strain = p.VAX_EFF_MATRIX[strain, :]
+        vax_efficacy_strain = p.VACCINE_EFF_MATRIX[strain, :]
         initial_immunity = 1 - jnp.einsum(
             "j, k",
             1 - crossimmunity_matrix,
@@ -2133,7 +2133,7 @@ def get_vaccination_rates(inferer, num_day):
     ----------
     list:
         list of `num_day` vaccination rates arrays, each by the shape of (NUM_AGE_GROUPS,
-        MAX_VAX_COUNT + 1)
+        MAX_VACCINATION_COUNT + 1)
     """
     return [inferer.vaccination_rate(t).tolist() for t in range(num_day)]
 

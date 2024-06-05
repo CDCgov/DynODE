@@ -18,13 +18,13 @@ global_config = Config(GLOBAL_JSON)
 S_SHAPE = (
     global_config.NUM_AGE_GROUPS,
     2**global_config.NUM_STRAINS,
-    global_config.MAX_VAX_COUNT + 1,
+    global_config.MAX_VACCINATION_COUNT + 1,
     global_config.NUM_WANING_COMPARTMENTS,
 )
 EIC_SHAPE = (
     global_config.NUM_AGE_GROUPS,
     2**global_config.NUM_STRAINS,
-    global_config.MAX_VAX_COUNT + 1,
+    global_config.MAX_VACCINATION_COUNT + 1,
     global_config.NUM_STRAINS,
 )
 fake_initial_state = (

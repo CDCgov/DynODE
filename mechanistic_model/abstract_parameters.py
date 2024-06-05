@@ -50,16 +50,16 @@ class AbstractParameters:
             "NUM_AGE_GROUPS": freeze_params.NUM_AGE_GROUPS,
             "NUM_WANING_COMPARTMENTS": freeze_params.NUM_WANING_COMPARTMENTS,
             "WANING_PROTECTIONS": freeze_params.WANING_PROTECTIONS,
-            "MAX_VAX_COUNT": freeze_params.MAX_VAX_COUNT,
+            "MAX_VACCINATION_COUNT": freeze_params.MAX_VACCINATION_COUNT,
             "STRAIN_INTERACTIONS": freeze_params.STRAIN_INTERACTIONS,
-            "VAX_EFF_MATRIX": freeze_params.VAX_EFF_MATRIX,
+            "VACCINE_EFF_MATRIX": freeze_params.VACCINE_EFF_MATRIX,
             "BETA_TIMES": freeze_params.BETA_TIMES,
             "STRAIN_R0s": freeze_params.STRAIN_R0s,
             "INFECTIOUS_PERIOD": freeze_params.INFECTIOUS_PERIOD,
             "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
             "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
             "INTRODUCTION_SCALES": freeze_params.INTRODUCTION_SCALES,
-            "INTRODUCTION_PERCS": freeze_params.INTRODUCTION_PERCS,
+            "INTRODUCTION_PCTS": freeze_params.INTRODUCTION_PCTS,
             "INITIAL_INFECTIONS_SCALE": freeze_params.INITIAL_INFECTIONS_SCALE,
             "CONSTANT_STEP_SIZE": freeze_params.CONSTANT_STEP_SIZE,
             "SEASONALITY_AMPLITUDE": freeze_params.SEASONALITY_AMPLITUDE,
@@ -91,7 +91,7 @@ class AbstractParameters:
             self.external_i,
             introduction_times=parameters["INTRODUCTION_TIMES"],
             introduction_scales=parameters["INTRODUCTION_SCALES"],
-            introduction_percs=parameters["INTRODUCTION_PERCS"],
+            introduction_pcts=parameters["INTRODUCTION_PCTS"],
         )
         # # pre-calculate the minimum value of the seasonality curves
         seasonality_function_prefilled = jax.tree_util.Partial(
@@ -124,7 +124,7 @@ class AbstractParameters:
         t: ArrayLike,
         introduction_times: jax.Array,
         introduction_scales: jax.Array,
-        introduction_percs: jax.Array,
+        introduction_pcts: jax.Array,
     ) -> jax.Array:
         """
         Given some time t, returns jnp.array of shape self.INITIAL_STATE[self.config.COMPARTMENT_IDX.I] representing external infected persons
@@ -134,7 +134,7 @@ class AbstractParameters:
 
         The stratafication of the external population is decided by the introduced strains, which are defined by
         3 parallel lists of the time they peak (`introduction_times`),
-        the number of external infected individuals introduced as a % of the tracked population (`introduction_percs`)
+        the number of external infected individuals introduced as a % of the tracked population (`introduction_pcts`)
         and how quickly or slowly those individuals contact the tracked population (`introduction_scales`)
 
         Parameters
@@ -153,7 +153,7 @@ class AbstractParameters:
             This list is ordered inversely to self.config.STRAIN_R0s. If 2 external strains are defined, the two
             values in `introduction_times` will refer to the last 2 STRAIN_R0s, not the first two.
 
-        `introduction_percs`: list[float] as Traced<ShapedArray(float64[])>
+        `introduction_pcts`: list[float] as Traced<ShapedArray(float64[])>
             a list representing the proportion of each age bin in self.POPULATION[self.config.INTRODUCTION_AGE_MASK]
             that will be exposed to the introduced strain over the entire course of the introduction.
             This list is ordered inversely to self.config.STRAIN_R0s. If 2 external strains are defined, the two
@@ -179,7 +179,7 @@ class AbstractParameters:
             introduction_scale,
             introduction_perc,
         ) in enumerate(
-            zip(introduction_times, introduction_scales, introduction_percs)
+            zip(introduction_times, introduction_scales, introduction_pcts)
         ):
             # earlier introduced strains earlier will be placed closer to historical strains (0 and 1)
             dist_idx = (
@@ -217,11 +217,11 @@ class AbstractParameters:
     @partial(jax.jit, static_argnums=(0))
     def vaccination_rate(self, t: ArrayLike) -> jax.Array:
         """
-        Given some time t, returns a jnp.array of shape (self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)
+        Given some time t, returns a jnp.array of shape (self.config.NUM_AGE_GROUPS, self.config.MAX_VACCINATION_COUNT + 1)
         representing the age / vax history stratified vaccination rates for an additional vaccine. Used by transmission models
         to determine vaccination rates at a particular time step.
         In the cases that your model's definition of t=0 is later the vaccination spline's definition of t=0
-        use the `VAX_MODEL_DAYS_SHIFT` config parameter to shift the vaccination spline's t=0 right.
+        use the `VACCINATION_MODEL_DAYS_SHIFT` config parameter to shift the vaccination spline's t=0 right.
 
         MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t. If you want a piecewise implementation of vax rates must declare jump points
         in the MCMC object.
@@ -235,26 +235,29 @@ class AbstractParameters:
         Returns
         -----------
         vaccination_rates: jnp.Array
-            jnp.array(shape=(self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
+            jnp.array(shape=(self.config.NUM_AGE_GROUPS, self.config.MAX_VACCINATION_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
         """
         # shifting splines if needed for multi-epochs, 0 by default
-        t_added = getattr(self.config, "VAX_MODEL_DAYS_SHIFT", 0)
+        t_added = getattr(self.config, "VACCINATION_MODEL_DAYS_SHIFT", 0)
         # default to 1.0 (unchanged) if parameter does not exist
         vax_coeffs = jnp.array(
             getattr(
                 self.config,
                 "AGE_DOSE_SPECIFIC_VAX_COEF",
                 np.ones(
-                    (self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)
+                    (
+                        self.config.NUM_AGE_GROUPS,
+                        self.config.MAX_VACCINATION_COUNT + 1,
+                    )
                 ),
             )
         )
         return vax_coeffs * jnp.exp(
             utils.evaluate_cubic_spline(
                 t + t_added,
-                self.config.VAX_MODEL_KNOT_LOCATIONS,
-                self.config.VAX_MODEL_BASE_EQUATIONS,
-                self.config.VAX_MODEL_KNOTS,
+                self.config.VACCINATION_MODEL_KNOT_LOCATIONS,
+                self.config.VACCINATION_MODEL_BASE_EQUATIONS,
+                self.config.VACCINATION_MODEL_KNOTS,
             )
         )
 
@@ -412,31 +415,31 @@ class AbstractParameters:
         """
         # if the user passes a directory instead of a file path
         # check to see if the state exists in the directory and use that
-        if os.path.isdir(self.config.VAX_MODEL_DATA):
+        if os.path.isdir(self.config.VACCINATION_MODEL_DATA):
             vax_spline_filename = "spline_fits_%s.csv" % (
                 self.config.REGIONS[0].lower().replace(" ", "_")
             )
             state_path = os.path.join(
-                self.config.VAX_MODEL_DATA, vax_spline_filename
+                self.config.VACCINATION_MODEL_DATA, vax_spline_filename
             )
             if os.path.exists(state_path):
                 parameters = pd.read_csv(state_path)
             else:
                 raise FileNotFoundError(
-                    "Directory passed to VAX_MODEL_DATA parameter, "
+                    "Directory passed to VACCINATION_MODEL_DATA parameter, "
                     "this directory does not contain %s which is the "
                     "expected state-specific vax filename"
                     % vax_spline_filename
                 )
         # given a specific file to spline fits, use those
-        elif os.path.isfile(self.config.VAX_MODEL_DATA):
-            parameters = pd.read_csv(self.config.VAX_MODEL_DATA)
+        elif os.path.isfile(self.config.VACCINATION_MODEL_DATA):
+            parameters = pd.read_csv(self.config.VACCINATION_MODEL_DATA)
         else:
             raise FileNotFoundError(
-                "Path given to VAX_MODEL_DATA is something other than a "
+                "Path given to VACCINATION_MODEL_DATA is something other than a "
                 "directory or file path, got %s. Check configuration and provide "
                 "a valid directory path or filepath to vaccination splines"
-                % self.config.VAX_MODEL_DATA
+                % self.config.VACCINATION_MODEL_DATA
             )
         age_bins = len(parameters["age_group"].unique())
         vax_bins = len(parameters["dose"].unique())
@@ -446,7 +449,7 @@ class AbstractParameters:
             + "please provide your own vaccination parameters that match, or adjust your age bins"
         )
 
-        assert vax_bins == self.config.MAX_VAX_COUNT + 1, (
+        assert vax_bins == self.config.MAX_VACCINATION_COUNT + 1, (
             "the number of vaccination counts in your model does not match the input vaccination parameters, "
             + "please provide your own vaccination parameters that match, or adjust your age bins"
         )
@@ -488,9 +491,13 @@ class AbstractParameters:
             vax_knot_locations[age_group_idx, vax_idx, :] = np.array(
                 knot_locations
             )
-        self.config.VAX_MODEL_KNOTS = jnp.array(vax_knots)
-        self.config.VAX_MODEL_KNOT_LOCATIONS = jnp.array(vax_knot_locations)
-        self.config.VAX_MODEL_BASE_EQUATIONS = jnp.array(vax_base_equations)
+        self.config.VACCINATION_MODEL_KNOTS = jnp.array(vax_knots)
+        self.config.VACCINATION_MODEL_KNOT_LOCATIONS = jnp.array(
+            vax_knot_locations
+        )
+        self.config.VACCINATION_MODEL_BASE_EQUATIONS = jnp.array(
+            vax_base_equations
+        )
 
     def seasonal_vaccination_reset(self, t: ArrayLike) -> ArrayLike:
         """
@@ -502,8 +509,8 @@ class AbstractParameters:
         ----------
         if self.config.SEASONAL_VACCINATION == True
 
-        at `t=utils.date_to_sim_day(self.config.VAX_SEASON_CHANGE)` returns 1
-        else returns near 0 for t far from self.config.VAX_SEASON_CHANGE.
+        at `t=utils.date_to_sim_day(self.config.VACCINATION_SEASON_CHANGE)` returns 1
+        else returns near 0 for t far from self.config.VACCINATION_SEASON_CHANGE.
 
         This value of 1 is used by model ODES to outflow individuals from the top vaccination bin
         into the one below it, indicating a new vaccination season.
@@ -516,11 +523,14 @@ class AbstractParameters:
             # it is time to move people from seasonal bin back to max ordinal bin
             # use a sine wave that occurs once a year to achieve this effect
             peak_of_function = 182.5
-            # shift this value using shift_t to align with self.config.VAX_SEASON_CHANGE
-            # such that outflow_fn(self.config.VAX_SEASON_CHANGE) == 1.0 always
+            # shift this value using shift_t to align with self.config.VACCINATION_SEASON_CHANGE
+            # such that outflow_fn(self.config.VACCINATION_SEASON_CHANGE) == 1.0 always
             shift_t = (
                 peak_of_function
-                - (self.config.VAX_SEASON_CHANGE - self.config.INIT_DATE).days
+                - (
+                    self.config.VACCINATION_SEASON_CHANGE
+                    - self.config.INIT_DATE
+                ).days
             )
             # raise to an even exponent to remove negatives,
             # pick 1000 since too high of a value likely to be stepped over by adaptive step size
