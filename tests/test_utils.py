@@ -113,9 +113,7 @@ def test_new_immune_state():
         for old_state, exposing_strain in itertools.product(
             possible_immune_states, exposing_strains
         ):
-            new_state = utils.new_immune_state(
-                old_state, exposing_strain, num_strains
-            )
+            new_state = utils.new_immune_state(old_state, exposing_strain)
             # exposing_strain in binary has 1 in the index of exposing strain, with index 0 being right most
             exposing_strain_binary = ["0"] * num_strains
             exposing_strain_binary[exposing_strain] = "1"

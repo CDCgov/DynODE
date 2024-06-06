@@ -264,9 +264,7 @@ def date_to_epi_week(date: datetime.date):
     return epi_week
 
 
-def new_immune_state(
-    current_state: int, exposed_strain: int, num_strains: int
-) -> int:
+def new_immune_state(current_state: int, exposed_strain: int) -> int:
     """a method using BITWISE OR to determine a new immune state position given
     current state and the exposing strain
 
@@ -295,23 +293,27 @@ def new_immune_state(
     new_immune_state(3, 0): 3 (exposed to both already, no change in state)
     new_immune_state(3, 1): 3 (exposed to both already, no change in state)
     """
-    assert (
-        exposed_strain >= 0 and exposed_strain <= num_strains - 1
-    ), "invalid exposed_strain val"
-    assert current_state < 2**num_strains, "invalid current state"
-    # represent current state as bit string, ex: state = 3 & num_strains = 2 -> binary = '11'
-    current_state_binary = format(current_state, "b")
-
-    # represent exposing strain as an indiciator bit string. ex: exposing_strain = 1 -> binary = 10
-    exposing_strain_binary = ["0"] * num_strains
-    exposing_strain_binary[-(exposed_strain + 1)] = "1"
-    exposing_strain_binary = "".join(exposing_strain_binary)
-
-    # we now have
-    new_state = format(
-        int(current_state_binary, 2) | int(exposing_strain_binary, 2), "b"
-    )
-    return int(new_state, 2)
+    if isinstance(exposed_strain, (int, float)) and isinstance(
+        current_state, (int, float)
+    ):
+        # if using ints and floats, stay in int land and BITWISE OR them
+        current_state_binary = format(current_state, "b")
+        exposed_strain_binary = format(2**exposed_strain, "b")
+        new_state = format(
+            int(current_state_binary, 2) | int(exposed_strain_binary, 2), "b"
+        )
+        return int(new_state, 2)
+    else:  # being used with jax tracers
+        # if we are passing jax tracers, convert to bit arrays first
+        current_state_binary = jnp.unpackbits(
+            jnp.array([current_state]).astype("uint8")
+        )
+        exposing_strain_binary = jnp.unpackbits(
+            jnp.array([2**exposed_strain]).astype("uint8")
+        )
+        return jnp.packbits(
+            jnp.bitwise_or(current_state_binary, exposing_strain_binary)
+        )
 
 
 def all_immune_states_with(strain: int, num_strains: int):
@@ -474,7 +476,7 @@ def combined_strains_mapping(
         # build new state with the collapsed strain indexes, one at a time
         for new_strain in collapsed_strains_in_state:
             # expose new_state to the redefined strain definitions
-            new_state = new_immune_state(new_state, new_strain, num_strains)
+            new_state = new_immune_state(new_state, new_strain)
         # all individuals in `immune_state` before strain definition collapse
         # are now in `new_state`
         immune_state_converter[immune_state] = new_state
@@ -735,7 +737,7 @@ def convert_hist(strains: str, STRAIN_IDX: IntEnum, num_strains: int) -> int:
     state = 0
     for strain in filter(None, strains.split(",")):
         strain_idx = convert_strain(strain, STRAIN_IDX)
-        state = new_immune_state(state, strain_idx, num_strains)
+        state = new_immune_state(state, strain_idx)
     return state
 
 
@@ -1347,7 +1349,7 @@ def imply_immune_history_dist_from_strains(
     immune_states = []
     for strain in range(0, num_historical_strains):
         # fill in single strain immune state first. no repeated exposures yet.
-        single_strain_state = new_immune_state(0, strain, num_strains)
+        single_strain_state = new_immune_state(0, strain)
         immune_history_dist[
             :, single_strain_state, 0, :
         ] = strain_exposure_dist[
@@ -1359,7 +1361,6 @@ def imply_immune_history_dist_from_strains(
             multi_strain_state = new_immune_state(
                 prev_state,
                 strain,
-                num_strains,
             )
             multi_strain_states.append(multi_strain_state)
             age_summed = np.sum(strain_exposure_dist[:, strain, :], axis=0)
@@ -2020,14 +2021,14 @@ def get_seroprevalence(inferer, solution):
     return sim_sero
 
 
-def get_foi_suscept(parameters, force_of_infection):
+def get_foi_suscept(p, force_of_infection):
     """
     Calculate the force of infections experienced by the susceptibles, _after_
     factoring their immunity.
 
     Parameters
     ----------
-    `parameters` : Parameters
+    `p` : Parameters
         a Parameters object which is a spoofed dictionary for easy referencing,
         which is an output of `.get_parameters()` from AbstractParameter.
     `force_of_infection`: jnp.array
@@ -2040,7 +2041,6 @@ def get_foi_suscept(parameters, force_of_infection):
         an array of immunity protection by the shape of (NUM_STRAINS, num_days,
         NUM_AGE_GROUPS)
     """
-    p = parameters  # to shorten code...
     foi_suscept = []
     for strain in range(p.NUM_STRAINS):
         force_of_infection_strain = force_of_infection[
