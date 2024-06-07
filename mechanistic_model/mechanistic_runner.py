@@ -26,6 +26,20 @@ class MechanisticRunner:
         self.model = model
 
     def run(self, initial_state, args, tf: Union[int, datetime] = 100):
+        """
+        run `self.model` using `initial_state` as y@t=0 and parameters provided by the `args` dictionary.
+        `self.model` will run for `tf` days if isinstance(tf, int)
+        or until specified datetime if isintance(tf, datetime).
+
+        NOTE
+        --------------
+        - Uses datetime object within `args['INIT_DATE']` to calculate time between `t=0` and `t=tf`.
+        - if `args["CONSTANT_STEP_SIZE"] > 0` uses constant stepsizer of that size, else uses adaptive step sizing
+            - discontinuous timepoints can not be specified with constant step sizer
+        - implemented with `diffrax.Tsit5()` solver
+
+
+        """
         term = ODETerm(
             lambda t, state, parameters: self.model(state, t, parameters)
         )
