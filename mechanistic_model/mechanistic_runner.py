@@ -2,6 +2,9 @@
 The following is a class which runs a series of ODE equations, performs inference, and returns Solution objects for analysis.
 """
 
+from datetime import datetime
+from typing import Union
+
 import jax
 import jax.numpy as jnp
 import numpyro
@@ -22,13 +25,17 @@ class MechanisticRunner:
     def __init__(self, model):
         self.model = model
 
-    def run(self, initial_state, args, tf: int = 100):
+    def run(self, initial_state, args, tf: Union[int, datetime] = 100):
         term = ODETerm(
             lambda t, state, parameters: self.model(state, t, parameters)
         )
         solver = Tsit5()
         t0 = 0.0
         dt0 = 1.0
+        # if user specifies end date, compare to INIT_DATE and get day diff
+        if isinstance(tf, datetime):
+            tf = (tf - args["INIT_DATE"]).days
+
         saveat = SaveAt(ts=jnp.linspace(t0, tf, int(tf) + 1))
         # jump_ts describe points in time where the model is not fully differentiable
         # this is often due to piecewise changes in parameter values like Beta
