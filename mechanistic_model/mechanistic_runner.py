@@ -2,7 +2,7 @@
 The following is a class which runs a series of ODE equations, performs inference, and returns Solution objects for analysis.
 """
 
-from datetime import datetime
+import datetime
 from typing import Union
 
 import jax
@@ -25,7 +25,12 @@ class MechanisticRunner:
     def __init__(self, model):
         self.model = model
 
-    def run(self, initial_state, args, tf: Union[int, datetime] = 100):
+    def run(
+        self,
+        initial_state,
+        args,
+        tf: Union[int, datetime.datetime, datetime.date] = 100,
+    ):
         """
         run `self.model` using `initial_state` as y@t=0 and parameters provided by the `args` dictionary.
         `self.model` will run for `tf` days if isinstance(tf, int)
@@ -33,7 +38,8 @@ class MechanisticRunner:
 
         NOTE
         --------------
-        - Uses datetime object within `args['INIT_DATE']` to calculate time between `t=0` and `t=tf`.
+        - No partial date (or time) calculations partial days are truncated down.
+        - Uses date object within `args['INIT_DATE']` to calculate time between `t=0` and `t=tf`
         - if `args["CONSTANT_STEP_SIZE"] > 0` uses constant stepsizer of that size, else uses adaptive step sizing
             - discontinuous timepoints can not be specified with constant step sizer
         - implemented with `diffrax.Tsit5()` solver
@@ -47,8 +53,14 @@ class MechanisticRunner:
         t0 = 0.0
         dt0 = 1.0
         # if user specifies end date, compare to INIT_DATE and get day diff
-        if isinstance(tf, datetime):
+        if isinstance(tf, datetime.date):
             tf = (tf - args["INIT_DATE"]).days
+        elif isinstance(tf, datetime.datetime):
+            tf = (tf.date() - args["INIT_DATE"]).days
+        else:
+            assert isinstance(
+                tf, (int, float)
+            ), "tf must be of type int, datetime.date, or datetime.datetime"
 
         saveat = SaveAt(ts=jnp.linspace(t0, tf, int(tf) + 1))
         # jump_ts describe points in time where the model is not fully differentiable
