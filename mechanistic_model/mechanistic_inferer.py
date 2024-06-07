@@ -113,6 +113,8 @@ class MechanisticInferer(AbstractParameters):
         )
         # axis = 0 because we take diff across time
         model_incidence = jnp.diff(model_incidence, axis=0)
+        poisson_rates = jnp.maximum(model_incidence, 1e-6)
+
         # save the final timestep of solution array for each compartment
         numpyro.deterministic(
             "final_timestep_s", solution.ys[self.config.COMPARTMENT_IDX.S][-1]
@@ -132,7 +134,7 @@ class MechanisticInferer(AbstractParameters):
 
         numpyro.sample(
             "incidence",
-            Dist.Poisson(model_incidence * ihr),
+            Dist.Poisson(poisson_rates * ihr),
             obs=obs_metrics,
         )
 
