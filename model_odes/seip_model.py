@@ -47,6 +47,10 @@ def seip_ode(state: PyTree, t: ArrayLike, parameters: dict):
     # e/i/c .shape = (NUM_AGE_GROUPS, hist, prev_vax_count, strain)
     # we dont have waning state once infection successful, waning state only impacts infection chances.
     s, e, i, c = state
+    if any([not isinstance(compartment, jax.Array) for compartment in state]):
+        raise TypeError(
+            "Please pass jax.numpy.array instead of np.array to ODEs"
+        )
     p = Parameters(parameters)
     ds, de, di, dc = (
         jnp.zeros(s.shape),
