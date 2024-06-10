@@ -3,7 +3,7 @@
     "CONTACT_MATRIX_PATH": "data/demographic-data/contact_matrices",
     "SAVE_PATH": "output/",
     "HOSP_PATH": "data/hospital_220213_220108.csv",
-    "VAX_MODEL_DATA": "data/spline_fits.csv",
+    "VACCINATION_MODEL_DATA": "data/spline_fits.csv",
     "SEASONAL_VACCINATION": false,
     "STRAIN_R0s": [
         1.2,
@@ -53,7 +53,7 @@
             1.0
         ]
     ],
-    "VAX_EFF_MATRIX": [
+    "VACCINE_EFF_MATRIX": [
         [
             0,
             0.34,

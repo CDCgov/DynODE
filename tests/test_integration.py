@@ -98,7 +98,7 @@ def test_invalid_vax_paths(temp_config_files):
     # creating the scenario
     runner = json.load(open(temp_runner_path, "r"))
     # this is an invalid directory because it does not have state-specific splines inside it
-    runner["VAX_MODEL_DATA"] = "data/"
+    runner["VACCINATION_MODEL_DATA"] = "data/"
     # saving runner changes
     json.dump(runner, open(temp_runner_path, "w"))
 
@@ -137,7 +137,7 @@ def test_vaccination_rates(temp_config_files):
     runner["STRAIN_R0s"] = [0.0, 0.0, 0.0]  # no new infections
     runner["INTRODUCTION_TIMES"] = []  # turn off external introductions
     runner["INTRODUCTION_SCALES"] = []  # turn off external introductions
-    runner["INTRODUCTION_PERCS"] = []  # turn off external introductions
+    runner["INTRODUCTION_PCTS"] = []  # turn off external introductions
     # saving runner changes
     json.dump(runner, open(temp_runner_path, "w"))
 
@@ -164,7 +164,7 @@ def test_vaccination_rates(temp_config_files):
         # max vax always just goes back into itself, we set this to zero
         # as the net movement from max -> max is zero
         vaccination_rates = vaccination_rates.at[:, -1].set(0)
-        for dose in range(static_params.config.MAX_VAX_COUNT + 1):
+        for dose in range(static_params.config.MAX_VACCINATION_COUNT + 1):
             if dose == 0:
                 assert (
                     np.isclose(ds[:, dose], -vaccination_rates[:, dose])
@@ -219,7 +219,7 @@ def test_seasonal_vaccination(temp_config_files):
     # creating the scenario
     global_config = json.load(open(temp_global_path, "r"))
     # we want to initialize the season and then immediately end vaccine season
-    global_config["VAX_SEASON_CHANGE"] = (
+    global_config["VACCINATION_SEASON_CHANGE"] = (
         datetime.datetime.strptime(global_config["INIT_DATE"], "%Y-%m-%d")
         + datetime.timedelta(days=15)
     ).strftime("%Y-%m-%d")
@@ -234,7 +234,7 @@ def test_seasonal_vaccination(temp_config_files):
     runner["STRAIN_R0s"] = [0.0, 0.0, 0.0]  # no new infections
     runner["INTRODUCTION_TIMES"] = []  # turn off external introductions
     runner["INTRODUCTION_SCALES"] = []  # turn off external introductions
-    runner["INTRODUCTION_PERCS"] = []  # turn off external introductions
+    runner["INTRODUCTION_PCTS"] = []  # turn off external introductions
     runner["SEASONAL_VACCINATION"] = True  # turn on seasonal vaccination
     # saving runner changes
     json.dump(runner, open(temp_runner_path, "w"))
@@ -245,8 +245,8 @@ def test_seasonal_vaccination(temp_config_files):
         initializer.get_initial_state(), temp_runner_path, temp_global_path
     )
     # overriding the coefficients to be all zeros, effectively turning off vaccination
-    static_params.config.VAX_MODEL_KNOTS = (
-        static_params.config.VAX_MODEL_KNOTS.at[...].set(0)
+    static_params.config.VACCINATION_MODEL_KNOTS = (
+        static_params.config.VACCINATION_MODEL_KNOTS.at[...].set(0)
     )
     runner = MechanisticRunner(seip_ode)
     # run for 50 days and witness the season end at t=5
@@ -257,13 +257,13 @@ def test_seasonal_vaccination(temp_config_files):
     )
     s_compartment = solution.ys[static_params.config.COMPARTMENT_IDX.S]
     num_seasonal_vax_at_t_0 = np.sum(
-        s_compartment[0, :, :, static_params.config.MAX_VAX_COUNT, :]
+        s_compartment[0, :, :, static_params.config.MAX_VACCINATION_COUNT, :]
     )
     # almost all of the individuals should be moved out of the seasonal vax tier by t=6
     # we allow some tiny number of people who got vaccinated for the next season on that tier
     # to exist there, but it should be tiny.
     num_seasonal_vax_at_t_20 = np.sum(
-        s_compartment[20, :, :, static_params.config.MAX_VAX_COUNT, :]
+        s_compartment[20, :, :, static_params.config.MAX_VACCINATION_COUNT, :]
     )
     error_msg = """The day after the vaccine season ends, you still have a measurable
     number of individuals left in the seasonal vaccination tier. Had %s individuals in seasonal tier initially
