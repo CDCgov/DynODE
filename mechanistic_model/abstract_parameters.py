@@ -502,7 +502,7 @@ class AbstractParameters:
     def seasonal_vaccination_reset(self, t: ArrayLike) -> ArrayLike:
         """
         if model implements seasonal vaccination, returns evaluation of a continuously differentiable function
-        at time `t` to outflow individuals from the top most vaccination bin (functionaly the seasonal tier)
+        at time `t` to outflow individuals from the top most vaccination bin (functionally the seasonal tier)
         into the second highest bin.
 
         Example

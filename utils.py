@@ -3,6 +3,9 @@ import glob
 import json
 import os
 import sys
+
+# importing under a different name because mypy static type hinter
+# strongly dislikes the IntEnum class.
 from enum import EnumMeta as IntEnum
 
 import epiweeks
