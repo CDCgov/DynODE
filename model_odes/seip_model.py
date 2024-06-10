@@ -51,6 +51,7 @@ def seip_ode(state: PyTree, t: ArrayLike, parameters: dict):
         raise TypeError(
             "Please pass jax.numpy.array instead of np.array to ODEs"
         )
+    # spoof the dict into a class so we can use `p.` notation instead of dicts
     p = Parameters(parameters)
     ds, de, di, dc = (
         jnp.zeros(s.shape),
@@ -170,11 +171,13 @@ def seip_ode(state: PyTree, t: ArrayLike, parameters: dict):
     # Assuming that people who received 2 or more doses wouldn't get additional booster too soon
     # i.e., when they were still within the first waning compartment
     vax_counts = s * updated_vax_rates[:, jnp.newaxis, :, jnp.newaxis]
-    vax_counts = vax_counts.at[:, :, p.MAX_VAX_COUNT, 0].set(0)
+    vax_counts = vax_counts.at[:, :, p.MAX_VACCINATION_COUNT, 0].set(0)
     vax_gained = jnp.sum(vax_counts, axis=(-1))
-    ds = ds.at[:, :, p.MAX_VAX_COUNT, 0].add(vax_gained[:, :, p.MAX_VAX_COUNT])
-    ds = ds.at[:, :, 1 : (p.MAX_VAX_COUNT) + 1, 0].add(
-        vax_gained[:, :, 0 : p.MAX_VAX_COUNT]
+    ds = ds.at[:, :, p.MAX_VACCINATION_COUNT, 0].add(
+        vax_gained[:, :, p.MAX_VACCINATION_COUNT]
+    )
+    ds = ds.at[:, :, 1 : (p.MAX_VACCINATION_COUNT) + 1, 0].add(
+        vax_gained[:, :, 0 : p.MAX_VACCINATION_COUNT]
     )
     ds = ds - vax_counts
 
@@ -182,25 +185,25 @@ def seip_ode(state: PyTree, t: ArrayLike, parameters: dict):
     # and you can safely ignore this section
     seasonal_vaccination_outflow = p.SEASONAL_VACCINATION_RESET(t)
     # flow seasonal_vaccination_outflow% of seasonal vaxers back to max ordinal tier
-    ds = ds.at[:, :, p.MAX_VAX_COUNT - 1, :].add(
-        seasonal_vaccination_outflow * s[:, :, p.MAX_VAX_COUNT, :]
+    ds = ds.at[:, :, p.MAX_VACCINATION_COUNT - 1, :].add(
+        seasonal_vaccination_outflow * s[:, :, p.MAX_VACCINATION_COUNT, :]
     )
     # remove these people from the seasonal vaccination tier
-    ds = ds.at[:, :, p.MAX_VAX_COUNT, :].add(
-        -seasonal_vaccination_outflow * s[:, :, p.MAX_VAX_COUNT, :]
+    ds = ds.at[:, :, p.MAX_VACCINATION_COUNT, :].add(
+        -seasonal_vaccination_outflow * s[:, :, p.MAX_VACCINATION_COUNT, :]
     )
     # do the same process for e and i compartments
-    de = de.at[:, :, p.MAX_VAX_COUNT - 1, :].add(
-        seasonal_vaccination_outflow * e[:, :, p.MAX_VAX_COUNT, :]
+    de = de.at[:, :, p.MAX_VACCINATION_COUNT - 1, :].add(
+        seasonal_vaccination_outflow * e[:, :, p.MAX_VACCINATION_COUNT, :]
     )
-    de = de.at[:, :, p.MAX_VAX_COUNT, :].add(
-        -seasonal_vaccination_outflow * e[:, :, p.MAX_VAX_COUNT, :]
+    de = de.at[:, :, p.MAX_VACCINATION_COUNT, :].add(
+        -seasonal_vaccination_outflow * e[:, :, p.MAX_VACCINATION_COUNT, :]
     )
-    di = di.at[:, :, p.MAX_VAX_COUNT - 1, :].add(
-        seasonal_vaccination_outflow * i[:, :, p.MAX_VAX_COUNT, :]
+    di = di.at[:, :, p.MAX_VACCINATION_COUNT - 1, :].add(
+        seasonal_vaccination_outflow * i[:, :, p.MAX_VACCINATION_COUNT, :]
     )
-    di = di.at[:, :, p.MAX_VAX_COUNT, :].add(
-        -seasonal_vaccination_outflow * i[:, :, p.MAX_VAX_COUNT, :]
+    di = di.at[:, :, p.MAX_VACCINATION_COUNT, :].add(
+        -seasonal_vaccination_outflow * i[:, :, p.MAX_VACCINATION_COUNT, :]
     )
 
     return (ds, de, di, dc)

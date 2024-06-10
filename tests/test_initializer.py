@@ -32,14 +32,14 @@ def test_initial_state_shape():
     expected_shape_S = (
         initializer.config.NUM_AGE_GROUPS,
         2**initializer.config.NUM_STRAINS,
-        initializer.config.MAX_VAX_COUNT + 1,
+        initializer.config.MAX_VACCINATION_COUNT + 1,
         initializer.config.NUM_WANING_COMPARTMENTS,
     )
 
     expected_shape_rest = (
         initializer.config.NUM_AGE_GROUPS,
         2**initializer.config.NUM_STRAINS,
-        initializer.config.MAX_VAX_COUNT + 1,
+        initializer.config.MAX_VACCINATION_COUNT + 1,
         initializer.config.NUM_STRAINS,
     )
     s, e, i, c = initializer.get_initial_state()
