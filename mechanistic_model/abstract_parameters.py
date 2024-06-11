@@ -1,3 +1,10 @@
+"""
+An Abstract Class used to set up Parameters for running in Ordinary Differential Equations.
+
+Responsible for loading and assembling functions to describe vaccination uptake, seasonality,
+external transmission of new or existing viruses and other generic respiratory virus aspects.
+"""
+
 import copy
 import os
 from abc import abstractmethod
@@ -6,8 +13,9 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pandas as pd
+import pandas as pd  # type: ignore
 from jax.scipy.stats.norm import pdf
+from jax.typing import ArrayLike
 
 import utils
 
@@ -15,6 +23,9 @@ import utils
 class AbstractParameters:
     @abstractmethod
     def __init__(self, parameters_config):
+        # add these for mypy type checker
+        self.config = {}
+        self.INITIAL_STATE = tuple()
         pass
 
     def get_parameters(self) -> dict:
@@ -40,16 +51,16 @@ class AbstractParameters:
             "NUM_AGE_GROUPS": freeze_params.NUM_AGE_GROUPS,
             "NUM_WANING_COMPARTMENTS": freeze_params.NUM_WANING_COMPARTMENTS,
             "WANING_PROTECTIONS": freeze_params.WANING_PROTECTIONS,
-            "MAX_VAX_COUNT": freeze_params.MAX_VAX_COUNT,
+            "MAX_VACCINATION_COUNT": freeze_params.MAX_VACCINATION_COUNT,
             "STRAIN_INTERACTIONS": freeze_params.STRAIN_INTERACTIONS,
-            "VAX_EFF_MATRIX": freeze_params.VAX_EFF_MATRIX,
+            "VACCINE_EFF_MATRIX": freeze_params.VACCINE_EFF_MATRIX,
             "BETA_TIMES": freeze_params.BETA_TIMES,
             "STRAIN_R0s": freeze_params.STRAIN_R0s,
             "INFECTIOUS_PERIOD": freeze_params.INFECTIOUS_PERIOD,
             "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
             "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
             "INTRODUCTION_SCALES": freeze_params.INTRODUCTION_SCALES,
-            "INTRODUCTION_PERCS": freeze_params.INTRODUCTION_PERCS,
+            "INTRODUCTION_PCTS": freeze_params.INTRODUCTION_PCTS,
             "INITIAL_INFECTIONS_SCALE": freeze_params.INITIAL_INFECTIONS_SCALE,
             "CONSTANT_STEP_SIZE": freeze_params.CONSTANT_STEP_SIZE,
             "SEASONALITY_AMPLITUDE": freeze_params.SEASONALITY_AMPLITUDE,
@@ -81,7 +92,7 @@ class AbstractParameters:
             self.external_i,
             introduction_times=parameters["INTRODUCTION_TIMES"],
             introduction_scales=parameters["INTRODUCTION_SCALES"],
-            introduction_percs=parameters["INTRODUCTION_PERCS"],
+            introduction_pcts=parameters["INTRODUCTION_PCTS"],
         )
         # # pre-calculate the minimum value of the seasonality curves
         seasonality_function_prefilled = jax.tree_util.Partial(
@@ -110,8 +121,12 @@ class AbstractParameters:
 
     @partial(jax.jit, static_argnums=(0))
     def external_i(
-        self, t, introduction_times, introduction_scales, introduction_percs
-    ):
+        self,
+        t: ArrayLike,
+        introduction_times: jax.Array,
+        introduction_scales: jax.Array,
+        introduction_pcts: jax.Array,
+    ) -> jax.Array:
         """
         Given some time t, returns jnp.array of shape self.INITIAL_STATE[self.config.COMPARTMENT_IDX.I] representing external infected persons
         interacting with the population. it does so by calling some function f_s(t) for each strain s.
@@ -120,26 +135,26 @@ class AbstractParameters:
 
         The stratafication of the external population is decided by the introduced strains, which are defined by
         3 parallel lists of the time they peak (`introduction_times`),
-        the number of external infected individuals introduced as a % of the tracked population (`introduction_percs`)
+        the number of external infected individuals introduced as a % of the tracked population (`introduction_pcts`)
         and how quickly or slowly those individuals contact the tracked population (`introduction_scales`)
 
         Parameters
         ----------
-        `t`: float as Traced<ShapedArray(float32[])>
+        `t`: float as Traced<ShapedArray(float64[])>
             current time in the model, due to the just-in-time nature of Jax this float value may be contained within a
             traced array of shape () and size 1. Thus no explicit comparison should be done on "t".
 
-        `introduction_times`: list[int]
+        `introduction_times`: list[int] as Traced<ShapedArray(float64[])>
             a list representing the times at which external strains should be introduced, in days, after t=0 of the model
             This list is ordered inversely to self.config.STRAIN_R0s. If 2 external strains are defined, the two
             values in `introduction_times` will refer to the last 2 STRAIN_R0s, not the first two.
 
-        `introduction_scales`: list[float]
+        `introduction_scales`: list[float] as Traced<ShapedArray(float64[])>
             a list representing the standard deviation of the curve that external strains are introduced with, in days
             This list is ordered inversely to self.config.STRAIN_R0s. If 2 external strains are defined, the two
             values in `introduction_times` will refer to the last 2 STRAIN_R0s, not the first two.
 
-        `introduction_percs`: list[float]
+        `introduction_pcts`: list[float] as Traced<ShapedArray(float64[])>
             a list representing the proportion of each age bin in self.POPULATION[self.config.INTRODUCTION_AGE_MASK]
             that will be exposed to the introduced strain over the entire course of the introduction.
             This list is ordered inversely to self.config.STRAIN_R0s. If 2 external strains are defined, the two
@@ -147,7 +162,7 @@ class AbstractParameters:
 
         Returns
         -----------
-        external_i_compartment: jnp.array()
+        external_i_compartment: jax.Array
             jnp.array(shape=(self.INITIAL_STATE[self.config.COMPARTMENT_IDX.I].shape)) of external individuals to the system
             interacting with susceptibles within the system, used to impact force of infection.
         """
@@ -165,7 +180,7 @@ class AbstractParameters:
             introduction_scale,
             introduction_perc,
         ) in enumerate(
-            zip(introduction_times, introduction_scales, introduction_percs)
+            zip(introduction_times, introduction_scales, introduction_pcts)
         ):
             # earlier introduced strains earlier will be placed closer to historical strains (0 and 1)
             dist_idx = (
@@ -201,53 +216,56 @@ class AbstractParameters:
         return external_i_compartment
 
     @partial(jax.jit, static_argnums=(0))
-    def vaccination_rate(self, t):
+    def vaccination_rate(self, t: ArrayLike) -> jax.Array:
         """
-        Given some time t, returns a jnp.array of shape (self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)
+        Given some time t, returns a jnp.array of shape (self.config.NUM_AGE_GROUPS, self.config.MAX_VACCINATION_COUNT + 1)
         representing the age / vax history stratified vaccination rates for an additional vaccine. Used by transmission models
         to determine vaccination rates at a particular time step.
         In the cases that your model's definition of t=0 is later the vaccination spline's definition of t=0
-        use the `VAX_MODEL_DAYS_SHIFT` config parameter to shift the vaccination spline's t=0 right.
+        use the `VACCINATION_MODEL_DAYS_SHIFT` config parameter to shift the vaccination spline's t=0 right.
 
         MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t. If you want a piecewise implementation of vax rates must declare jump points
         in the MCMC object.
 
         Parameters
         ----------
-        t: float as Traced<ShapedArray(float32[])>
+        t: float as Traced<ShapedArray(float64[])>
             current time in the model, due to the just-in-time nature of Jax this float value may be contained within a
             traced array of shape () and size 1. Thus no explicit comparison should be done on "t".
 
         Returns
         -----------
-        vaccination_rates: jnp.array()
-            jnp.array(shape=(self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
+        vaccination_rates: jnp.Array
+            jnp.array(shape=(self.config.NUM_AGE_GROUPS, self.config.MAX_VACCINATION_COUNT + 1)) of vaccination rates for each age bin and vax history strata.
         """
         # shifting splines if needed for multi-epochs, 0 by default
-        t_added = getattr(self.config, "VAX_MODEL_DAYS_SHIFT", 0)
+        t_added = getattr(self.config, "VACCINATION_MODEL_DAYS_SHIFT", 0)
         # default to 1.0 (unchanged) if parameter does not exist
         vax_coeffs = jnp.array(
             getattr(
                 self.config,
                 "AGE_DOSE_SPECIFIC_VAX_COEF",
                 np.ones(
-                    (self.config.NUM_AGE_GROUPS, self.config.MAX_VAX_COUNT + 1)
+                    (
+                        self.config.NUM_AGE_GROUPS,
+                        self.config.MAX_VACCINATION_COUNT + 1,
+                    )
                 ),
             )
         )
         return vax_coeffs * jnp.exp(
             utils.evaluate_cubic_spline(
                 t + t_added,
-                self.config.VAX_MODEL_KNOT_LOCATIONS,
-                self.config.VAX_MODEL_BASE_EQUATIONS,
-                self.config.VAX_MODEL_KNOTS,
+                self.config.VACCINATION_MODEL_KNOT_LOCATIONS,
+                self.config.VACCINATION_MODEL_BASE_EQUATIONS,
+                self.config.VACCINATION_MODEL_KNOTS,
             )
         )
 
     @partial(jax.jit, static_argnums=(0))
-    def beta_coef(self, t):
-        """Returns a coefficient for the beta value for cases of seasonal forcing or external impacts
-        onto beta not directly measured in the model. e.g., masking mandates or holidays.
+    def beta_coef(self, t: ArrayLike) -> ArrayLike:
+        """Returns a coefficient for the beta value for cases of external impacts
+        on transmission not directly accounted for in the model.
         Currently implemented via an array search with timings BETA_TIMES and coefficients BETA_COEFICIENTS
 
         Parameters
@@ -257,7 +275,7 @@ class AbstractParameters:
             traced array of shape () and size 1. Thus no explicit comparison should be done on "t".
 
         Returns:
-        coefficient by which BETA can be multiplied to externally increase or decrease the value to account for measures or seasonal forcing.
+            Coefficient by which BETA can be multiplied to externally increase or decrease the value to account for measures or seasonal forcing.
         """
         # a smart lookup function that works with JAX just in time compilation
         # if t > self.config.BETA_TIMES_i, return self.config.BETA_COEFICIENTS_i
@@ -273,44 +291,51 @@ class AbstractParameters:
 
     def seasonality(
         self,
-        t,
-        seasonality_amplitude,
-        seasonality_second_wave,
-        seasonality_shift,
-    ):
-        """Returns the seasonlity coefficient for Beta as determined by two cosine waves
+        t: ArrayLike,
+        seasonality_amplitude: ArrayLike,
+        seasonality_second_wave: ArrayLike,
+        seasonality_shift: ArrayLike,
+    ) -> ArrayLike:
+        """
+        Returns the seasonlity coefficient as determined by two cosine waves
         multiplied by `seasonality_peak` and `seasonality_second_wave` and shifted by `seasonality_shift` days.
 
         Parameters
         -----------
-        t: int
+        t: int/Traced<ShapedArray(int)> as jax.Tracer during runtime
 
-        seasonality_amplitude: float/Traced<ShapedArray(float32[])>
+        seasonality_amplitude: float/Traced<ShapedArray(float64[])>
             maximum and minimum of the combined curves,
-            taking values of `+/-seasonality_amplitude` respectively
-        seasonality_second_wave: float/Traced<ShapedArray(float32[])>
+            taking values of `1 +/-seasonality_amplitude` respectively
+        seasonality_second_wave: float/Traced<ShapedArray(float64[])>
             enforced 0 <= seasonality_second_wave <= 1.0
             adjusts how pronouced the summer wave is,
             with 1.0 being equally sized winter and summer waves, and 0 being no summer wave
-        seasonality_shift: float/Traced<ShapedArray(float32[])>
+        seasonality_shift: float/Traced<ShapedArray(float64[])>
             horizontal shift across time in days, cant not exceed +/-(365/2)
             if seasonality_shift=0, peak occurs at t=0.
-        m: float/Traced<ShapedArray(float32[])>
-            the minimum value of the two cosine curves over the year
-            for optimal efficiency this is computed in advance
+        Returns
+        -----------
+        Seasonality coefficient signaling an increase (>1) or decrease (<1)
+        in transmission due to the impact of seasonality.
 
         """
-        # shift our curve an additional number of days to account for t=0=INIT_DATE and not jan 1st
+        # cosine curves are defined by a cycle of 365 days begining at jan 1st
+        # start by shifting the curve some number of days such that we line up with our INIT_DATE
         seasonality_shift = (
             seasonality_shift - self.config.INIT_DATE.timetuple().tm_yday
         )
         k = 2 * jnp.pi / 365.0
+        # for a closed form solution to the combination of both cosine curves
+        # we must split along a boundary of second (summer) wave values
         cos_val = jnp.where(
             seasonality_second_wave > 0.2,
             (seasonality_second_wave - 1)
             / (4 * seasonality_second_wave + 1e-6),
             -1,
         )
+        # calculate the day on which cos1 + cos2 is at minimum, scale using that
+        # such that the value on that day is 1-seasonality_amplitude
         min_day = jnp.arccos(cos_val) / k + seasonality_shift
         curve_normalizing_factor = utils.season_1peak(
             min_day,
@@ -334,10 +359,12 @@ class AbstractParameters:
             )
         )
 
-    def retrieve_population_counts(self):
+    def retrieve_population_counts(self) -> None:
         """
-        A wrapper function which takes retrieves the age stratified population counts across all the INITIAL_STATE compartments
-        (minus the book-keeping C compartment.)
+        A wrapper function which takes calculates the age stratified population counts across all the INITIAL_STATE compartments
+        (minus the book-keeping C compartment.) and stores it in the self.config.POPULATION parameter.
+
+        We do not recieve this data exactly from the initializer, but it is trivial to recalculate.
         """
         self.config.POPULATION = np.sum(  # sum together S+E+I compartments
             np.array(
@@ -358,7 +385,7 @@ class AbstractParameters:
             axis=(0),  # sum across compartments, keep age bins
         )
 
-    def load_cross_immunity_matrix(self):
+    def load_cross_immunity_matrix(self) -> None:
         """
         Loads the Crossimmunity matrix given the strain interactions matrix.
         Strain interactions matrix is a matrix of shape (num_strains, num_strains) representing the relative immune escape risk
@@ -377,7 +404,7 @@ class AbstractParameters:
             )
         )
 
-    def load_vaccination_model(self):
+    def load_vaccination_model(self) -> None:
         """
         loads parameters of a polynomial spline vaccination model
         stratified on age bin and current vaccination status.
@@ -389,31 +416,31 @@ class AbstractParameters:
         """
         # if the user passes a directory instead of a file path
         # check to see if the state exists in the directory and use that
-        if os.path.isdir(self.config.VAX_MODEL_DATA):
+        if os.path.isdir(self.config.VACCINATION_MODEL_DATA):
             vax_spline_filename = "spline_fits_%s.csv" % (
                 self.config.REGIONS[0].lower().replace(" ", "_")
             )
             state_path = os.path.join(
-                self.config.VAX_MODEL_DATA, vax_spline_filename
+                self.config.VACCINATION_MODEL_DATA, vax_spline_filename
             )
             if os.path.exists(state_path):
                 parameters = pd.read_csv(state_path)
             else:
                 raise FileNotFoundError(
-                    "Directory passed to VAX_MODEL_DATA parameter, "
+                    "Directory passed to VACCINATION_MODEL_DATA parameter, "
                     "this directory does not contain %s which is the "
                     "expected state-specific vax filename"
                     % vax_spline_filename
                 )
         # given a specific file to spline fits, use those
-        elif os.path.isfile(self.config.VAX_MODEL_DATA):
-            parameters = pd.read_csv(self.config.VAX_MODEL_DATA)
+        elif os.path.isfile(self.config.VACCINATION_MODEL_DATA):
+            parameters = pd.read_csv(self.config.VACCINATION_MODEL_DATA)
         else:
             raise FileNotFoundError(
-                "Path given to VAX_MODEL_DATA is something other than a "
+                "Path given to VACCINATION_MODEL_DATA is something other than a "
                 "directory or file path, got %s. Check configuration and provide "
                 "a valid directory path or filepath to vaccination splines"
-                % self.config.VAX_MODEL_DATA
+                % self.config.VACCINATION_MODEL_DATA
             )
         age_bins = len(parameters["age_group"].unique())
         vax_bins = len(parameters["dose"].unique())
@@ -423,7 +450,7 @@ class AbstractParameters:
             + "please provide your own vaccination parameters that match, or adjust your age bins"
         )
 
-        assert vax_bins == self.config.MAX_VAX_COUNT + 1, (
+        assert vax_bins == self.config.MAX_VACCINATION_COUNT + 1, (
             "the number of vaccination counts in your model does not match the input vaccination parameters, "
             + "please provide your own vaccination parameters that match, or adjust your age bins"
         )
@@ -465,22 +492,29 @@ class AbstractParameters:
             vax_knot_locations[age_group_idx, vax_idx, :] = np.array(
                 knot_locations
             )
-        self.config.VAX_MODEL_KNOTS = jnp.array(vax_knots)
-        self.config.VAX_MODEL_KNOT_LOCATIONS = jnp.array(vax_knot_locations)
-        self.config.VAX_MODEL_BASE_EQUATIONS = jnp.array(vax_base_equations)
+        self.config.VACCINATION_MODEL_KNOTS = jnp.array(vax_knots)
+        self.config.VACCINATION_MODEL_KNOT_LOCATIONS = jnp.array(
+            vax_knot_locations
+        )
+        self.config.VACCINATION_MODEL_BASE_EQUATIONS = jnp.array(
+            vax_base_equations
+        )
 
-    def seasonal_vaccination_reset(self, t):
+    def seasonal_vaccination_reset(self, t: ArrayLike) -> ArrayLike:
         """
         if model implements seasonal vaccination, returns evaluation of a continuously differentiable function
-        at x=t to outflow individuals from the top most vaccination bin (labeled the seasonal bin)
+        at time `t` to outflow individuals from the top most vaccination bin (functionally the seasonal tier)
         into the second highest bin.
 
         Example
         ----------
         if self.config.SEASONAL_VACCINATION == True
 
-        at `t=utils.date_to_sim_day(self.config.VAX_SEASON_CHANGE)` returns 1
-        else returns near 0 for t far from self.config.VAX_SEASON_CHANGE.
+        at `t=utils.date_to_sim_day(self.config.VACCINATION_SEASON_CHANGE)` returns 1
+        else returns near 0 for t far from self.config.VACCINATION_SEASON_CHANGE.
+
+        This value of 1 is used by model ODES to outflow individuals from the top vaccination bin
+        into the one below it, indicating a new vaccination season.
         """
         if (
             hasattr(self.config, "SEASONAL_VACCINATION")
@@ -490,11 +524,14 @@ class AbstractParameters:
             # it is time to move people from seasonal bin back to max ordinal bin
             # use a sine wave that occurs once a year to achieve this effect
             peak_of_function = 182.5
-            # shift this value using shift_t to align with self.config.VAX_SEASON_CHANGE
-            # such that outflow_fn(self.config.VAX_SEASON_CHANGE) == 1.0 always
+            # shift this value using shift_t to align with self.config.VACCINATION_SEASON_CHANGE
+            # such that outflow_fn(self.config.VACCINATION_SEASON_CHANGE) == 1.0 always
             shift_t = (
                 peak_of_function
-                - (self.config.VAX_SEASON_CHANGE - self.config.INIT_DATE).days
+                - (
+                    self.config.VACCINATION_SEASON_CHANGE
+                    - self.config.INIT_DATE
+                ).days
             )
             # raise to an even exponent to remove negatives,
             # pick 1000 since too high of a value likely to be stepped over by adaptive step size
@@ -505,7 +542,7 @@ class AbstractParameters:
             # if no seasonal vaccination, this function always returns zero
             return 0
 
-    def load_contact_matrix(self):
+    def load_contact_matrix(self) -> None:
         """
         a wrapper function that loads a contact matrix for the USA based on mixing paterns data found here:
         https://github.com/mobs-lab/mixing-patterns
@@ -523,7 +560,9 @@ class AbstractParameters:
             self.config.AGE_LIMITS,
         )[self.config.REGIONS[0]]["avg_CM"]
 
-    def scale_initial_infections(self, scale_factor):
+    def scale_initial_infections(
+        self, scale_factor: ArrayLike
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
         """
         a function which modifies returns a modified version of
         self.INITIAL_STATE scaling the number of initial infections by `scale_factor`.

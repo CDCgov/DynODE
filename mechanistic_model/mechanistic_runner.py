@@ -1,14 +1,15 @@
 """
-The following is a class which runs a series of ODE equations, performs inference, and returns Solution objects for analysis.
+The following is a class which runs a series of ODE equations, and returns Solution objects for analysis or fitting.
 """
 
 import datetime
+from collections.abc import Callable
 from typing import Union
 
 import jax
 import jax.numpy as jnp
-import numpyro
-from diffrax import (  # Solution,
+import numpyro  # type: ignore
+from diffrax import (  # type: ignore
     ConstantStepSize,
     ODETerm,
     PIDController,
@@ -16,19 +17,31 @@ from diffrax import (  # Solution,
     Tsit5,
     diffeqsolve,
 )
+from jaxtyping import PyTree
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
 
 
 class MechanisticRunner:
-    def __init__(self, model):
+    def __init__(
+        self,
+        model: Callable[
+            [jax.typing.ArrayLike, PyTree, dict],
+            tuple[
+                jax.Array,
+                jax.Array,
+                jax.Array,
+                jax.Array,
+            ],
+        ],
+    ):
         self.model = model
 
     def run(
         self,
-        initial_state,
-        args,
+        initial_state: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+        args: dict,
         tf: Union[int, datetime.datetime, datetime.date] = 100,
     ):
         """
@@ -43,8 +56,6 @@ class MechanisticRunner:
         - if `args["CONSTANT_STEP_SIZE"] > 0` uses constant stepsizer of that size, else uses adaptive step sizing
             - discontinuous timepoints can not be specified with constant step sizer
         - implemented with `diffrax.Tsit5()` solver
-
-
         """
         term = ODETerm(
             lambda t, state, parameters: self.model(state, t, parameters)
