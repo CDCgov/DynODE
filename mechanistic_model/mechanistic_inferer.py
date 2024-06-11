@@ -123,7 +123,9 @@ class MechanisticInferer(AbstractParameters):
         # axis = 0 because we take diff across time
         model_incidence = jnp.diff(model_incidence, axis=0)
         poisson_rates = jnp.maximum(model_incidence, 1e-6)
+
         # save the final timestep of solution array for each compartment
+        # this is useful for checkpointing model epochs
         numpyro.deterministic(
             "final_timestep_s", solution.ys[self.config.COMPARTMENT_IDX.S][-1]
         )
@@ -146,7 +148,7 @@ class MechanisticInferer(AbstractParameters):
             obs=obs_metrics,
         )
 
-    def set_posteriors_if_exist(self, prior_inferer: MCMC):
+    def set_posteriors_if_exist(self, prior_inferer: MCMC) -> None:
         """
         Given a `prior_inferer` object look at its samples, check to make sure that
         each parameter sampled has converging chains, then calculate the mean of
@@ -222,7 +224,6 @@ class MechanisticInferer(AbstractParameters):
                     samples_array_flattened = np.array(
                         [samples[sample].flatten()]
                     )
-                    samples_array_flattened = [samples[sample].flatten()]
                 else:
                     samples_array_flattened = np.concatenate(
                         (
@@ -249,11 +250,13 @@ class MechanisticInferer(AbstractParameters):
 
     def infer(self, obs_metrics: jax.typing.ArrayLike) -> MCMC:
         """
-        Infer parameters given priors inside of self.config, returns an inference_algo object with posterior distributions for each sampled parameter.
+        Infer parameters given priors inside of self.config,
+        returns an inference_algo object with posterior distributions for each sampled parameter.
         Parameters
         -----------
         obs_metrics: jnp.array
             observed metrics on which likelihood will be calculated on to tune parameters.
+            See `likelihood()` method for implemented definition of `obs_metrics`
 
         Returns
         -----------
