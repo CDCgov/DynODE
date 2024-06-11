@@ -69,14 +69,17 @@ def get_azure_files(exp: str, jobid: str, state: str, scenario: str, azure_clien
     """
     
     # will override files in cache
-    shiny_cache_path = "shiny_visualizers\\shiny_cache"
+    shiny_cache_path = "shiny_visualizers/shiny_cache"
+    if not os.path.exists(shiny_cache_path):
+        os.makedirs(shiny_cache_path)
     azure_blob_path = os.path.join(exp, jobid, state)
     if scenario != "N/A": # if visualizing a scenario append to the path
         azure_blob_path = os.path.join(azure_blob_path, scenario)
     azure_blob_path = azure_blob_path.replace('\\', "/") + "/"
+    dest_path = os.path.join(shiny_cache_path, azure_blob_path)
 
     download_directory(azure_client.out_cont_client, azure_blob_path, shiny_cache_path)
-    return os.path.join(shiny_cache_path, azure_blob_path)
+    return dest_path
     
 def visualize_vax_rates(cache_path):
     vax_rate = np.array(d["VACCINATION_RATES"])
@@ -100,7 +103,7 @@ def visualize_vax_rates(cache_path):
     fig.show()
     
 def visualize_immunity(cache_path):
-    f = open(os.path.join(cache_path, "checkpoint_noBoo_highIE_1_214.json").replace("\\", "/"), "r")
+    f = open(os.path.join(cache_path, "checkpoint_noBoo_highIE_1_137.json").replace("\\", "/"), "r")
     d = json.load(f)
     age = ["0-17", "18-49", "50-64", "65+"]
     strain = ["XBB1", "XBB2", "JN1", "W", "X", "Y", "Z"]
@@ -131,6 +134,7 @@ print("Connecting to Azure Storage")
 azure_client = build_azure_connection()
 print("Retrieving and Organizing Azure File Structure (approx 10 seconds)")
 blobs = get_blob_names(azure_client)
+# blobs = azure_client.out_cont_client.list_blob_names(name_starts_with="fifty_state_2304_2404_3strain")
 tree_root = construct_tree(blobs)
  
 # now that we have all the paths stored in a Tree, all these operations are quick
@@ -178,14 +182,26 @@ app_ui = ui.page_fluid(
             ui.input_action_button("action_button", "Visualize Output"),  
             ui.output_text("counter"),
         ),
-        ui.panel_main(ui.output_plot("plot", height="750px")),
+        # ui.output_plot("plot", height="750px", click=True,),
+        output_widget("plot")
     ),
 )
 
 def server(input, output, session: Session):
 
-    @reactive.event(input.experiment(), input.job_id(), input.state())
-    def update_selections():
+    # @output
+    # @render.plot
+    # def plot(fig=None):
+    #     # update_selections()
+    #     fig, axs = plt.subplots(1, 1)
+    #     return fig
+
+
+
+    @reactive.effect
+    @reactive.event(input.experiment, input.job_id, input.state)
+    def _():
+        print("event")
         experiment = input.experiment()
         tree_exp = tree_root.children[experiment]
         new_job_id_selections = [node.name for node in tree_exp.children.values()]
@@ -203,11 +219,8 @@ def server(input, output, session: Session):
             selected_scenario = input.scenario() if input.scenario() in new_scenario_selections else new_scenario_selections[0]
             ui.update_selectize("scenario", choices=new_scenario_selections, selected=selected_scenario)
 
-    @output
-    @render.plot
-    def plot(fig=None):
-        fig, axs = plt.subplot(2, 1)
-        return fig
+    @output(id="plot")
+    # @render.plot(alt="a visualization")
     @render_widget
     @reactive.event(input.action_button)
     def counter():
@@ -217,8 +230,12 @@ def server(input, output, session: Session):
         state = input.state()
         scenario = input.scenario()
         cache_path = get_azure_files(exp, job_id, state, scenario, azure_client)
+        # fig, ax = plt.subplots(1, 2)
+        # ax[0].plot([1, 2, 3, 3])
+        # return fig
+        
         fig = visualize_immunity(cache_path)
         return fig
 
 app = App(app_ui, server)
-app.run()
+# app.run()
