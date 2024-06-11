@@ -1,13 +1,20 @@
+"""
+The following code is used to fit a series of prior parameter distributions via running them
+through Ordinary Differential Equations (ODEs) and comparing the likelihood of the output to some
+observed metrics.
+"""
+
 import json
 import warnings
 
 import jax.numpy as jnp
+import jax.typing
 import numpy as np
-import numpyro
+import numpyro  # type: ignore
 from jax.random import PRNGKey
 from numpyro import distributions as Dist
-from numpyro.diagnostics import summary
-from numpyro.infer import MCMC, NUTS
+from numpyro.diagnostics import summary  # type: ignore
+from numpyro.infer import MCMC, NUTS  # type: ignore
 
 import utils
 from config.config import Config
@@ -27,7 +34,7 @@ class MechanisticInferer(AbstractParameters):
         global_variables_path: str,
         distributions_path: str,
         runner: MechanisticRunner,
-        initial_state: tuple,
+        initial_state: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
         prior_inferer: MCMC = None,
     ):
         distributions_json = open(distributions_path, "r").read()
@@ -41,7 +48,9 @@ class MechanisticInferer(AbstractParameters):
         self.load_vaccination_model()
         self.load_contact_matrix()
 
-    def set_infer_algo(self, prior_inferer=None, inferer_type="mcmc"):
+    def set_infer_algo(
+        self, prior_inferer: MCMC = None, inferer_type: str = "mcmc"
+    ) -> None:
         """
         Sets the inferer's inference algorithm and sampler.
         If passed a previous inferer of the same inferer_type, uses posteriors to aid in the definition of new priors.
@@ -83,7 +92,7 @@ class MechanisticInferer(AbstractParameters):
                 ), "the previous inferer is not of the same type."
                 self.set_posteriors_if_exist(prior_inferer)
 
-    def likelihood(self, obs_metrics):
+    def likelihood(self, obs_metrics: jax.Array) -> None:
         """
         Given some observed metrics, samples the likelihood of them occuring
         under a set of parameter distributions sampled by self.inference_algo.
@@ -113,6 +122,7 @@ class MechanisticInferer(AbstractParameters):
         )
         # axis = 0 because we take diff across time
         model_incidence = jnp.diff(model_incidence, axis=0)
+        poisson_rates = jnp.maximum(model_incidence, 1e-6)
         # save the final timestep of solution array for each compartment
         numpyro.deterministic(
             "final_timestep_s", solution.ys[self.config.COMPARTMENT_IDX.S][-1]
@@ -132,7 +142,7 @@ class MechanisticInferer(AbstractParameters):
 
         numpyro.sample(
             "incidence",
-            Dist.Poisson(model_incidence * ihr),
+            Dist.Poisson(poisson_rates * ihr),
             obs=obs_metrics,
         )
 
@@ -192,7 +202,7 @@ class MechanisticInferer(AbstractParameters):
             sample_summaries = summary(samples)
             # do some sort of testing to ensure the chains are properly converging.
             # lets all flatten all the samples from all chains together
-            samples_array_flattened = None
+            samples_array_flattened = np.array([])
             for sample in samples.keys():
                 sample_summary = sample_summaries[sample]
                 divergent_chains = False
@@ -208,11 +218,17 @@ class MechanisticInferer(AbstractParameters):
                     )
                     divergent_chains = True
                 # now we add the parameter in flattened form for later
-                if samples_array_flattened is None:
+                if not len(samples_array_flattened):
+                    samples_array_flattened = np.array(
+                        [samples[sample].flatten()]
+                    )
                     samples_array_flattened = [samples[sample].flatten()]
                 else:
                     samples_array_flattened = np.concatenate(
-                        (samples_array_flattened, [samples[sample].flatten()]),
+                        (
+                            samples_array_flattened,
+                            np.array([samples[sample].flatten()]),
+                        ),
                         axis=0,
                     )
             # if we have divergent chains, warn and show them to the user
@@ -231,7 +247,7 @@ class MechanisticInferer(AbstractParameters):
 
         return None
 
-    def infer(self, obs_metrics):
+    def infer(self, obs_metrics: jax.typing.ArrayLike) -> MCMC:
         """
         Infer parameters given priors inside of self.config, returns an inference_algo object with posterior distributions for each sampled parameter.
         Parameters
@@ -252,7 +268,9 @@ class MechanisticInferer(AbstractParameters):
         self.infer_complete = True
         return self.inference_algo
 
-    def checkpoint(self, checkpoint_path, group_by_chain=True):
+    def checkpoint(
+        self, checkpoint_path: str, group_by_chain: bool = True
+    ) -> None:
         """
         a function which saves the posterior samples from `self.inference_algo` into `checkpoint_path` as a json file.
         will save anything sampled or numpyro.deterministic as long as it is tracked by `self.inference_algo`
@@ -262,15 +280,20 @@ class MechanisticInferer(AbstractParameters):
         checkpoint_path: str
             a path to which the json file is saved to. Throws error if folders do not exist, overwrites existing JSON files within.
 
+        Raises
+        ----------
+        ValueError
+            if inference has not been called (not self.infer_complete),
+            and thus there are no posteriors to be saved to `checkpoint_path`
+
         Returns
         -----------
         None
         """
         if not self.infer_complete:
-            print(
+            raise ValueError(
                 "unable to checkpoint as you have not called infer() yet to produce posteriors"
             )
-            return
         # get posterior samples including any calls to numpyro.deterministic
         if group_by_chain:
             samples = self.inference_algo._states[
