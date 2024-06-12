@@ -7,8 +7,8 @@ from functools import partial
 
 import jax.numpy as jnp
 import numpy as np
-import numpyro.distributions as distributions
-import numpyro.distributions.transforms as transforms
+import numpyro.distributions as distributions  # type: ignore
+import numpyro.distributions.transforms as transforms  # type: ignore
 from jax.random import PRNGKey
 
 
@@ -518,7 +518,7 @@ PARAMETERS = [
         "validate": [partial(test_type, tested_type=str), path_checker],
     },
     {
-        "name": "VAX_MODEL_DATA",
+        "name": "VACCINATION_MODEL_DATA",
         "validate": [partial(test_type, tested_type=str), path_checker],
     },
     {
@@ -621,7 +621,7 @@ PARAMETERS = [
         ),
     },
     {
-        "name": "MAX_VAX_COUNT",
+        "name": "MAX_VACCINATION_COUNT",
         "validate": test_not_negative,
     },
     {
@@ -633,18 +633,18 @@ PARAMETERS = [
             ),
         ],
     },
-    {  # check that AGE_DOSE_SPECIFIC_VAX_COEF.shape = (NUM_AGE_GROUPS, MAX_VAX_COUNT + 1)
+    {  # check that AGE_DOSE_SPECIFIC_VAX_COEF.shape = (NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1)
         "name": [
             "AGE_DOSE_SPECIFIC_VAX_COEF",
             "NUM_AGE_GROUPS",
-            "MAX_VAX_COUNT",
+            "MAX_VACCINATION_COUNT",
         ],
         "validate": lambda keys, vals: test_shape(
             keys, ((vals[1], vals[2] + 1), vals[0])
         ),
     },
     {
-        "name": "VAX_EFF_MATRIX",
+        "name": "VACCINE_EFF_MATRIX",
         "validate": test_non_empty,
         "type": np.array,
     },
@@ -680,8 +680,8 @@ PARAMETERS = [
         "type": np.array,
     },
     {
-        "name": ["NUM_STRAINS", "MAX_VAX_COUNT", "VAX_EFF_MATRIX"],
-        # check that VAX_EFF_MATRIX shape is (NUM_STRAINS, MAX_VAX_COUNT + 1)
+        "name": ["NUM_STRAINS", "MAX_VACCINATION_COUNT", "VACCINE_EFF_MATRIX"],
+        # check that VACCINE_EFF_MATRIX shape is (NUM_STRAINS, MAX_VACCINATION_COUNT + 1)
         "validate": lambda key, vals: test_shape(
             key, [(vals[0], vals[1] + 1), vals[2]]
         ),
@@ -706,7 +706,7 @@ PARAMETERS = [
         ],
     },
     {
-        "name": "INTRODUCTION_PERCS",
+        "name": "INTRODUCTION_PCTS",
         "validate": [
             partial(test_type, tested_type=list),
             lambda key, val: [
@@ -718,7 +718,7 @@ PARAMETERS = [
         "name": [
             "INTRODUCTION_TIMES",
             "INTRODUCTION_SCALES",
-            "INTRODUCTION_PERCS",
+            "INTRODUCTION_PCTS",
         ],
         "validate": [
             lambda key, val: test_equal_len(
@@ -727,7 +727,7 @@ PARAMETERS = [
             lambda key, val: test_equal_len(
                 [key[1], key[2]], [val[1], val[2]]
             ),
-            # by transitive property, len(INTRODUCTION_TIMES) == len(INTRODUCTION_PERCS)
+            # by transitive property, len(INTRODUCTION_TIMES) == len(INTRODUCTION_PCTS)
         ],
     },
     {
@@ -769,7 +769,7 @@ PARAMETERS = [
         "type": lambda s: datetime.datetime.strptime(s, "%Y-%m-%d").date(),
     },
     {
-        "name": "VAX_SEASON_CHANGE",
+        "name": "VACCINATION_SEASON_CHANGE",
         # "validate": do_nothing,
         "type": lambda s: datetime.datetime.strptime(s, "%Y-%m-%d").date(),
     },

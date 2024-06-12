@@ -40,14 +40,21 @@ client.set_input_container("scenarios-test-container", "input")
 client.set_output_container("example-output-scenarios-mechanistic", "output")
 
 # set the scaling of the pool, assign `dedicated_nodes` to split work accross
-client.set_scaling(mode="fixed", dedicated_nodes=5, timeout=TIMEOUT_MINS)
+client.set_scaling(
+    mode="autoscale",
+    autoscale_formula_path="secrets/autoscale.txt",
+    timeout=TIMEOUT_MINS,
+)
 # create the pool
-client.create_pool(pool_name="scenarios_5_node")
+client.create_pool(pool_name="scenarios_8cpu_pool")
 # or use a certain pool if already exists and active
 # client.use_pool(pool_name="scenarios_2_node")
 
 # command to run the job
 client.add_job(job_id=JOB_ID)
+runner_path = args.runner
+if "/app/" not in runner_path:
+    runner_path = "/app/" + runner_path
 # add a task for each subdir of the given experiment folder
 for subdir in os.listdir(args.folder):
     subdir_path = os.path.join(args.folder, subdir)

@@ -47,14 +47,11 @@ def create_state_subdirectories(dir, state_names):
     if not os.path.exists(dir):
         os.makedirs(dir)
 
-    # Create subdirectories for each state
+    # Create subdirectories for each state inside the "states" folder
     for state in state_names:
-        state_dir = os.path.join(dir, state)
+        state_dir = os.path.join(dir, "states", state)
         if not os.path.exists(state_dir):
             os.makedirs(state_dir)
-        state_output_dir = os.path.join(state_dir, "output")
-        if not os.path.exists(state_output_dir):
-            os.makedirs(state_output_dir)
 
 
 def populate_config_files(dir, configs):
@@ -81,6 +78,7 @@ def populate_config_files(dir, configs):
     ------------
     None
     """
+    dir = os.path.join(dir, "states")
     for subdir in os.listdir(dir):
         subdir_path = os.path.join(dir, subdir)
         if os.path.isdir(subdir_path):
@@ -172,6 +170,10 @@ def code_to_pop(state_name):
         raise KeyError("Unknown fips %s" % state_name)
 
 
+def get_all_codes():
+    return list(state_names["stusps"])
+
+
 # script takes arguments to specify the experiment being created.
 parser = argparse.ArgumentParser()
 # experiment directory
@@ -216,6 +218,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     exp = args.exp
     states = args.states
+    if "all" in states:
+        states = get_all_codes()
     config_molds = args.config_molds
     create_state_subdirectories(exp, states)
     populate_config_files(exp, config_molds)
