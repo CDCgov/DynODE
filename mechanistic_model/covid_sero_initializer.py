@@ -90,7 +90,7 @@ class CovidSeroInitializer(CovidInitializer):
             (
                 self.config.NUM_AGE_GROUPS,
                 2**self.config.NUM_STRAINS,
-                self.config.MAX_VAX_COUNT + 1,
+                self.config.MAX_VACCINATION_COUNT + 1,
                 self.config.NUM_WANING_COMPARTMENTS,
             )
         )
@@ -147,7 +147,7 @@ class CovidSeroInitializer(CovidInitializer):
             self.config.STRAIN_IDX.omicron, :
         ]
         # p.vax_susceptibility_strain.shape = (MAX_VAX_COUNT,)
-        vax_efficacy_strain = self.config.VAX_EFF_MATRIX[
+        vax_efficacy_strain = self.config.VACCINE_EFF_MATRIX[
             self.config.STRAIN_IDX.omicron, :
         ]
         # susceptibility by hist and vax status

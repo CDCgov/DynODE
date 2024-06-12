@@ -4,6 +4,8 @@ initialized with the config_base.py config file. This file is an active work in 
 get an understanding of the context that their mechanistic model is being run in.
 """
 
+import json
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -16,6 +18,12 @@ from mechanistic_model.covid_initializer import CovidInitializer
 CONFIG_GLOBAL_PATH = "config/config_global.json"
 CONFIG_INITIALIZER_PATH = "config/config_initializer_covid.json"
 model = CovidInitializer(CONFIG_INITIALIZER_PATH, CONFIG_GLOBAL_PATH)
+
+# Get initial date from global config
+with open(CONFIG_GLOBAL_PATH, "r") as json_file:
+    global_json = json.load(json_file)
+
+initial_date = global_json["INIT_DATE"]
 
 (s_compartment, e_compartment, i_compartment, _) = model.get_initial_state()
 age_choices = ["All"] + model.config.AGE_GROUP_STRS
@@ -62,7 +70,7 @@ compartment_dict = {
 
 
 app_ui = ui.page_fixed(
-    ui.h2("Visualizing Immune History"),
+    ui.h2(f"Visualizing US Covid Immune History on {initial_date}"),
     ui.markdown(
         """
     """

@@ -8,7 +8,10 @@ import json
 import warnings
 from enum import EnumMeta
 
+import diffrax
 import jax.numpy as jnp
+import matplotlib
+import matplotlib.figure
 import matplotlib.pyplot as plt
 import numpy as np
 from diffrax import Solution
@@ -20,8 +23,11 @@ from config.config import Config
 
 class SolutionInterpreter:
     def __init__(
-        self, solution, solution_parameters_path, global_variables_path
-    ):
+        self,
+        solution: diffrax.Solution,
+        solution_parameters_path: str,
+        global_variables_path: str,
+    ) -> None:
         solution_parameters_json = open(solution_parameters_path, "r").read()
         global_json = open(global_variables_path, "r").read()
         config = Config(global_json).add_file(solution_parameters_json)
@@ -31,7 +37,7 @@ class SolutionInterpreter:
         self.solution = solution
         self.pyplot_theme = None  # TODO set a consistent theme
 
-    def set_default_plot_commands(self, plot_commands):
+    def set_default_plot_commands(self, plot_commands: list[str]) -> None:
         """
         Where applicable, the solution interpreter will plot the given plot_commands by default.
         """
@@ -87,7 +93,9 @@ class SolutionInterpreter:
         start_date: datetime.date = None,
         fig: plt.figure = None,
         ax: plt.axis = None,
-    ):
+    ) -> tuple[
+        matplotlib.figure.Figure, np.ndarray[matplotlib.axes._axes.Axes]
+    ]:
         """
         plots a run from diffeqsolve() with `plot_commands` returning figure and axis.
         If `save_path` is not None will save figure to that path attached with meta data in `meta_data`.
@@ -188,7 +196,6 @@ class SolutionInterpreter:
 
     def plot_strain_prevalence(
         self,
-        # sol: Solution,
         plot_labels=None,
         save_path: str = None,
         fig: plt.figure = None,

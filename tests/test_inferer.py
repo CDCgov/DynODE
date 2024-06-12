@@ -18,13 +18,13 @@ global_config = Config(GLOBAL_JSON)
 S_SHAPE = (
     global_config.NUM_AGE_GROUPS,
     2**global_config.NUM_STRAINS,
-    global_config.MAX_VAX_COUNT + 1,
+    global_config.MAX_VACCINATION_COUNT + 1,
     global_config.NUM_WANING_COMPARTMENTS,
 )
 EIC_SHAPE = (
     global_config.NUM_AGE_GROUPS,
     2**global_config.NUM_STRAINS,
-    global_config.MAX_VAX_COUNT + 1,
+    global_config.MAX_VACCINATION_COUNT + 1,
     global_config.NUM_STRAINS,
 )
 fake_initial_state = (
@@ -47,6 +47,7 @@ ihr = [0.002, 0.004, 0.008, 0.06]
 model_incidence = jnp.sum(synthetic_solution.ys[3], axis=(2, 3, 4))
 model_incidence = jnp.diff(model_incidence, axis=0)
 synthetic_hosp_obs = np.asarray(model_incidence) * ihr
+synthetic_hosp_obs = jnp.rint(synthetic_hosp_obs).astype(int)
 
 inferer = MechanisticInferer(
     GLOBAL_CONFIG_PATH, INFERER_CONFIG_PATH, runner, fake_initial_state

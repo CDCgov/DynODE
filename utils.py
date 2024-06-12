@@ -2,15 +2,20 @@ import datetime
 import glob
 import json
 import os
-from enum import IntEnum
+import sys
+
+# importing under a different name because mypy static type hinter
+# strongly dislikes the IntEnum class.
+from enum import EnumMeta as IntEnum
 
 import epiweeks
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-import numpyro
-import numpyro.distributions as Dist
-import pandas as pd
+import numpyro  # type: ignore
+import numpyro.distributions as Dist  # type: ignore
+import pandas as pd  # type: ignore
+from jax import Array
 
 pd.options.mode.chained_assignment = None
 
@@ -103,10 +108,10 @@ def base_equation(t, coefficients):
         a jax tracer containing within it the time in days since model simulation start
     intercepts: jnp.array()
         intercepts of each cubic spline base equation for all combinations of age bin and vax history
-        intercepts.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1)
+        intercepts.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1)
     coefficients: jnp.array()
         coefficients of each cubic spline base equation for all combinations of age bin and vax history
-        coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, 3)
+        coefficients.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, 3)
     """
     return jnp.sum(
         coefficients
@@ -144,14 +149,14 @@ def evaluate_cubic_spline(
         a jax tracer containing within it the time in days since model simulation start
     knot_locations: jnp.ndarray
         knot locations of each cubic spline for all combinations of age bin and vax history
-        knots.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline)
+        knots.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, # knots in each spline)
     base_equations" jnp.ndarray
         the base equation coefficients (a + bt + ct^2 + dt^3) of each cubic spline for all combinations of age bin and vax history
-        knots.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, 4)
+        knots.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, 4)
     knot_coefficients: jnp.ndarray
         knot coefficients of each cubic spline for all combinations of age bin and vax history.
         including first 4 coefficients for the base equation.
-        coefficients.shape=(NUM_AGE_GROUPS, MAX_VAX_COUNT + 1, # knots in each spline + 4)
+        coefficients.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, # knots in each spline + 4)
 
     Returns
     ----------
@@ -302,9 +307,9 @@ def new_immune_state(
     current_state_binary = format(current_state, "b")
 
     # represent exposing strain as an indiciator bit string. ex: exposing_strain = 1 -> binary = 10
-    exposing_strain_binary = ["0"] * num_strains
-    exposing_strain_binary[-(exposed_strain + 1)] = "1"
-    exposing_strain_binary = "".join(exposing_strain_binary)
+    exposing_strain_binary_lst = ["0"] * num_strains
+    exposing_strain_binary_lst[-(exposed_strain + 1)] = "1"
+    exposing_strain_binary = "".join(exposing_strain_binary_lst)
 
     # we now have
     new_state = format(
@@ -341,9 +346,9 @@ def all_immune_states_with(strain: int, num_strains: int):
     # represent all possible states as binary
     binary_array = [bin(val) for val in range(2**num_strains)]
     # represent exposing strain as an indiciator bit string. ex: exposing_strain = 1 -> binary = 10
-    strain_binary = ["0"] * num_strains
-    strain_binary[-(strain + 1)] = "1"
-    strain_binary = "".join(strain_binary)
+    strain_binary_lst = ["0"] * num_strains
+    strain_binary_lst[-(strain + 1)] = "1"
+    strain_binary = "".join(strain_binary_lst)
     # a state contains the strain being filtered if the bitwise AND produces a non-zero value
     filtered_states = [
         int(binary, 2)
@@ -482,8 +487,8 @@ def combined_strains_mapping(
 
 def combine_strains(
     compartment: np.ndarray,
-    state_mapping: dict[int:int],
-    strain_mapping: dict[int:int],
+    state_mapping: dict[int, int],
+    strain_mapping: dict[int, int],
     num_strains: int,
     state_dim=1,
     strain_dim=3,
@@ -789,7 +794,7 @@ def find_waning_compartment(TSLIE: int, waning_times: list[int]) -> int:
 
 def strain_interaction_to_cross_immunity(
     num_strains: int, strain_interactions: np.ndarray
-) -> np.ndarray:
+) -> Array:
     """
     a function which takes a strain_interactions matrix, which is of shape (num_strains, num_strains)
     and returns a cross immunity matrix of shape (num_strains, 2**num_strains) representing the immunity
@@ -805,7 +810,7 @@ def strain_interaction_to_cross_immunity(
 
     Returns
     ----------
-    crossimmunity_matrix: np.array
+    crossimmunity_matrix: jnp.array
         a matrix of shape (num_strains, 2**num_strains) representing the relative immunity of someone with a specific
         immune history to a challenging strain.
     """
@@ -966,7 +971,7 @@ def load_age_demographics(
     path: str,
     regions: list[str],
     age_limits: list[int],
-) -> dict[str:list]:
+) -> dict[str, np.ndarray]:
     """Returns normalized proportions of each agebin as defined by age_limits for the regions given.
     Does this by searching for age demographics data in path.
 
@@ -991,7 +996,7 @@ def load_age_demographics(
         path
     ), "The path to population-rescaled age distributions does not exist as it should"
 
-    demographic_data = dict([(r, "") for r in regions])
+    demographic_data = {}
     # Create contact matrices
     for r in regions:
         try:
@@ -1579,7 +1584,7 @@ def past_immune_dist_from_abm(
     abm_path: str,
     num_age_groups: int,
     age_limits: list[int],
-    max_vax_count: int,
+    max_vaccination_count: int,
     waning_times: list[int],
     num_waning_compartments: int,
     num_strains: int,
@@ -1600,7 +1605,7 @@ def past_immune_dist_from_abm(
     age_limits: list(int)
         The age limits of your model that you wish to initialize compartments of.
         Example: for bins of 0-17, 18-49, 50-64, 65+ age_limits = [0, 18, 50, 65]
-    max_vax_count: int
+    max_vaccination_count: int
         the number of doses maximum before all subsequent doses are no longer counted. ex: 2 -> 0, 1, 2+ doses (3 bins)
     waning_times: list(int)
         Time in days it takes for a person to wane from a waning compartment to the next level of protection.
@@ -1623,7 +1628,7 @@ def past_immune_dist_from_abm(
     abm_population = abm_population[abm_population["TSLIE"] >= 0]
     abm_population = prep_abm_data(
         abm_population,
-        max_vax_count,
+        max_vaccination_count,
         age_limits,
         waning_times,
         num_strains,
@@ -1633,7 +1638,7 @@ def past_immune_dist_from_abm(
         (
             num_age_groups,
             num_immune_hist,
-            max_vax_count + 1,
+            max_vaccination_count + 1,
             num_waning_compartments,
         )
     )
@@ -1662,7 +1667,7 @@ def init_infections_from_abm(
     abm_path: str,
     num_age_groups: int,
     age_limits: list[int],
-    max_vax_count: int,
+    max_vaccination_count: int,
     waning_times: list[int],
     num_strains: int,
     STRAIN_IDXs: IntEnum,
@@ -1682,7 +1687,7 @@ def init_infections_from_abm(
     age_limits: list(int)
         The age limits of your model that you wish to initialize compartments of.
         Example: for bins of 0-17, 18-49, 50-64, 65+ age_limits = [0, 18, 50, 65]
-    max_vax_count: int
+    max_vaccination_count: int
         the number of doses maximum before all subsequent doses are no longer counted. ex: 2 -> 0, 1, 2+ doses (3 bins)
     waning_times: list(int)
         Time in days it takes for a person to wane from a waning compartment to the next level of protection.
@@ -1720,7 +1725,7 @@ def init_infections_from_abm(
     )
     active_infections_abm = prep_abm_data(
         active_infections_abm,
-        max_vax_count,
+        max_vaccination_count,
         age_limits,
         waning_times,
         num_strains,
@@ -1731,7 +1736,7 @@ def init_infections_from_abm(
         (
             num_age_groups,
             num_immune_hist,
-            max_vax_count + 1,
+            max_vaccination_count + 1,
             num_strains,
         )
     )
@@ -1801,7 +1806,7 @@ def plot_sample_chains(samples):
 
 
 def get_timeline_from_solution_with_command(
-    sol: tuple[jnp.array],
+    sol: tuple[Array, Array, Array, Array],
     compartment_idx: IntEnum,
     w_idx: IntEnum,
     strain_idx: IntEnum,
@@ -1909,9 +1914,9 @@ def get_timeline_from_solution_with_command(
         compartment_slice = compartment_slice[0] + ":," + compartment_slice[1:]
         try:
             compartment_slice = eval("np.s_{}".format(compartment_slice))
-            compartment = sol[compartment_idx[command[0].upper()]][
-                compartment_slice
-            ]
+            compartment = np.array(
+                sol[compartment_idx[command[0].upper()]][compartment_slice]
+            )
         except NameError:
             print(
                 "There was an error in the plotting command: {}, returning null timeline".format(
@@ -2047,7 +2052,7 @@ def get_foi_suscept(parameters, force_of_infection):
         ]  # (num_age_groups,)
 
         crossimmunity_matrix = p.CROSSIMMUNITY_MATRIX[strain, :]
-        vax_efficacy_strain = p.VAX_EFF_MATRIX[strain, :]
+        vax_efficacy_strain = p.VACCINE_EFF_MATRIX[strain, :]
         initial_immunity = 1 - jnp.einsum(
             "j, k",
             1 - crossimmunity_matrix,
@@ -2131,7 +2136,7 @@ def get_vaccination_rates(inferer, num_day):
     ----------
     list:
         list of `num_day` vaccination rates arrays, each by the shape of (NUM_AGE_GROUPS,
-        MAX_VAX_COUNT + 1)
+        MAX_VACCINATION_COUNT + 1)
     """
     return [inferer.vaccination_rate(t).tolist() for t in range(num_day)]
 
@@ -2149,7 +2154,7 @@ def make_two_settings_matrices(
     path_to_population_data: str,
     path_to_settings_data: str,
     region: str = "United States",
-) -> tuple[np.ndarray, pd.DataFrame]:
+) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
     """
     For a single region, read the two column (age, population counts) population
     csv (up to age 85) then read the 85 column interaction settings csvs by
@@ -2305,7 +2310,7 @@ def load_demographic_data(
     num_age_groups,
     minimum_age,
     age_limits,
-) -> dict[str, dict[str, list[np.ndarray, np.float64, list[float]]]]:
+) -> dict[str, dict[str, np.ndarray]]:
     """
     Loads demography data for the specified FIPS regions, contact mixing data sourced from:
     https://github.com/mobs-lab/mixing-patterns
@@ -2397,3 +2402,49 @@ class Parameters(object):
 
     def __init__(self, dict: dict):
         self.__dict__ = dict
+
+
+class dual_logger_out(object):
+    """
+    a class that splits stdout, flushing its contents to a file as well as to stdout
+    this is useful for Azure Batch to save logs but also see the output live on the node
+    """
+
+    def __init__(self, name, mode):
+        self.file = open(name, mode)
+        self.stdout = sys.stdout
+        sys.stdout = self
+
+    def close(self):
+        sys.stdout = self.stdout
+        self.file.close()
+
+    def write(self, data):
+        self.file.write(data)
+        self.stdout.write(data)
+
+    def flush(self):
+        self.file.flush()
+
+
+class dual_logger_err(object):
+    """
+    a class that splits stderror, flushing its contents to a file as well as to terminal if an error occurs
+    this is useful for Azure Batch to save logs but also see the output live on the node
+    """
+
+    def __init__(self, name, mode):
+        self.file = open(name, mode)
+        self.stderr = sys.stderr
+        sys.stderr = self
+
+    def close(self):
+        sys.stderr = self.stderr
+        self.file.close()
+
+    def write(self, data):
+        self.file.write(data)
+        self.stderr.write(data)
+
+    def flush(self):
+        self.file.flush()
