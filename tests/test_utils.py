@@ -1,7 +1,7 @@
 import datetime
 import itertools
 from enum import IntEnum
-
+import pytest
 import jax.numpy as jnp
 
 import utils
@@ -283,3 +283,95 @@ def test_combined_strain_mapping():
     #                     old_state,
     #                 )
     #             )
+
+
+from utils import get_strains_exposed_to  
+def test_get_strains_exposed_to():
+    num_strains_tested = [1, 2, 3, 4, 10]
+    for num_strains in num_strains_tested:
+        possible_immune_states = list(range(0, 2**num_strains))
+        for state in possible_immune_states:
+            exposed_strains = get_strains_exposed_to(state, num_strains)
+            # Calculate the expected strains exposed by converting the state to binary
+            expected_exposed_strains = [
+                i for i in range(num_strains) if (state & (1 << i)) != 0
+            ]
+            assert exposed_strains == expected_exposed_strains, (
+                f"The exposed strains for state {state} with {num_strains} strains is incorrect. "
+                f"Expected {expected_exposed_strains}, got {exposed_strains}."
+            )
+if __name__=="__main__":
+    pytest.main()
+
+
+
+
+
+
+class CompartmentIdx(IntEnum):
+    S = 0
+    E = 1
+    I = 2
+    C = 3
+
+class WaneIdx(IntEnum):
+    W0 = 0
+    W1 = 1
+    W2 = 2
+    W3 = 3
+
+class StrainIdx(IntEnum):
+    strain1 = 0
+    strain2 = 1
+    strain3 = 2
+    strain4 = 3
+
+# get the function to test
+from utils import get_timeline_from_solution_with_command
+   
+# Create a sample solution array
+sol = tuple([jnp.ones((100, 4, 4, 4, 4),) for _ in range(4)])
+#print(sol.shape)
+def test_get_timeline_from_solution_with_command():
+    # Test case 1: Command is a compartment name
+    timeline, label = get_timeline_from_solution_with_command(
+        sol, CompartmentIdx, WaneIdx, StrainIdx, "S"
+    )
+    assert timeline.shape == (100,)
+    assert label == "S"
+
+    # Test case 2: Command is a strain name
+    timeline, label = get_timeline_from_solution_with_command(
+        sol, CompartmentIdx, WaneIdx, StrainIdx, "strain2"
+    )
+    assert timeline.shape == (100,)
+    assert label == "E + I : strain2"
+
+    # Test case 3: Command is a waning compartment name
+    timeline, label = get_timeline_from_solution_with_command(
+        sol, CompartmentIdx, WaneIdx, StrainIdx, "W2"
+    )
+    assert timeline.shape == (100,)
+    assert label == "W2"
+
+    # Test case 4: Command is "incidence"
+    timeline, label = get_timeline_from_solution_with_command(
+        sol, CompartmentIdx, WaneIdx, StrainIdx, "incidence"
+    )
+    assert timeline.shape == (99,)
+    assert label == "E : incidence"
+
+    # Test case 5: Command is "strain_prevalence"
+    strain_proportions, labels = get_timeline_from_solution_with_command(
+        sol, CompartmentIdx, WaneIdx, StrainIdx, "strain_prevalence"
+    )
+    assert len(strain_proportions) == 4
+    assert all(prop.shape == (100,) for prop in strain_proportions)
+    assert labels == ["strain1", "strain2", "strain3", "strain4"]
+
+    # Test case 6: Command is an explicit compartment slice
+    timeline, label = get_timeline_from_solution_with_command(
+        sol, CompartmentIdx, WaneIdx, StrainIdx, "S[:, 0, :, 1]"
+    )
+    assert timeline.shape == (100,)
+    assert label == "S[:, 0, :, 1]"
