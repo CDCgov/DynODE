@@ -901,7 +901,9 @@ def drop_sample_chains(samples: dict, dropped_chain_vals: list):
     return filtered_dict
 
 
-def flatten_list_parameters(samples):
+def flatten_list_parameters(
+    samples: dict[str : np.ndarray],
+) -> dict[str : np.ndarray]:
     """
     given a dictionary of parameter names and samples, identifies any parameters that are
     placed under a single name, but actually multiple independent draws from the same distribution.
@@ -911,7 +913,7 @@ def flatten_list_parameters(samples):
 
     Parameters
     ----------
-    `samples`: dict{str: list}
+    `samples`: dict{str: np.ndarray}
         a dictionary where parameter names are keys and samples are a list.
         In the case of M chains and N samples per chain, the list will be of shape MxN normally
         with one row per chain, each containing N samples.
@@ -920,22 +922,35 @@ def flatten_list_parameters(samples):
 
     Returns
     ----------
-    dict{str: list}  a dictionary in which parameters with lists of shape MxNxP are split into
+    dict{str: np.ndarray}  a dictionary in which parameters with lists of shape MxNxP are split into
     P separate parameters, each with lists of shape MxN for M chains and N samples.
+    This function scaled with any number of dimensions > 2. So for PxQ independent draws
+    will be separated into PxQ parameters each with lists of shape MxN.
+
+    NOTE
+    -----------
+    If you only have parameters of dimension 2, nothing will be changed and a copy of your dict will be returned
     """
-    flattened_dict = {}
-    for param in samples.keys():
-        samples_param = samples[param]
-        # if this parameter was drawn `d` times from independent draws
-        # we want to separate it into `d` distinct parameters
-        if samples_param.ndim == 3:  # chain x samples x draws
-            for num_draw in range(samples_param.shape[-1]):
-                flattened_dict[param + "_%d" % num_draw] = samples_param[
-                    :, :, num_draw
+    return_dict = {}
+    for key, value in samples.items():
+        if isinstance(value, np.ndarray) and value.ndim > 2:
+            num_dims = value.ndim - 2
+            indices = (
+                np.indices(value.shape[-num_dims:]).reshape(num_dims, -1).T
+            )
+
+            for idx in indices:
+                new_key = f"{key}"
+                for i in range(len(idx)):
+                    new_key += f"_{idx[i]}"
+
+                new_value = value[
+                    tuple([slice(None)] * (value.ndim - num_dims) + list(idx))
                 ]
+                return_dict[new_key] = new_value
         else:
-            flattened_dict[param] = samples_param
-    return flattened_dict
+            return_dict[key] = value
+    return return_dict
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
