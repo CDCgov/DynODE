@@ -317,3 +317,38 @@ class MechanisticInferer(AbstractParameters):
                 samples[parameter] = param_samples.tolist()
         with open(checkpoint_path, "w") as file:
             json.dump(samples, file)
+
+    def load_posterior_particle(self, particle_num=0, randomize=False):
+        """
+        if self.infer_complete loads a particle across chains of sampled posteriors,
+        either at random if `randomize`, or with an index `particle_num`.
+
+        Returns a StaticValueParameters object with posterior sampled values in place of those that
+        were sampled by `self.inference_algo`
+
+        if `randomize=True` and random particle_num will be selected, values passed to particle_num will be ignored.
+        """
+        # first step, get the posterior particle
+        posteriors = self.inference_algo._states[
+            self.inference_algo._sample_field
+        ]
+        if randomize:
+            particle_num = np.random.RandomState(
+                self.config.INFERENCE_PRNGKEY
+            ).uniform(low=0, high=self.config.INFERENCE_NUM_SAMPLES)
+        # flatten anything from numpyro.plate()
+        posteriors = utils.flatten_list_parameters(posteriors)
+        # select the particle in question across all chains
+        for parameter in posteriors.keys():
+            param_samples = posteriors[parameter]
+            posteriors[parameter] = param_samples[:, particle_num]
+        # indexes_translator = utils.identify_distribution_indexes(self.config.__dict__)
+        # replace the distributions within self.config with the posterior values of question
+        # static_params_by_chain = []
+        for chain_num in range(self.config.INFERENCE_NUM_CHAINS):
+            # static_config_copy = copy.deepcopy(self.config)
+            for parameter_name in posteriors.keys():
+                continue
+                # posterior_sample = posteriors[parameter_name][chain_num]
+                # static_config_copy.__dict__[]
+        return 0
