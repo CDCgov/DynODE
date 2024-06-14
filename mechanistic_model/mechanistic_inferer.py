@@ -338,7 +338,7 @@ class MechanisticInferer(AbstractParameters):
         randomize: bool = False,
         tf: Union[int, None] = None,
         external_posteriors: dict[str, jax.Array] = {},
-    ) -> list[Solution]:
+    ) -> dict[tuple[int, int], dict]:
         """
         if self.infer_complete loads a particle across chains of sampled posteriors,
         either at random if `randomize`, or with an index `particle_num`.
@@ -429,7 +429,7 @@ class MechanisticInferer(AbstractParameters):
         posterior_samples: dict[str, jax.Array],
         particle_num: int,
         tf: int,
-    ):
+    ) -> dict[tuple[int, int], dict]:
         """
         PRIVATE FUNCTION
         used by `load_posterior_particle` to colate each posterior particle
@@ -460,7 +460,7 @@ class MechanisticInferer(AbstractParameters):
 
     def _load_posterior_single_particle(
         self, single_particle: dict[str, jax.Array], tf: int
-    ):
+    ) -> dict:
         """
         PRIVATE FUNCTION
         used by `load_posterior_particle` to actually execute a single posterior particle on `self.likelihood`
