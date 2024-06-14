@@ -6,11 +6,13 @@ observed metrics.
 
 import json
 import warnings
+from typing import Union
 
 import jax.numpy as jnp
 import jax.typing
 import numpy as np
 import numpyro  # type: ignore
+from diffrax import Solution
 from jax.random import PRNGKey
 from numpyro import distributions as Dist
 from numpyro.diagnostics import summary  # type: ignore
@@ -92,12 +94,20 @@ class MechanisticInferer(AbstractParameters):
                 ), "the previous inferer is not of the same type."
                 self.set_posteriors_if_exist(prior_inferer)
 
-    def likelihood(self, obs_metrics: jax.Array) -> None:
+    def likelihood(
+        self, obs_metrics: Union[jax.Array, None] = None, tf: int = 100
+    ) -> Solution:
         """
         Given some observed metrics, samples the likelihood of them occuring
         under a set of parameter distributions sampled by self.inference_algo.
 
-        Currently expects hospitalization data and samples IHR using a negative binomial distribution.
+        if obs_metrics is None likelihood will not actually fit to values and instead return Solutions
+        based on randomly sampled values.
+
+        if obs_metrics is None, will run model for runs for `tf` days
+        otherwise runs for `len(obs_metrics)` days
+
+        Currently expects hospitalization data and samples IHR.
         """
         parameters = self.get_parameters()
         if "INITIAL_INFECTIONS_SCALE" in parameters.keys():
@@ -108,7 +118,9 @@ class MechanisticInferer(AbstractParameters):
             initial_state = self.INITIAL_STATE
 
         solution = self.runner.run(
-            initial_state, args=parameters, tf=len(obs_metrics)
+            initial_state,
+            args=parameters,
+            tf=len(obs_metrics) if obs_metrics is not None else tf,
         )
         # add 1 to idxs because we are stratified by time in the solution object
         # sum down to just time x age bins
@@ -147,6 +159,7 @@ class MechanisticInferer(AbstractParameters):
             Dist.Poisson(poisson_rates * ihr),
             obs=obs_metrics,
         )
+        return solution
 
     def set_posteriors_if_exist(self, prior_inferer: MCMC) -> None:
         """
@@ -268,6 +281,7 @@ class MechanisticInferer(AbstractParameters):
             obs_metrics=obs_metrics,
         )
         self.inference_algo.print_summary()
+        self.inference_timesteps = len(obs_metrics)
         self.infer_complete = True
         return self.inference_algo
 
@@ -317,3 +331,153 @@ class MechanisticInferer(AbstractParameters):
                 samples[parameter] = param_samples.tolist()
         with open(checkpoint_path, "w") as file:
             json.dump(samples, file)
+
+    def load_posterior_particle(
+        self,
+        particle_num: int = 0,
+        randomize: bool = False,
+        tf: Union[int, None] = None,
+        external_posteriors: dict[str, jax.Array] = {},
+    ) -> list[Solution]:
+        """
+        if self.infer_complete loads a particle across chains of sampled posteriors,
+        either at random if `randomize`, or with an index `particle_num`.
+
+        if `external_posteriors` are specified, uses them instead of self.inference_algo.get_samples()
+        to load particles.
+
+        Returns a dictionary mapping (particle, chain) combinations to the diffrax.Solution object produced
+        by running self.likelihood with that posterior particle stored under "solution" and the
+        posterior particle values themselves under "posteriors"
+
+        if `randomize=True` and random particle_num will be selected, values passed to particle_num will be ignored.
+
+        Parameters
+        ------------
+        particle_num: int
+            what particle to run posteriors for across all chains
+        randomize: bool
+            flag whether or not to pick a random particle
+        tf: Union[int, None]:
+            number of days to run posterior model for, defaults to same number of days used in fitting.
+        external_posteriors: dict
+            if you want to use posteriors defined somewhere outside of this instance of the MechanisticInferer.
+            For example, if you saved posteriors from an Azure Batch job to a file and want to reload them,
+            then a dictionary containing a copy of that inferers inference_algo.get_samples(group_by_chain=True)
+            may be used here to apply those posteriors onto this model
+
+        Returns
+        ---------------
+        `dict[tuple(int, int):dict[str: Solution, str: dict[str:jnp.ndarray]]]` a dictionary containing
+        the solution timeline of the model run with the posteriors at (particle_num, chain_num)
+        with values at `dict[(particle_num, chain_num)]["posteriors"]` and timeline found at
+        `dict[(particle_num, chain_num)]["solution"]`
+
+        Example
+        --------------
+        <insert 2 chain inference above>
+        load_posterior_particle(particle_num=100) = {(100, 0): {solution: diffrax.Solution, "posteriors": {...}},
+                                                     (100, 1): {solution: diffrax.Solution, "posteriors": {...}} ...}
+
+        Note
+        ------------
+        Very important note if you choose to use `external_posteriors`. In the scenario
+        this instance of `MechanisticInferer.likelihood` samples parameters not named in `external_posteriors`
+        they will be RESAMPLED AT RANDOM. This method will not error and will instead fill in those
+        missing samples according to the PRNGKey seeded with self.config.INFERENCE_PRNGKEY.
+
+        This may be useful to you if you wish to obtain confidence intervals by varying a particular value.
+        """
+        if not self.infer_complete and not external_posteriors:
+            raise RuntimeError(
+                "Attempting to load a posterior particle before fitting to any data, "
+                "run self.infer() first to produce posterior particles"
+            )
+        if tf is None:
+            # run for same amount of timesteps as given in inference
+            # given to exists since self.infer_complete is True
+            if hasattr(self, "inference_timesteps"):
+                tf = self.inference_timesteps
+            # unless user is using external_posterior, we may have not inferred yet
+            else:
+                raise RuntimeError(
+                    "You are using external_posteriors to load posterios but did not provide `tf`, "
+                    "this instance does not have access to fitting data to know how long to run for"
+                )
+        # first step, get the posterior particle number
+        if randomize:
+            particle_num = int(
+                np.random.RandomState(self.config.INFERENCE_PRNGKEY).uniform(
+                    low=0, high=self.config.INFERENCE_NUM_SAMPLES
+                )
+            )
+        if not external_posteriors:
+            # Get posterior samples
+            posterior_samples = self.inference_algo.get_samples(
+                group_by_chain=True
+            )
+        else:
+            # user defined their own posteriors they want to run, use those
+            posterior_samples = external_posteriors
+
+        return self._load_posterior_single_chain(
+            posterior_samples, particle_num, tf
+        )
+
+    def _load_posterior_single_chain(
+        self,
+        posterior_samples: dict[str, jax.Array],
+        particle_num: int,
+        tf: int,
+    ):
+        """
+        PRIVATE FUNCTION
+        used by `load_posterior_particle` to colate each posterior particle
+        run on `self.likelihood` across chains
+        Dont touch unless you know what you are doing.
+        """
+        # filter down to just chosen particle across chains
+        # re-evaluate number of chains since we may be using external_posteriors run in diff context
+        single_chain = {}
+        num_chains = self.config.INFERENCE_NUM_CHAINS
+        for key in posterior_samples.keys():
+            num_chains = posterior_samples[key].shape[0]
+            single_chain[key] = posterior_samples[key][:, particle_num]
+
+        # for each chain run that individual particle through the model, save Solution
+        solutions_by_chain = {}
+        # Substitute sampled values back into the model
+        for chain in range(num_chains):
+            # pull out the sampled values of this particular chain
+            single_particle = {}
+            for key in posterior_samples.keys():
+                single_particle[key] = single_chain[key][chain]
+
+            solutions_by_chain[
+                (particle_num, chain)
+            ] = self._load_posterior_single_particle(single_particle, tf)
+        return solutions_by_chain
+
+    def _load_posterior_single_particle(
+        self, single_particle: dict[str, jax.Array], tf: int
+    ):
+        """
+        PRIVATE FUNCTION
+        used by `load_posterior_particle` to actually execute a single posterior particle on `self.likelihood`
+        Dont touch unless you know what you are doing.
+        """
+        # run the model with the same seed, but this time
+        # all calls to numpyro.sample() will lookup the value from single_particle_chain
+        # instead! this is effectively running the particle
+        substituted_model = numpyro.handlers.substitute(
+            numpyro.handlers.seed(
+                self.likelihood,
+                jax.random.PRNGKey(self.config.INFERENCE_PRNGKEY),
+            ),
+            single_particle,
+        )
+        sol = substituted_model(tf=tf)
+        return {
+            "solution": sol,
+            "posteriors": substituted_model.data,
+        }

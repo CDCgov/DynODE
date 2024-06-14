@@ -3,6 +3,7 @@ import itertools
 from enum import IntEnum
 
 import jax.numpy as jnp
+import numpyro.distributions as dist
 
 import utils
 
@@ -242,6 +243,27 @@ def test_date_to_epi_week():
         "date_to_epi_week returns incorrect epi week for feb 1st 2024, got %s, should be %s"
         % (epi_week_returned, epi_week_found_on_cdc_calendar)
     )
+
+
+def test_identify_distribution_indexes():
+    parameters = {
+        "test": [0, dist.Normal(), 2],
+        "example": dist.Normal(),
+        "no-sample": 5,
+    }
+    indexes = utils.identify_distribution_indexes(parameters)
+
+    assert "test_1" in indexes.keys() and indexes["test_1"] == {
+        "sample_name": "test",
+        "sample_idx": tuple([1]),
+    }, "not correctly indexing sampled parameters within lists"
+    assert "example" in indexes.keys() and indexes["example"] == {
+        "sample_name": "example",
+        "sample_idx": None,
+    }, "not correctly indexing non-list sampled parameters"
+    assert (
+        "no-sample" not in indexes.keys()
+    ), "identify_distribution_indexes should not return indexes for unsampled parameters"
 
 
 def test_combined_strain_mapping():

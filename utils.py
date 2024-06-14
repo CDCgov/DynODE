@@ -91,6 +91,74 @@ def sample_if_distribution(parameters):
     return parameters
 
 
+def identify_distribution_indexes(
+    parameters: dict,
+) -> dict[str, dict[str, tuple[int]]]:
+    """
+    A inverse of the `sample_if_distribution()` which allows users to identify the locations
+    of numpyro samples. Given a dictionary of parameters, identifies which parameters
+    are numpyro distributions or are distributions within a list and returns a mapping
+    between the sample names and its actual parameter name and index.
+
+    Example
+    --------------
+    parameters = {"test": [0, numpyro.distributions.Normal(), 2], "example": numpyro.distributions.Normal()}
+    identify_distribution_indexes(parameters) = {"test_1": {"sample_name": "test", "sample_idx": tuple(1)},
+                                                 "example":  {"sample_name": "example", "sample_idx": None}}
+
+    Parameters
+    -------------
+    a dictionary containing keys of different parameters names and values of any type
+
+    Returns
+    ------------
+    a dictionary mapping the sample name the parameter name within `parameters`.
+    (if the sampled parameter is within a larger list, returns a tuple of indexes as well, otherwise None)
+    key: str -> sampled parameter name as produced by `sample_if_distribution()`
+    value: `dict[str:str, str:tuple]` -> "sample_name" = sample name within input `parameters`
+                                      -> "sample_idx" = sample index if within list, else None
+    """
+
+    def get_index(indexes):
+        return tuple(indexes)
+
+    index_locations = {}
+    for key, param in parameters.items():
+        # if distribution, it does not have an index, so None
+        if issubclass(type(param), Dist.Distribution):
+            index_locations[key] = {"sample_name": key, "sample_idx": None}
+        # if list, check for distributions within and mark their indexes
+        elif isinstance(param, (np.ndarray, list)):
+            param = np.array(param)  # cast np.array so we get .shape
+            flat_param = np.ravel(param)  # Flatten the parameter array
+            # check for distributions inside of the flattened parameter list
+            if any(
+                [
+                    issubclass(type(param_lst), Dist.Distribution)
+                    for param_lst in flat_param
+                ]
+            ):
+                dim_idxs = np.unravel_index(
+                    np.arange(flat_param.size), param.shape
+                )
+                for i, param_lst in enumerate(flat_param):
+                    if issubclass(type(param_lst), Dist.Distribution):
+                        param_idxs = [dim_idx[i] for dim_idx in dim_idxs]
+                        index_locations[
+                            str(
+                                key
+                                + "_"
+                                + "_".join(
+                                    [str(dim_idx[i]) for dim_idx in dim_idxs]
+                                )
+                            )
+                        ] = {
+                            "sample_name": key,
+                            "sample_idx": get_index(param_idxs),
+                        }
+    return index_locations
+
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # SPLINE FUNCTIONS
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
