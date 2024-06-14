@@ -5,18 +5,18 @@ mechanistic_initializers will often be tasked with reading, parsing, and combini
 to produce an initial state representing some analyzed population
 """
 
-import json
 import os
 from abc import ABC, abstractmethod
 from typing import Union
-import jax.numpy as jnp
+
 import numpy as np
+import pandas as pd
 from jax import Array
+
+import utils
+from mechanistic_model.abstract_parameters import AbstractParameters
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
 from mechanistic_model.solution_iterpreter import SolutionInterpreter
-from mechanistic_model.abstract_parameters import AbstractParameters
-import pandas as pd
-import utils
 
 
 class AbstractAzureRunner(ABC):
@@ -68,12 +68,12 @@ class AbstractAzureRunner(ABC):
         )
         # assuming the inferer has finished fitting
         posteriors = inferer.load_posterior_particle(0)
-        for (particle, chain), sol_dct in posteriors.items():
-            infection_timeline, posterior_values = (
-                sol_dct["solution"],
-                sol_dct["posteriors"],
-            )
-            hospitalizations = 1
+        # for (particle, chain), sol_dct in posteriors.items():
+        #     infection_timeline, posterior_values = (
+        #         sol_dct["solution"],
+        #         sol_dct["posteriors"],
+        #     )
+        #     hospitalizations = 1
 
         return inference_visuals_save_path
 
@@ -143,7 +143,6 @@ class AbstractAzureRunner(ABC):
         for age_bin_str in parameters.config.AGE_GROUP_STRS:
             age_bin_idx = parameters.config.AGE_GROUP_IDX[age_bin_str]
             if hospitalization_ground_truth is not None:
-
                 df["obs_hosp_%s" % (age_bin_str.replace("-", "_"))] = (
                     hospitalization_ground_truth[:, age_bin_idx]
                 )
