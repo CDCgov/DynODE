@@ -25,6 +25,7 @@ cfa-azure = {git = "https://github.com/CDCgov/cfa_azure.git", rev = "fe1e46039fa
 pip = "^24.0"
 epiweeks = "^2.3.0"
 pre-commit = "^3.7.1"
+mypy = "^1.10.0"
 
 
 [build-system]
