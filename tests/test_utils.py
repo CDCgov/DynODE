@@ -1,11 +1,14 @@
 import datetime
 import itertools
 from enum import IntEnum
-from utils import get_strains_exposed_to
-from utils import get_timeline_from_solution_with_command
+
 import jax.numpy as jnp
 
 import utils
+from utils import (
+    get_strains_exposed_to,
+    get_timeline_from_solution_with_command,
+)
 
 # strain indexes {"a": 0, "b": 1, "c": 2}
 example_strain_idxs = IntEnum("test", ["a", "b", "c"], start=0)
@@ -114,7 +117,9 @@ def test_new_immune_state():
         for old_state, exposing_strain in itertools.product(
             possible_immune_states, exposing_strains
         ):
-            new_state = utils.new_immune_state(old_state, exposing_strain, num_strains)
+            new_state = utils.new_immune_state(
+                old_state, exposing_strain, num_strains
+            )
             # exposing_strain in binary has 1 in the index of exposing strain, with index 0 being right most
             exposing_strain_binary = ["0"] * num_strains
             exposing_strain_binary[exposing_strain] = "1"
@@ -139,14 +144,16 @@ def test_all_immune_states_with():
         exposing_strains = list(range(0, num_strains))
         # testing each of the strains
         for strain in exposing_strains:
-            states_with_strain = utils.all_immune_states_with(strain, num_strains)
+            states_with_strain = utils.all_immune_states_with(
+                strain, num_strains
+            )
             for immune_state in possible_immune_states:
                 state_binary = format(immune_state, "b")
                 # prepend some zeros if needed to avoid index errors
                 # invert so we can index `strain`, as opposed to `strain` indexes from the end in a list
-                state_binary = ("0" * (num_strains - len(state_binary)) + state_binary)[
-                    ::-1
-                ]
+                state_binary = (
+                    "0" * (num_strains - len(state_binary)) + state_binary
+                )[::-1]
                 # should contain strain, 1 in the `strain` index of the binary
                 if immune_state in states_with_strain:
                     assert state_binary[strain] == "1", (
@@ -168,14 +175,16 @@ def test_all_immune_states_without():
         exposing_strains = list(range(0, num_strains))
         # testing each of the strains
         for strain in exposing_strains:
-            states_without_strain = utils.all_immune_states_without(strain, num_strains)
+            states_without_strain = utils.all_immune_states_without(
+                strain, num_strains
+            )
             for immune_state in possible_immune_states:
                 state_binary = format(immune_state, "b")
                 # prepend some zeros if needed to avoid index errors
                 # invert so we can index `strain`, as opposed to `strain` indexes from the end in a list
-                state_binary = ("0" * (num_strains - len(state_binary)) + state_binary)[
-                    ::-1
-                ]
+                state_binary = (
+                    "0" * (num_strains - len(state_binary)) + state_binary
+                )[::-1]
                 # should contain strain, 1 in the `strain` index of the binary
                 if immune_state in states_without_strain:
                     assert state_binary[strain] == "0", (
@@ -198,7 +207,9 @@ def test_evaluate_cubic_spline():
         base_equation = 1 + 2 * t + 3 * t**2 + 4 * t**3
         # coefficients all 1, just sum the indicators
         spline_indicators = t > test_spline_locations[0]
-        splines = jnp.sum((t - test_spline_locations[0]) ** 3 * spline_indicators)
+        splines = jnp.sum(
+            (t - test_spline_locations[0]) ** 3 * spline_indicators
+        )
         return base_equation + splines
 
     def test_spline_2(t):
@@ -228,7 +239,9 @@ def test_evaluate_cubic_spline():
 def test_date_to_epi_week():
     random_date_looked_up_epi_week_for = datetime.date(2024, 2, 1)
     epi_week_found_on_cdc_calendar = 5
-    epi_week_returned = utils.date_to_epi_week(random_date_looked_up_epi_week_for).week
+    epi_week_returned = utils.date_to_epi_week(
+        random_date_looked_up_epi_week_for
+    ).week
     assert epi_week_returned == epi_week_found_on_cdc_calendar, (
         "date_to_epi_week returns incorrect epi week for feb 1st 2024, got %s, should be %s"
         % (epi_week_returned, epi_week_found_on_cdc_calendar)
@@ -306,7 +319,9 @@ sol = tuple(
 
 
 def _get_index_enums():
-    compartment_idx = IntEnum("compartment_index", ["S", "E", "I", "C"], start=0)
+    compartment_idx = IntEnum(
+        "compartment_index", ["S", "E", "I", "C"], start=0
+    )
     wane_idx = IntEnum("wane_index", ["W0", "W1", "W2", "W3"], start=0)
     strain_idx = IntEnum("strain_index", ["S0", "S1", "S2", "S3"], start=0)
     return compartment_idx, wane_idx, strain_idx
