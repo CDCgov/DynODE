@@ -353,29 +353,39 @@ def test_get_timeline_from_solution_with_command_wane_name():
     # Test case 3: Command is a waning compartment name
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
     timeline, label = get_timeline_from_solution_with_command(
-        sol, compartment_idx, wane_idx, strain_idx, "W2"
+        sol, compartment_idx, wane_idx, strain_idx, "W0"
     )
     assert timeline.shape == (100,)
-    assert label == "W2"
+    assert label == "W0"
 
-    # timeline, label = get_timeline_from_solution_with_command(
 
-    #   sol, CompartmentIdx, WaneIdx, StrainIdx, "incidence"
-    # )
-    # assert timeline.shape == (99,)
-    # assert label == "E : incidence"
+def test_get_timeline_from_solution_with_command_incidence():
+    # Test case 4: Command is 'incidence'
+    compartment_idx, wane_idx, strain_idx = _get_index_enums()
+    timeline, label = get_timeline_from_solution_with_command(
+        sol, compartment_idx, wane_idx, strain_idx, "incidence"
+    )
+    assert timeline.shape == (99,)
+    assert label == "E : incidence"
 
-    # Test case 5: Command is "strain_prevalence"
-    # strain_proportions, labels = get_timeline_from_solution_with_command(
-    #   sol, CompartmentIdx, WaneIdx, StrainIdx, "strain_prevalence"
-    # )
-    # assert len(strain_proportions) == 4
-    # assert all(prop.shape == (100,) for prop in strain_proportions)
-    # assert labels == ["strain1", "strain2", "strain3", "strain4"]
 
-    # Test case 6: Command is an explicit compartment slice
-    # timeline, label = get_timeline_from_solution_with_command(
-    #   sol, CompartmentIdx, WaneIdx, StrainIdx, "S[:, 0, :, 1]"
-    # )
-    # assert timeline.shape == (100,)
-    # assert label == "S[:, 0, :, 1]"
+def test_get_timeline_from_solution_with_command_strain_prevalence():
+    # Test case 5: Command is 'strain_prevalence'
+    compartment_idx, wane_idx, strain_idx = _get_index_enums()
+    timelines, labels = get_timeline_from_solution_with_command(
+        sol, compartment_idx, wane_idx, strain_idx, "strain_prevalence"
+    )
+    assert len(timelines) == 4
+    assert len(labels) == 4
+    assert all(timeline.shape == (100,) for timeline in timelines)
+    assert set(labels) == set(strain_idx._member_names_)
+
+
+def test_get_timeline_from_solution_with_command_compartment_slice():
+    # Test case 6: Command is a slice of a compartment
+    compartment_idx, wane_idx, strain_idx = _get_index_enums()
+    timeline, label = get_timeline_from_solution_with_command(
+        sol, compartment_idx, wane_idx, strain_idx, "S[:, 0, 0, :]"
+    )
+    assert timeline.shape == (100,)
+    assert label == "S[:, 0, 0, :]"
