@@ -18,7 +18,7 @@ def seip_ode(state: PyTree, t: ArrayLike, parameters: dict):
     the S compartment is now stratified by the following dimensions:
     age, immune history, number of vaccinations, and most recent immune event waning.
 
-    Immune history is represented as an integer whos binary representation can be interpreted
+    Immune history is represented as an integer whose binary representation can be interpreted
     as their infection history by strain. EG: 7 = 111 -> exposure to 3 strains, strain 0, 1, and 2.
     EG: 3 -> 011 -> exposure to 2 strains, strain 0 and 1, no exposure to strain 2.
     This representation allows us to use bitwise operations to determine new immune states post-infection
