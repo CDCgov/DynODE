@@ -23,6 +23,13 @@ from config.config import Config
 from mechanistic_model.abstract_parameters import AbstractParameters
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 
+SEIC_Compartments = tuple[
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+]
+
 
 class MechanisticInferer(AbstractParameters):
     """
@@ -36,7 +43,7 @@ class MechanisticInferer(AbstractParameters):
         global_variables_path: str,
         distributions_path: str,
         runner: MechanisticRunner,
-        initial_state: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+        initial_state: SEIC_Compartments,
         prior_inferer: MCMC = None,
     ):
         distributions_json = open(distributions_path, "r").read()
@@ -96,18 +103,7 @@ class MechanisticInferer(AbstractParameters):
 
     def likelihood(
         self, obs_metrics: Union[jax.Array, None] = None, tf: int = None
-    ) -> dict[
-        str,
-        Union[
-            Solution,
-            tuple[
-                jax.Array,
-                jax.Array,
-                jax.Array,
-                jax.Array,
-            ],
-        ],
-    ]:
+    ) -> dict[str, Union[Solution, SEIC_Compartments],]:
         """
         Given some observed metrics, samples the likelihood of them occuring
         under a set of parameter distributions sampled by self.inference_algo.
@@ -116,9 +112,7 @@ class MechanisticInferer(AbstractParameters):
         based on randomly sampled values.
 
         if obs_metrics is None, will run model for runs for `tf` days
-        otherwise runs for `len(obs_metrics)` days
-
-        if both `tf` and `obs_metrics` are None, errors
+        otherwise runs for `len(obs_metrics)` days. If both `tf` and `obs_metrics` are None, raises RuntimeError.
 
         Currently expects hospitalization data and samples IHR.
         """
