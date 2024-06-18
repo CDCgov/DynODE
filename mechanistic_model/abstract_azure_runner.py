@@ -8,6 +8,7 @@ to produce an initial state representing some analyzed population
 import os
 from abc import ABC, abstractmethod
 from typing import Union
+import json
 
 import numpy as np
 import pandas as pd
@@ -37,69 +38,11 @@ class AbstractAzureRunner(ABC):
         """
         pass
 
-    def save_inference_visuals(
-        self,
-        inferer: MechanisticInferer,
-        solution_interpreter: SolutionInterpreter,
-        vis_filename: str = "azure_visualizer_inference_timeline.json",
-    ) -> str:
-        """
-        saves history of inferer sampled values for use by the azure visualizer.
-        saves JSON file to `self.azure_output_dir/vis_path`.
-        Look at shiny_visualizers/azure_visualizer.py for logic on parsing and visualizing the chains.
-
-        Parameters
-        ------------
-        inferer: MechanisticInferer
-            the inferer object used to sample the parameter chains that will be visualized
-
-        Returns
-        ------------
-            a str path of where the json file was saved to. Or RuntimeError if inference has not been
-            completed by the `inferer` yet.
-        """
-        # TODO this method currently does not modify the parameter names using the enums found in `inferer`
-        # eg. STRAIN_R0s_0 should be represented as STRAIN_R0s_strain
-        # where strain is found in inferer.config.STRAIN_IDX._member_names_[0]
-        # this is not currently implemented as it requires some mapping of parameter indexes to names
-        inference_visuals_save_path = os.path.join(
-            self.azure_output_dir,
-            vis_filename,
-        )
-        # assuming the inferer has finished fitting
-        posteriors = inferer.load_posterior_particle(0)
-        # for (particle, chain), sol_dct in posteriors.items():
-        #     infection_timeline, posterior_values = (
-        #         sol_dct["solution"],
-        #         sol_dct["posteriors"],
-        #     )
-        #     hospitalizations = 1
-
-        return inference_visuals_save_path
-
-    def save_single_run_visuals(
-        self,
-        sol: tuple[Array, Array, Array, Array],
-        solution_interpreter: SolutionInterpreter,
-        vis_filename: str = "azure_visualizer_inference_timeline.png",
-    ):
-        """
-        given a tuple of compartment timelines, saves a number of timelines of interest for future visualization
-        usually `sol` is retrieved from `diffrax.Solution.ys` which is an object returned from `MechanisticRunner.run()`
-        """
-        inference_visuals_save_path = os.path.join(
-            self.azure_output_dir,
-            vis_filename,
-        )
-        # plot the 4 compartments summed across all age bins and immunity status
-        _ = solution_interpreter.summarize_solution()
-        return inference_visuals_save_path
-
     def _generate_model_component_timelines(
         self,
         parameters: AbstractParameters,
         infections: tuple[Array, Array, Array, Array],
-        hospitalization_preds: tuple[Array, Array, Array, Array],
+        hospitalization_preds: tuple[Array, Array, Array, Array] = None,
         hospitalization_ground_truth: Union[np.ndarray, None] = None,
     ) -> pd.DataFrame:
         """
@@ -112,7 +55,7 @@ class AbstractAzureRunner(ABC):
             a class that inherits from AbstractParameters and therefore has a get_parameters() method
         infections : tuple[Array, Array, Array, Array]
             compartments sizes of the model as produced by MechanisticRunner.run() commands
-        hospitalization_preds : tuple[Array, Array, Array, Array]
+        hospitalization_preds : Optional tuple[Array, Array, Array, Array]
             models hospitalization predictions, usually the infections
             matrix with some infection hospitalization ratio applied
         hospitalization_ground_truth: Optional np.ndarray
@@ -132,8 +75,6 @@ class AbstractAzureRunner(ABC):
             a pandas dataframe with a "date" column along with a number of views of the model output
         """
         num_days_predicted = infections[parameters.config.COMPARTMENT_IDX.S].shape[0]
-        if hospitalization_ground_truth is not None:
-            num_days_predicted = max()
         timeline = [
             utils.sim_day_to_date(day, parameters.config.INIT_DATE)
             for day in range(num_days_predicted)
@@ -146,4 +87,128 @@ class AbstractAzureRunner(ABC):
                 df["obs_hosp_%s" % (age_bin_str.replace("-", "_"))] = (
                     hospitalization_ground_truth[:, age_bin_idx]
                 )
+            if hospitalization_preds is not None:
+                df["pred_hosp_%s" % (age_bin_str.replace("-", "_"))] = (
+                    hospitalization_preds[:, age_bin_idx]
+                )
+            infection_incidence = utils.get_timeline_from_solution_with_command(
+                infections,
+                parameters.config.COMPARTMENT_IDX,
+                parameters.config.W_IDX,
+                parameters.config.STRAIN_IDXs,
+                "incidence",
+            )
+            df["total_infection_incidence"] = infection_incidence
+            strain_proportions = utils.get_timeline_from_solution_with_command(
+                infections,
+                parameters.config.COMPARTMENT_IDX,
+                parameters.config.W_IDX,
+                parameters.config.STRAIN_IDXs,
+                "strain_prevalence",
+            )
+            for s_idx, strain_name in enumerate(
+                parameters.config.STRAIN_IDX._member_names_
+            ):
+                strain_infections = utils.get_timeline_from_solution_with_command(
+                    infections,
+                    parameters.config.COMPARTMENT_IDX,
+                    parameters.config.W_IDX,
+                    parameters.config.STRAIN_IDXs,
+                    strain_name,
+                )
+                df["%s_exposed_infectious" % strain_name] = strain_infections
+                df["%s_strain_proportion" % strain_name] = strain_proportions[s_idx]
         return df
+
+    def save_inference_posteriors(
+        self, inferer: MechanisticInferer, save_filename="checkpoint.json"
+    ) -> None:
+        """saves output of mcmc.get_samples(), does nothing if `inferer` has not compelted inference yet.
+
+        Parameters
+        ----------
+        inferer : MechanisticInferer
+            inferer that was run with `inferer.infer()`
+        save_filename : str, optional
+            output filename, by default "checkpoint.json"
+
+        Returns
+        ------------
+        None
+        """
+        # if inference complete, convert jnp/np arrays to list, then json dump
+        if inferer.infer_complete:
+            samples = inferer.inference_algo.get_samples(group_by_chain=True)
+            for param in samples.keys():
+                samples[param] = samples[param].tolist()
+            save_path = os.path.join(self.azure_output_dir, save_filename)
+            json.dump(samples, open(save_path, "w"))
+
+    def save_inference_visuals(
+        self,
+        inferer: MechanisticInferer,
+        vis_filename: str = "azure_visualizer_timeline.csv",
+        particles_saved=1,
+    ) -> str:
+        """saves history of inferer sampled values for use by the azure visualizer.
+        saves JSON file to `self.azure_output_dir/vis_path`.
+        Look at shiny_visualizers/azure_visualizer.py for logic on parsing and visualizing the chains.
+
+        Parameters
+        ----------
+        inferer: MechanisticInferer
+            the inferer object used to sample the parameter chains that will be visualized
+        solution_interpreter : _type_
+            _description_
+        vis_filename : _type_, optional
+            _description_, by default "azure_visualizer_inference_timeline.json"
+        particles_run : _type_, optional
+            _description_, by default 1
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        inference_visuals_save_path = os.path.join(
+            self.azure_output_dir,
+            vis_filename,
+        )
+        all_particles_df = pd.DataFrame()
+        for particle in range(particles_saved):
+            # assuming the inferer has finished fitting
+            posteriors = inferer.load_posterior_particle(particle)
+            for (chain, particle), sol_dct in posteriors.items():
+                infection_timeline, hospitalizations = (
+                    sol_dct["solution"],
+                    sol_dct["hospitalizations"],
+                )
+                df = self._generate_model_component_timelines(
+                    inferer, infection_timeline, hospitalizations
+                )
+                df["chain_particle"] = "%s_%s" % (chain, particle)
+                # add this chain/particle combo onto the main df
+                all_particles_df = pd.concat(
+                    [all_particles_df, df], axis=0, ignore_index=True
+                )
+        all_particles_df.to_csv(inference_visuals_save_path, index=False)
+        return inference_visuals_save_path
+
+    def save_single_run_visuals(
+        self,
+        parameters: AbstractParameters,
+        sol: tuple[Array, Array, Array, Array],
+        vis_filename: str = "azure_visualizer_timeline.png",
+    ):
+        """
+        given a tuple of compartment timelines, saves a number of timelines of interest for future visualization
+        usually `sol` is retrieved from `diffrax.Solution.ys` which is an object returned from `MechanisticRunner.run()`
+        """
+        inference_visuals_save_path = os.path.join(
+            self.azure_output_dir,
+            vis_filename,
+        )
+        # plot the 4 compartments summed across all age bins and immunity status
+        df = self._generate_model_component_timelines(parameters, sol)
+        df.to_csv(inference_visuals_save_path, index=False)
+        return inference_visuals_save_path
