@@ -1,16 +1,15 @@
 """
-An example script similar to example_end_to_end_run.py 
+An example script similar to example_end_to_end_run.py
 but adapted to show the differences between Azure runs and local ones.
 """
 
+import argparse
+
 from mechanistic_model.abstract_azure_runner import AbstractAzureRunner
 from mechanistic_model.covid_initializer import CovidInitializer
-from mechanistic_model.solution_iterpreter import SolutionInterpreter
-from mechanistic_model.static_value_parameters import StaticValueParameters
 from mechanistic_model.mechanistic_runner import MechanisticRunner
+from mechanistic_model.static_value_parameters import StaticValueParameters
 from model_odes.seip_model import seip_ode
-import argparse
-import matplotlib.pyplot as plt
 
 
 class ExampleRunner(AbstractAzureRunner):
@@ -40,7 +39,9 @@ class ExampleRunner(AbstractAzureRunner):
         # defines the running variables, strain R0s, external strain introductions etc.
         RUNNER_CONFIG_PATH = config_path + "config_runner_covid.json"
         # sets up the initial conditions, initializer.get_initial_state() passed to runner
-        initializer = CovidInitializer(INITIALIZER_CONFIG_PATH, GLOBAL_CONFIG_PATH)
+        initializer = CovidInitializer(
+            INITIALIZER_CONFIG_PATH, GLOBAL_CONFIG_PATH
+        )
         # reads and interprets values from config, sets up downstream parameters
         # like beta = STRAIN_R0s / INFECTIOUS_PERIOD
         static_params = StaticValueParameters(

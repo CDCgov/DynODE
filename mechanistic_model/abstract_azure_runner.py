@@ -5,10 +5,10 @@ mechanistic_initializers will often be tasked with reading, parsing, and combini
 to produce an initial state representing some analyzed population
 """
 
+import json
 import os
 from abc import ABC, abstractmethod
 from typing import Union
-import json
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,6 @@ from jax import Array
 import utils
 from mechanistic_model.abstract_parameters import AbstractParameters
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
-from mechanistic_model.solution_iterpreter import SolutionInterpreter
 
 
 class AbstractAzureRunner(ABC):
@@ -27,8 +26,12 @@ class AbstractAzureRunner(ABC):
         if not os.path.exists(azure_output_dir):
             os.makedirs(azure_output_dir, exist_ok=True)
         # create two dual loggers to save sys.stderr and sys.stdout to files in `azure_output_dir`
-        utils.dual_logger_out(os.path.join(azure_output_dir, "stdout.txt"), "w")
-        utils.dual_logger_err(os.path.join(azure_output_dir, "stderr.txt"), "w")
+        utils.dual_logger_out(
+            os.path.join(azure_output_dir, "stdout.txt"), "w"
+        )
+        utils.dual_logger_err(
+            os.path.join(azure_output_dir, "stderr.txt"), "w"
+        )
 
     @abstractmethod
     def process_state(self, state):
@@ -74,7 +77,9 @@ class AbstractAzureRunner(ABC):
         pd.DataFrame
             a pandas dataframe with a "date" column along with a number of views of the model output
         """
-        num_days_predicted = infections[parameters.config.COMPARTMENT_IDX.S].shape[0]
+        num_days_predicted = infections[
+            parameters.config.COMPARTMENT_IDX.S
+        ].shape[0]
         timeline = [
             utils.sim_day_to_date(day, parameters.config.INIT_DATE)
             for day in range(num_days_predicted)
@@ -84,19 +89,21 @@ class AbstractAzureRunner(ABC):
         for age_bin_str in parameters.config.AGE_GROUP_STRS:
             age_bin_idx = parameters.config.AGE_GROUP_IDX[age_bin_str]
             if hospitalization_ground_truth is not None:
-                df["obs_hosp_%s" % (age_bin_str.replace("-", "_"))] = (
-                    hospitalization_ground_truth[:, age_bin_idx]
-                )
+                df[
+                    "obs_hosp_%s" % (age_bin_str.replace("-", "_"))
+                ] = hospitalization_ground_truth[:, age_bin_idx]
             if hospitalization_preds is not None:
-                df["pred_hosp_%s" % (age_bin_str.replace("-", "_"))] = (
-                    hospitalization_preds[:, age_bin_idx]
+                df[
+                    "pred_hosp_%s" % (age_bin_str.replace("-", "_"))
+                ] = hospitalization_preds[:, age_bin_idx]
+            infection_incidence = (
+                utils.get_timeline_from_solution_with_command(
+                    infections,
+                    parameters.config.COMPARTMENT_IDX,
+                    parameters.config.W_IDX,
+                    parameters.config.STRAIN_IDXs,
+                    "incidence",
                 )
-            infection_incidence = utils.get_timeline_from_solution_with_command(
-                infections,
-                parameters.config.COMPARTMENT_IDX,
-                parameters.config.W_IDX,
-                parameters.config.STRAIN_IDXs,
-                "incidence",
             )
             df["total_infection_incidence"] = infection_incidence
             strain_proportions = utils.get_timeline_from_solution_with_command(
@@ -109,15 +116,19 @@ class AbstractAzureRunner(ABC):
             for s_idx, strain_name in enumerate(
                 parameters.config.STRAIN_IDX._member_names_
             ):
-                strain_infections = utils.get_timeline_from_solution_with_command(
-                    infections,
-                    parameters.config.COMPARTMENT_IDX,
-                    parameters.config.W_IDX,
-                    parameters.config.STRAIN_IDXs,
-                    strain_name,
+                strain_infections = (
+                    utils.get_timeline_from_solution_with_command(
+                        infections,
+                        parameters.config.COMPARTMENT_IDX,
+                        parameters.config.W_IDX,
+                        parameters.config.STRAIN_IDXs,
+                        strain_name,
+                    )
                 )
                 df["%s_exposed_infectious" % strain_name] = strain_infections
-                df["%s_strain_proportion" % strain_name] = strain_proportions[s_idx]
+                df["%s_strain_proportion" % strain_name] = strain_proportions[
+                    s_idx
+                ]
         return df
 
     def save_inference_posteriors(
