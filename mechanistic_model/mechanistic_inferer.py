@@ -439,16 +439,17 @@ class MechanisticInferer(AbstractParameters):
         for particle in particles:
             # get the particle chain and number
             chain_num, particle_num = particle
+            single_particle_samples = {}
             for param in posterior_samples:
-                posterior_samples[param] = posterior_samples[param][
+                single_particle_samples[param] = posterior_samples[param][
                     chain_num, particle_num
                 ]
 
             single_particle_dct = self._load_posterior_single_particle(
-                posterior_samples, particle_num, tf
+                single_particle_samples, tf
             )
             # add this particle/chain run onto the return dict
-            return_dct.update(single_particle_dct)
+            return_dct[(chain_num, particle_num)] = single_particle_dct
         return return_dct
 
     def _load_posterior_single_particle(

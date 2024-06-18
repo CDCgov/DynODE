@@ -66,9 +66,13 @@ except Exception as e:
 
 
 def test_load_posterior_particle():
-    inferer_posteriors = inferer.load_posterior_particle(particle_num=0)
+    # select particle 0 across chains
+    load_across_chains = [
+        (chain, 0) for chain in range(inferer.config.INFERENCE_NUM_CHAINS)
+    ]
+    inferer_posteriors = inferer.load_posterior_particle(load_across_chains)
     for chain in range(inferer.config.INFERENCE_NUM_CHAINS):
-        individual_particle = inferer_posteriors[(0, chain)]
+        individual_particle = inferer_posteriors[(chain, 0)]
         for i, compartment in enumerate(individual_particle["solution"].ys):
             # did we reproduce the same timeline, the values will be different since this is a particle
             assert (
@@ -77,18 +81,23 @@ def test_load_posterior_particle():
 
 
 def test_external_posteriors():
+    load_across_chains = [
+        (chain, 0) for chain in range(inferer.config.INFERENCE_NUM_CHAINS)
+    ]
     inferer1_posteriors = inferer.load_posterior_particle(
-        particle_num=0, tf=100
+        load_across_chains, tf=100
     )
     inferer2 = MechanisticInferer(
         GLOBAL_CONFIG_PATH, INFERER_CONFIG_PATH, runner, fake_initial_state
     )
     inferer2_posteriors = inferer2.load_posterior_particle(
-        0, tf=100, external_posteriors=mc.get_samples(group_by_chain=True)
+        load_across_chains,
+        tf=100,
+        external_particle=mc.get_samples(group_by_chain=True),
     )
     for chain in range(inferer.config.INFERENCE_NUM_CHAINS):
-        inferer1_chain = inferer1_posteriors[(0, chain)]
-        inferer2_chain = inferer2_posteriors[(0, chain)]
+        inferer1_chain = inferer1_posteriors[(chain, 0)]
+        inferer2_chain = inferer2_posteriors[(chain, 0)]
         # check that all posterios are the same including all lists
         assert np.isclose(
             inferer1_chain["solution"].ys[inferer.config.COMPARTMENT_IDX.C],
