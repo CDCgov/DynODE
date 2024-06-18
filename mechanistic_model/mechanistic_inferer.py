@@ -276,22 +276,18 @@ class MechanisticInferer(AbstractParameters):
     ) -> None:
         """
         a function which saves the posterior samples from `self.inference_algo` into `checkpoint_path` as a json file.
-        will save anything sampled or numpyro.deterministic as long as it is tracked by `self.inference_algo`.
-
-
+        will save anything sampled or numpyro.deterministic as long as it is tracked by `self.inference_algo`
 
         Parameters
         -----------
         checkpoint_path: str
             a path to which the json file is saved to. Throws error if folders do not exist, overwrites existing JSON files within.
 
-
         Raises
         ----------
         ValueError
             if inference has not been called (not self.infer_complete),
             and thus there are no posteriors to be saved to `checkpoint_path`
-
 
         Returns
         -----------
