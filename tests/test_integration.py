@@ -13,6 +13,7 @@ import json
 import os
 import tempfile
 
+import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -150,7 +151,9 @@ def test_vaccination_rates(temp_config_files):
     # we dont use the MechanisticRunner here because the adaptive step size can mess with things
     next_state = static_params.INITIAL_STATE
     for t in range(10):
-        cur_state = next_state
+        cur_state = tuple(
+            [jnp.array(compartment) for compartment in next_state]
+        )
         compartment_changes = seip_ode(
             cur_state, t, static_params.get_parameters()
         )

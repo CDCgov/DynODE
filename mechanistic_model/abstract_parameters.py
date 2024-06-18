@@ -44,6 +44,7 @@ class AbstractParameters:
         # should not share references, deep copy, GH issue for this created
         freeze_params = copy.deepcopy(self.config)
         parameters = {
+            "INIT_DATE": freeze_params.INIT_DATE,
             "CONTACT_MATRIX": freeze_params.CONTACT_MATRIX,
             "POPULATION": freeze_params.POPULATION,
             "NUM_STRAINS": freeze_params.NUM_STRAINS,
