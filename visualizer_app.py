@@ -35,7 +35,7 @@ age_dict = {
 # index for all category
 age_dict["All"] = list(range(model.config.NUM_AGE_GROUPS))
 vaccination_strings = [
-    str(vax) for vax in range(model.config.MAX_VAX_COUNT + 1)
+    str(vax) for vax in range(model.config.MAX_VACCINATION_COUNT + 1)
 ]
 vaccination_strings[-1] = vaccination_strings[-1] + "+"
 # vaccination_strings = ["0", "1", "2+"]
@@ -263,7 +263,7 @@ def model_sero_curve(input, fig, ax):
     # next we want to add bins to our abm data just like our model does.
     abm_population = utils.prep_abm_data(
         abm_population,
-        model.config.MAX_VAX_COUNT,
+        model.config.MAX_VACCINATION_COUNT,
         model.config.AGE_LIMITS,
         model.config.WANING_TIMES,
         model.config.NUM_STRAINS,
