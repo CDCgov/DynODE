@@ -97,7 +97,7 @@ class MechanisticInferer(AbstractParameters):
 
     def likelihood(
         self, obs_metrics: Union[jax.Array, None] = None, tf: int = None
-    ) -> dict[str, Union[Solution, SEIC_Compartments],]:
+    ) -> dict[str, Union[Solution, jax.Array],]:
         """
         Given some observed metrics, samples the likelihood of them occuring
         under a set of parameter distributions sampled by self.inference_algo.
