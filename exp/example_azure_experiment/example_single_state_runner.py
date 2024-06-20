@@ -6,7 +6,7 @@ but adapted to show the differences between Azure runs and local ones.
 import argparse
 
 from mechanistic_model.abstract_azure_runner import AbstractAzureRunner
-from mechanistic_model.covid_initializer import CovidInitializer
+from mechanistic_model.covid_sero_initializer import CovidSeroInitializer
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 from mechanistic_model.static_value_parameters import StaticValueParameters
 from model_odes.seip_model import seip_ode
@@ -30,7 +30,7 @@ class ExampleRunner(AbstractAzureRunner):
         """
         # step 1: define your paths NOTE: These are all within the docker container!
         # /input is a MOUNTED drive that we upload these files into right before the job launched
-        config_path = "/input/input_configs/%s/" % state
+        config_path = "/app/exp/example_azure_experiment/states/%s/" % state
         # global_config include definitions such as age bin bounds and strain definitions
         # Any value or data structure that needs context to be interpretted is here.
         GLOBAL_CONFIG_PATH = config_path + "config_global.json"
@@ -39,7 +39,7 @@ class ExampleRunner(AbstractAzureRunner):
         # defines the running variables, strain R0s, external strain introductions etc.
         RUNNER_CONFIG_PATH = config_path + "config_runner_covid.json"
         # sets up the initial conditions, initializer.get_initial_state() passed to runner
-        initializer = CovidInitializer(
+        initializer = CovidSeroInitializer(
             INITIALIZER_CONFIG_PATH, GLOBAL_CONFIG_PATH
         )
         # reads and interprets values from config, sets up downstream parameters
@@ -57,7 +57,7 @@ class ExampleRunner(AbstractAzureRunner):
             tf=200,
             args=static_params.get_parameters(),
         )
-        self.save_single_run_visuals(static_params, solution.ys)
+        self.save_static_run_timelines(static_params, solution)
         return solution
 
 
@@ -67,10 +67,15 @@ parser.add_argument(
     "--state",
     type=str,
     help="directory for the state to run, resembles USPS code of the state",
+    required=True,
 )
 
 parser.add_argument(
-    "-j", "--jobid", type=str, help="job-id of the state being run on Azure"
+    "-j",
+    "--jobid",
+    type=str,
+    help="job-id of the state being run on Azure",
+    required=True,
 )
 args = parser.parse_args()
 state = args.state

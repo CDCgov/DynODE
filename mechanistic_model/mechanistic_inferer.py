@@ -20,15 +20,9 @@ from numpyro.infer import MCMC, NUTS  # type: ignore
 
 import utils
 from config.config import Config
+from mechanistic_model import SEIC_Compartments
 from mechanistic_model.abstract_parameters import AbstractParameters
 from mechanistic_model.mechanistic_runner import MechanisticRunner
-
-SEIC_Compartments = tuple[
-    jax.Array,
-    jax.Array,
-    jax.Array,
-    jax.Array,
-]
 
 
 class MechanisticInferer(AbstractParameters):
@@ -178,10 +172,11 @@ class MechanisticInferer(AbstractParameters):
             Dist.Poisson(poisson_rates * ihr),
             obs=obs_metrics,
         )
-        # return Solution and hosp values used by load_posterior_particle
+        # return Solution, hosp values, and static parameters. used by load_posterior_particle
         return {
             "solution": solution,
             "hospitalizations": model_incidence * ihr,
+            "parameters": parameters,
         }
 
     def set_posteriors_if_exist(self, prior_inferer: MCMC) -> None:

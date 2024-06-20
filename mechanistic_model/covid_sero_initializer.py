@@ -53,7 +53,10 @@ class CovidSeroInitializer(CovidInitializer):
 
         assumes each age bin in INIT_IMMUNE_HISTORY sums to 1, will fail if not.
         """
-        file_name = str(self.config.REGIONS[0]).replace(" ", "_") + "_sero.csv"
+        file_name = (
+            str(self.config.REGIONS[0]).replace(" ", "_")
+            + "_initialization.csv"
+        )
         sero_path = os.path.join(self.config.SEROLOGICAL_DATA_PATH, file_name)
         assert os.path.exists(sero_path), (
             "sero path for %s does not exist" % sero_path

@@ -5,6 +5,7 @@ mechanistic_initializers will often be tasked with reading, parsing, and combini
 to produce an initial state representing some analyzed population
 """
 
+import copy
 import json
 import os
 from abc import ABC, abstractmethod
@@ -12,11 +13,13 @@ from typing import Union
 
 import numpy as np
 import pandas as pd
-from jax import Array
+from diffrax import Solution
 
 import utils
+from mechanistic_model import SEIC_Compartments
 from mechanistic_model.abstract_parameters import AbstractParameters
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
+from mechanistic_model.static_value_parameters import StaticValueParameters
 
 
 class AbstractAzureRunner(ABC):
@@ -43,9 +46,9 @@ class AbstractAzureRunner(ABC):
 
     def _generate_model_component_timelines(
         self,
-        parameters: AbstractParameters,
-        infections: tuple[Array, Array, Array, Array],
-        hospitalization_preds: tuple[Array, Array, Array, Array] = None,
+        model: AbstractParameters,
+        solution: Solution,
+        hospitalization_preds: SEIC_Compartments = None,
         hospitalization_ground_truth: Union[np.ndarray, None] = None,
     ) -> pd.DataFrame:
         """
@@ -56,9 +59,18 @@ class AbstractAzureRunner(ABC):
         ----------
         parameters : AbstractParameters
             a class that inherits from AbstractParameters and therefore has a get_parameters() method
-        infections : tuple[Array, Array, Array, Array]
-            compartments sizes of the model as produced by MechanisticRunner.run() commands
-        hospitalization_preds : Optional tuple[Array, Array, Array, Array]
+        solution : Solution
+            diffrax Solution object as produced by MechanisticRunner.run() command
+        vaccination_func : Optional Callable
+            function used by `parameters` to generate vaccinations of
+            each age bin x vax status strata. Takes input parameter `t` for day of sim
+        seasonality_func : Optional Callable
+            function used by `parameters` to generate seasonality coefficients.
+            Takes input parameter `t` for day of sim
+        external_i_func : Optional Callable
+            function used by `parameters` to generate external introductions of
+            each age bin x strain strata. Takes input parameter `t` for day of sim
+        hospitalization_preds : Optional SEIC_Compartments
             models hospitalization predictions, usually the infections
             matrix with some infection hospitalization ratio applied
         hospitalization_ground_truth: Optional np.ndarray
@@ -77,58 +89,98 @@ class AbstractAzureRunner(ABC):
         pd.DataFrame
             a pandas dataframe with a "date" column along with a number of views of the model output
         """
-        num_days_predicted = infections[
-            parameters.config.COMPARTMENT_IDX.S
-        ].shape[0]
+        infections = solution.ys
+        num_days_predicted = infections[model.config.COMPARTMENT_IDX.S].shape[
+            0
+        ]
         timeline = [
-            utils.sim_day_to_date(day, parameters.config.INIT_DATE)
+            utils.sim_day_to_date(day, model.config.INIT_DATE)
             for day in range(num_days_predicted)
         ]
         df = pd.DataFrame()
         df["date"] = timeline
-        for age_bin_str in parameters.config.AGE_GROUP_STRS:
-            age_bin_idx = parameters.config.AGE_GROUP_IDX[age_bin_str]
+        parameters = model.get_parameters()
+        vaccination_func = parameters["VACCINATION_RATES"]
+        seasonality_func = parameters["SEASONALITY"]
+        external_i_func = parameters["EXTERNAL_I"]
+        # save a timeline of shape (num_days_predicted, age_groups)
+        # sum across vax status
+        vaccination_timeline = np.array(
+            [
+                np.sum(vaccination_func(t), axis=1)
+                for t in range(num_days_predicted)
+            ]
+        )
+        # save a seasonality timeline of shape (num_days_predicted, )
+        seasonality_timeline = np.array(
+            [seasonality_func(t) for t in range(num_days_predicted)]
+        )
+        df["seasonality_coef"] = seasonality_timeline
+        # save external introductions timeline of shape (num_days_predicted, num_strains)
+        # sum across age groups since we do % of each age bin anyways
+        external_i_timeline = np.array(
+            [
+                np.sum(
+                    external_i_func(t),
+                    axis=(
+                        model.config.I_AXIS_IDX.age,
+                        model.config.I_AXIS_IDX.hist,
+                        model.config.I_AXIS_IDX.vax,
+                    ),
+                )
+                for t in range(num_days_predicted)
+            ]
+        )
+        for age_bin_str in model.config.AGE_GROUP_STRS:
+            age_bin_idx = model.config.AGE_GROUP_IDX[age_bin_str]
+            age_bin_str = age_bin_str.replace("-", "_")
             if hospitalization_ground_truth is not None:
                 df[
-                    "obs_hosp_%s" % (age_bin_str.replace("-", "_"))
+                    "obs_hosp_%s" % (age_bin_str)
                 ] = hospitalization_ground_truth[:, age_bin_idx]
             if hospitalization_preds is not None:
-                df[
-                    "pred_hosp_%s" % (age_bin_str.replace("-", "_"))
-                ] = hospitalization_preds[:, age_bin_idx]
-            infection_incidence = (
-                utils.get_timeline_from_solution_with_command(
-                    infections,
-                    parameters.config.COMPARTMENT_IDX,
-                    parameters.config.W_IDX,
-                    parameters.config.STRAIN_IDXs,
-                    "incidence",
-                )
-            )
-            df["total_infection_incidence"] = infection_incidence
-            strain_proportions = utils.get_timeline_from_solution_with_command(
-                infections,
-                parameters.config.COMPARTMENT_IDX,
-                parameters.config.W_IDX,
-                parameters.config.STRAIN_IDXs,
-                "strain_prevalence",
-            )
-            for s_idx, strain_name in enumerate(
-                parameters.config.STRAIN_IDX._member_names_
-            ):
-                strain_infections = (
-                    utils.get_timeline_from_solution_with_command(
-                        infections,
-                        parameters.config.COMPARTMENT_IDX,
-                        parameters.config.W_IDX,
-                        parameters.config.STRAIN_IDXs,
-                        strain_name,
-                    )
-                )
-                df["%s_exposed_infectious" % strain_name] = strain_infections
-                df["%s_strain_proportion" % strain_name] = strain_proportions[
-                    s_idx
+                df["pred_hosp_%s" % (age_bin_str)] = hospitalization_preds[
+                    :, age_bin_idx
                 ]
+            df["vaccination_%s" % (age_bin_str)] = vaccination_timeline[
+                :, age_bin_idx
+            ]
+
+        infection_incidence, _ = utils.get_timeline_from_solution_with_command(
+            infections,
+            model.config.COMPARTMENT_IDX,
+            model.config.WANE_IDX,
+            model.config.STRAIN_IDX,
+            "incidence",
+        )
+        # incidence takes a diff, thus reducing length by 1, incidence at t=0 -> 0
+        # so prepend a 0 to the start of the timeline
+        df["total_infection_incidence"] = np.insert(
+            infection_incidence, [0], [0]
+        )
+        strain_proportions, _ = utils.get_timeline_from_solution_with_command(
+            infections,
+            model.config.COMPARTMENT_IDX,
+            model.config.WANE_IDX,
+            model.config.STRAIN_IDX,
+            "strain_prevalence",
+        )
+        # shape (strain, num_days_predicted) summed across age bins
+        population_immunity = np.mean(
+            utils.get_immunity(model, solution), axis=-1
+        )
+        for s_idx, strain_name in enumerate(
+            model.config.STRAIN_IDX._member_names_
+        ):
+            df["%s_strain_proportion" % strain_name] = strain_proportions[
+                s_idx
+            ]
+            df[
+                "%s_external_introductions" % strain_name
+            ] = external_i_timeline[:, s_idx]
+            df["%s_average_immunity" % strain_name] = population_immunity[
+                s_idx, :
+            ]
         return df
 
     def save_inference_posteriors(
@@ -155,10 +207,10 @@ class AbstractAzureRunner(ABC):
             save_path = os.path.join(self.azure_output_dir, save_filename)
             json.dump(samples, open(save_path, "w"))
 
-    def save_inference_visuals(
+    def save_inference_timelines(
         self,
         inferer: MechanisticInferer,
-        vis_filename: str = "azure_visualizer_timeline.csv",
+        timeline_filename: str = "azure_visualizer_timeline.csv",
         particles_saved=1,
     ) -> str:
         """saves history of inferer sampled values for use by the azure visualizer.
@@ -183,19 +235,26 @@ class AbstractAzureRunner(ABC):
         """
         inference_visuals_save_path = os.path.join(
             self.azure_output_dir,
-            vis_filename,
+            timeline_filename,
         )
         all_particles_df = pd.DataFrame()
         for particle in range(particles_saved):
             # assuming the inferer has finished fitting
             posteriors = inferer.load_posterior_particle(particle)
             for (chain, particle), sol_dct in posteriors.items():
-                infection_timeline, hospitalizations = (
+                infection_timeline, hospitalizations, static_parameters = (
                     sol_dct["solution"],
                     sol_dct["hospitalizations"],
+                    sol_dct["parameters"],
                 )
+                # spoof the inferer to return our static parameters when calling `get_parameters()`
+                # instead of trying to sample like it normally does
+                spoof_static_inferer = copy.copy(inferer)
+                spoof_static_inferer.get_parameters = lambda: static_parameters
                 df = self._generate_model_component_timelines(
-                    inferer, infection_timeline, hospitalizations
+                    spoof_static_inferer,
+                    infection_timeline,
+                    hospitalization_preds=hospitalizations,
                 )
                 df["chain_particle"] = "%s_%s" % (chain, particle)
                 # add this chain/particle combo onto the main df
@@ -205,11 +264,11 @@ class AbstractAzureRunner(ABC):
         all_particles_df.to_csv(inference_visuals_save_path, index=False)
         return inference_visuals_save_path
 
-    def save_single_run_visuals(
+    def save_static_run_timelines(
         self,
-        parameters: AbstractParameters,
-        sol: tuple[Array, Array, Array, Array],
-        vis_filename: str = "azure_visualizer_timeline.png",
+        parameters: StaticValueParameters,
+        sol: Solution,
+        timeline_filename: str = "azure_visualizer_timeline.csv",
     ):
         """
         given a tuple of compartment timelines, saves a number of timelines of interest for future visualization
@@ -217,9 +276,9 @@ class AbstractAzureRunner(ABC):
         """
         inference_visuals_save_path = os.path.join(
             self.azure_output_dir,
-            vis_filename,
+            timeline_filename,
         )
-        # plot the 4 compartments summed across all age bins and immunity status
+        # get a number of timelines to visualize the run
         df = self._generate_model_component_timelines(parameters, sol)
         df.to_csv(inference_visuals_save_path, index=False)
         return inference_visuals_save_path
