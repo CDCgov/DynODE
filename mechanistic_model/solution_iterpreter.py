@@ -17,7 +17,7 @@ import numpy as np
 from diffrax import Solution
 from PIL.PngImagePlugin import PngInfo
 
-import utils
+import mechanistic_model.utils as utils
 from config.config import Config
 
 

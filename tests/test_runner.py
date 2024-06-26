@@ -3,7 +3,7 @@ import datetime
 import jax.numpy as jnp
 import pytest
 
-import utils
+import mechanistic_model.utils as utils
 from config.config import Config
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 from mechanistic_model.static_value_parameters import StaticValueParameters

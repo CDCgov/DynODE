@@ -17,7 +17,7 @@ import pandas as pd  # type: ignore
 from jax.scipy.stats.norm import pdf
 from jax.typing import ArrayLike
 
-import utils
+import mechanistic_model.utils as utils
 from mechanistic_model import SEIC_Compartments
 
 

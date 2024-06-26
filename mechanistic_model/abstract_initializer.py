@@ -7,7 +7,7 @@ to produce an initial state representing some analyzed population
 
 from abc import ABC, abstractmethod
 
-import utils
+import mechanistic_model.utils as utils
 from mechanistic_model import SEIC_Compartments
 
 

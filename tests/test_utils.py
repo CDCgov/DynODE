@@ -5,8 +5,8 @@ from enum import IntEnum
 import jax.numpy as jnp
 import numpyro.distributions as dist
 
-import utils
-from utils import (
+import mechanistic_model.utils as utils
+from mechanistic_model.utils import (
     get_strains_exposed_to,
     get_timeline_from_solution_with_command,
 )
