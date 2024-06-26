@@ -42,6 +42,9 @@ class ExampleRunner(AbstractAzureRunner):
         INITIALIZER_CONFIG_PATH = config_path + "config_initializer_covid.json"
         # defines the running variables, strain R0s, external strain introductions etc.
         RUNNER_CONFIG_PATH = config_path + "config_runner_covid.json"
+        self.save_config(GLOBAL_CONFIG_PATH)
+        self.save_config(INITIALIZER_CONFIG_PATH)
+        self.save_config(RUNNER_CONFIG_PATH)
         # sets up the initial conditions, initializer.get_initial_state() passed to runner
         initializer = CovidSeroInitializer(
             INITIALIZER_CONFIG_PATH, GLOBAL_CONFIG_PATH
