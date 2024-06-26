@@ -66,7 +66,7 @@ class AbstractAzureRunner(ABC):
         new_config_path = os.path.join(self.azure_output_dir, new_filename)
         with open(new_config_path, "w") as j:
             # open the location of `config_path` locally, and save it to the new_config_path
-            json.dump(open(config_path, "r"), j, indent=4)
+            json.dump(json.load(open(config_path, "r")), j, indent=4)
 
     def _generate_model_component_timelines(
         self,
