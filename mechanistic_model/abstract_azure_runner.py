@@ -44,6 +44,30 @@ class AbstractAzureRunner(ABC):
         """
         pass
 
+    def save_config(self, config_path: str, suffix: str = "_used"):
+        """saves a config json located at `config_path` appending `suffix` to the filename
+        to help distinguish it from other configs.
+
+        Parameters
+        ----------
+        config_path : str
+            the path, relative or absolute, to the config file wishing to be saved.
+        suffix : str, optional
+            suffix to append onto filename, if "" config path remains untouched, by default "_used"
+        """
+        config_path = config_path.replace(
+            "\\", "/"
+        )  # catches windows path weirdness
+        # split extension and filename, then add suffix between
+        # e.g. test_file.py -> test_file_used.py
+        filename = os.path.basename(config_path)
+        name, extension = os.path.splitext(filename)
+        new_filename = f"{name}{suffix}{extension}"
+        new_config_path = os.path.join(self.azure_output_dir, new_filename)
+        with open(new_config_path, "w") as j:
+            # open the location of `config_path` locally, and save it to the new_config_path
+            json.dump(open(config_path, "r"), j, indent=4)
+
     def _generate_model_component_timelines(
         self,
         model: AbstractParameters,
