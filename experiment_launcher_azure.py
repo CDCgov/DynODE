@@ -10,7 +10,7 @@ from cfa_azure.clients import AzureClient
 
 # specify job ID, cant already exist
 
-DOCKER_IMAGE_TAG = "test_image_1"
+DOCKER_IMAGE_TAG = "scenarios-image-6-26-24"
 # number of seconds of a full experiment run before timeout
 # for `s` states to run and `n` nodes dedicated,`s/n` * runtime 1 state secs needed
 TIMEOUT_MINS = 120
@@ -58,8 +58,6 @@ client.package_and_upload_dockerfile(
 # create the input and output blobs, for now they must be named /input and /output
 client.set_input_container("scenarios-mechanistic-input", "input")
 client.set_output_container("scenarios-mechanistic-output", "output")
-# client.set_input_container("scenarios-test-container")
-# client.set_output_container("example-output-scenarios-mechanistic", "output")
 
 # TODO ask ryan to implement the ability to specify the path in the input container
 # so that it can be different than the folder name that is on your local machine
@@ -74,11 +72,6 @@ client.set_scaling(
 )
 # client.create_pool(pool_name="scenarios_8cpu_pool_new")
 client.use_pool(pool_name="scenarios_8cpu_pool_new")
-# set the scaling of the pool, assign `dedicated_nodes` to split work accross
-# create the pool
-# client.use_pool(pool_name="scenarios_8cpu_pool")
-# or use a certain pool if already exists and active
-# client.use_pool(pool_name="scenarios_2_node")
 
 # command to run the job
 client.add_job(job_id=job_id)
