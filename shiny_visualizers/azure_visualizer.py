@@ -4,15 +4,13 @@ individual particles of posteriors produced by an experiment.
 """
 
 # ruff: noqa: E402
-import datetime
-import json
 import os
 import sys
+from typing import Union
 
 import numpy as np
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from shiny import App, Session, reactive, ui
 from shinywidgets import output_widget, render_widget
@@ -21,7 +19,6 @@ sys.path.append("c:\\Users\\uva5\\Documents\\GitHub\\cfa-scenarios-model")
 from cfa_azure.clients import AzureClient
 from cfa_azure.helpers import download_directory
 
-from config.config import Config
 from mechanistic_model.covid_initializer import CovidInitializer
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
 
@@ -29,11 +26,55 @@ INITIALIZER_USED = CovidInitializer
 INFERER_USED = MechanisticInferer
 INPUT_BLOB_NAME = "scenarios-mechanistic-input"
 OUTPUT_BLOB_NAME = "scenarios-mechanistic-output"
+# this will reduce the time it takes to load the azure connection, but only shows
+# one experiment worth of data, which may be what you want...
+#  leave empty ("") to explore all experiments
+PRE_FILTER_EXPERIMENTS = "example_output"
+# when loading the overview timelines csv for each run, columns
+# are expected to have names corresponding to the type of plot they create
+# vaccination_0_17 specifies the vaccination_ plot type, multiple columns may share
+# a plot type, e.g: vaccination_0_17, vaccination_18_49,...
+# it is assumed if they share a plot type they will appear on the same plot together
+OVERVIEW_PLOT_TYPES = np.array(
+    [
+        "seasonality_coef",
+        "vaccination_",
+        "total_infection_incidence",
+        "_strain_proportion",
+        "_external_introductions",
+        "_average_immunity",
+    ]
+)
+# plot titles for each type of plot
+OVERVIEW_PLOT_TITLES = np.array(
+    [
+        "Seasonality Coefficient",
+        "Vaccination Rate By Age",
+        "Total Infection Incidence",
+        "Strain Proportion of New Infections",
+        "External Introductions by Strain",
+        "Average Population Immunity Against Strains",
+    ]
+)
+OVERVIEW_SUBPLOT_HEIGHT = 150
+OVERVIEW_SUBPLOT_WIDTH = 1000
 
 
 def build_azure_connection(
     config_path="secrets/configuration_cfaazurebatchprd_new_sp.toml",
 ):
+    """builds an AzureClient and connects input and output blobs
+    found in INPUT_BLOB_NAME and OUTPUT_BLOB_NAME global vars.
+
+    Parameters
+    ----------
+    config_path : str, optional
+        path to your authentication toml, should not be public, by default "secrets/configuration_cfaazurebatchprd_new_sp.toml"
+
+    Returns
+    -------
+    AzureClient object
+    """
     client = AzureClient(config_path=config_path)
     client.set_input_container(INPUT_BLOB_NAME, "input")
     client.set_output_container(OUTPUT_BLOB_NAME, "output")
@@ -41,7 +82,25 @@ def build_azure_connection(
 
 
 def get_blob_names(azure_client: AzureClient):
-    return azure_client.out_cont_client.list_blob_names()
+    """returns the blobs stored in OUTPUT_BLOB_NAME on Azure Storage Account
+
+    Parameters
+    ----------
+    azure_client : AzureClient
+        the Azure client with the correct authentications to access the data, built from `build_azure_connection`
+
+    Returns
+    -------
+    Iterator[str]
+        an iterator of each blob, including directories: e.g\n
+        root \n
+        root/fol1 \n
+        root/fol1/fol2 \n
+        root/fol1/fol2/file.txt \n
+    """
+    return azure_client.out_cont_client.list_blob_names(
+        name_starts_with=PRE_FILTER_EXPERIMENTS
+    )
 
 
 class Node:
@@ -90,90 +149,47 @@ def get_azure_files(
         azure_blob_path = os.path.join(azure_blob_path, scenario)
     azure_blob_path = azure_blob_path.replace("\\", "/") + "/"
     dest_path = os.path.join(shiny_cache_path, azure_blob_path)
-
+    # if we already loaded this before, dont redownload it all!
+    if os.path.exists(dest_path):
+        return dest_path
     download_directory(
         azure_client.out_cont_client, azure_blob_path, shiny_cache_path
     )
     return dest_path
 
 
-def visualize_immunity(cache_path):
-    f = open(
-        os.path.join(cache_path, "checkpoint_noBoo_highIE_1_137.json").replace(
-            "\\", "/"
-        ),
-        "r",
+def _create_figure_from_timeline(
+    timeline: pd.DataFrame,
+    plot_name: str,
+    x_axis: str,
+    y_axis: Union[str, list[str]],
+    plot_type: str,
+    group_by: str = None,
+):
+    line = px.line(
+        timeline, x=x_axis, y=y_axis, title=plot_name, labels=y_axis
     )
-    d = json.load(f)
-    age = ["0-17", "18-49", "50-64", "65+"]
-    strain = ["XBB1", "XBB2", "JN1", "W", "X", "Y", "Z"]
-    vax_rate = np.array(d["VACCINATION_RATES"])
-    df = pd.DataFrame(
-        {"days": np.arange(365), "vax_rate": [v for v in vax_rate]}
-    )
-    immunity = np.array(d["IMMUNITY_STRAIN"]).transpose((1, 2, 0))
-    shp = immunity.shape
-
-    days = pd.Series(np.arange(shp[0])).repeat(shp[1] * shp[2]).to_list()
-    ages = pd.Series(age * shp[0]).repeat(shp[2]).to_list()
-    strains = strain * (shp[0] * shp[1])
-
-    df = pd.DataFrame(
-        {
-            "day": days,
-            "age": ages,
-            "strain": strains,
-            "immunity": immunity.flatten(),
-        }
-    )
-    fig = px.line(
-        df,
-        x="day",
-        y="immunity",
-        color="age",
-        facet_col="strain",
-        facet_col_wrap=4,
-        template="plotly_white",
-    )
-    fig.update_yaxes(range=[0, 1])
-    return fig
-
-
-def _create_figure_from_timeline(timeline, plot_type, dates, ages, strains):
-    # go through each plot type, return the correct plot for each type, sometimes groupby age/strain
-    # if applicable
-    if plot_type == "seasonality_coef" and plot_type in timeline.columns:
-        return go.Line(x=dates, y=timeline["seasonality_coef"])
-    elif (
-        plot_type == "total_infection_incidence"
-        and plot_type in timeline.columns
-    ):
-        return go.Line(x=dates, y=timeline["total_infection_incidence"])
-    else:
-        raise NotImplementedError(
-            "passed a plot type that has not yet been implemented or is not found in `timeline`"
-            "given: %s, but only contains columns %s"
-            % (plot_type, str(timeline.columns))
-        )
+    for data in line.data:
+        # if we pass a list of y_axis, we provide labels only for what
+        # differs from label to label, this aids in readability
+        if data.name == plot_type:
+            new_name = data.name.replace("_", " ")
+        else:
+            new_name = data.name.replace(plot_type, "").replace("_", "-")
+        data.name = new_name
+        data.hovertemplate = new_name
+    return line
 
 
 def load_default_timelines(cache_path):
     timelines = pd.read_csv(
         os.path.join(cache_path, "azure_visualizer_timeline.csv")
     )
-    config_global = Config(
-        open(os.path.join(cache_path, "config_global_used.json"), "r").read()
-    )
-    age_strs = config_global.AGE_GROUP_STRS
-    strain_names = config_global.STRAIN_IDX._member_names_
     # lowercase all columns to avoid caps issues
     timelines.columns = [col.lower() for col in timelines.columns]
     assert (
         "date" in timelines.columns
     ), "something went wrong in the creation of azure_visualizer_timeline.csv, there is no date columns"
-    dates = [
-        datetime.datetime.strptime(dt, "%Y-%m-%d") for dt in timelines["date"]
-    ]
     num_individual_particles = (
         len(timelines["chain_particle"].unique())
         if "chain_particle" in timelines.columns
@@ -181,38 +197,66 @@ def load_default_timelines(cache_path):
     )
     if num_individual_particles == 1:
         timelines["chain_particle"] = "na_na"
-    plot_types = [
-        "seasonality_coef",
-        # "vaccination_",
-        "total_infection_incidence",
-        # "_strain_proportion",
-        # "_external_introductions",
-        # "_average_immunity",
+    # we are counting the number of plot_types that are within timelines.columns
+    # this way we dont try to plot something that timelines does not have info on
+    plots_in_timelines = [
+        True if any([plot_type in col for col in timelines.columns]) else False
+        for plot_type in OVERVIEW_PLOT_TYPES
     ]
-    num_unique_plots = len(plot_types)
+    num_unique_plots_in_timelines = sum(plots_in_timelines)
+    # select only the plots we actually find within `timelines`
+    plot_types = OVERVIEW_PLOT_TYPES[plots_in_timelines].tolist()
+    plot_titles = OVERVIEW_PLOT_TITLES[plots_in_timelines].tolist()
+
     # total_subplots = num_individual_particles * num_unique_plots
-    fig = make_subplots(rows=num_unique_plots, cols=num_individual_particles)
-    # plot each particle as its own separate column
-    for col_num, chain_particle in enumerate(
-        timelines["chain_particle"].unique(), start=1
+    fig = make_subplots(
+        rows=num_unique_plots_in_timelines,
+        cols=num_individual_particles,
+        shared_xaxes=True,
+        x_title="date",
+        row_heights=[OVERVIEW_SUBPLOT_HEIGHT] * num_unique_plots_in_timelines,
+        column_widths=[OVERVIEW_SUBPLOT_WIDTH] * num_individual_particles,
+        subplot_titles=plot_titles,
+    )
+
+    for plot_num, (plot_title, plot_type) in enumerate(
+        zip(plot_titles, plot_types), start=1
     ):
-        timeline_chain_particle = timelines[
-            timelines["chain_particle"] == chain_particle
+        # for example "vaccination_" in "vaccination_0_17" is true
+        # so we include this column in the plot under that plot_type
+        columns_to_plot = [
+            col for col in timelines.columns if plot_type in col
         ]
-        # plot each type of plot within plot_types on its own row, grouping
-        # by age/strain where appropriate
-        for plot_num, plot_type in enumerate(plot_types, start=1):
-            fig.add_trace(
-                _create_figure_from_timeline(
-                    timeline_chain_particle,
-                    plot_type,
-                    dates,
-                    age_strs,
-                    strain_names,
-                ),
-                row=plot_num,
-                col=col_num,
-            )
+        plot_by_chain_particle = _create_figure_from_timeline(
+            timelines,
+            plot_title,
+            x_axis="date",
+            y_axis=columns_to_plot,
+            plot_type=plot_type,
+            group_by="chain_particle",
+        )
+        # _create_figure_from_timeline gives us a figure obj, not quite what we need
+        # TODO test this with multiple chains and see what happens to the shape of plot_by_chain_particle["data"]
+        for chain_particle_idx in range(num_individual_particles):
+            for group_by_num in range(len(columns_to_plot)):
+                fig.add_trace(
+                    plot_by_chain_particle["data"][group_by_num],
+                    row=plot_num,
+                    col=chain_particle_idx + 1,  # 1 start indexing, not 0 here
+                )
+    for i, yaxis in enumerate(fig.select_yaxes(), 1):
+        legend_name = f"legend{i}"
+        fig.update_layout(
+            {legend_name: dict(y=yaxis.domain[1], yanchor="top")},
+            showlegend=True,
+        )
+        fig.update_traces(row=i, legend=legend_name)
+    fig.update_layout(
+        width=OVERVIEW_SUBPLOT_WIDTH + 50,
+        height=OVERVIEW_SUBPLOT_HEIGHT * num_unique_plots_in_timelines + 50,
+        title_text="Overview",
+        legend_tracegroupgap=20,
+    )
 
     return fig
 
@@ -290,16 +334,11 @@ app_ui = ui.page_fluid(
 
 
 def server(input, output, session: Session):
-    # @output
-    # @render.plot
-    # def plot(fig=None):
-    #     # update_selections()
-    #     fig, axs = plt.subplots(1, 1)
-    #     return fig
-
     @reactive.effect
     @reactive.event(input.experiment, input.job_id, input.state)
     def _():
+        """Updates the Buttons by traversing the tree of blob directories
+        So the user is always seeing the correct directories"""
         experiment = input.experiment()
         tree_exp = tree_root.children[experiment]
         new_job_id_selections = [
@@ -350,6 +389,10 @@ def server(input, output, session: Session):
     @render_widget
     @reactive.event(input.action_button)
     def counter():
+        """
+        Gets the files associated with that experiment+job+state+scenario combo
+        and visualizes some summary statistics about the run
+        """
         exp = input.experiment()
         job_id = input.job_id()
         state = input.state()
