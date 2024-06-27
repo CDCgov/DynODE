@@ -12,7 +12,7 @@ import pandas as pd
 import seaborn as sn
 from shiny import App, render, ui
 
-import utils as utils
+import utils
 from mechanistic_model.covid_initializer import CovidInitializer
 
 CONFIG_GLOBAL_PATH = "config/config_global.json"
