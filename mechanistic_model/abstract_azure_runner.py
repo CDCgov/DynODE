@@ -14,9 +14,9 @@ from typing import Union
 
 import numpy as np
 import pandas as pd
-import utils
 from diffrax import Solution
 
+import mechanistic_model.utils as utils
 from mechanistic_model import SEIC_Compartments
 from mechanistic_model.abstract_parameters import AbstractParameters
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
