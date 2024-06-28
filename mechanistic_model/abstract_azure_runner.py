@@ -8,6 +8,7 @@ to produce an initial state representing some analyzed population
 import copy
 import json
 import os
+import warnings
 from abc import ABC, abstractmethod
 from typing import Union
 
@@ -37,10 +38,18 @@ class AbstractAzureRunner(ABC):
         )
 
     @abstractmethod
-    def process_state(self, state):
-        """
-        Abstract function meant to be implemented by the instance of the runner.
-        This handles all of the logic of actually getting a solution object.
+    def process_state(self, state, **kwargs):
+        """Abstract function meant to be implemented by the instance of the runner.
+        This handles all of the logic of actually getting a solution object. Feel free to override
+        or use a different function
+
+        Calls upon save_config, save_inference_posteriors/save_static_run_timelines to
+        easily save its outputs for later visualization.
+
+        Parameters
+        ----------
+        state : str
+            USPS state code for an individual state or territory.
         """
         pass
 
@@ -158,6 +167,7 @@ class AbstractAzureRunner(ABC):
         for age_bin_str in model.config.AGE_GROUP_STRS:
             age_bin_idx = model.config.AGE_GROUP_IDX[age_bin_str]
             age_bin_str = age_bin_str.replace("-", "_")
+            # save ground truth and predicted hosp by age
             if hospitalization_ground_truth is not None:
                 df[
                     "obs_hosp_%s" % (age_bin_str)
@@ -166,10 +176,11 @@ class AbstractAzureRunner(ABC):
                 df["pred_hosp_%s" % (age_bin_str)] = hospitalization_preds[
                     :, age_bin_idx
                 ]
+            # save vaccination rate by age
             df["vaccination_%s" % (age_bin_str)] = vaccination_timeline[
                 :, age_bin_idx
             ]
-
+        # get total infection incidence
         infection_incidence, _ = utils.get_timeline_from_solution_with_command(
             infections,
             model.config.COMPARTMENT_IDX,
@@ -177,11 +188,13 @@ class AbstractAzureRunner(ABC):
             model.config.STRAIN_IDX,
             "incidence",
         )
-        # incidence takes a diff, thus reducing length by 1, incidence at t=0 -> 0
-        # so prepend a 0 to the start of the timeline
+        # incidence takes a diff, thus reducing length by 1
+        # since we cant measure change in infections at t=0 we just prepend None
+        # plots can start the next day.
         df["total_infection_incidence"] = np.insert(
-            infection_incidence, [0], [0]
+            infection_incidence, [0], [None]
         )
+        # get strain proportion by strain for each day
         strain_proportions, _ = utils.get_timeline_from_solution_with_command(
             infections,
             model.config.COMPARTMENT_IDX,
@@ -196,6 +209,7 @@ class AbstractAzureRunner(ABC):
         for s_idx, strain_name in enumerate(
             model.config.STRAIN_IDX._member_names_
         ):
+            # save out strain specific data for each strain
             df["%s_strain_proportion" % strain_name] = strain_proportions[
                 s_idx
             ]
@@ -230,6 +244,10 @@ class AbstractAzureRunner(ABC):
                 samples[param] = samples[param].tolist()
             save_path = os.path.join(self.azure_output_dir, save_filename)
             json.dump(samples, open(save_path, "w"))
+        else:
+            warnings.warn(
+                "attempting to call `save_inference_posteriors` before inference is complete. Something is likely wrong..."
+            )
 
     def save_inference_timelines(
         self,
@@ -238,34 +256,46 @@ class AbstractAzureRunner(ABC):
         particles_saved=1,
     ) -> str:
         """saves history of inferer sampled values for use by the azure visualizer.
-        saves JSON file to `self.azure_output_dir/vis_path`.
-        Look at shiny_visualizers/azure_visualizer.py for logic on parsing and visualizing the chains.
+        saves JSON file to `self.azure_output_dir/timeline_filename`.
+        Look at `shiny_visualizers/azure_visualizer.py` for logic on parsing and visualizing the chains.
+        Will error if inferer.infer() has not been run previous to this call.
 
         Parameters
         ----------
         inferer: MechanisticInferer
             the inferer object used to sample the parameter chains that will be visualized
-        solution_interpreter : _type_
-            _description_
-        vis_filename : _type_, optional
-            _description_, by default "azure_visualizer_inference_timeline.json"
-        particles_run : _type_, optional
-            _description_, by default 1
+        timeline_filename : str, optional
+            filename to be saved under.
+            DONT CHANGE WITHOUT MODIFICATION to `shiny_visualizers/azure_visualizer.py`, by default "azure_visualizer_timeline.csv"
+        particles_saved : int, optional
+            the number of particles per chain to save timelines for, by default 1
 
         Returns
         -------
-        _type_
-            _description_
+        str
+            path the inference timelines were saved to
         """
         inference_visuals_save_path = os.path.join(
             self.azure_output_dir,
             timeline_filename,
         )
         all_particles_df = pd.DataFrame()
-        for particle in range(particles_saved):
+        # randomly select `particles_saved` particles from the number of samples run
+        for particle in np.random.choice(
+            range(inferer.config.INFERENCE_NUM_SAMPLES),
+            particles_saved,
+            replace=False,
+        ):
+            # select this random particle for each of our chains
+            chain_particle_pairs = [
+                (particle, chain)
+                for chain in range(inferer.config.INFERENCE_NUM_CHAINS)
+            ]
             # assuming the inferer has finished fitting
-            posteriors = inferer.load_posterior_particle(particle)
+            # load those particle posteriors and their solution dicts
+            posteriors = inferer.load_posterior_particle(chain_particle_pairs)
             for (chain, particle), sol_dct in posteriors.items():
+                # content of `sol_dct` depends on return value of inferer.likelihood func
                 infection_timeline, hospitalizations, static_parameters = (
                     sol_dct["solution"],
                     sol_dct["hospitalizations"],
@@ -294,9 +324,25 @@ class AbstractAzureRunner(ABC):
         sol: Solution,
         timeline_filename: str = "azure_visualizer_timeline.csv",
     ):
-        """
-        given a tuple of compartment timelines, saves a number of timelines of interest for future visualization
+        """given a tuple of compartment timelines, saves a number of timelines of interest for future visualization
         usually `sol` is retrieved from `diffrax.Solution.ys` which is an object returned from `MechanisticRunner.run()`
+
+        Parameters
+        ----------
+        parameters : StaticValueParameters
+            a version of AbstractParameters which is guaranteed to contain only static values.
+            Otherwise use `save_inference_timelines`
+        sol : Solution
+            diffrax.Solution object returned from calling parameters.run()
+        timeline_filename : str, optional
+            filename to be saved under.
+            DONT CHANGE WITHOUT MODIFICATION to `shiny_visualizers/azure_visualizer.py`,
+            by default "azure_visualizer_timeline.csv"
+
+        Returns
+        -------
+        str
+            path the inference timelines were saved to
         """
         inference_visuals_save_path = os.path.join(
             self.azure_output_dir,
@@ -304,5 +350,7 @@ class AbstractAzureRunner(ABC):
         )
         # get a number of timelines to visualize the run
         df = self._generate_model_component_timelines(parameters, sol)
+        # there is no chain nor particle in a static run, so we save as na_na
+        df["chain_particle"] = "na_na"
         df.to_csv(inference_visuals_save_path, index=False)
         return inference_visuals_save_path
