@@ -18,6 +18,7 @@ from jax.scipy.stats.norm import pdf
 from jax.typing import ArrayLike
 
 import utils
+from mechanistic_model import SEIC_Compartments
 
 
 class AbstractParameters:
@@ -562,7 +563,7 @@ class AbstractParameters:
 
     def scale_initial_infections(
         self, scale_factor: ArrayLike
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+    ) -> SEIC_Compartments:
         """
         a function which modifies returns a modified version of
         self.INITIAL_STATE scaling the number of initial infections by `scale_factor`.

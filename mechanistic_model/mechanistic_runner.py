@@ -19,6 +19,8 @@ from diffrax import (  # type: ignore
 )
 from jaxtyping import PyTree
 
+from mechanistic_model import SEIC_Compartments
+
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
 
@@ -28,19 +30,14 @@ class MechanisticRunner:
         self,
         model: Callable[
             [jax.typing.ArrayLike, PyTree, dict],
-            tuple[
-                jax.Array,
-                jax.Array,
-                jax.Array,
-                jax.Array,
-            ],
+            SEIC_Compartments,
         ],
     ):
         self.model = model
 
     def run(
         self,
-        initial_state: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+        initial_state: SEIC_Compartments,
         args: dict,
         tf: Union[int, datetime.datetime, datetime.date] = 100,
     ):

@@ -3,16 +3,15 @@ This class is responsible for providing parameters to the model in the case that
 no parameters are being sampled, and thus no complex inference or fitting is needed.
 """
 
-import jax
-
 from config.config import Config
+from mechanistic_model import SEIC_Compartments
 from mechanistic_model.abstract_parameters import AbstractParameters
 
 
 class StaticValueParameters(AbstractParameters):
     def __init__(
         self,
-        INITIAL_STATE: tuple[jax.Array, jax.Array, jax.Array, jax.Array],
+        INITIAL_STATE: SEIC_Compartments,
         runner_config_path: str,
         global_variables_path: str,
     ) -> None:
