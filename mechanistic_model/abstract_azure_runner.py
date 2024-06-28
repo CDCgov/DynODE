@@ -288,7 +288,7 @@ class AbstractAzureRunner(ABC):
         ):
             # select this random particle for each of our chains
             chain_particle_pairs = [
-                (particle, chain)
+                (chain, particle)
                 for chain in range(inferer.config.INFERENCE_NUM_CHAINS)
             ]
             # assuming the inferer has finished fitting
