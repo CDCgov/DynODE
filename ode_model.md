@@ -12,7 +12,7 @@ The SEIP (Susceptible-Exposed-Infectious-Partially Immune) model presented here 
 
 The model also includes seasonal vaccination effects, where individuals in the highest vaccination tier are periodically reset to the next highest tier, simulating annual vaccination campaigns. The mathematical representation of the model follows:
 
-$$
+```math
 \begin{align*}
 {\frac{dS_{i,j,k,m}}{dt}} &= -\big(\sum_{\ell}\lambda_{i,\ell}(t) \big)S_{i,j,k,m} - (1-\delta_{m=0}\delta_{k=K}) \min\left(\frac{\nu_{i,k}(t)\mathcal{N}_{i}}{\sum_{j,m'}S_{i,j,k,m'}}, 1\right)S_{i,j,k,m} \\
 &\quad + \delta_{m=0}(1-\delta_{k=0})\min \left(\frac{\nu_{i,k}(t)\mathcal{N}_{i}}{\sum_{j,m'}S_{i,j,k,m'}}, 1\right)\sum_{m'}S_{i,j,k-1,m'} \\
