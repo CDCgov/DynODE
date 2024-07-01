@@ -3,7 +3,11 @@ An example script similar to example_end_to_end_run.py
 but adapted to show the differences between Azure runs and local ones.
 """
 
+# ruff: noqa: E402
 import argparse
+import sys
+
+sys.path.append("/app/")
 
 from mechanistic_model.abstract_azure_runner import AbstractAzureRunner
 from mechanistic_model.covid_sero_initializer import CovidSeroInitializer
@@ -30,7 +34,7 @@ class ExampleRunner(AbstractAzureRunner):
         """
         # step 1: define your paths NOTE: These are all within the docker container!
         # /input is a MOUNTED drive that we upload these files into right before the job launched
-        config_path = "/app/exp/example_azure_experiment/states/%s/" % state
+        config_path = "/input/exp/example_azure_experiment/states/%s/" % state
         # global_config include definitions such as age bin bounds and strain definitions
         # Any value or data structure that needs context to be interpretted is here.
         GLOBAL_CONFIG_PATH = config_path + "config_global.json"
@@ -38,6 +42,9 @@ class ExampleRunner(AbstractAzureRunner):
         INITIALIZER_CONFIG_PATH = config_path + "config_initializer_covid.json"
         # defines the running variables, strain R0s, external strain introductions etc.
         RUNNER_CONFIG_PATH = config_path + "config_runner_covid.json"
+        self.save_config(GLOBAL_CONFIG_PATH)
+        self.save_config(INITIALIZER_CONFIG_PATH)
+        self.save_config(RUNNER_CONFIG_PATH)
         # sets up the initial conditions, initializer.get_initial_state() passed to runner
         initializer = CovidSeroInitializer(
             INITIALIZER_CONFIG_PATH, GLOBAL_CONFIG_PATH
