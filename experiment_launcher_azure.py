@@ -10,7 +10,7 @@ from cfa_azure.clients import AzureClient
 
 # specify job ID, cant already exist
 
-DOCKER_IMAGE_TAG = "scenarios-image-6-26-24"
+DOCKER_IMAGE_TAG = "scenarios-image-7-3-24"
 # number of seconds of a full experiment run before timeout
 # for `s` states to run and `n` nodes dedicated,`s/n` * runtime 1 state secs needed
 TIMEOUT_MINS = 120
@@ -64,14 +64,15 @@ client.set_output_container("scenarios-mechanistic-output", "output")
 # for now we will mirror it and override each time, in future we will specify a folder with the jobid before exp
 # TODO preserve directory structure on folder uploads! for now manually upload the folder....
 # upload the experiment folder so that the runner_path_docker & states_path_docker point to the correct places
-client.upload_files_in_folder([folder_path_local])
-client.set_scaling(
-    mode="autoscale",
-    autoscale_formula_path="secrets/autoscale.txt",
-    timeout=TIMEOUT_MINS,
-)
+# client.upload_files_in_folder([folder_path_local])
+# client.set_scaling(
+#     mode="autoscale",
+#     autoscale_formula_path="secrets/autoscale.txt",
+#     timeout=TIMEOUT_MINS,
+# )
 # client.create_pool(pool_name="scenarios_8cpu_pool_new")
-client.use_pool(pool_name="scenarios_8cpu_pool_new")
+client.set_pool("scenarios_8cpu_pool_new")
+# client.use_pool(pool_name="scenarios_8cpu_pool_new")
 
 # command to run the job
 client.add_job(job_id=job_id)
