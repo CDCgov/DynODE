@@ -12,12 +12,12 @@ The SEIP (Susceptible-Exposed-Infectious-Partially Immune) model presented here 
 
 The model also includes seasonal vaccination effects, where individuals in the highest vaccination tier are periodically reset to the next highest tier, simulating annual vaccination campaigns. The mathematical representation of the model follows:
 
-```math
+$$
 \begin{align*}
 {\frac{dS_{i,j,k,m}}{dt}} &= -\big(\sum_{\ell}\lambda_{i,\ell}(t) \big)S_{i,j,k,m} - (1-\delta_{m=0}\delta_{k=K}) \min\left(\frac{\nu_{i,k}(t)\mathcal{N}_{i}}{\sum_{j,m'}S_{i,j,k,m'}}, 1\right)S_{i,j,k,m} \\
 &\quad + \delta_{m=0}(1-\delta_{k=0})\min \left(\frac{\nu_{i,k-1}(t)\mathcal{N}_{i}}{\sum_{j,m'}S_{i,j,k-1,m'}}, 1\right)\sum_{m'}S_{i,j,k-1,m'} \\
 &\quad + \delta_{m=0}\delta_{k=K}\min \left(\frac{\nu_{i,K}(t)\mathcal{N}_{i}}{\sum_{j,m'}S_{i,j,K,m'}}, 1\right)\sum_{m'}S_{i,j,K,m'} \\
-&\quad + \delta_{m=0}\sum_{j,\ell} \gamma_{\ell} I_{i,\eta(j,\ell),k,\ell} +\phi(t)(\delta_{k=K-1}S_{i,j,K,m}-\delta_{k=K}S_{i,j,K,m}) \\
+&\quad + \delta_{m=0}\sum_{\{(j',\ell ') \ | \ \eta(j',\ell ')=(j,\ell)\}} \gamma_{\ell} I_{i,\eta(j',\ell),k,\ell '} +\phi(t)(\delta_{k=K-1}S_{i,j,K,m}-\delta_{k=K}S_{i,j,K,m}) \\
 &\quad + (1-\delta_{m=0})\omega_{m-1} S_{i,j,k,m-1} - (1-\delta_{m=M})\omega_{m} S_{i,j,k,m} \\
 \frac{dE_{i,j,k,\ell}}{dt} &= \lambda_{i,\ell}(t)\sum_{m}S_{i,j,k,m} - \sigma_{\ell} E_{i,j,k,\ell} + \phi(t)(\delta_{k=K-1}E_{i,j,K,m}-\delta_{k=K}E_{i,j,K,m}) \\
 \frac{dI_{i,j,k,\ell}}{dt} &= \sigma_{\ell} E_{i,j,k,\ell} - \gamma_{\ell} I_{i,j,k,\ell} + \phi(t)(\delta_{k=K-1}I_{i,j,K,m}-\delta_{k=K}I_{i,j,K,m}) \\
