@@ -296,8 +296,8 @@ toml = "0.10.2"
 [package.source]
 type = "git"
 url = "https://github.com/CDCgov/cfa_azure.git"
-reference = "HEAD"
-resolved_reference = "7e2d4ff3ee8b813613c3045e4b66b6342a93ea0c"
+reference = "folder_structure"
+resolved_reference = "1f7a73d0f799ae8c0314c15cfafc8a1d299a8688"
 
 [[package]]
 name = "cffi"
@@ -2588,4 +2588,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "a077bd5727949e276221d906b4cef2e0072e5f3a2194ca1b10d134315eeca0bc"
+content-hash = "1ac2acdfaf17f367a77da57fa0cc757e34efffe4c68b30c95646fbcb57e5c1a4"
