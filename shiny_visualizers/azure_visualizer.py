@@ -5,19 +5,16 @@ individual particles of posteriors produced by an experiment.
 
 # ruff: noqa: E402
 import os
-import sys
 from typing import Union
 
 import numpy as np
 import pandas as pd
 import plotly.express as px
+from cfa_azure.clients import AzureClient
+from cfa_azure.helpers import download_directory
 from plotly.subplots import make_subplots
 from shiny import App, Session, reactive, ui
 from shinywidgets import output_widget, render_widget
-
-sys.path.append("c:\\Users\\uva5\\Documents\\GitHub\\cfa-scenarios-model")
-from cfa_azure.clients import AzureClient
-from cfa_azure.helpers import download_directory
 
 from mechanistic_model.covid_initializer import CovidInitializer
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
@@ -29,7 +26,7 @@ OUTPUT_BLOB_NAME = "scenarios-mechanistic-output"
 # this will reduce the time it takes to load the azure connection, but only shows
 # one experiment worth of data, which may be what you want...
 #  leave empty ("") to explore all experiments
-PRE_FILTER_EXPERIMENTS = "example_output"
+PRE_FILTER_EXPERIMENTS = ""
 # when loading the overview timelines csv for each run, columns
 # are expected to have names corresponding to the type of plot they create
 # vaccination_0_17 specifies the vaccination_ plot type, multiple columns may share
@@ -107,7 +104,7 @@ class Node:
     # a helper class to store directories in a tree
     def __init__(self, name):
         self.name = name
-        self.children = {}
+        self.subdirs = {}
 
 
 def construct_tree(file_paths):
@@ -122,10 +119,10 @@ def construct_tree(file_paths):
             directories, filename = path.rsplit("/", 1)
             current_node = root
             for directory in directories.split("/"):
-                if directory not in current_node.children:
-                    current_node.children[directory] = Node(directory)
-                current_node = current_node.children[directory]
-            current_node.children[filename] = Node(filename)
+                if directory not in current_node.subdirs:
+                    current_node.subdirs[directory] = Node(directory)
+                current_node = current_node.subdirs[directory]
+            current_node.subdirs[filename] = Node(filename)
     return root
 
 
@@ -167,7 +164,12 @@ def _create_figure_from_timeline(
     group_by: str = None,
 ):
     line = px.line(
-        timeline, x=x_axis, y=y_axis, title=plot_name, labels=y_axis
+        timeline,
+        x=x_axis,
+        y=y_axis,
+        title=plot_name,
+        labels=y_axis,
+        line_group=group_by,
     )
     for data in line.data:
         # if we pass a list of y_axis, we provide labels only for what
@@ -177,11 +179,32 @@ def _create_figure_from_timeline(
         else:
             new_name = data.name.replace(plot_type, "").replace("_", "-")
         data.name = new_name
-        data.hovertemplate = new_name
+        data.hovertemplate = "%{y:.3g}"
     return line
 
 
 def load_default_timelines(cache_path):
+    """
+    Given a path to a folder containing downloaded azure files, checks for the existence
+    of the azure_visualizer_timeline csv, if it exists, returns an overview figure
+    of the timelines provided in the csv, raises a FileNotFoundError if csv
+    is not found within `cache_path`
+
+    Parameters
+    ----------
+    cache_path : str
+        path to the local path on machine with files within.
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
+    timeline_path = os.path.join(cache_path, "azure_visualizer_timeline.csv")
+    if not os.path.exists(timeline_path):
+        raise FileNotFoundError(
+            "attempted to visualize an overview without an `azure_visualizer_timeline.csv` file"
+        )
     timelines = pd.read_csv(
         os.path.join(cache_path, "azure_visualizer_timeline.csv")
     )
@@ -207,16 +230,29 @@ def load_default_timelines(cache_path):
     # select only the plots we actually find within `timelines`
     plot_types = OVERVIEW_PLOT_TYPES[plots_in_timelines].tolist()
     plot_titles = OVERVIEW_PLOT_TITLES[plots_in_timelines].tolist()
+    # rather than using row_titles which appear weirdly,
+    # we will title only the left most plot of each row
+    subplot_titles_spaced = [
+        (
+            plot_titles[int(i / num_individual_particles)]
+            if i % num_individual_particles == 0
+            else ""
+        )
+        for i in range(
+            num_unique_plots_in_timelines * num_individual_particles
+        )
+    ]
 
     # total_subplots = num_individual_particles * num_unique_plots
     fig = make_subplots(
         rows=num_unique_plots_in_timelines,
         cols=num_individual_particles,
         shared_xaxes=True,
+        shared_yaxes=True,
         x_title="date",
         row_heights=[OVERVIEW_SUBPLOT_HEIGHT] * num_unique_plots_in_timelines,
         column_widths=[OVERVIEW_SUBPLOT_WIDTH] * num_individual_particles,
-        subplot_titles=plot_titles,
+        subplot_titles=subplot_titles_spaced,
     )
 
     for plot_num, (plot_title, plot_type) in enumerate(
@@ -227,6 +263,7 @@ def load_default_timelines(cache_path):
         columns_to_plot = [
             col for col in timelines.columns if plot_type in col
         ]
+        # generates a big figure of the column(s) of interest, possibly grouped by chain_particle
         plot_by_chain_particle = _create_figure_from_timeline(
             timelines,
             plot_title,
@@ -236,27 +273,39 @@ def load_default_timelines(cache_path):
             group_by="chain_particle",
         )
         # _create_figure_from_timeline gives us a figure obj, not quite what we need
-        # TODO test this with multiple chains and see what happens to the shape of plot_by_chain_particle["data"]
+        # we can query the "data" key to get access to each trace, but it flattens the columns and chain_particles
+        # into a single list, so we need creative indexing to traverse the flattened list,
+        # e.g. group_by_num * num_individual_particles + chain_particle_idx
         for chain_particle_idx in range(num_individual_particles):
-            for group_by_num in range(len(columns_to_plot)):
+            for col_num in range(len(columns_to_plot)):
                 fig.add_trace(
-                    plot_by_chain_particle["data"][group_by_num],
+                    plot_by_chain_particle["data"][
+                        col_num * num_individual_particles + chain_particle_idx
+                    ],
                     row=plot_num,
                     col=chain_particle_idx + 1,  # 1 start indexing, not 0 here
                 )
-    for i, yaxis in enumerate(fig.select_yaxes(), 1):
-        legend_name = f"legend{i}"
-        fig.update_layout(
-            {legend_name: dict(y=yaxis.domain[1], yanchor="top")},
-            showlegend=True,
-        )
-        fig.update_traces(row=i, legend=legend_name)
+    # here we are setting up one legend per row, it is messy but plotly does not
+    # usually allow for subplot legends so here we are
+    for i, yaxis in enumerate(fig.select_yaxes()):
+        legend_name = f"legend{int(i / num_individual_particles) + 1}"
+        if i % num_individual_particles == 0:
+            fig.update_layout(
+                {legend_name: dict(y=yaxis.domain[1], yanchor="top")},
+                showlegend=True,
+            )
+            fig.update_traces(
+                row=int(i / num_individual_particles) + 1,
+                legend=legend_name,
+            )
     fig.update_layout(
         width=OVERVIEW_SUBPLOT_WIDTH + 50,
         height=OVERVIEW_SUBPLOT_HEIGHT * num_unique_plots_in_timelines + 50,
-        title_text="Overview",
-        legend_tracegroupgap=20,
+        title_text="",
+        legend_tracegroupgap=0,
+        hovermode="x unified",
     )
+    fig.update_annotations(font_size=16, x=0.0, xanchor="left")
 
     return fig
 
@@ -270,16 +319,16 @@ tree_root = construct_tree(blobs)
 # now that we have all the paths stored in a Tree, all these operations are quick
 # these are used to initally populate the selectors
 # and are then dynamically updated based on the experiment chosen
-experiment_names = [node.name for node in tree_root.children.values()]
+experiment_names = [node.name for node in tree_root.subdirs.values()]
 default_job_list = [
     node.name
-    for node in tree_root.children[experiment_names[0]].children.values()
+    for node in tree_root.subdirs[experiment_names[0]].subdirs.values()
 ]
 default_state_list = [
     node.name
-    for node in tree_root.children[experiment_names[0]]
-    .children[default_job_list[0]]
-    .children.values()
+    for node in tree_root.subdirs[experiment_names[0]]
+    .subdirs[default_job_list[0]]
+    .subdirs.values()
 ]
 default_scenario_list = ["N/A"]
 default_chain_particle_list = ["N/A"]
@@ -340,10 +389,12 @@ def server(input, output, session: Session):
         """Updates the Buttons by traversing the tree of blob directories
         So the user is always seeing the correct directories"""
         experiment = input.experiment()
-        tree_exp = tree_root.children[experiment]
+        tree_exp = tree_root.subdirs[experiment]
         new_job_id_selections = [
-            node.name for node in tree_exp.children.values()
+            node.name for node in tree_exp.subdirs.values()
         ]
+        if len(new_job_id_selections) == 0:
+            raise RuntimeError("This experiment contains no job folders!")
         # update the jobs able to be picked based on the currently selected experiment
         selected_jobid = (
             input.job_id()
@@ -353,10 +404,12 @@ def server(input, output, session: Session):
         ui.update_selectize(
             "job_id", choices=new_job_id_selections, selected=selected_jobid
         )
-        tree_job = tree_exp.children[selected_jobid]
+        tree_job = tree_exp.subdirs[selected_jobid]
         new_state_selections = [
-            node.name for node in tree_job.children.values()
+            node.name for node in tree_job.subdirs.values()
         ]
+        if len(new_state_selections) == 0:
+            raise RuntimeError("This job contains no state folders!")
         selected_state = (
             input.state()
             if input.state() in new_state_selections
@@ -365,14 +418,19 @@ def server(input, output, session: Session):
         # update the states able to be picked based on the currently selected job
         ui.update_selectize(
             "state",
-            choices=[node.name for node in tree_job.children.values()],
+            choices=[node.name for node in tree_job.subdirs.values()],
             selected=selected_state,
         )
-        tree_state = tree_job.children[selected_state]
-        # if our tree goes another lvl deep, we are dealing with scenarios here
-        if list(tree_state.children.values())[0].children:
+        tree_state = tree_job.subdirs[selected_state]
+        # if our tree goes another level deep, we are dealing with scenarios here
+        # if the subdir of the current state itself has subdirs, we assume those are scenarios
+        if len(tree_state.subdirs.values()) == 0:
+            raise RuntimeError(
+                "No files/directories found within the state folder!"
+            )
+        if list(tree_state.subdirs.values())[0].subdirs:
             new_scenario_selections = [
-                node.name for node in tree_state.children.values()
+                node.name for node in tree_state.subdirs.values()
             ]
             selected_scenario = (
                 input.scenario()
@@ -388,7 +446,7 @@ def server(input, output, session: Session):
     @output(id="plot")
     @render_widget
     @reactive.event(input.action_button)
-    def counter():
+    def _():
         """
         Gets the files associated with that experiment+job+state+scenario combo
         and visualizes some summary statistics about the run
