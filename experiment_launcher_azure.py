@@ -14,7 +14,7 @@ DOCKER_IMAGE_TAG = "scenarios-image-6-26-24"
 # number of seconds of a full experiment run before timeout
 # for `s` states to run and `n` nodes dedicated,`s/n` * runtime 1 state secs needed
 TIMEOUT_MINS = 120
-EXPERIMENTS_DIRECTORY = "exp/"
+EXPERIMENTS_DIRECTORY = "exp"
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Experiment Azure Launcher")
 parser.add_argument(
@@ -34,11 +34,18 @@ args = parser.parse_args()
 experiment_name: str = args.experiment_name
 job_id: str = args.job_id
 # using the experiment name, get the local (this machine) and docker (azure batch node) paths to each file
+# NOTE: we prepend /input/ to the docker path since our azure blob is MOUNTED onto a docker container
+# and the mount appears as a folder /input
 folder_path_local = os.path.join(EXPERIMENTS_DIRECTORY, experiment_name)
+folder_path_docker = os.path.join(
+    "/input/", EXPERIMENTS_DIRECTORY, experiment_name, job_id
+)
+# get a path to the run_task python script, both on this machine and in the docker blob
 runner_path_local = os.path.join(folder_path_local, "run_task.py")
-runner_path_docker = os.path.join("/input/", runner_path_local)
+runner_path_docker = os.path.join(folder_path_docker, "run_task.py")
+# get a path to the `states` folder, both on this machine and in the docker blob
 states_path_local = os.path.join(folder_path_local, "states")
-states_path_docker = os.path.join("/input/", states_path_local)
+states_path_docker = os.path.join(folder_path_docker, "states")
 # check that the files are in the right place locally
 assert os.path.exists(
     runner_path_local
@@ -64,12 +71,20 @@ client.set_output_container("scenarios-mechanistic-output", "output")
 # for now we will mirror it and override each time, in future we will specify a folder with the jobid before exp
 # TODO preserve directory structure on folder uploads! for now manually upload the folder....
 # upload the experiment folder so that the runner_path_docker & states_path_docker point to the correct places
-client.upload_files_in_folder([folder_path_local])
-client.set_scaling(
-    mode="autoscale",
-    autoscale_formula_path="secrets/autoscale.txt",
-    timeout=TIMEOUT_MINS,
+# here we pass `location=exp/experiment_name/job_id` WITHOUT the /input/ folder because
+# we are uploading directly to the blob, and not through the docker container
+client.upload_files_in_folder(
+    [folder_path_local],
+    "scenarios-mechanistic-input",
+    location="%s/%s/%s" % (EXPERIMENTS_DIRECTORY, experiment_name, job_id),
 )
+
+# IF CREATING A NEW POOL UNCOMMENT THE NEXT TWO LINES
+# client.set_pool_info(
+#     mode="autoscale",
+#     autoscale_formula_path="secrets/autoscale.txt",
+#     timeout=TIMEOUT_MINS,
+# )
 # client.create_pool(pool_name="scenarios_8cpu_pool_new")
 client.use_pool(pool_name="scenarios_8cpu_pool_new")
 
@@ -82,6 +97,7 @@ for statedir in os.listdir(states_path_local):
         # add a task setting the runner onto each state
         # we use the -s flag with the subdir name,
         # since experiment directories are structured with USPS state codes as directory names
+        # also include the -j flag to specify the jobid
         client.add_task(
             job_id=job_id,
             docker_cmd="python %s -s %s -j %s"
