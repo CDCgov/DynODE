@@ -11,7 +11,7 @@ import numpyro.distributions as Dist
 import pandas as pd
 from tqdm import tqdm
 
-import utils
+import mechanistic_model.utils as utils
 from mechanistic_model.covid_initializer import CovidInitializer
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
 from mechanistic_model.mechanistic_runner import MechanisticRunner

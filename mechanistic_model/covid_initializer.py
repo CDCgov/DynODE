@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 
-import utils
+import mechanistic_model.utils as utils
 from config.config import Config
 from mechanistic_model.abstract_initializer import MechanisticInitializer
 

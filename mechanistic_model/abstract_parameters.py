@@ -17,7 +17,8 @@ import pandas as pd  # type: ignore
 from jax.scipy.stats.norm import pdf
 from jax.typing import ArrayLike
 
-import utils
+import mechanistic_model.utils as utils
+from mechanistic_model import SEIC_Compartments
 
 
 class AbstractParameters:
@@ -44,6 +45,7 @@ class AbstractParameters:
         # should not share references, deep copy, GH issue for this created
         freeze_params = copy.deepcopy(self.config)
         parameters = {
+            "INIT_DATE": freeze_params.INIT_DATE,
             "CONTACT_MATRIX": freeze_params.CONTACT_MATRIX,
             "POPULATION": freeze_params.POPULATION,
             "NUM_STRAINS": freeze_params.NUM_STRAINS,
@@ -561,7 +563,7 @@ class AbstractParameters:
 
     def scale_initial_infections(
         self, scale_factor: ArrayLike
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+    ) -> SEIC_Compartments:
         """
         a function which modifies returns a modified version of
         self.INITIAL_STATE scaling the number of initial infections by `scale_factor`.

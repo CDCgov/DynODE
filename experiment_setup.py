@@ -208,13 +208,20 @@ if __name__ == "__main__":
     state_names = pd.read_csv("data/fips_to_name.csv")
     pops = pd.read_csv("data/demographic-data/CenPop2020_Mean_ST.csv")
     # adding a USA row with the sum of all state pops
-    pops.loc[-1] = [
-        "US",
-        "United States",
-        sum(pops["POPULATION"]),
-        None,
-        None,
-    ]
+    usa_pop_row = pd.DataFrame(
+        [
+            [
+                "US",
+                "United States",
+                sum(pops["POPULATION"]),
+                None,
+                None,
+            ]
+        ],
+        columns=pops.columns,
+    )
+    pops = pd.concat([pops, usa_pop_row], ignore_index=True)
+    print(pops)
     args = parser.parse_args()
     exp = args.exp
     states = args.states

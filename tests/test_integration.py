@@ -13,6 +13,7 @@ import json
 import os
 import tempfile
 
+import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -150,7 +151,9 @@ def test_vaccination_rates(temp_config_files):
     # we dont use the MechanisticRunner here because the adaptive step size can mess with things
     next_state = static_params.INITIAL_STATE
     for t in range(10):
-        cur_state = next_state
+        cur_state = tuple(
+            [jnp.array(compartment) for compartment in next_state]
+        )
         compartment_changes = seip_ode(
             cur_state, t, static_params.get_parameters()
         )
@@ -272,3 +275,78 @@ def test_seasonal_vaccination(temp_config_files):
         num_seasonal_vax_at_t_20,
     )
     assert num_seasonal_vax_at_t_20 < 0.001, error_msg
+
+
+def test_output_matches_previous_version(temp_config_files):
+    """
+    this test will load the config scripts, initialize, and run the runner.
+    If the output produced does not match the saved output it will fail.
+    This is meant to notify users that their changes caused the model
+    to produce different results given the same inputs.
+
+    Often this test failing can be expected, if you fix a bug in the
+    model the output will likely change! In that case simply override the
+    contents of test_output.json using the _override_test_output() method.
+    """
+    (
+        temp_global_path,
+        temp_initializer_path,
+        _,
+        _,
+        temp_runner_path,
+    ) = temp_config_files
+    initializer = CovidInitializer(temp_initializer_path, temp_global_path)
+    static_params = StaticValueParameters(
+        initializer.get_initial_state(),
+        temp_runner_path,
+        temp_global_path,
+    )
+    # A runner that does ODE solving of a single run.
+    runner = MechanisticRunner(seip_ode)
+    # run for 200 days, using init state and parameters from StaticValueParameters
+    solution = runner.run(
+        initializer.get_initial_state(),
+        tf=200,
+        args=static_params.get_parameters(),
+    )
+    comparison_compartments = json.load(open("tests/test_output.json", "r"))
+    for compartment in initializer.config.COMPARTMENT_IDX:
+        err_txt = """a change was detected in the %s compartment. This can be for a couple of valid reasons:
+        1. A reasonable change was made to the test config input jsons
+        2. A new feature was added that is impacting output
+        3. A bug was fixed so output is more in line with expectations now
+
+        If you made any of the following changes feel free to run _override_test_output() to regenerate
+        the new solution and save it to "test_output.json", otherwise, some other tests may be failing or
+        you introduced a bug without realizing it.
+        """ % str(
+            compartment
+        )
+        compartment = int(compartment)
+        assert np.isclose(
+            solution.ys[compartment], comparison_compartments[str(compartment)]
+        ).all(), err_txt
+
+
+def _override_test_output():
+    initializer = CovidInitializer(INITIALIZER_CONFIG_PATH, CONFIG_GLOBAL_PATH)
+    static_params = StaticValueParameters(
+        initializer.get_initial_state(),
+        RUNNER_CONFIG_PATH,
+        CONFIG_GLOBAL_PATH,
+    )
+    # A runner that does ODE solving of a single run.
+    runner = MechanisticRunner(seip_ode)
+    # run for 200 days, using init state and parameters from StaticValueParameters
+    solution = runner.run(
+        initializer.get_initial_state(),
+        tf=200,
+        args=static_params.get_parameters(),
+    ).ys
+    # save as a int:list[int] so json can parse it, numpy breaks json.dump()
+    # and so does IntEnum elements, so parse those to int
+    solution_json = {
+        int(compartment): solution[compartment].tolist()
+        for compartment in initializer.config.COMPARTMENT_IDX
+    }
+    json.dump(solution_json, open("tests/test_output.json", "w"))

@@ -7,9 +7,8 @@ to produce an initial state representing some analyzed population
 
 from abc import ABC, abstractmethod
 
-from jax import Array
-
-import utils
+import mechanistic_model.utils as utils
+from mechanistic_model import SEIC_Compartments
 
 
 class MechanisticInitializer(ABC):
@@ -22,7 +21,7 @@ class MechanisticInitializer(ABC):
 
     def get_initial_state(
         self,
-    ) -> tuple[Array, Array, Array, Array]:
+    ) -> SEIC_Compartments:
         """
         Returns the initial state of the model as defined by the child class in __init__
         """

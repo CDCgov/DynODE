@@ -3,8 +3,13 @@ import itertools
 from enum import IntEnum
 
 import jax.numpy as jnp
+import numpyro.distributions as dist
 
-import utils
+import mechanistic_model.utils as utils
+from mechanistic_model.utils import (
+    get_strains_exposed_to,
+    get_timeline_from_solution_with_command,
+)
 
 # strain indexes {"a": 0, "b": 1, "c": 2}
 example_strain_idxs = IntEnum("test", ["a", "b", "c"], start=0)
@@ -113,9 +118,7 @@ def test_new_immune_state():
         for old_state, exposing_strain in itertools.product(
             possible_immune_states, exposing_strains
         ):
-            new_state = utils.new_immune_state(
-                old_state, exposing_strain, num_strains
-            )
+            new_state = utils.new_immune_state(old_state, exposing_strain)
             # exposing_strain in binary has 1 in the index of exposing strain, with index 0 being right most
             exposing_strain_binary = ["0"] * num_strains
             exposing_strain_binary[exposing_strain] = "1"
@@ -244,6 +247,27 @@ def test_date_to_epi_week():
     )
 
 
+def test_identify_distribution_indexes():
+    parameters = {
+        "test": [0, dist.Normal(), 2],
+        "example": dist.Normal(),
+        "no-sample": 5,
+    }
+    indexes = utils.identify_distribution_indexes(parameters)
+
+    assert "test_1" in indexes.keys() and indexes["test_1"] == {
+        "sample_name": "test",
+        "sample_idx": tuple([1]),
+    }, "not correctly indexing sampled parameters within lists"
+    assert "example" in indexes.keys() and indexes["example"] == {
+        "sample_name": "example",
+        "sample_idx": None,
+    }, "not correctly indexing non-list sampled parameters"
+    assert (
+        "no-sample" not in indexes.keys()
+    ), "identify_distribution_indexes should not return indexes for unsampled parameters"
+
+
 def test_combined_strain_mapping():
     pass
     # lets test two hardcoded scenarios, since this code can get a bit crazy
@@ -283,3 +307,125 @@ def test_combined_strain_mapping():
     #                     old_state,
     #                 )
     #             )
+
+
+def test_get_strains_exposed_to():
+    num_strains_tested = [1, 2, 3, 4, 10]
+    for num_strains in num_strains_tested:
+        possible_immune_states = list(range(0, 2**num_strains))
+        for state in possible_immune_states:
+            exposed_strains = get_strains_exposed_to(state, num_strains)
+            # Calculate the expected strains exposed by converting the state to binary
+            expected_exposed_strains = [
+                i for i in range(num_strains) if (state & (1 << i)) != 0
+            ]
+            assert exposed_strains == expected_exposed_strains, (
+                f"The exposed strains for state {state} with {num_strains} strains is incorrect. "
+                f"Expected {expected_exposed_strains}, got {exposed_strains}."
+            )
+
+
+# get the function to test
+def _get_index_enums():
+    compartment_idx = IntEnum(
+        "compartment_index", ["S", "E", "I", "C"], start=0
+    )
+    wane_idx = IntEnum("wane_index", ["W0", "W1", "W2", "W3"], start=0)
+    strain_idx = IntEnum("strain_index", ["S0", "S1", "S2", "S3"], start=0)
+    return compartment_idx, wane_idx, strain_idx
+
+
+def _get_sol():
+    return tuple(
+        [
+            jnp.ones(
+                (100, 4, 4, 4, 4),
+            )
+            for _ in range(4)
+        ]
+    )
+
+
+def test_get_timeline_from_solution_with_command_compartment_name():
+    # Test case 1: Command is a compartment name
+    sol = _get_sol()
+    compartment_idx, wane_idx, strain_idx = _get_index_enums()
+    timeline, label = get_timeline_from_solution_with_command(
+        sol, compartment_idx, wane_idx, strain_idx, "S"
+    )
+    assert timeline.shape == (100,)
+    assert label == "S"
+    assert jnp.all(
+        timeline == 256
+    )  # Each element in sol is 1, summed over 4*4*4*4 = 256
+
+
+def test_get_timeline_from_solution_with_command_strain_name():
+    # Test case 2: Command is a strain name
+    sol = _get_sol()
+    compartment_idx, wane_idx, strain_idx = _get_index_enums()
+    timeline, label = get_timeline_from_solution_with_command(
+        sol, compartment_idx, wane_idx, strain_idx, "S2"
+    )
+    assert timeline.shape == (100,)
+    assert label == "E + I : S2"
+    assert jnp.all(
+        timeline == 128
+    )  # Exposed + Infected, both are 64 each and of course 64*2==128
+
+
+def test_get_timeline_from_solution_with_command_wane_name():
+    # Test case 3: Command is a waning compartment name
+    sol = _get_sol()
+    compartment_idx, wane_idx, strain_idx = _get_index_enums()
+    timeline, label = get_timeline_from_solution_with_command(
+        sol, compartment_idx, wane_idx, strain_idx, "W0"
+    )
+    assert timeline.shape == (100,)
+    assert label == "W0"
+    assert jnp.all(
+        timeline == 64
+    )  # Each element in sol is 1, summed over 4*4*4*1 = 64
+
+
+def test_get_timeline_from_solution_with_command_incidence():
+    # Test case 4: Command is 'incidence'
+    sol = _get_sol()
+    compartment_idx, wane_idx, strain_idx = _get_index_enums()
+    timeline, label = get_timeline_from_solution_with_command(
+        sol, compartment_idx, wane_idx, strain_idx, "incidence"
+    )
+    assert timeline.shape == (99,)
+    assert label == "E : incidence"
+    assert jnp.all(
+        timeline == 0
+    )  # Since the input arrays are all ones, the diff should be zeros
+
+
+def test_get_timeline_from_solution_with_command_strain_prevalence():
+    # Test case 5: Command is 'strain_prevalence'
+    sol = _get_sol()
+    compartment_idx, wane_idx, strain_idx = _get_index_enums()
+    timelines, labels = get_timeline_from_solution_with_command(
+        sol, compartment_idx, wane_idx, strain_idx, "strain_prevalence"
+    )
+    assert len(timelines) == 4
+    assert len(labels) == 4
+    assert jnp.all(
+        jnp.array([jnp.array(j).shape == (100,) for j in timelines])
+    )
+    assert set(labels) == set(strain_idx._member_names_)
+
+
+def test_get_timeline_from_solution_with_command_compartment_slice():
+    # Test case 6: Command is a slice of a compartment
+    sol = _get_sol()
+    compartment_idx, wane_idx, strain_idx = _get_index_enums()
+    timeline, label = get_timeline_from_solution_with_command(
+        sol, compartment_idx, wane_idx, strain_idx, "S[:, 0, 0, :]"
+    )
+    assert timeline.shape == (100,)
+    assert label == "S[:, 0, 0, :]"
+    assert jnp.all(
+        timeline == 16
+    )  # Each element in sol is 1, summed over 4*1*1*4 = 16

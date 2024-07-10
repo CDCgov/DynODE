@@ -3,8 +3,8 @@
     "CONTACT_MATRIX_PATH": "/input/data/demographic-data/contact_matrices",
     "SAVE_PATH": "/output/",
     "HOSP_PATH": "/input/data/hospital_220213_220108.csv",
-    "VAX_MODEL_DATA": "/input/data/spline_fits.csv",
-    "VAX_MODEL_NUM_KNOTS": 18,
+    "VACCINATION_MODEL_DATA": "/input/data/spline_fits.csv",
+    "SEASONAL_VACCINATION": false,
     "STRAIN_R0s": [
         1.2,
         1.8,
@@ -16,14 +16,19 @@
     "INTRODUCTION_TIMES": [
         60
     ],
-    "INTRODUCTION_PERCENTAGE": 0.01,
-    "INTRODUCTION_SCALE": 10,
+    "INTRODUCTION_PCTS": [
+        0.01
+    ],
+    "INTRODUCTION_SCALES": [
+        10
+    ],
     "INTRODUCTION_AGE_MASK": [
         false,
         true,
         false,
         false
     ],
+    "MIN_HOMOLOGOUS_IMMUNITY": 0.1,
     "WANING_PROTECTIONS": [
         1.0,
         0.942,
@@ -48,7 +53,7 @@
             1.0
         ]
     ],
-    "VAX_EFF_MATRIX": [
+    "VACCINE_EFF_MATRIX": [
         [
             0,
             0.34,
@@ -65,6 +70,7 @@
             0.28
         ]
     ],
+    "CONSTANT_STEP_SIZE": 0,
     "BETA_TIMES": [
         0.0,
         120.0,
@@ -75,6 +81,9 @@
         1.0,
         1.0
     ],
+    "SEASONALITY_AMPLITUDE": 0.15,
+    "SEASONALITY_SECOND_WAVE": 0.0,
+    "SEASONALITY_SHIFT": 20,
     "MCMC_PRNGKEY": 8675309,
     "MCMC_NUM_WARMUP": 100,
     "MCMC_NUM_SAMPLES": 1000,
