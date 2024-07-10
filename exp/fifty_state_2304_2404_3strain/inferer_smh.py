@@ -5,6 +5,7 @@ import numpyro
 import numpyro.distributions as Dist
 from jax.random import PRNGKey
 
+import mechanistic_model.utils as utils
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
 
 
@@ -18,9 +19,9 @@ class SMHInferer(MechanisticInferer):
             self.config.REGIONS[0].lower().replace(" ", "_")
         )
         vax_spline_path = os.path.join(
-            self.config.VAX_MODEL_DATA, vax_spline_filename
+            self.config.VACCINATION_MODEL_DATA, vax_spline_filename
         )
-        self.config.VAX_MODEL_DATA = vax_spline_path
+        self.config.VACCINATION_MODEL_DATA = vax_spline_path
         super().load_vaccination_model()
 
     def infer(
@@ -68,18 +69,21 @@ class SMHInferer(MechanisticInferer):
         )
         self.inference_algo.print_summary()
         self.infer_complete = True
+        self.inference_timesteps = max(obs_hosps_days) + 1
         return self.inference_algo
 
     def likelihood(
         self,
-        obs_hosps,
-        obs_hosps_days,
-        obs_sero_lmean,
-        obs_sero_lsd,
-        obs_sero_days,
-        obs_var_prop,
-        obs_var_days,
-        obs_var_sd,
+        obs_hosps=None,
+        obs_hosps_days=None,
+        obs_sero_lmean=None,
+        obs_sero_lsd=None,
+        obs_sero_days=None,
+        obs_var_prop=None,
+        obs_var_days=None,
+        obs_var_sd=None,
+        tf=None,
+        infer_mode=True,
     ):
         """
         overridden likelihood that takes as input weekly hosp data starting from self.config.INIT_DATE
@@ -106,7 +110,7 @@ class SMHInferer(MechanisticInferer):
         solution = self.runner.run(
             initial_state,
             args=parameters,
-            tf=max(obs_hosps_days) + 1,
+            tf=max(obs_hosps_days) + 1 if tf is None else tf,
         )
         # add 1 to idxs because we are stratified by time in the solution object
         # sum down to just time x age bins
@@ -141,7 +145,7 @@ class SMHInferer(MechanisticInferer):
             "ihr_3": self.config.ihr_3,
             "ihr_immune_mult": self.config.ihr_immune_mult,
         }
-        ihrs = self.sample_if_distribution(ihr_dict)
+        ihrs = utils.sample_if_distribution(ihr_dict)
         ihr = jnp.array(
             [ihrs["ihr_0"], ihrs["ihr_1"], ihrs["ihr_2"], ihrs["ihr_3"]]
         )
@@ -187,86 +191,94 @@ class SMHInferer(MechanisticInferer):
             * ihr_immune_mult
             * ihr_jn1_mult
         )
-        # obs_hosps_days = [6, 13, 20, ....]
-        # Incidence from day 0, 1, 2, ..., 6 goes to first bin, day 7 - 13 goes to second bin...
-        # break model_hosps into chunks of intervals and aggregate them
-        # first, find out which interval goes to which days
-        hosps_interval_ind = jnp.searchsorted(
-            jnp.array(obs_hosps_days), jnp.arange(max(obs_hosps_days) + 1)
-        )
-        # for observed, multiply number by number of days within an interval
-        obs_hosps_interval = (
-            obs_hosps
-            * jnp.bincount(hosps_interval_ind, length=len(obs_hosps_days))[
-                :, None
-            ]
-        )
-        # for simulated, aggregate by index
-        sim_hosps_interval = jnp.array(
-            [
-                jnp.bincount(hosps_interval_ind, m, length=len(obs_hosps_days))
-                for m in model_hosps.T
-            ]
-        ).T
-        # x.shape = [650, 4]
-        # for x[0:7, :] -> y[0, :]
-        # y.shape = [65, 4]
-        mask_incidence = ~jnp.isnan(obs_hosps_interval)
-        with numpyro.handlers.mask(mask=mask_incidence):
-            numpyro.sample(
-                "incidence",
-                Dist.Poisson(sim_hosps_interval),
-                obs=obs_hosps_interval,
+        if infer_mode:
+            # obs_hosps_days = [6, 13, 20, ....]
+            # Incidence from day 0, 1, 2, ..., 6 goes to first bin, day 7 - 13 goes to second bin...
+            # break model_hosps into chunks of intervals and aggregate them
+            # first, find out which interval goes to which days
+            hosps_interval_ind = jnp.searchsorted(
+                jnp.array(obs_hosps_days), jnp.arange(max(obs_hosps_days) + 1)
             )
+            # for observed, multiply number by number of days within an interval
+            obs_hosps_interval = (
+                obs_hosps
+                * jnp.bincount(hosps_interval_ind, length=len(obs_hosps_days))[
+                    :, None
+                ]
+            )
+            # for simulated, aggregate by index
+            sim_hosps_interval = jnp.array(
+                [
+                    jnp.bincount(
+                        hosps_interval_ind, m, length=len(obs_hosps_days)
+                    )
+                    for m in model_hosps.T
+                ]
+            ).T
+            # x.shape = [650, 4]
+            # for x[0:7, :] -> y[0, :]
+            # y.shape = [65, 4]
+            mask_incidence = ~jnp.isnan(obs_hosps_interval)
+            with numpyro.handlers.mask(mask=mask_incidence):
+                numpyro.sample(
+                    "incidence",
+                    Dist.Poisson(sim_hosps_interval),
+                    obs=obs_hosps_interval,
+                )
 
-        ## Seroprevalence
-        # never_infected = jnp.sum(
-        #     solution.ys[self.config.COMPARTMENT_IDX.S][
-        #         obs_sero_days, :, 0, :, :
-        #     ],
-        #     axis=(2, 3),
-        # )
-        # sim_seroprevalence = 1 - never_infected / self.config.POPULATION
-        # sim_lseroprevalence = jnp.log(
-        #     sim_seroprevalence / (1 - sim_seroprevalence)
-        # )  # logit seroprevalence
+            ## Seroprevalence
+            # never_infected = jnp.sum(
+            #     solution.ys[self.config.COMPARTMENT_IDX.S][
+            #         obs_sero_days, :, 0, :, :
+            #     ],
+            #     axis=(2, 3),
+            # )
+            # sim_seroprevalence = 1 - never_infected / self.config.POPULATION
+            # sim_lseroprevalence = jnp.log(
+            #     sim_seroprevalence / (1 - sim_seroprevalence)
+            # )  # logit seroprevalence
 
-        # mask = ~jnp.isnan(obs_sero_lmean)
-        # with numpyro.handlers.mask(mask=mask):
-        #     numpyro.sample(
-        #         "lseroprevalence",
-        #         Dist.Normal(sim_lseroprevalence, obs_sero_lsd),
-        #         obs=obs_sero_lmean,
-        #     )
+            # mask = ~jnp.isnan(obs_sero_lmean)
+            # with numpyro.handlers.mask(mask=mask):
+            #     numpyro.sample(
+            #         "lseroprevalence",
+            #         Dist.Normal(sim_lseroprevalence, obs_sero_lsd),
+            #         obs=obs_sero_lmean,
+            #     )
 
-        ## Variant proportion
-        strain_incidence = jnp.sum(
-            solution.ys[self.config.COMPARTMENT_IDX.C],
-            axis=(
-                self.config.I_AXIS_IDX.age + 1,
-                self.config.I_AXIS_IDX.hist + 1,
-                self.config.I_AXIS_IDX.vax + 1,
-            ),
-        )
-        strain_incidence = jnp.diff(strain_incidence, axis=0)[
-            : (max(obs_var_days) + 1)
-        ]
-        var_interval_ind = jnp.searchsorted(
-            jnp.array(obs_var_days), jnp.arange(max(obs_var_days) + 1)
-        )
-        strain_incidence_interval = jnp.array(
-            [
-                jnp.bincount(var_interval_ind, m, length=len(obs_var_days))
-                for m in strain_incidence.T
+            ## Variant proportion
+            strain_incidence = jnp.sum(
+                solution.ys[self.config.COMPARTMENT_IDX.C],
+                axis=(
+                    self.config.I_AXIS_IDX.age + 1,
+                    self.config.I_AXIS_IDX.hist + 1,
+                    self.config.I_AXIS_IDX.vax + 1,
+                ),
+            )
+            strain_incidence = jnp.diff(strain_incidence, axis=0)[
+                : (max(obs_var_days) + 1)
             ]
-        ).T
-        sim_var_prop = jnp.array(
-            [incd / jnp.sum(incd) for incd in strain_incidence_interval]
-        )
-        sim_var_sd = jnp.ones(sim_var_prop.shape) * obs_var_sd
+            var_interval_ind = jnp.searchsorted(
+                jnp.array(obs_var_days), jnp.arange(max(obs_var_days) + 1)
+            )
+            strain_incidence_interval = jnp.array(
+                [
+                    jnp.bincount(var_interval_ind, m, length=len(obs_var_days))
+                    for m in strain_incidence.T
+                ]
+            ).T
+            sim_var_prop = jnp.array(
+                [incd / jnp.sum(incd) for incd in strain_incidence_interval]
+            )
+            sim_var_sd = jnp.ones(sim_var_prop.shape) * obs_var_sd
 
-        numpyro.sample(
-            "variant_proportion",
-            Dist.Normal(sim_var_prop, sim_var_sd),
-            obs=obs_var_prop,
-        )
+            numpyro.sample(
+                "variant_proportion",
+                Dist.Normal(sim_var_prop, sim_var_sd),
+                obs=obs_var_prop,
+            )
+        return {
+            "solution": solution,
+            "hospitalizations": model_hosps,
+            "parameters": parameters,
+        }

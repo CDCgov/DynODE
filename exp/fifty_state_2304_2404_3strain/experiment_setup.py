@@ -23,12 +23,12 @@ import pandas as pd
 #     "docker_template_configs/config_interpreter_covid.json",
 # ]
 CONFIG_MOLDS = [
-    "exp/fifty_state_2304_2404_3strain/config_global_template.json",
-    "exp/fifty_state_2304_2404_3strain/config_inferer_covid_template.json",
-    "exp/fifty_state_2304_2404_3strain/config_initializer_sero_template.json",
-    "exp/fifty_state_2304_2404_3strain/config_interpreter_covid_template.json",
+    "exp/fifty_state_2304_2404_3strain/template_configs/config_global_template.json",
+    "exp/fifty_state_2304_2404_3strain/template_configs/config_inferer_covid_template.json",
+    "exp/fifty_state_2304_2404_3strain/template_configs/config_initializer_sero_template.json",
+    "exp/fifty_state_2304_2404_3strain/template_configs/config_interpreter_covid_template.json",
 ]
-PREVIOUS_EPOCHS = "/output/fifty_state_2202_2307_3strain/smh_epoch_1_240516_2/"
+PREVIOUS_EPOCHS = "output/fifty_state_2202_2307_3strain/smh_epoch_one_revamped_hardmax_odes_096"
 
 
 def create_state_subdirectories(dir, state_names):
@@ -55,14 +55,11 @@ def create_state_subdirectories(dir, state_names):
     if not os.path.exists(dir):
         os.makedirs(dir)
 
-    # Create subdirectories for each state
+    # Create subdirectories for each state inside the "states" folder
     for state in state_names:
-        state_dir = os.path.join(dir, state)
+        state_dir = os.path.join(dir, "states", state)
         if not os.path.exists(state_dir):
             os.makedirs(state_dir)
-        state_output_dir = os.path.join(state_dir, "output")
-        if not os.path.exists(state_output_dir):
-            os.makedirs(state_output_dir)
 
 
 def populate_config_files(dir, configs):
@@ -89,6 +86,7 @@ def populate_config_files(dir, configs):
     ------------
     None
     """
+    dir = os.path.join(dir, "states")
     for subdir in os.listdir(dir):
         subdir_path = os.path.join(dir, subdir)
         if os.path.isdir(subdir_path):

@@ -1,0 +1,307 @@
+{
+    "SCENARIO_NAME": "test covid run for testing suite",
+    "CONTACT_MATRIX_PATH": "/input/data/demographic-data/contact_matrices",
+    "SAVE_PATH": "/output/",
+    "HOSP_PATH": "/input/data/hospitalization-data",
+    "SERO_PATH": "/input/data/serological-data/fitting-2022/",
+    "VAR_PATH": "/input/data/variant-data/fitting-2022/",
+    "VACCINATION_MODEL_DATA": "/input/data/vaccination-data/2022_02_11_to_2024_04_27",
+    "SEASONAL_VACCINATION": false,
+    "STRAIN_R0s": [
+        {
+            "distribution": "TransformedDistribution",
+            "params": {
+                "base_distribution": {
+                    "distribution": "Beta",
+                    "params": {
+                        "concentration1": -1,
+                        "concentration0": -1
+                    }
+                },
+                "transforms": {
+                    "transform": "AffineTransform",
+                    "params": {
+                        "loc": 2.0,
+                        "scale": 2.0,
+                        "domain": {
+                            "constraint": "unit_interval",
+                            "params": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "distribution": "TransformedDistribution",
+            "params": {
+                "base_distribution": {
+                    "distribution": "Beta",
+                    "params": {
+                        "concentration1": 40,
+                        "concentration0": 60
+                    }
+                },
+                "transforms": {
+                    "transform": "AffineTransform",
+                    "params": {
+                        "loc": 2.0,
+                        "scale": 2.0,
+                        "domain": {
+                            "constraint": "unit_interval",
+                            "params": {}
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "distribution": "TransformedDistribution",
+            "params": {
+                "base_distribution": {
+                    "distribution": "Beta",
+                    "params": {
+                        "concentration1": 40,
+                        "concentration0": 60
+                    }
+                },
+                "transforms": {
+                    "transform": "AffineTransform",
+                    "params": {
+                        "loc": 2.0,
+                        "scale": 2.0,
+                        "domain": {
+                            "constraint": "unit_interval",
+                            "params": {}
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "INFECTIOUS_PERIOD": 7.0,
+    "EXPOSED_TO_INFECTIOUS": 3.6,
+    "INITIAL_INFECTIONS_SCALE": {
+        "distribution": "TruncatedNormal",
+        "params": {
+            "loc": 1.0,
+            "scale": 0.3,
+            "low": 0.5,
+            "high": 4.0
+        }
+    },
+    "INTRODUCTION_TIMES": [
+        {
+            "distribution": "TruncatedNormal",
+            "params": {
+                "loc": 10,
+                "scale": 5,
+                "low": 0
+            }
+        },
+        {
+            "distribution": "TruncatedNormal",
+            "params": {
+                "loc": 180,
+                "scale": 5,
+                "low": 150
+            }
+        }
+    ],
+    "CONSTANT_STEP_SIZE": 0,
+    "INTRODUCTION_PCTS": [
+        0.035,
+        0.035
+    ],
+    "INTRODUCTION_SCALES": [
+        13.5,
+        13.5
+    ],
+    "INTRODUCTION_AGE_MASK": [
+        false,
+        true,
+        false,
+        false
+    ],
+    "MIN_HOMOLOGOUS_IMMUNITY": {
+        "distribution": "Beta",
+        "params": {
+            "concentration1": 1,
+            "concentration0": 1
+        }
+    },
+    "WANING_PROTECTIONS": [
+        1.0,
+        1.0,
+        1.0,
+        0.0
+    ],
+    "STRAIN_INTERACTIONS": [
+        [
+            {
+                "distribution": "TransformedDistribution",
+                "params": {
+                    "base_distribution": {
+                        "distribution": "Beta",
+                        "params": {
+                            "concentration1": 250,
+                            "concentration0": 250
+                        }
+                    },
+                    "transforms": {
+                        "transform": "AffineTransform",
+                        "params": {
+                            "loc": 0.5,
+                            "scale": 0.5,
+                            "domain": {
+                                "constraint": "unit_interval",
+                                "params": {}
+                            }
+                        }
+                    }
+                }
+            },
+            1.0,
+            1.0
+        ],
+        [
+            {
+                "distribution": "TransformedDistribution",
+                "params": {
+                    "base_distribution": {
+                        "distribution": "Beta",
+                        "params": {
+                            "concentration1": 350,
+                            "concentration0": 150
+                        }
+                    },
+                    "transforms": {
+                        "transform": "AffineTransform",
+                        "params": {
+                            "loc": 0.5,
+                            "scale": 0.5,
+                            "domain": {
+                                "constraint": "unit_interval",
+                                "params": {}
+                            }
+                        }
+                    }
+                }
+            },
+            1.0,
+            1.0
+        ],
+        [
+            {
+                "distribution": "TransformedDistribution",
+                "params": {
+                    "base_distribution": {
+                        "distribution": "Beta",
+                        "params": {
+                            "concentration1": 250,
+                            "concentration0": 250
+                        }
+                    },
+                    "transforms": {
+                        "transform": "AffineTransform",
+                        "params": {
+                            "loc": 0.5,
+                            "scale": 0.5,
+                            "domain": {
+                                "constraint": "unit_interval",
+                                "params": {}
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "distribution": "TransformedDistribution",
+                "params": {
+                    "base_distribution": {
+                        "distribution": "Beta",
+                        "params": {
+                            "concentration1": 350,
+                            "concentration0": 150
+                        }
+                    },
+                    "transforms": {
+                        "transform": "AffineTransform",
+                        "params": {
+                            "loc": 0.5,
+                            "scale": 0.5,
+                            "domain": {
+                                "constraint": "unit_interval",
+                                "params": {}
+                            }
+                        }
+                    }
+                }
+            },
+            1.0
+        ]
+    ],
+    "VACCINATION_MODEL_DAYS_SHIFT": 414,
+    "VACCINE_EFF_MATRIX": [
+        [
+            0,
+            0.25,
+            0.50
+        ],
+        [
+            0,
+            0.20,
+            0.40
+        ],
+        [
+            0,
+            0.095,
+            0.19
+        ]
+    ],
+    "BETA_TIMES": [
+        0.0
+    ],
+    "BETA_COEFICIENTS": [
+        1.0
+    ],
+    "SEASONALITY_AMPLITUDE": {
+        "distribution": "TransformedDistribution",
+        "params": {
+            "base_distribution": {
+                "distribution": "Beta",
+                "params": {
+                    "concentration1": -1,
+                    "concentration0": -1
+                }
+            },
+            "transforms": {
+                "transform": "AffineTransform",
+                "params": {
+                    "loc": 0.02,
+                    "scale": 0.18,
+                    "domain": {
+                        "constraint": "unit_interval",
+                        "params": {}
+                    }
+                }
+            }
+        }
+    },
+    "SEASONALITY_SECOND_WAVE": 0,
+    "SEASONALITY_SHIFT": {
+        "distribution": "TruncatedNormal",
+        "params": {
+            "loc": 999,
+            "scale": 999,
+            "low": -55,
+            "high": 30
+        }
+    },
+    "INFERENCE_PRNGKEY": 8675310,
+    "INFERENCE_NUM_WARMUP": 1000,
+    "INFERENCE_NUM_SAMPLES": 1000,
+    "INFERENCE_NUM_CHAINS": 4,
+    "INFERENCE_PROGRESS_BAR": true,
+    "MAX_TREE_DEPTH": 6,
+    "MODEL_RAND_SEED": 8675310
+}

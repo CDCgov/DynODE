@@ -3,8 +3,8 @@ import os
 
 import numpy as np
 import pandas as pd
-import utils
 
+import mechanistic_model.utils as utils
 from config.config import Config
 from mechanistic_model.covid_initializer import CovidInitializer
 

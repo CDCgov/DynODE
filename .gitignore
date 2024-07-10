@@ -75,6 +75,8 @@ testing.py
 !data/vaccination-data/2022_02_11_to_2024_04_27/*.csv
 !poetry*
 !pyproject.toml
+!exp/fifty_state_2202_2307_3strain/template_configs/*.json
+!exp/fifty_state_2304_2404_3strain/template_configs/*.json
 
 #####
 # Python

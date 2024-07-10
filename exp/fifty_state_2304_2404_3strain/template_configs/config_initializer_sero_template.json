@@ -1,0 +1,7 @@
+{
+    "INITALIZER_NAME": "second epoch intializer covid",
+    "PREV_EPOCH_CHECKPOINT_PATH": "/output/fifty_state_2202_2307_3strain/smh_epoch_one_revamped_hardmax_odes_096",
+    "STATE_NAMES": "/input/data/fips_to_name.csv",
+    "SEROLOGICAL_DATA_PATH": "/input/data/serological-data/sero-initializer-csvs",
+    "CONTACT_MATRIX_PATH": "/input/data/demographic-data/contact_matrices"
+}
