@@ -5,11 +5,13 @@ individual particles of posteriors produced by an experiment.
 
 # ruff: noqa: E402
 import os
-from typing import Union
+from typing import Iterable, Union
 
 import numpy as np
 import pandas as pd
+import plotly
 import plotly.express as px
+from azure.core.paging import ItemPaged
 from cfa_azure.clients import AzureClient
 from cfa_azure.helpers import download_directory
 from plotly.subplots import make_subplots
@@ -26,7 +28,7 @@ OUTPUT_BLOB_NAME = "scenarios-mechanistic-output"
 # this will reduce the time it takes to load the azure connection, but only shows
 # one experiment worth of data, which may be what you want...
 #  leave empty ("") to explore all experiments
-PRE_FILTER_EXPERIMENTS = ""
+PRE_FILTER_EXPERIMENTS = "fifty_state_2304_2404_3strain"
 # when loading the overview timelines csv for each run, columns
 # are expected to have names corresponding to the type of plot they create
 # vaccination_0_17 specifies the vaccination_ plot type, multiple columns may share
@@ -36,10 +38,11 @@ OVERVIEW_PLOT_TYPES = np.array(
     [
         "seasonality_coef",
         "vaccination_",
-        "total_infection_incidence",
-        "_strain_proportion",
         "_external_introductions",
+        "_strain_proportion",
         "_average_immunity",
+        "total_infection_incidence",  # TODO MAKE AGE SPECIFIC
+        "pred_hosp_",
     ]
 )
 # plot titles for each type of plot
@@ -47,19 +50,20 @@ OVERVIEW_PLOT_TITLES = np.array(
     [
         "Seasonality Coefficient",
         "Vaccination Rate By Age",
-        "Total Infection Incidence",
-        "Strain Proportion of New Infections",
         "External Introductions by Strain",
+        "Strain Proportion of New Infections",
         "Average Population Immunity Against Strains",
+        "Total Infection Incidence",
+        "Predicted Hospitalizations",
     ]
 )
 OVERVIEW_SUBPLOT_HEIGHT = 150
-OVERVIEW_SUBPLOT_WIDTH = 1000
+OVERVIEW_SUBPLOT_WIDTH = 1250
 
 
 def build_azure_connection(
-    config_path="secrets/configuration_cfaazurebatchprd_new_sp.toml",
-):
+    config_path: str = "secrets/configuration_cfaazurebatchprd_new_sp.toml",
+) -> AzureClient:
     """builds an AzureClient and connects input and output blobs
     found in INPUT_BLOB_NAME and OUTPUT_BLOB_NAME global vars.
 
@@ -78,7 +82,7 @@ def build_azure_connection(
     return client
 
 
-def get_blob_names(azure_client: AzureClient):
+def get_blob_names(azure_client: AzureClient) -> ItemPaged[str]:
     """returns the blobs stored in OUTPUT_BLOB_NAME on Azure Storage Account
 
     Parameters
@@ -107,10 +111,22 @@ class Node:
         self.subdirs = {}
 
 
-def construct_tree(file_paths):
-    """
-    given a list of directories from get_blob_names() returns a tree of each folder and its subdirectories
+def construct_tree(file_paths: Iterable[str]) -> Node:
+    """given a iterable of strings, constructs a tree of directories from root "/".
+    Used to efficiently traverse directories after tree is constructed.
     leaf nodes are files with a "." like .txt or .json
+
+    Parameters
+    ----------
+    file_paths : Iterable[str]
+        a list or iterable containing file paths, each file path may not begin with "/"
+        any directories or paths of directories with no files at the end will be skipped.
+
+    Returns
+    -------
+    Node
+        A node object containing a dictionary of subdirectories, files have a `name` field but
+        an empty dictionary of subdirs.
     """
     root = Node("/")
     for path in file_paths:
@@ -128,13 +144,30 @@ def construct_tree(file_paths):
 
 def get_azure_files(
     exp: str, jobid: str, state: str, scenario: str, azure_client: AzureClient
-) -> list[str]:
-    """
-    Reads in all files from the output blob `exp/jobid/state` in `azure_client.out_cont_client`
+) -> str:
+    """Reads in all files from the output blob `exp/jobid/state` in `azure_client.out_cont_client`
     and stores them in the `shiny_cache` directory.
-    If the cache path already exists for that run, nothing is downloaded.
+    If the cache path already exists for that run (even if it is empty!), nothing is downloaded.
 
     Raises ValueError error if `exp/jobid/state/` does not exist in the output blob
+
+    Parameters
+    ----------
+    exp : str
+        experiment name
+    jobid : str
+        jobid name
+    state : str
+        usps postal code of the state
+    scenario : str
+        optional scenario, N/A if not applicable to the directory structure
+    azure_client : cfa_azure.AzureClient
+        Azure client to access azure blob storage and download the files
+
+    Returns
+    -------
+    str
+        path into which files were loaded (if they did not already exist there)
     """
 
     # will override files in cache
@@ -162,7 +195,33 @@ def _create_figure_from_timeline(
     y_axis: Union[str, list[str]],
     plot_type: str,
     group_by: str = None,
-):
+) -> plotly.graph_objs.Figure:
+    """
+    PRIVATE FUNCTION
+    plots a line plot given a pandas dataframe and some x/y axis to plot and group bys.
+    Formats this figure according to the plot_type title passed.
+
+    Parameters
+    ----------
+    timeline : pd.DataFrame
+        dataframe containing data to plot
+    plot_name : str
+        plot title
+    x_axis : str
+        title of the column which will serve as the x axis, usually "date"
+    y_axis : Union[str, list[str]]
+        title or titles of the columns to be plotted as y axis
+    plot_type : str
+        the generic name of the plot, if multiple y_axis names are provided,
+        the diff of each y_axis name from the `plot_type` is used to identify each line
+    group_by : str, optional
+        a column name on which to group by, by default None
+
+    Returns
+    -------
+    plotly.graph_objs.Figure
+        figure used to append traces
+    """
     line = px.line(
         timeline,
         x=x_axis,
@@ -183,7 +242,27 @@ def _create_figure_from_timeline(
     return line
 
 
-def load_default_timelines(cache_path):
+def load_checkpoint_inference_chains(cache_path) -> plotly.graph_objs.Figure:
+    """Given a path a folder containing downloaded azure files, checks for the existence
+    of the checkpoint.json file, if it exists, returns a figure plotting
+    the inference chains of each of the sampled parameters, raises a FileNotFoundError if csv
+    is not found within `cache_path`
+
+    Parameters
+    ----------
+    cache_path : str
+        path to the local path on machine with files within.
+
+    Returns
+    -------
+    Figure
+        plotly Figure with `n` rows and `m` columns where `n` is the number of columns
+        within azure_visualizer_timeline identified by OVERVIEW_PLOT_TYPES global var.
+    """
+    return cache_path
+
+
+def load_default_timelines(cache_path) -> plotly.graph_objs.Figure:
     """
     Given a path to a folder containing downloaded azure files, checks for the existence
     of the azure_visualizer_timeline csv, if it exists, returns an overview figure
@@ -197,8 +276,9 @@ def load_default_timelines(cache_path):
 
     Returns
     -------
-    _type_
-        _description_
+    Figure
+        plotly Figure with `n` rows and `m` columns where `n` is the number of columns
+        within azure_visualizer_timeline identified by OVERVIEW_PLOT_TYPES global var.
     """
     timeline_path = os.path.join(cache_path, "azure_visualizer_timeline.csv")
     if not os.path.exists(timeline_path):
@@ -253,6 +333,8 @@ def load_default_timelines(cache_path):
         row_heights=[OVERVIEW_SUBPLOT_HEIGHT] * num_unique_plots_in_timelines,
         column_widths=[OVERVIEW_SUBPLOT_WIDTH] * num_individual_particles,
         subplot_titles=subplot_titles_spaced,
+        horizontal_spacing=0.01,
+        vertical_spacing=0.03,
     )
 
     for plot_num, (plot_title, plot_type) in enumerate(
@@ -334,13 +416,9 @@ default_scenario_list = ["N/A"]
 default_chain_particle_list = ["N/A"]
 ####################################### SHINY CODE ################################################
 app_ui = ui.page_fluid(
-    ui.h2("Visualizing Immune History"),
-    ui.markdown(
-        """
-    """
-    ),
+    ui.h2("Azure Visualizer"),
     ui.layout_sidebar(
-        ui.panel_sidebar(
+        ui.sidebar(
             ui.input_selectize(
                 "experiment",
                 "Experiment Name",
@@ -374,15 +452,32 @@ app_ui = ui.page_fluid(
                 default_chain_particle_list,
                 selected=default_chain_particle_list[0],
             ),
-            ui.output_text("counter"),
+            ui.input_switch("dark_mode", "Dark Mode", True),
+            width=350,
         ),
-        # ui.output_plot("plot", height="750px", click=True,),
-        output_widget("plot"),
+        ui.navset_card_tab(
+            ui.nav_panel("Overview", output_widget("plot")),
+            ui.nav_panel(
+                "Inference Chains",
+                "TODO",  # output_widget("plot_inference_chains")
+            ),
+        ),
     ),
 )
 
 
 def server(input, output, session: Session):
+    @reactive.effect
+    @reactive.event(input.dark_mode)
+    def _():
+        """
+        a simple function which toggles the background UI colors from light to dark mode
+        """
+        if input.dark_mode():
+            ui.update_dark_mode("dark")
+        else:
+            ui.update_dark_mode("light")
+
     @reactive.effect
     @reactive.event(input.experiment, input.job_id, input.state)
     def _():
@@ -404,6 +499,7 @@ def server(input, output, session: Session):
         ui.update_selectize(
             "job_id", choices=new_job_id_selections, selected=selected_jobid
         )
+        # select the job directory and lookup the possible states run in that job
         tree_job = tree_exp.subdirs[selected_jobid]
         new_state_selections = [
             node.name for node in tree_job.subdirs.values()
@@ -451,6 +547,34 @@ def server(input, output, session: Session):
         Gets the files associated with that experiment+job+state+scenario combo
         and visualizes some summary statistics about the run
         """
+        # read in the directory path
+        exp = input.experiment()
+        job_id = input.job_id()
+        state = input.state()
+        scenario = input.scenario()
+        # get files and store them localy
+        cache_path = get_azure_files(
+            exp, job_id, state, scenario, azure_client
+        )
+        # read in the timelines.csv if it exists, and load the figure, error if it doesnt exist
+        fig = load_default_timelines(cache_path)
+        # we have the figure, now update the light/dark mode depending on the switch
+        dark_mode = input.dark_mode()
+        if dark_mode:
+            theme = "plotly_dark"
+        else:
+            theme = "plotly_white"
+        fig.update_layout(template=theme)
+        return fig
+
+    @output(id="plot_inference_chains")
+    @render_widget
+    @reactive.event(input.action_button)
+    def _():
+        """
+        Gets the files associated with that experiment+job+state+scenario combo
+        and visualizes the inference chains on the inference run (if applicable)
+        """
         exp = input.experiment()
         job_id = input.job_id()
         state = input.state()
@@ -459,7 +583,7 @@ def server(input, output, session: Session):
             exp, job_id, state, scenario, azure_client
         )
 
-        fig = load_default_timelines(cache_path)
+        fig = load_checkpoint_inference_chains(cache_path)
         return fig
 
 
