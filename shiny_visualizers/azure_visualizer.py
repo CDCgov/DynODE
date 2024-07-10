@@ -285,25 +285,26 @@ def load_default_timelines(cache_path) -> plotly.graph_objs.Figure:
         raise FileNotFoundError(
             "attempted to visualize an overview without an `azure_visualizer_timeline.csv` file"
         )
-    timelines = pd.read_csv(
-        os.path.join(cache_path, "azure_visualizer_timeline.csv")
-    )
-    # lowercase all columns to avoid caps issues
+    timelines = pd.read_csv(timeline_path)
+    # lowercase all columns to avoid caps issues, they should already be lower-cased
     timelines.columns = [col.lower() for col in timelines.columns]
     assert (
         "date" in timelines.columns
-    ), "something went wrong in the creation of azure_visualizer_timeline.csv, there is no date columns"
+    ), "something went wrong in the creation of azure_visualizer_timeline.csv, there is no date column"
+    # count the `chain_particle` column, if it exists,
+    # to figure out how many particles we are working with
     num_individual_particles = (
         len(timelines["chain_particle"].unique())
         if "chain_particle" in timelines.columns
         else 1
     )
+    # if the column does not exist, na_na as placeholder
     if num_individual_particles == 1:
         timelines["chain_particle"] = "na_na"
     # we are counting the number of plot_types that are within timelines.columns
-    # this way we dont try to plot something that timelines does not have info on
+    # this way we dont try to plot something that timelines does not have
     plots_in_timelines = [
-        True if any([plot_type in col for col in timelines.columns]) else False
+        any([plot_type in col for col in timelines.columns])
         for plot_type in OVERVIEW_PLOT_TYPES
     ]
     num_unique_plots_in_timelines = sum(plots_in_timelines)
@@ -368,7 +369,7 @@ def load_default_timelines(cache_path) -> plotly.graph_objs.Figure:
                     col=chain_particle_idx + 1,  # 1 start indexing, not 0 here
                 )
     # here we are setting up one legend per row, it is messy but plotly does not
-    # usually allow for subplot legends so here we are
+    # usually allow for subplot row legends so here we are
     for i, yaxis in enumerate(fig.select_yaxes()):
         legend_name = f"legend{int(i / num_individual_particles) + 1}"
         if i % num_individual_particles == 0:
@@ -380,6 +381,7 @@ def load_default_timelines(cache_path) -> plotly.graph_objs.Figure:
                 row=int(i / num_individual_particles) + 1,
                 legend=legend_name,
             )
+    # lastly we update the whole figure's width and height with some padding
     fig.update_layout(
         width=OVERVIEW_SUBPLOT_WIDTH + 50,
         height=OVERVIEW_SUBPLOT_HEIGHT * num_unique_plots_in_timelines + 50,
@@ -387,6 +389,7 @@ def load_default_timelines(cache_path) -> plotly.graph_objs.Figure:
         legend_tracegroupgap=0,
         hovermode="x unified",
     )
+    # this is for the row titles font and position
     fig.update_annotations(font_size=16, x=0.0, xanchor="left")
 
     return fig
