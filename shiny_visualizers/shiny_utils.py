@@ -1,3 +1,5 @@
+import json
+import math
 import os
 from typing import Iterable, Union
 
@@ -5,10 +7,13 @@ import numpy as np
 import pandas as pd
 import plotly
 import plotly.express as px
+import plotly.graph_objects
 from azure.core.paging import ItemPaged
 from cfa_azure.clients import AzureClient
 from cfa_azure.helpers import download_directory
 from plotly.subplots import make_subplots
+
+from mechanistic_model.utils import flatten_list_parameters
 
 
 def build_azure_connection(
@@ -197,7 +202,11 @@ def _create_figure_from_timeline(
     return line
 
 
-def load_checkpoint_inference_chains(cache_path) -> plotly.graph_objs.Figure:
+def load_checkpoint_inference_chains(
+    cache_path,
+    overview_subplot_width: int,
+    overview_subplot_height: int,
+) -> plotly.graph_objs.Figure:
     """
     NOT YET IMPLEMENTED
     Given a path a folder containing downloaded azure files, checks for the existence
@@ -209,6 +218,10 @@ def load_checkpoint_inference_chains(cache_path) -> plotly.graph_objs.Figure:
     ----------
     cache_path : str
         path to the local path on machine with files within.
+    subplot_width: int
+        integer representing pixel width of each subplot in the overview
+    subplot_height: int
+        integer representing pixel height of each subplot in the overview
 
     Returns
     -------
@@ -216,7 +229,111 @@ def load_checkpoint_inference_chains(cache_path) -> plotly.graph_objs.Figure:
         plotly Figure with `n` rows and `m` columns where `n` is the number of columns
         within azure_visualizer_timeline identified by OVERVIEW_PLOT_TYPES global var.
     """
-    return cache_path
+    checkpoint_path = os.path.join(cache_path, "checkpoint.json")
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(
+            "attempted to visualize an inference chain without an `checkpoint.json` file"
+        )
+    posteriors = json.load(open(checkpoint_path, "r"))
+    posteriors: dict[str, list] = flatten_list_parameters(posteriors)
+    num_sampled_parameters = len(posteriors.keys())
+    # we want a mostly square subplot, so lets sqrt and take floor/ceil to deal with odd numbers
+    num_rows = math.isqrt(num_sampled_parameters)
+    num_cols = math.ceil(num_sampled_parameters / num_rows)
+    # we will title these subplots and make sure to leave blank titles in case of odd numbers
+    subplot_titles_padded = list(posteriors.keys()) + [""] * (
+        num_rows * num_cols - num_sampled_parameters
+    )
+    fig = make_subplots(
+        num_rows,
+        num_cols,
+        horizontal_spacing=0.01,
+        vertical_spacing=0.08,
+        subplot_titles=subplot_titles_padded,
+    )
+    for i, particles in enumerate(posteriors.values()):
+        # we only want one copy of the legend, since all the same
+        particles = np.array(particles)
+        row = int(i / num_cols) + 1
+        col = i % num_cols + 1
+        num_chains = particles.shape[0]
+        columns = ["chain_%s" % chain for chain in range(num_chains)]
+        # right now particles.shape = (chain, sample), transpose so columns are our chain num
+        df = pd.DataFrame(particles.transpose(), columns=columns)
+        traces = px.line(df, y=columns)["data"]
+        fig.add_traces(
+            traces,
+            rows=row,
+            cols=col,
+        )
+    fig.update_layout(
+        width=overview_subplot_width + 50,
+        height=overview_subplot_height * num_rows + 50,
+        title_text="",
+        legend_tracegroupgap=0,
+        hovermode=False,
+    )
+    # only keep one copy of the legend since they all the same
+    fig.update_traces(showlegend=False)
+    fig.update_traces(showlegend=True, row=1, col=1)
+    return fig
+
+
+def load_checkpoint_inference_correlations(
+    cache_path,
+    overview_subplot_size: int,
+) -> plotly.graph_objs.Figure:
+    """Given a path a folder containing downloaded azure files, checks for the existence
+    of the checkpoint.json file, if it exists, returns a figure plotting
+    the correlation of each sampled parameter with all other sampled parameters
+
+    Parameters
+    ----------
+    cache_path : str
+        path to the local path on machine with files within.
+
+    Returns
+    -------
+    Figure
+        plotly Figure with `n` rows and `n` columns where `n` is the number of sampled parameters
+    """
+    checkpoint_path = os.path.join(cache_path, "checkpoint.json")
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(
+            "attempted to visualize an inference correlation without an `checkpoint.json` file"
+        )
+    with open(checkpoint_path, "r") as file:
+        data = json.load(file)
+
+    # Flatten matrices and create DataFrame
+    flattened_data = {}
+    for key, matrix in data.items():
+        flattened = np.array(matrix).flatten()
+        flattened_data[key] = flattened
+
+    df = pd.DataFrame(flattened_data)
+    # Compute the correlation matrix, reverse it so diagonal starts @ top left
+    correlation_matrix = df.corr()[::-1]
+
+    # Create a heatmap of the correlation matrix
+    fig = plotly.graph_objects.Figure(
+        plotly.graph_objects.Heatmap(
+            x=correlation_matrix.columns,
+            y=correlation_matrix.index,
+            z=np.array(correlation_matrix),
+            text=correlation_matrix.values,
+            texttemplate="%{text:.2f}",
+            colorscale="RdBu_r",
+        )
+    )
+    fig.update_layout(
+        width=overview_subplot_size + 50,
+        height=overview_subplot_size + 50,
+        title_text="",
+        legend_tracegroupgap=0,
+        # hovermode=False,
+    )
+    return fig
 
 
 def _generate_row_wise_legends(fig, num_cols):

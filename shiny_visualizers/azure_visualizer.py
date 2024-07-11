@@ -19,7 +19,7 @@ OUTPUT_BLOB_NAME = "scenarios-mechanistic-output"
 # this will reduce the time it takes to load the azure connection, but only shows
 # one experiment worth of data, which may be what you want...
 #  leave empty ("") to explore all experiments
-PRE_FILTER_EXPERIMENTS = ""
+PRE_FILTER_EXPERIMENTS = "fifty_state_2304_2404_3strain"
 # when loading the overview timelines csv for each run, columns
 # are expected to have names corresponding to the type of plot they create
 # vaccination_0_17 specifies the vaccination_ plot type, multiple columns may share
@@ -80,7 +80,7 @@ default_scenario_list = ["N/A"]
 default_chain_particle_list = ["N/A"]
 ####################################### SHINY CODE ################################################
 app_ui = ui.page_fluid(
-    ui.h2("Azure Visualizer"),
+    ui.h2("Azure Visualizer, work in progress"),
     ui.layout_sidebar(
         ui.sidebar(
             ui.input_selectize(
@@ -122,8 +122,11 @@ app_ui = ui.page_fluid(
         ui.navset_card_tab(
             ui.nav_panel("Overview", output_widget("plot")),
             ui.nav_panel(
-                "Inference Chains",
-                "TODO",  # output_widget("plot_inference_chains")
+                "Inference Chains", output_widget("plot_inference_chains")
+            ),
+            ui.nav_panel(
+                "Sample Correlations",
+                output_widget("plot_sample_correlations"),
             ),
         ),
     ),
@@ -219,14 +222,17 @@ def server(input, output, session: Session):
         cache_path = sutils.get_azure_files(
             exp, job_id, state, scenario, azure_client
         )
-        # read in the timelines.csv if it exists, and load the figure, error if it doesnt exist
-        fig = sutils.load_default_timelines(
-            cache_path,
-            plot_titles=OVERVIEW_PLOT_TITLES,
-            plot_types=OVERVIEW_PLOT_TYPES,
-            overview_subplot_height=OVERVIEW_SUBPLOT_HEIGHT,
-            overview_subplot_width=OVERVIEW_SUBPLOT_WIDTH,
-        )
+        try:
+            # read in the timelines.csv if it exists, and load the figure, error if it doesnt exist
+            fig = sutils.load_default_timelines(
+                cache_path,
+                plot_titles=OVERVIEW_PLOT_TITLES,
+                plot_types=OVERVIEW_PLOT_TYPES,
+                overview_subplot_height=OVERVIEW_SUBPLOT_HEIGHT,
+                overview_subplot_width=OVERVIEW_SUBPLOT_WIDTH,
+            )
+        except FileNotFoundError as e:
+            raise e
         # we have the figure, now update the light/dark mode depending on the switch
         dark_mode = input.dark_mode()
         if dark_mode:
@@ -251,8 +257,52 @@ def server(input, output, session: Session):
         cache_path = sutils.get_azure_files(
             exp, job_id, state, scenario, azure_client
         )
+        try:
+            fig = sutils.load_checkpoint_inference_chains(
+                cache_path,
+                overview_subplot_height=OVERVIEW_SUBPLOT_HEIGHT,
+                overview_subplot_width=OVERVIEW_SUBPLOT_WIDTH,
+            )
+        except FileNotFoundError as e:
+            raise e
+        # we have the figure, now update the light/dark mode depending on the switch
+        dark_mode = input.dark_mode()
+        if dark_mode:
+            theme = "plotly_dark"
+        else:
+            theme = "plotly_white"
+        fig.update_layout(template=theme)
+        return fig
 
-        fig = sutils.load_checkpoint_inference_chains(cache_path)
+    @output(id="plot_sample_correlations")
+    @render_widget
+    @reactive.event(input.action_button)
+    def _():
+        """
+        Gets the files associated with that experiment+job+state+scenario combo
+        and visualizes the inference correlations on the inference run (if applicable)
+        """
+        exp = input.experiment()
+        job_id = input.job_id()
+        state = input.state()
+        scenario = input.scenario()
+        cache_path = sutils.get_azure_files(
+            exp, job_id, state, scenario, azure_client
+        )
+        try:
+            fig = sutils.load_checkpoint_inference_correlations(
+                cache_path,
+                overview_subplot_size=OVERVIEW_SUBPLOT_WIDTH,
+            )
+        except FileNotFoundError as e:
+            raise e
+        # we have the figure, now update the light/dark mode depending on the switch
+        dark_mode = input.dark_mode()
+        if dark_mode:
+            theme = "plotly_dark"
+        else:
+            theme = "plotly_white"
+        fig.update_layout(template=theme)
         return fig
 
 
