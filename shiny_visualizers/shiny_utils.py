@@ -208,7 +208,6 @@ def load_checkpoint_inference_chains(
     overview_subplot_height: int,
 ) -> plotly.graph_objs.Figure:
     """
-    NOT YET IMPLEMENTED
     Given a path a folder containing downloaded azure files, checks for the existence
     of the checkpoint.json file, if it exists, returns a figure plotting
     the inference chains of each of the sampled parameters, raises a FileNotFoundError if csv
@@ -226,8 +225,7 @@ def load_checkpoint_inference_chains(
     Returns
     -------
     Figure
-        plotly Figure with `n` rows and `m` columns where `n` is the number of columns
-        within azure_visualizer_timeline identified by OVERVIEW_PLOT_TYPES global var.
+        plotly Figure with each of the sampled parameters as its own line plot
     """
     checkpoint_path = os.path.join(cache_path, "checkpoint.json")
     if not os.path.exists(checkpoint_path):
@@ -235,6 +233,8 @@ def load_checkpoint_inference_chains(
             "attempted to visualize an inference chain without an `checkpoint.json` file"
         )
     posteriors = json.load(open(checkpoint_path, "r"))
+    # any sampled parameters created via numpyro.plate will mess up the data
+    # flatten plated parameters into separate keys
     posteriors: dict[str, list] = flatten_list_parameters(posteriors)
     num_sampled_parameters = len(posteriors.keys())
     # we want a mostly square subplot, so lets sqrt and take floor/ceil to deal with odd numbers
@@ -252,7 +252,6 @@ def load_checkpoint_inference_chains(
         subplot_titles=subplot_titles_padded,
     )
     for i, particles in enumerate(posteriors.values()):
-        # we only want one copy of the legend, since all the same
         particles = np.array(particles)
         row = int(i / num_cols) + 1
         col = i % num_cols + 1
@@ -291,6 +290,8 @@ def load_checkpoint_inference_correlations(
     ----------
     cache_path : str
         path to the local path on machine with files within.
+    overview_subplot_size: int
+        the side of the width/height of the correlation matrix in pixels
 
     Returns
     -------
@@ -304,16 +305,12 @@ def load_checkpoint_inference_correlations(
         )
     posteriors = json.load(open(checkpoint_path, "r"))
     posteriors: dict[str, list] = flatten_list_parameters(posteriors)
-
-    # Flatten matrices including chains and create DataFrame
-    flattened_data = {}
-    for key, matrix in posteriors.items():
-        flattened = np.array(matrix).flatten()
-        flattened_data[key] = flattened
-
-    df = pd.DataFrame(flattened_data)
+    # Flatten matrices including chains and create Correlation DataFrame
+    posteriors = {
+        key: np.array(matrix).flatten() for key, matrix in posteriors.items()
+    }
     # Compute the correlation matrix, reverse it so diagonal starts @ top left
-    correlation_matrix = df.corr()[::-1]
+    correlation_matrix = pd.DataFrame(posteriors).corr()[::-1]
 
     # Create a heatmap of the correlation matrix
     fig = plotly.graph_objects.Figure(
@@ -323,9 +320,11 @@ def load_checkpoint_inference_correlations(
             z=np.array(correlation_matrix),
             text=correlation_matrix.values,
             texttemplate="%{text:.2f}",
-            colorscale="RdBu_r",
+            # colorscale="RdBu_r",
+            colorscale="Blues",
         )
     )
+    # do some small style choices
     fig.update_layout(
         width=overview_subplot_size + 50,
         height=overview_subplot_size + 50,
@@ -333,6 +332,74 @@ def load_checkpoint_inference_correlations(
         legend_tracegroupgap=0,
         # hovermode=False,
     )
+    return fig
+
+
+def load_checkpoint_inference_violin_plots(
+    cache_path,
+    overview_subplot_size: int,
+) -> plotly.graph_objs.Figure:
+    """Given a path a folder containing downloaded azure files, checks for the existence
+    of the checkpoint.json file, if it exists, returns a figure of one violin plot per
+    sampled parameter describing the distribution of sampled values.
+
+    Parameters
+    ----------
+    cache_path : str
+        path to the local path on machine with files within.
+
+    Returns
+    -------
+    Figure
+        plotly Figure with each of the sampled parameters as its own violin plot
+    """
+    checkpoint_path = os.path.join(cache_path, "checkpoint.json")
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(
+            "attempted to visualize an inference correlation without an `checkpoint.json` file"
+        )
+    posteriors = json.load(open(checkpoint_path, "r"))
+    # flatten any usage of numpyro.plate into separate parameters,
+    # otherwise youll get nonsense in the next step
+    posteriors: dict[str, list] = flatten_list_parameters(posteriors)
+    # flatten all the chains together for the violin plots
+    posteriors = {
+        key: np.array(matrix).flatten() for key, matrix in posteriors.items()
+    }
+    num_sampled_parameters = len(posteriors.keys())
+    # we want a mostly square subplot, so lets sqrt and take floor/ceil to deal with odd numbers
+    num_rows = math.isqrt(num_sampled_parameters)
+    num_cols = math.ceil(num_sampled_parameters / num_rows)
+    # we will title these subplots and make sure to leave blank titles in case of odd numbers
+    subplot_titles_padded = list(posteriors.keys()) + [""] * (
+        num_rows * num_cols - num_sampled_parameters
+    )
+    fig = make_subplots(
+        num_rows,
+        num_cols,
+        horizontal_spacing=0.01,
+        vertical_spacing=0.08,
+        subplot_titles=subplot_titles_padded,
+    )
+    for i, particles in enumerate(posteriors.values()):
+        row = int(i / num_cols) + 1
+        col = i % num_cols + 1
+        # create violin plot, center it and have outliers show up as points inside the plot
+        data = plotly.graph_objects.Violin(
+            y=particles, pointpos=0, hoverinfo="skip"
+        )
+        fig.add_trace(data, row=row, col=col)
+    fig.update_layout(
+        width=overview_subplot_size + 50,
+        height=overview_subplot_size + 50,
+        title_text="",
+        legend_tracegroupgap=0,
+        hovermode=False,
+    )
+    # x axis labels are not useful on violin plots
+    fig.update_xaxes(visible=False, showticklabels=False)
+    # turn off legends since the subplot title tells you what parameter is being shown
+    fig.update_traces(showlegend=False)
     return fig
 
 

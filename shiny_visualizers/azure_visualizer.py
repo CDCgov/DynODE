@@ -128,6 +128,10 @@ app_ui = ui.page_fluid(
                 "Sample Correlations",
                 output_widget("plot_sample_correlations"),
             ),
+            ui.nav_panel(
+                "Sample Violin Plots",
+                output_widget("plot_sample_violins"),
+            ),
         ),
     ),
 )
@@ -291,6 +295,37 @@ def server(input, output, session: Session):
         )
         try:
             fig = sutils.load_checkpoint_inference_correlations(
+                cache_path,
+                overview_subplot_size=OVERVIEW_SUBPLOT_WIDTH,
+            )
+        except FileNotFoundError as e:
+            raise e
+        # we have the figure, now update the light/dark mode depending on the switch
+        dark_mode = input.dark_mode()
+        if dark_mode:
+            theme = "plotly_dark"
+        else:
+            theme = "plotly_white"
+        fig.update_layout(template=theme)
+        return fig
+
+    @output(id="plot_sample_violins")
+    @render_widget
+    @reactive.event(input.action_button)
+    def _():
+        """
+        Gets the files associated with that experiment+job+state+scenario combo
+        and visualizes the sampled values of the inference run as violin plots (if applicable)
+        """
+        exp = input.experiment()
+        job_id = input.job_id()
+        state = input.state()
+        scenario = input.scenario()
+        cache_path = sutils.get_azure_files(
+            exp, job_id, state, scenario, azure_client
+        )
+        try:
+            fig = sutils.load_checkpoint_inference_violin_plots(
                 cache_path,
                 overview_subplot_size=OVERVIEW_SUBPLOT_WIDTH,
             )
