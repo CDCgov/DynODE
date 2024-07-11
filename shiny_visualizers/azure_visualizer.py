@@ -19,7 +19,7 @@ OUTPUT_BLOB_NAME = "scenarios-mechanistic-output"
 # this will reduce the time it takes to load the azure connection, but only shows
 # one experiment worth of data, which may be what you want...
 #  leave empty ("") to explore all experiments
-PRE_FILTER_EXPERIMENTS = "fifty_state_2304_2404_3strain"
+PRE_FILTER_EXPERIMENTS = ""
 # when loading the overview timelines csv for each run, columns
 # are expected to have names corresponding to the type of plot they create
 # vaccination_0_17 specifies the vaccination_ plot type, multiple columns may share

@@ -302,12 +302,12 @@ def load_checkpoint_inference_correlations(
         raise FileNotFoundError(
             "attempted to visualize an inference correlation without an `checkpoint.json` file"
         )
-    with open(checkpoint_path, "r") as file:
-        data = json.load(file)
+    posteriors = json.load(open(checkpoint_path, "r"))
+    posteriors: dict[str, list] = flatten_list_parameters(posteriors)
 
-    # Flatten matrices and create DataFrame
+    # Flatten matrices including chains and create DataFrame
     flattened_data = {}
-    for key, matrix in data.items():
+    for key, matrix in posteriors.items():
         flattened = np.array(matrix).flatten()
         flattened_data[key] = flattened
 
