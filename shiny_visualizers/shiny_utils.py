@@ -286,7 +286,7 @@ def load_default_timelines(
     # count the `chain_particle` column, if it exists,
     # to figure out how many particles we are working with
     # if the column does not exist, na_na as placeholder
-    if "chain_particle" not in timelines.columns():
+    if "chain_particle" not in timelines.columns:
         timelines["chain_particle"] = "na_na"
 
     num_individual_particles = len(timelines["chain_particle"].unique())

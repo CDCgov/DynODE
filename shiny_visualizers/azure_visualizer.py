@@ -58,7 +58,7 @@ azure_client = sutils.build_azure_connection(
 )
 print("Retrieving and Organizing Azure File Structure (approx 10 seconds)")
 blobs = sutils.get_blob_names(
-    azure_client, name_starts_wth=PRE_FILTER_EXPERIMENTS
+    azure_client, name_starts_with=PRE_FILTER_EXPERIMENTS
 )
 output_blob = sutils.construct_tree(blobs)
 
