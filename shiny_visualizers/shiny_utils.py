@@ -135,7 +135,7 @@ def append_local_projects_to_tree(local_cache_path, root):
 def get_azure_files(
     exp: str,
     jobid: str,
-    state: str,
+    states: list[str],
     scenario: str,
     azure_client: AzureClient,
     local_cache_path: str,
@@ -152,8 +152,8 @@ def get_azure_files(
         experiment name
     jobid : str
         jobid name
-    state : str
-        usps postal code of the state
+    state : list[str]
+        list of usps postal code of each state requested
     scenario : str
         optional scenario, N/A if not applicable to the directory structure
     azure_client : cfa_azure.AzureClient
@@ -162,24 +162,24 @@ def get_azure_files(
         the path to the local cache where files are stored
     Returns
     -------
-    str
-        path into which files were loaded (if they did not already exist there)
+    list[str]
+        paths into which files were loaded (if they did not already exist there)
     """
-
-    if not os.path.exists(local_cache_path):
-        os.makedirs(local_cache_path)
-    azure_blob_path = os.path.join(exp, jobid, state)
-    if scenario != "N/A":  # if visualizing a scenario append to the path
-        azure_blob_path = os.path.join(azure_blob_path, scenario)
-    azure_blob_path = azure_blob_path.replace("\\", "/") + "/"
-    dest_path = os.path.join(local_cache_path, azure_blob_path)
-    # if we already loaded this before, dont redownload it all!
-    if os.path.exists(dest_path):
-        return dest_path
-    download_directory(
-        azure_client.out_cont_client, azure_blob_path, local_cache_path
-    )
-    return dest_path
+    return_paths = []
+    for state in states:
+        azure_blob_path = os.path.join(exp, jobid, state)
+        if scenario != "N/A":  # if visualizing a scenario append to the path
+            azure_blob_path = os.path.join(azure_blob_path, scenario)
+        azure_blob_path = azure_blob_path.replace("\\", "/") + "/"
+        dest_path = os.path.join(local_cache_path, azure_blob_path)
+        # if we already loaded this before, dont redownload it all!
+        if os.path.exists(dest_path):
+            return_paths.append(dest_path)
+        download_directory(
+            azure_client.out_cont_client, azure_blob_path, local_cache_path
+        )
+        return_paths.append(dest_path)
+    return return_paths
 
 
 def _create_figure_from_timeline(
@@ -194,6 +194,10 @@ def _create_figure_from_timeline(
     PRIVATE FUNCTION
     plots a line plot given a pandas dataframe and some x/y axis to plot and group bys.
     Formats this figure according to the plot_type title passed.
+    By default traces that belong to grouped categories in `group_by` are all marked
+    with a "remove_duplicate" in their name attribute, except the first of the group.
+    This is useful for only exposing 1 group to the legend instead of all four.
+    By default legends and hover tool tips are disabled for all traces
 
     Parameters
     ----------
@@ -216,6 +220,7 @@ def _create_figure_from_timeline(
     plotly.graph_objs.Figure
         figure used to append traces
     """
+    # we use plotly express since it has the `line_group` param
     line = px.line(
         timeline,
         x=x_axis,
@@ -224,16 +229,23 @@ def _create_figure_from_timeline(
         labels=y_axis,
         line_group=group_by,
     )
-    for data in line.data:
+    groups = len(timeline[group_by].unique()) if group_by else 1
+    for i, data in enumerate(line.data, 0):
         # if we pass a list of y_axis, we provide labels only for what
         # differs from label to label, this aids in readability
         if data.name == plot_type:
             new_name = data.name.replace("_", " ")
         else:
             new_name = data.name.replace(plot_type, "").replace("_", "-")
-        data.name = new_name
-        # hover template rounds to 4 sig figs
-        data.hovertemplate = "%{y:.4g}"
+        # we want to remove duplicate legend entries, so we mark duplicates in the name
+        data.name = new_name + (
+            "" if (i % groups == 0) or (i == 0) else "remove_duplicate"
+        )
+        # by default we disable hover tooltips,
+        # we will enable them later for select lines only
+        data.hoverinfo = "none"
+        data.hovertemplate = None
+        data.showlegend = False
     return line
 
 
@@ -460,7 +472,8 @@ def _generate_row_wise_legends(fig, num_cols):
 
 
 def load_default_timelines(
-    cache_path: str,
+    cache_paths: list[str],
+    states: list[str],
     plot_types: np.ndarray[str],
     plot_titles: np.ndarray[str],
     overview_subplot_width: int,
@@ -474,8 +487,10 @@ def load_default_timelines(
 
     Parameters
     ----------
-    cache_path : str
-        path to the local path on machine with files within.
+    cache_paths: list[str]
+        list of paths to the local files being visualized.
+    states: list[str]
+        parallel list to cache_paths marking the state contained within each cache_path
     plot_types: np.ndarray[str]
         numpy array of strings representing all the plot types able to be plotted
         if they are not found within azure_visualizer_timeline they are skipped
@@ -493,102 +508,160 @@ def load_default_timelines(
         plotly Figure with `n` rows and `m` columns where `n` is the number of plots
         within azure_visualizer_timeline identified by OVERVIEW_PLOT_TYPES global var.
     """
-    timeline_path = os.path.join(cache_path, "azure_visualizer_timeline.csv")
-    if not os.path.exists(timeline_path):
-        raise FileNotFoundError(
-            "attempted to visualize an overview without an `azure_visualizer_timeline.csv` file"
+    all_state_timelines = pd.DataFrame()
+    num_states = len(states)
+    for cache_path, state in zip(cache_paths, states):
+        timeline_path = os.path.join(
+            cache_path, "azure_visualizer_timeline.csv"
         )
-    timelines = pd.read_csv(timeline_path)
-    assert (
-        "date" in timelines.columns
-    ), "something went wrong in the creation of azure_visualizer_timeline.csv, there is no date column"
-    # count the `chain_particle` column, if it exists,
-    # to figure out how many particles we are working with
-    # if the column does not exist, na_na as placeholder
-    if "chain_particle" not in timelines.columns:
-        timelines["chain_particle"] = "na_na"
+        if not os.path.exists(timeline_path):
+            raise FileNotFoundError(
+                "attempted to visualize an overview from %s without an `azure_visualizer_timeline.csv` file"
+                % cache_path
+            )
+        timelines = pd.read_csv(timeline_path)
+        assert (
+            "date" in timelines.columns
+        ), "something went wrong in the creation of azure_visualizer_timeline.csv, there is no date column"
+        # count the `chain_particle` column, if it exists,
+        # to figure out how many particles we are working with
+        # if the column does not exist, na_na as placeholder
+        if "chain_particle" not in timelines.columns:
+            timelines["chain_particle"] = "na_na"
+        timelines["state"] = state
+        all_state_timelines = pd.concat(
+            [all_state_timelines, timelines], axis=0, ignore_index=True
+        )
 
-    num_individual_particles = len(timelines["chain_particle"].unique())
+    num_individual_particles = len(
+        all_state_timelines["chain_particle"].unique()
+    )
     # we are counting the number of plot_types that are within timelines.columns
     # this way we dont try to plot something that timelines does not have
     plots_in_timelines = [
-        any([plot_type in col for col in timelines.columns])
+        any([plot_type in col for col in all_state_timelines.columns])
         for plot_type in plot_types
     ]
     num_unique_plots_in_timelines = sum(plots_in_timelines)
     # select only the plots we actually find within `timelines`
     plot_types = plot_types[plots_in_timelines].tolist()
     plot_titles = plot_titles[plots_in_timelines].tolist()
-    # rather than using row_titles which appear weirdly,
-    # we will title only the left most plot of each row
-    subplot_titles_spaced = [
-        (
-            plot_titles[int(i / num_individual_particles)]
-            if i % num_individual_particles == 0
-            else ""
+    plot_titles_spaced = (
+        np.array(
+            [
+                [plot_title] + [""] * (num_states - 1)
+                for plot_title in plot_titles
+            ]
         )
-        for i in range(
-            num_unique_plots_in_timelines * num_individual_particles
-        )
-    ]
-
+        .flatten()
+        .tolist()
+    )
     # total_subplots = num_individual_particles * num_unique_plots
     # generate subplots with some basic settings
     fig = make_subplots(
         rows=num_unique_plots_in_timelines,
-        cols=num_individual_particles,
+        cols=num_states,
         shared_xaxes=True,
         shared_yaxes=True,
         x_title="date",
         row_heights=[overview_subplot_height] * num_unique_plots_in_timelines,
-        column_widths=[overview_subplot_width] * num_individual_particles,
-        subplot_titles=subplot_titles_spaced,
+        column_widths=[overview_subplot_width] * num_states,
+        column_titles=states,
+        subplot_titles=plot_titles_spaced,
         horizontal_spacing=0.01,
         vertical_spacing=0.03,
     )
 
     # go through each plot type, look for matching columns within `timlines` and plot
     # that plot_type for each chain_particle pair. plotly rows/cols are index at 1 not 0
-    for plot_num, (plot_title, plot_type) in enumerate(
-        zip(plot_titles, plot_types), start=1
-    ):
-        # for example "vaccination_" in "vaccination_0_17" is true
-        # so we include this column in the plot under that plot_type
-        columns_to_plot = [
-            col for col in timelines.columns if plot_type in col
-        ]
-        # generates a big figure of the column(s) of interest, possibly grouped by chain_particle
-        plot_by_chain_particle = _create_figure_from_timeline(
-            timelines,
-            plot_title,
-            x_axis="date",
-            y_axis=columns_to_plot,
-            plot_type=plot_type,
-            group_by="chain_particle",
-        )
-        # _create_figure_from_timeline gives us a figure obj, not quite what we need
-        # we can query the "data" key to get access to each trace, but it flattens the columns and chain_particles
-        # into a single list, so we need creative indexing to traverse the flattened list,
-        # e.g. group_by_num * num_individual_particles + chain_particle_idx
-        for chain_particle_idx in range(num_individual_particles):
-            for col_num in range(len(columns_to_plot)):
-                fig.add_trace(
-                    plot_by_chain_particle["data"][
-                        col_num * num_individual_particles + chain_particle_idx
-                    ],
-                    row=plot_num,
-                    col=chain_particle_idx + 1,  # 1 start indexing, not 0 here
+    for state_num, state in enumerate(states, start=1):
+        for plot_num, (plot_title, plot_type) in enumerate(
+            zip(plot_titles, plot_types), start=1
+        ):
+            # for example "vaccination_" in "vaccination_0_17" is true
+            # so we include this column in the plot under that plot_type
+            columns_to_plot = [
+                col for col in all_state_timelines.columns if plot_type in col
+            ]
+            # generates a big figure of the column(s) of interest, possibly grouped by chain_particle
+            plot_by_chain_particle = _create_figure_from_timeline(
+                all_state_timelines[all_state_timelines["state"] == state],
+                plot_title,
+                x_axis="date",
+                y_axis=columns_to_plot,
+                plot_type=plot_type,
+                group_by="chain_particle",
+            )
+
+            fig.add_traces(
+                plot_by_chain_particle["data"], rows=plot_num, cols=state_num
+            )
+            # ruff: noqa: E731
+            selector = lambda data: "remove_duplicate" not in data["name"]
+
+            if num_individual_particles > 1:
+                fig.update_traces(opacity=0.2, row=plot_num, col=state_num)
+                medians = (
+                    all_state_timelines[all_state_timelines["state"] == state]
+                    .groupby(by=["date"])[columns_to_plot]
+                    .median()
                 )
-    _generate_row_wise_legends(fig, num_individual_particles)
-    # lastly we update the whole figure's width and height with some padding
+                medians = medians.reset_index()
+                # no group by since we collapsed chain_particle dim
+                median_lines = _create_figure_from_timeline(
+                    medians,
+                    plot_title,
+                    x_axis="date",
+                    y_axis=columns_to_plot,
+                    plot_type=plot_type,
+                )
+                for data in median_lines["data"]:
+                    data["opacity"] = 1.0
+                    data["name"] = data["name"] + " Median"
+                fig.add_traces(
+                    median_lines["data"], rows=plot_num, cols=state_num
+                )
+                # if we are plotting medians, have those display in the legend
+                # ruff: noqa: E731
+                selector = lambda data: "Median" in data["name"]
+            # only show 1 legend since all states have same schema
+            fig.update_traces(
+                showlegend=True,
+                # hoverinfo="skip",
+                selector=selector,
+                col=1,
+            )
+            # show tooltips for medians/single particle value to 4 sig figs
+            fig.update_traces(hovertemplate="%{y:.4g}", selector=selector)
+            _generate_row_wise_legends(fig, num_states)
+        # lastly we update the whole figure's width and height with some padding
     fig.update_layout(
         width=overview_subplot_width + 50,
         height=overview_subplot_height * num_unique_plots_in_timelines + 50,
         title_text="",
-        legend_tracegroupgap=0,
+        # legend_tracegroupgap=0,
         hovermode="x unified",
     )
+
+    # fig.update_traces(showlegend=False)
+    # fig.update_traces(showlegend=True, col=1)
     # this is for the row titles font and position
-    fig.update_annotations(font_size=16, x=0.0, xanchor="left")
+    def selector(data):
+        print(data)
+        return True
+
+    # update each plots description to be far left
+    fig.update_annotations(
+        font_size=16,
+        x=0.0,
+        xanchor="left",
+        selector=lambda data: data["text"] in plot_titles,
+    )
+    # update state column labels to be in center of each column
+    fig.update_annotations(
+        font_size=12,
+        xanchor="center",
+        selector=lambda data: data["text"] in states,
+    )
 
     return fig

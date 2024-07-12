@@ -21,7 +21,7 @@ SHINY_CACHE_PATH = "shiny_visualizers/shiny_cache"
 # this will reduce the time it takes to load the azure connection, but only shows
 # one experiment worth of data, which may be what you want...
 #  leave empty ("") to explore all experiments
-PRE_FILTER_EXPERIMENTS = ""
+PRE_FILTER_EXPERIMENTS = "fifty_state_2304_2404_3strain"
 # when loading the overview timelines csv for each run, columns
 # are expected to have names corresponding to the type of plot they create
 # vaccination_0_17 specifies the vaccination_ plot type, multiple columns may share
@@ -76,7 +76,7 @@ default_job_list = [
     dir.name
     for dir in output_blob.subdirs[experiment_names[0]].subdirs.values()
 ]
-default_state_list = [
+default_states_list = [
     dir.name
     for dir in output_blob.subdirs[experiment_names[0]]
     .subdirs[default_job_list[0]]
@@ -104,10 +104,12 @@ app_ui = ui.page_fluid(
                 selected=default_job_list[0],
             ),
             ui.input_selectize(
-                "state",
-                "State",
-                default_state_list,
-                selected=default_state_list[0],
+                "states",
+                "States",
+                default_states_list,
+                multiple=True,
+                options={"plugins": ["clear_button"]},
+                selected=default_states_list[0],
             ),
             ui.input_selectize(
                 "scenario",
@@ -122,8 +124,9 @@ app_ui = ui.page_fluid(
                 default_chain_particle_list,
                 selected=default_chain_particle_list[0],
             ),
-            ui.input_switch("dark_mode", "Dark Mode", True),
-            width=350,
+            ui.input_dark_mode(id="dark_mode", mode="dark"),
+            # ui.input_switch("dark_mode", "Dark Mode", True),
+            width=450,
         ),
         ui.navset_card_tab(
             ui.nav_panel("Overview", output_widget("plot")),
@@ -150,13 +153,10 @@ def server(input, output, session: Session):
         """
         a simple function which toggles the background UI colors from light to dark mode
         """
-        if input.dark_mode():
-            ui.update_dark_mode("dark")
-        else:
-            ui.update_dark_mode("light")
+        ui.update_dark_mode(input.dark_mode())
 
     @reactive.effect
-    @reactive.event(input.experiment, input.job_id, input.state)
+    @reactive.event(input.experiment, input.job_id, input.states)
     def _():
         """Updates the Buttons by traversing the tree of blob directories
         So the user is always seeing the correct directories"""
@@ -164,7 +164,7 @@ def server(input, output, session: Session):
         # since the user may be actively updating a top level dir without changing bottom ones yet
         experiment = input.experiment()
         job_id = input.job_id()
-        state = input.state()
+        states = input.states()
         scenario = input.scenario()
         tree_exp = output_blob.subdirs[experiment]
         job_id_selections = [job.name for job in tree_exp.subdirs.values()]
@@ -179,63 +179,76 @@ def server(input, output, session: Session):
         )
         # select the job directory and lookup the possible states run in that job
         tree_job = tree_exp.subdirs[selected_jobid]
-        new_state_selections = [
+        possible_state_selections = [
             state.name for state in tree_job.subdirs.values()
         ]
-        if len(new_state_selections) == 0:
-            raise RuntimeError("This job contains no state folders!")
-        selected_state = (
-            state if state in new_state_selections else new_state_selections[0]
-        )
+        # pick any states user have selected, as long as they are valid selections
+        selected_states = [
+            state for state in states if state in possible_state_selections
+        ]
+
+        # if none of the users previous selections are valid, default back to the first
+        if not selected_states:
+            selected_states = [possible_state_selections[0]]
         # update the states able to be picked based on the currently selected job
         ui.update_selectize(
-            "state",
-            choices=[node.name for node in tree_job.subdirs.values()],
-            selected=selected_state,
+            "states",
+            choices=possible_state_selections,
+            selected=selected_states,
         )
-        tree_state = tree_job.subdirs[selected_state]
-        # if our tree goes another level deep, we are dealing with scenarios here
-        # if the subdir of the current state itself has subdirs, we assume those are scenarios
-        if len(tree_state.subdirs.values()) == 0:
-            raise RuntimeError(
-                "No files/directories found within the state folder!"
-            )
-        if list(tree_state.subdirs.values())[0].subdirs:
-            new_scenario_selections = [
-                node.name for node in tree_state.subdirs.values()
-            ]
-            selected_scenario = (
-                scenario
-                if scenario in new_scenario_selections
-                else new_scenario_selections[0]
-            )
-            ui.update_selectize(
-                "scenario",
-                choices=new_scenario_selections,
-                selected=selected_scenario,
-            )
+        for state in selected_states:
+            tree_state = tree_job.subdirs[state]
+
+            # peak inside the state to ensure there is something in there...
+            if len(tree_state.subdirs.values()) == 0:
+                raise RuntimeError(
+                    "No files/directories found within the state folder!"
+                )
+            # if our tree goes another level deep, we are dealing with scenarios here
+            # if the subdir of the current state itself has subdirs, we assume those are scenarios
+            if list(tree_state.subdirs.values())[0].subdirs:
+                new_scenario_selections = [
+                    node.name for node in tree_state.subdirs.values()
+                ]
+                selected_scenario = (
+                    scenario
+                    if scenario in new_scenario_selections
+                    else new_scenario_selections[0]
+                )
+                ui.update_selectize(
+                    "scenario",
+                    choices=new_scenario_selections,
+                    selected=selected_scenario,
+                )
+            else:  # no scenarios, make sure we set it back to N/A list
+                ui.update_selectize(
+                    "scenario",
+                    choices=default_scenario_list,
+                    selected=default_scenario_list[0],
+                )
 
     @output(id="plot")
     @render_widget
     @reactive.event(input.action_button)
     def _():
         """
-        Gets the files associated with that experiment+job+state+scenario combo
+        Gets the files associated with each selected experiment+job+state+scenario combo
         and visualizes some summary statistics about the run
         """
         # read in the directory path
         exp = input.experiment()
         job_id = input.job_id()
-        state = input.state()
+        states = input.states()
         scenario = input.scenario()
         # get files and store them localy
-        cache_path = sutils.get_azure_files(
-            exp, job_id, state, scenario, azure_client, SHINY_CACHE_PATH
+        cache_paths = sutils.get_azure_files(
+            exp, job_id, states, scenario, azure_client, SHINY_CACHE_PATH
         )
         try:
             # read in the timelines.csv if it exists, and load the figure, error if it doesnt exist
             fig = sutils.load_default_timelines(
-                cache_path,
+                cache_paths,
+                states,
                 plot_titles=OVERVIEW_PLOT_TITLES,
                 plot_types=OVERVIEW_PLOT_TYPES,
                 overview_subplot_height=OVERVIEW_SUBPLOT_HEIGHT,
@@ -257,19 +270,19 @@ def server(input, output, session: Session):
     @reactive.event(input.action_button)
     def _():
         """
-        Gets the files associated with that experiment+job+state+scenario combo
+        Gets the files associated with each selected experiment+job+state+scenario combo
         and visualizes the inference chains on the inference run (if applicable)
         """
         exp = input.experiment()
         job_id = input.job_id()
-        state = input.state()
+        states = input.states()
         scenario = input.scenario()
-        cache_path = sutils.get_azure_files(
-            exp, job_id, state, scenario, azure_client, SHINY_CACHE_PATH
+        cache_paths = sutils.get_azure_files(
+            exp, job_id, states, scenario, azure_client, SHINY_CACHE_PATH
         )
         try:
             fig = sutils.load_checkpoint_inference_chains(
-                cache_path,
+                cache_paths,
                 overview_subplot_height=OVERVIEW_SUBPLOT_HEIGHT,
                 overview_subplot_width=OVERVIEW_SUBPLOT_WIDTH,
             )
@@ -289,19 +302,19 @@ def server(input, output, session: Session):
     @reactive.event(input.action_button)
     def _():
         """
-        Gets the files associated with that experiment+job+state+scenario combo
+        Gets the files associated with each selected experiment+job+states+scenario combo
         and visualizes the inference correlations on the inference run (if applicable)
         """
         exp = input.experiment()
         job_id = input.job_id()
-        state = input.state()
+        states = input.states()
         scenario = input.scenario()
-        cache_path = sutils.get_azure_files(
-            exp, job_id, state, scenario, azure_client
+        cache_paths = sutils.get_azure_files(
+            exp, job_id, states, scenario, azure_client
         )
         try:
             fig = sutils.load_checkpoint_inference_correlations(
-                cache_path,
+                cache_paths,
                 overview_subplot_size=OVERVIEW_SUBPLOT_WIDTH,
             )
         except FileNotFoundError as e:
@@ -325,14 +338,14 @@ def server(input, output, session: Session):
         """
         exp = input.experiment()
         job_id = input.job_id()
-        state = input.state()
+        states = input.states()
         scenario = input.scenario()
-        cache_path = sutils.get_azure_files(
-            exp, job_id, state, scenario, azure_client
+        cache_paths = sutils.get_azure_files(
+            exp, job_id, states, scenario, azure_client
         )
         try:
             fig = sutils.load_checkpoint_inference_violin_plots(
-                cache_path,
+                cache_paths,
                 overview_subplot_size=OVERVIEW_SUBPLOT_WIDTH,
             )
         except FileNotFoundError as e:
