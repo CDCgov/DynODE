@@ -16,6 +16,8 @@ INITIALIZER_USED = CovidInitializer
 INFERER_USED = MechanisticInferer
 INPUT_BLOB_NAME = "scenarios-mechanistic-input"
 OUTPUT_BLOB_NAME = "scenarios-mechanistic-output"
+# the path on your local machine where local projects are read in and azure data is stored
+SHINY_CACHE_PATH = "shiny_visualizers/shiny_cache_local_test"
 # this will reduce the time it takes to load the azure connection, but only shows
 # one experiment worth of data, which may be what you want...
 #  leave empty ("") to explore all experiments
@@ -61,6 +63,10 @@ blobs = sutils.get_blob_names(
     azure_client, name_starts_with=PRE_FILTER_EXPERIMENTS
 )
 output_blob = sutils.construct_tree(blobs)
+print("accessing any local projects stored inside of %s" % SHINY_CACHE_PATH)
+output_blob = sutils.append_local_projects_to_tree(
+    SHINY_CACHE_PATH, output_blob
+)
 
 # now that we have all the paths stored in a Tree, all these operations are quick
 # these are used to initally populate the selectors
@@ -217,7 +223,7 @@ def server(input, output, session: Session):
         scenario = input.scenario()
         # get files and store them localy
         cache_path = sutils.get_azure_files(
-            exp, job_id, state, scenario, azure_client
+            exp, job_id, state, scenario, azure_client, SHINY_CACHE_PATH
         )
         # read in the timelines.csv if it exists, and load the figure, error if it doesnt exist
         fig = sutils.load_default_timelines(
@@ -249,7 +255,7 @@ def server(input, output, session: Session):
         state = input.state()
         scenario = input.scenario()
         cache_path = sutils.get_azure_files(
-            exp, job_id, state, scenario, azure_client
+            exp, job_id, state, scenario, azure_client, SHINY_CACHE_PATH
         )
 
         fig = sutils.load_checkpoint_inference_chains(cache_path)

@@ -65,7 +65,7 @@ class Node:
         self.subdirs = {}
 
 
-def construct_tree(file_paths: Iterable[str]) -> Node:
+def construct_tree(file_paths: Iterable[str], root=None) -> Node:
     """given a iterable of strings, constructs a tree of directories from root "/".
     Used to efficiently traverse directories after tree is constructed.
     leaf nodes are files with a "." like .txt or .json
@@ -82,7 +82,8 @@ def construct_tree(file_paths: Iterable[str]) -> Node:
         A node object containing a dictionary of subdirectories, files have a `name` field but
         an empty dictionary of subdirs.
     """
-    root = Node("/")
+    if not isinstance(root, Node):
+        root = Node("/")
     for path in file_paths:
         # indicates this is an actual file like .txt or .json or .out
         if "." in path:
@@ -96,8 +97,43 @@ def construct_tree(file_paths: Iterable[str]) -> Node:
     return root
 
 
+def append_local_projects_to_tree(local_cache_path, root):
+    """takes a Node and appends all new paths from `os.path.walk(local_cache_path)` onto `root`
+
+    Parameters
+    ----------
+    local_cache_path : str
+        path to the local cache, which contains directories in the `exp/job/state/*` format
+    root: Node
+        the tree root node on which you append paths onto.
+
+    Returns
+    -------
+    Node
+        the node `root` potentially with new subdirs within, or unchanged if
+        all paths within local_cache_path match those already in `root` before the call.
+    """
+    # we are spoofing azures list_blobs function to pass our local files into the tree as well
+    file_paths = []
+    for path, _, files in os.walk(local_cache_path):
+        # if non-empty we have reached the leaf nodes
+        for file in files:
+            # go through each leaf node, remove the prepending `local_cache_path`
+            # from the path, and add on the file name to the end
+            file_paths.append(
+                (path + "/" + file).replace(local_cache_path + "/", "")
+            )
+    appended_root = construct_tree(file_paths, root)
+    return appended_root
+
+
 def get_azure_files(
-    exp: str, jobid: str, state: str, scenario: str, azure_client: AzureClient
+    exp: str,
+    jobid: str,
+    state: str,
+    scenario: str,
+    azure_client: AzureClient,
+    local_cache_path: str,
 ) -> str:
     """Reads in all files from the output blob `exp/jobid/state` in `azure_client.out_cont_client`
     and stores them in the `shiny_cache` directory.
@@ -117,27 +153,26 @@ def get_azure_files(
         optional scenario, N/A if not applicable to the directory structure
     azure_client : cfa_azure.AzureClient
         Azure client to access azure blob storage and download the files
-
+    local_cache_path: str
+        the path to the local cache where files are stored
     Returns
     -------
     str
         path into which files were loaded (if they did not already exist there)
     """
 
-    # will override files in cache
-    shiny_cache_path = "shiny_visualizers/shiny_cache"
-    if not os.path.exists(shiny_cache_path):
-        os.makedirs(shiny_cache_path)
+    if not os.path.exists(local_cache_path):
+        os.makedirs(local_cache_path)
     azure_blob_path = os.path.join(exp, jobid, state)
     if scenario != "N/A":  # if visualizing a scenario append to the path
         azure_blob_path = os.path.join(azure_blob_path, scenario)
     azure_blob_path = azure_blob_path.replace("\\", "/") + "/"
-    dest_path = os.path.join(shiny_cache_path, azure_blob_path)
+    dest_path = os.path.join(local_cache_path, azure_blob_path)
     # if we already loaded this before, dont redownload it all!
     if os.path.exists(dest_path):
         return dest_path
     download_directory(
-        azure_client.out_cont_client, azure_blob_path, shiny_cache_path
+        azure_client.out_cont_client, azure_blob_path, local_cache_path
     )
     return dest_path
 
