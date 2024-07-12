@@ -17,7 +17,7 @@ INFERER_USED = MechanisticInferer
 INPUT_BLOB_NAME = "scenarios-mechanistic-input"
 OUTPUT_BLOB_NAME = "scenarios-mechanistic-output"
 # the path on your local machine where local projects are read in and azure data is stored
-SHINY_CACHE_PATH = "shiny_visualizers/shiny_cache_local_test"
+SHINY_CACHE_PATH = "shiny_visualizers/shiny_cache"
 # this will reduce the time it takes to load the azure connection, but only shows
 # one experiment worth of data, which may be what you want...
 #  leave empty ("") to explore all experiments
