@@ -71,10 +71,10 @@ class AbstractParameters:
         }
         parameters = utils.sample_if_distribution(parameters)
         # re-create the CROSSIMMUNITY_MATRIX since we may be sampling the STRAIN_INTERACTIONS matrix now
-        parameters[
-            "CROSSIMMUNITY_MATRIX"
-        ] = utils.strain_interaction_to_cross_immunity(
-            freeze_params.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
+        parameters["CROSSIMMUNITY_MATRIX"] = (
+            utils.strain_interaction_to_cross_immunity2(
+                freeze_params.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
+            )
         )
         # create parameters based on other possibly sampled parameters
         beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
