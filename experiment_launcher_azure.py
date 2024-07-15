@@ -10,10 +10,10 @@ from cfa_azure.clients import AzureClient
 
 # specify job ID, cant already exist
 
-DOCKER_IMAGE_TAG = "scenarios-image-7-3-24"
+DOCKER_IMAGE_TAG = "ben-scenarios-20240715"
 # number of seconds of a full experiment run before timeout
 # for `s` states to run and `n` nodes dedicated,`s/n` * runtime 1 state secs needed
-TIMEOUT_MINS = 120
+TIMEOUT_MINS = 240
 EXPERIMENTS_DIRECTORY = "exp"
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Experiment Azure Launcher")
@@ -55,9 +55,8 @@ assert os.path.exists(
 ), "please rerun this file specifying the experiment directory, "
 "it must include a /states/ folder within it containing the state folders filled with configs"
 # start up azure client with authentication toml
-client = AzureClient(
-    config_path="secrets/configuration_cfaazurebatchprd_new_sp.toml"
-)
+client = AzureClient(config_path="secrets/configuration_cfaazurebatchprd.toml")
+client.timeout = TIMEOUT_MINS
 # run `docker build` using the Dockerfile in the cwd, apply tag
 client.package_and_upload_dockerfile(
     registry_name="cfaprdbatchcr", repo_name="scenarios", tag=DOCKER_IMAGE_TAG

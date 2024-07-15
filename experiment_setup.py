@@ -14,12 +14,25 @@ import pandas as pd
 
 # these are the configs that will be copied into each state-level directory
 # their REGIONS key will be modified to match the state they work with.
+# CONFIG_MOLDS = [
+#     "docker_template_configs/config_global.json",
+#     "docker_template_configs/config_inferer_covid.json",
+#     "docker_template_configs/config_initializer_covid.json",
+#     "docker_template_configs/config_runner_covid.json",
+#     "docker_template_configs/config_interpreter_covid.json",
+# ]
+
+# CONFIG_MOLDS = [
+#     "exp/fifty_state_2202_2307_3strain/template_configs/config_global_template.json",
+#     "exp/fifty_state_2202_2307_3strain/template_configs/config_inferer_covid_template.json",
+#     "exp/fifty_state_2202_2307_3strain/template_configs/config_initializer_sero_template.json",
+#     "exp/fifty_state_2202_2307_3strain/template_configs/config_interpreter_covid_template.json",
+# ]
+
 CONFIG_MOLDS = [
-    "docker_template_configs/config_global.json",
-    "docker_template_configs/config_inferer_covid.json",
-    "docker_template_configs/config_initializer_covid.json",
-    "docker_template_configs/config_runner_covid.json",
-    "docker_template_configs/config_interpreter_covid.json",
+    "exp/fifty_state_5strain_2202_2404/template_configs/config_global.json",
+    "exp/fifty_state_5strain_2202_2404/template_configs/config_inferer.json",
+    "exp/fifty_state_5strain_2202_2404/template_configs/config_initializer.json",
 ]
 
 
@@ -221,12 +234,14 @@ if __name__ == "__main__":
         columns=pops.columns,
     )
     pops = pd.concat([pops, usa_pop_row], ignore_index=True)
-    print(pops)
     args = parser.parse_args()
     exp = args.exp
     states = args.states
     if "all" in states:
         states = get_all_codes()
+    states.remove("US")
+    states.remove("DC")
+
     config_molds = args.config_molds
     create_state_subdirectories(exp, states)
     populate_config_files(exp, config_molds)
