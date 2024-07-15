@@ -862,6 +862,16 @@ def find_waning_compartment(TSLIE: int, waning_times: list[int]) -> int:
     return current_bin - 1
 
 
+def strain_interaction_to_cross_immunity2(
+    num_strains: int, strain_interactions: np.ndarray
+) -> Array:
+    cim = jnp.hstack(
+        (jnp.array([[0.0]] * num_strains), strain_interactions),
+    )
+
+    return cim
+
+
 def strain_interaction_to_cross_immunity(
     num_strains: int, strain_interactions: np.ndarray
 ) -> Array:
@@ -1437,11 +1447,9 @@ def imply_immune_history_dist_from_strains(
     for strain in range(0, num_historical_strains):
         # fill in single strain immune state first. no repeated exposures yet.
         single_strain_state = new_immune_state(0, strain)
-        immune_history_dist[
-            :, single_strain_state, 0, :
-        ] = strain_exposure_dist[
-            :, strain, :
-        ]  # TODO remove 0
+        immune_history_dist[:, single_strain_state, 0, :] = (
+            strain_exposure_dist[:, strain, :]
+        )  # TODO remove 0
         # now grab individuals from previous states and infect 1/2 of them with this strain
         multi_strain_states = []
         for prev_state in immune_states:
@@ -2144,9 +2152,68 @@ def get_foi_suscept(p, force_of_infection):
         # renormalize the waning curve to have minimum of `final_immunity` after full waning
         # and maximum of `initial_immunity` right after recovery
         final_immunity = jnp.zeros(shape=initial_immunity.shape)
-        final_immunity = final_immunity.at[
-            all_immune_states_with(strain, p.NUM_STRAINS), :
-        ].set(p.MIN_HOMOLOGOUS_IMMUNITY)
+        final_immunity = final_immunity.at[strain + 1, :].set(
+            p.MIN_HOMOLOGOUS_IMMUNITY
+        )
+        waned_immunity_baseline = jnp.einsum(
+            "jk,l",
+            initial_immunity,
+            p.WANING_PROTECTIONS,
+        )
+        # find the lower bound of immunity for a homologous exposure against this challenging strain
+        waned_immunity_min = (1 - waned_immunity_baseline) * final_immunity[
+            :, :, jnp.newaxis
+        ]
+        waned_immunity = waned_immunity_baseline + waned_immunity_min
+        foi_suscept_strain = jnp.einsum(
+            "i, jkl", force_of_infection_strain, 1 - waned_immunity
+        )
+        foi_suscept.append(foi_suscept_strain)
+
+    return foi_suscept
+
+
+def get_foi_suscept2(p, force_of_infection):
+    """
+    Calculate the force of infections experienced by the susceptibles, _after_
+    factoring their immunity.
+
+    Parameters
+    ----------
+    `p` : Parameters
+        a Parameters object which is a spoofed dictionary for easy referencing,
+        which is an output of `.get_parameters()` from AbstractParameter.
+    `force_of_infection`: jnp.array
+        an array of (NUM_AGE_GROUPS, NUM_STRAINS) that quantifies the force of
+        infection experienced by age group by strain.
+
+    Returns
+    ----------
+    jnp.array:
+        an array of immunity protection by the shape of (NUM_STRAINS, num_days,
+        NUM_AGE_GROUPS)
+    """
+    foi_suscept = []
+    for strain in range(p.NUM_STRAINS):
+        force_of_infection_strain = force_of_infection[
+            :, strain
+        ]  # (num_age_groups,)
+
+        crossimmunity_matrix = p.CROSSIMMUNITY_MATRIX[strain, :]
+        vax_efficacy_strain = p.VACCINE_EFF_MATRIX[strain, :]
+        initial_immunity = 1 - jnp.einsum(
+            "j, k",
+            1 - crossimmunity_matrix,
+            1 - vax_efficacy_strain,
+        )
+        # renormalize the waning curve to have minimum of `final_immunity` after full waning
+        # and maximum of `initial_immunity` right after rec
+        final_immunity = (
+            jnp.ones(shape=initial_immunity.shape)
+            * crossimmunity_matrix[:, jnp.newaxis]
+            * p.MIN_HOMOLOGOUS_IMMUNITY
+        )
+
         waned_immunity_baseline = jnp.einsum(
             "jk,l",
             initial_immunity,
