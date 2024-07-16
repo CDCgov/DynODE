@@ -221,7 +221,6 @@ if __name__ == "__main__":
         columns=pops.columns,
     )
     pops = pd.concat([pops, usa_pop_row], ignore_index=True)
-    print(pops)
     args = parser.parse_args()
     exp = args.exp
     states = args.states
