@@ -173,13 +173,39 @@ def get_azure_files(
         azure_blob_path = azure_blob_path.replace("\\", "/") + "/"
         dest_path = os.path.join(local_cache_path, azure_blob_path)
         # if we already loaded this before, dont redownload it all!
-        if os.path.exists(dest_path):
-            return_paths.append(dest_path)
-        download_directory(
-            azure_client.out_cont_client, azure_blob_path, local_cache_path
-        )
+        if not os.path.exists(dest_path):
+            download_directory(
+                azure_client.out_cont_client, azure_blob_path, local_cache_path
+            )
         return_paths.append(dest_path)
     return return_paths
+
+
+def get_population_sizes(
+    states: tuple[str],
+    state_name_lookup: pd.DataFrame,
+    state_pop_lookup: pd.DataFrame,
+):
+    """loads population CSVs and returns the population size of each state
+
+    Parameters
+    ----------
+    states : tuple[str]
+        tuple of each state as a USPS postal code
+    demographic_data_path : str
+        path to the directory containing age distribution and pop count csvs
+    """
+    states = [
+        state_name_lookup[state_name_lookup["abbreviation"] == state][
+            "location_name"
+        ].iloc[0]
+        for state in states
+    ]
+    pop_sizes = []
+    for state_name in states:
+        state_pop = state_pop_lookup[state_pop_lookup["STNAME"] == state_name]
+        pop_sizes.append(state_pop["POPULATION"].iloc[0])
+    return pop_sizes
 
 
 def _create_figure_from_timeline(
@@ -451,7 +477,7 @@ def load_checkpoint_inference_violin_plots(
 
 
 def _generate_row_wise_legends(fig, num_cols):
-    # here we are setting up one legend per row, it is messy but plotly does not
+    # here we are setting up one legend per row, it is messy bc plotly does not
     # usually allow for subplot row legends so we have to go through
     # each yaxis in the whole plot and do it this way
     for i, yaxis in enumerate(fig.select_yaxes()):
@@ -471,11 +497,67 @@ def _generate_row_wise_legends(fig, num_cols):
             )
 
 
+def _normalize_timelines(
+    all_state_timelines,
+    plot_types,
+    plot_normalizations,
+    states,
+    state_pop_sizes,
+):
+    for plot_type, plot_normalization in zip(plot_types, plot_normalizations):
+        for state_name, state_pop in zip(states, state_pop_sizes):
+            # if normalization is set to 1, we dont normalize at all.
+            normalization_factor = (
+                plot_normalization / state_pop
+                if plot_normalization > 1
+                else 1.0
+            )
+            # select all columns from that column type
+            cols = [
+                col for col in all_state_timelines.columns if plot_type in col
+            ]
+            # update that states columns by the normalization factor chosen for that column
+            all_state_timelines.loc[
+                all_state_timelines["state"] == state_name,
+                cols,
+            ] *= normalization_factor
+    return all_state_timelines
+
+
+def _combine_state_timelines(cache_paths, states):
+    all_state_timelines = pd.DataFrame()
+    for cache_path, state in zip(cache_paths, states):
+        timeline_path = os.path.join(
+            cache_path, "azure_visualizer_timeline.csv"
+        )
+        if not os.path.exists(timeline_path):
+            raise FileNotFoundError(
+                "attempted to visualize an overview from %s without an `azure_visualizer_timeline.csv` file"
+                % cache_path
+            )
+        timelines = pd.read_csv(timeline_path)
+        assert (
+            "date" in timelines.columns
+        ), "something went wrong in the creation of azure_visualizer_timeline.csv, there is no date column"
+        # count the `chain_particle` column, if it exists,
+        # to figure out how many particles we are working with
+        # if the column does not exist, na_na as placeholder
+        if "chain_particle" not in timelines.columns:
+            timelines["chain_particle"] = "na_na"
+        timelines["state"] = state
+        all_state_timelines = pd.concat(
+            [all_state_timelines, timelines], axis=0, ignore_index=True
+        )
+    return all_state_timelines
+
+
 def load_default_timelines(
     cache_paths: list[str],
     states: list[str],
+    state_pop_sizes: list[float],
     plot_types: np.ndarray[str],
     plot_titles: np.ndarray[str],
+    plot_normalizations: np.ndarray[int],
     overview_subplot_width: int,
     overview_subplot_height: int,
 ) -> plotly.graph_objs.Figure:
@@ -508,30 +590,8 @@ def load_default_timelines(
         plotly Figure with `n` rows and `m` columns where `n` is the number of plots
         within azure_visualizer_timeline identified by OVERVIEW_PLOT_TYPES global var.
     """
-    all_state_timelines = pd.DataFrame()
     num_states = len(states)
-    for cache_path, state in zip(cache_paths, states):
-        timeline_path = os.path.join(
-            cache_path, "azure_visualizer_timeline.csv"
-        )
-        if not os.path.exists(timeline_path):
-            raise FileNotFoundError(
-                "attempted to visualize an overview from %s without an `azure_visualizer_timeline.csv` file"
-                % cache_path
-            )
-        timelines = pd.read_csv(timeline_path)
-        assert (
-            "date" in timelines.columns
-        ), "something went wrong in the creation of azure_visualizer_timeline.csv, there is no date column"
-        # count the `chain_particle` column, if it exists,
-        # to figure out how many particles we are working with
-        # if the column does not exist, na_na as placeholder
-        if "chain_particle" not in timelines.columns:
-            timelines["chain_particle"] = "na_na"
-        timelines["state"] = state
-        all_state_timelines = pd.concat(
-            [all_state_timelines, timelines], axis=0, ignore_index=True
-        )
+    all_state_timelines = _combine_state_timelines(cache_paths, states)
 
     num_individual_particles = len(
         all_state_timelines["chain_particle"].unique()
@@ -546,6 +606,16 @@ def load_default_timelines(
     # select only the plots we actually find within `timelines`
     plot_types = plot_types[plots_in_timelines].tolist()
     plot_titles = plot_titles[plots_in_timelines].tolist()
+    plot_normalizations = plot_normalizations[plots_in_timelines].tolist()
+    # normalize our dataframe by the given y axis normalization schemes
+    all_state_timelines = _normalize_timelines(
+        all_state_timelines,
+        plot_types,
+        plot_normalizations,
+        states,
+        state_pop_sizes,
+    )
+    # some more plotly hacking to space the titles correctly
     plot_titles_spaced = (
         np.array(
             [
@@ -556,8 +626,7 @@ def load_default_timelines(
         .flatten()
         .tolist()
     )
-    # total_subplots = num_individual_particles * num_unique_plots
-    # generate subplots with some basic settings
+    # total_subplots = num_plots_in_timeline * num_states
     fig = make_subplots(
         rows=num_unique_plots_in_timelines,
         cols=num_states,
@@ -575,6 +644,7 @@ def load_default_timelines(
     # go through each plot type, look for matching columns within `timlines` and plot
     # that plot_type for each chain_particle pair. plotly rows/cols are index at 1 not 0
     for state_num, state in enumerate(states, start=1):
+        print("Plotting State : " + state)
         for plot_num, (plot_title, plot_type) in enumerate(
             zip(plot_titles, plot_types), start=1
         ):
@@ -600,7 +670,7 @@ def load_default_timelines(
             selector = lambda data: "remove_duplicate" not in data["name"]
 
             if num_individual_particles > 1:
-                fig.update_traces(opacity=0.2, row=plot_num, col=state_num)
+                fig.update_traces(opacity=0.5, row=plot_num, col=state_num)
                 medians = (
                     all_state_timelines[all_state_timelines["state"] == state]
                     .groupby(by=["date"])[columns_to_plot]
@@ -627,7 +697,6 @@ def load_default_timelines(
             # only show 1 legend since all states have same schema
             fig.update_traces(
                 showlegend=True,
-                # hoverinfo="skip",
                 selector=selector,
                 col=1,
             )
@@ -636,19 +705,12 @@ def load_default_timelines(
             _generate_row_wise_legends(fig, num_states)
         # lastly we update the whole figure's width and height with some padding
     fig.update_layout(
-        width=overview_subplot_width + 50,
+        width=overview_subplot_width * num_states + 50,
         height=overview_subplot_height * num_unique_plots_in_timelines + 50,
         title_text="",
         # legend_tracegroupgap=0,
         hovermode="x unified",
     )
-
-    # fig.update_traces(showlegend=False)
-    # fig.update_traces(showlegend=True, col=1)
-    # this is for the row titles font and position
-    def selector(data):
-        print(data)
-        return True
 
     # update each plots description to be far left
     fig.update_annotations(

@@ -3,17 +3,16 @@ This Python script, when run, launches a Shiny app on http://localhost:8000/ tha
 individual particles of posteriors produced by an experiment.
 """
 
+import os
+
 # ruff: noqa: E402
 import numpy as np
+import pandas as pd
 from shiny import App, Session, reactive, ui
 from shinywidgets import output_widget, render_widget
 
 import shiny_visualizers.shiny_utils as sutils
-from mechanistic_model.covid_initializer import CovidInitializer
-from mechanistic_model.mechanistic_inferer import MechanisticInferer
 
-INITIALIZER_USED = CovidInitializer
-INFERER_USED = MechanisticInferer
 INPUT_BLOB_NAME = "scenarios-mechanistic-input"
 OUTPUT_BLOB_NAME = "scenarios-mechanistic-output"
 # the path on your local machine where local projects are read in and azure data is stored
@@ -21,7 +20,7 @@ SHINY_CACHE_PATH = "shiny_visualizers/shiny_cache"
 # this will reduce the time it takes to load the azure connection, but only shows
 # one experiment worth of data, which may be what you want...
 #  leave empty ("") to explore all experiments
-PRE_FILTER_EXPERIMENTS = "fifty_state_2304_2404_3strain"
+PRE_FILTER_EXPERIMENTS = "fifty_state_5strain_2202_2404"  # smh_5str_prelim_1
 # when loading the overview timelines csv for each run, columns
 # are expected to have names corresponding to the type of plot they create
 # vaccination_0_17 specifies the vaccination_ plot type, multiple columns may share
@@ -43,16 +42,26 @@ OVERVIEW_PLOT_TITLES = np.array(
     [
         "Seasonality Coefficient",
         "Vaccination Rate By Age",
-        "External Introductions by Strain",
+        "External Introductions by Strain (per 100k)",
         "Strain Proportion of New Infections",
         "Average Population Immunity Against Strains",
-        "Total Infection Incidence",
-        "Predicted Hospitalizations",
+        "Total Infection Incidence (per 100k)",
+        "Predicted Hospitalizations (per 100k)",
     ]
 )
+# some plots need to be normalized per 100k, some dont
+OVERVIEW_PLOT_Y_AXIS_NORMALIZATION = np.array(
+    [1, 1, 100000, 1, 1, 100000, 100000]
+)
 OVERVIEW_SUBPLOT_HEIGHT = 150
-OVERVIEW_SUBPLOT_WIDTH = 1250
-
+OVERVIEW_SUBPLOT_WIDTH = 350
+DEMOGRAPHIC_DATA_PATH = "data/demographic-data/"
+STATE_NAME_LOOKUP = pd.read_csv(
+    os.path.join(DEMOGRAPHIC_DATA_PATH, "locations.csv")
+)
+POP_COUNTS_LOOKUP = pd.read_csv(
+    os.path.join(DEMOGRAPHIC_DATA_PATH, "CenPop2020_Mean_ST.csv")
+)
 
 print("Connecting to Azure Storage")
 azure_client = sutils.build_azure_connection(
@@ -244,13 +253,18 @@ def server(input, output, session: Session):
         cache_paths = sutils.get_azure_files(
             exp, job_id, states, scenario, azure_client, SHINY_CACHE_PATH
         )
+        pop_sizes = sutils.get_population_sizes(
+            states, STATE_NAME_LOOKUP, POP_COUNTS_LOOKUP
+        )
         try:
             # read in the timelines.csv if it exists, and load the figure, error if it doesnt exist
             fig = sutils.load_default_timelines(
                 cache_paths,
                 states,
+                state_pop_sizes=pop_sizes,
                 plot_titles=OVERVIEW_PLOT_TITLES,
                 plot_types=OVERVIEW_PLOT_TYPES,
+                plot_normalizations=OVERVIEW_PLOT_Y_AXIS_NORMALIZATION,
                 overview_subplot_height=OVERVIEW_SUBPLOT_HEIGHT,
                 overview_subplot_width=OVERVIEW_SUBPLOT_WIDTH,
             )
