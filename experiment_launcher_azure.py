@@ -10,6 +10,7 @@ from cfa_azure.clients import AzureClient
 
 # specify job ID, cant already exist
 
+<<<<<<< HEAD
 DOCKER_IMAGE_TAG = "ben-scenarios-20240715"
 # number of seconds of a full experiment run before timeout
 # for `s` states to run and `n` nodes dedicated,`s/n` * runtime 1 state secs needed
