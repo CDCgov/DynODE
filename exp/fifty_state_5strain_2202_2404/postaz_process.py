@@ -335,8 +335,8 @@ def process_plot_state(state):
         obs_var_days,
     ) = retrieve_inferer_obs(state)
 
-    nsamp = len(samp["ihr_0"][0])
-    nchain = len(samp["ihr_0"])
+    nsamp = len(samp["ihr_3"][0])
+    nchain = len(samp["ihr_3"])
     ranindex = random.sample(list(range(nsamp)), 3)
 
     fitted_samples = [
@@ -357,9 +357,9 @@ def process_plot_state(state):
         output = replace_and_simulate(inferer, runner, f)
         ihr = jnp.array(
             [
-                f["ihr_0"],
-                f["ihr_1"],
-                f["ihr_2"],
+                f["ihr_mult_0"]*f["ihr_3"],
+                f["ihr_mult_1"]*f["ihr_3"],
+                f["ihr_mult_2"]*f["ihr_3"],
                 f["ihr_3"],
             ]
         )
@@ -456,7 +456,9 @@ states = [
     "WI",
     "WY",
 ]
-states_omit = ["WV", "GA", "AL", "TX"]
+states_omit = ["WV", "GA", "AL", "TX","WI",
+    "WY","VT",
+    "VA",]
 for st in states:
     json_file = os.path.join(az_output_path, st, "checkpoint.json")
     if not os.path.exists(json_file):
