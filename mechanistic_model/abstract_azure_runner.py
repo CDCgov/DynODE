@@ -190,6 +190,13 @@ class AbstractAzureRunner(ABC):
                 for t in range(num_days_predicted)
             ]
         )
+        # select timeline of those with infect_hist 0, sum over all vax/wane tiers
+        never_infected = np.sum(
+            infections[model.config.COMPARTMENT_IDX.S][:, :, 0, :, :],
+            axis=(model.config.S_AXIS_IDX.vax, model.config.S_AXIS_IDX.wane),
+        )
+        # 1-never_infected is those sero-positive / POPULATION to make proportions
+        sim_sero = 1 - never_infected / model.config.POPULATION
         for age_bin_str in model.config.AGE_GROUP_STRS:
             age_bin_idx = model.config.AGE_GROUP_IDX[age_bin_str]
             age_bin_str = age_bin_str.replace("-", "_")
@@ -208,6 +215,8 @@ class AbstractAzureRunner(ABC):
             df["vaccination_%s" % (age_bin_str)] = vaccination_timeline[
                 :, age_bin_idx
             ]
+            # save sero-positive rate by age
+            df["sero_%s" % (age_bin_str)] = sim_sero[:, age_bin_idx]
         # get total infection incidence
         infection_incidence, _ = utils.get_timeline_from_solution_with_command(
             infections,
