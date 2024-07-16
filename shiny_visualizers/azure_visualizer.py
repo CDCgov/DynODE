@@ -53,8 +53,11 @@ OVERVIEW_PLOT_TITLES = np.array(
 OVERVIEW_PLOT_Y_AXIS_NORMALIZATION = np.array(
     [1, 1, 100000, 1, 1, 100000, 100000]
 )
+# how often should metrics be reported, every x days?
+# lower values heavily impact runtime, higher values may cause things to be skipped.
+OVERVIEW_DAY_FIDELITY = 3
 OVERVIEW_SUBPLOT_HEIGHT = 150
-OVERVIEW_SUBPLOT_WIDTH = 350
+OVERVIEW_SUBPLOT_WIDTH = 550
 DEMOGRAPHIC_DATA_PATH = "data/demographic-data/"
 STATE_NAME_LOOKUP = pd.read_csv(
     os.path.join(DEMOGRAPHIC_DATA_PATH, "locations.csv")
@@ -138,9 +141,19 @@ app_ui = ui.page_fluid(
             width=450,
         ),
         ui.navset_card_tab(
-            ui.nav_panel("Overview", output_widget("plot")),
             ui.nav_panel(
-                "Inference Chains", output_widget("plot_inference_chains")
+                "Overview",
+                output_widget(
+                    "plot_overview",
+                    width=OVERVIEW_SUBPLOT_WIDTH * 50,
+                ),
+            ),
+            ui.nav_panel(
+                "Inference Chains",
+                output_widget(
+                    "plot_inference_chains",
+                    width=OVERVIEW_SUBPLOT_WIDTH * 7,
+                ),
             ),
             ui.nav_panel(
                 "Sample Correlations",
@@ -165,29 +178,29 @@ def server(input, output, session: Session):
         ui.update_dark_mode(input.dark_mode())
 
     @reactive.effect
-    @reactive.event(input.experiment, input.job_id, input.states)
-    def _():
-        """Updates the Buttons by traversing the tree of blob directories
-        So the user is always seeing the correct directories"""
-        # get the current choices of the user, these may not actually be valid though
-        # since the user may be actively updating a top level dir without changing bottom ones yet
+    @reactive.event(input.experiment)
+    def update_jobs_from_experiment_selection():
         experiment = input.experiment()
         job_id = input.job_id()
-        states = input.states()
-        scenario = input.scenario()
         tree_exp = output_blob.subdirs[experiment]
         job_id_selections = [job.name for job in tree_exp.subdirs.values()]
         if len(job_id_selections) == 0:
             raise RuntimeError("This experiment contains no job folders!")
-        # update the jobs able to be picked based on the currently selected experiment
         selected_jobid = (
             job_id if job_id in job_id_selections else job_id_selections[0]
         )
         ui.update_selectize(
             "job_id", choices=job_id_selections, selected=selected_jobid
         )
-        # select the job directory and lookup the possible states run in that job
-        tree_job = tree_exp.subdirs[selected_jobid]
+
+    @reactive.effect
+    @reactive.event(input.job_id)
+    def update_states_from_job_id_selection():
+        # we are given experiment/job_id to be valid selections
+        experiment = input.experiment()
+        job_id = input.job_id()
+        states = input.states()
+        tree_job = output_blob.subdirs[experiment].subdirs[job_id]
         possible_state_selections = [
             state.name for state in tree_job.subdirs.values()
         ]
@@ -195,7 +208,6 @@ def server(input, output, session: Session):
         selected_states = [
             state for state in states if state in possible_state_selections
         ]
-
         # if none of the users previous selections are valid, default back to the first
         if not selected_states:
             selected_states = [possible_state_selections[0]]
@@ -205,7 +217,18 @@ def server(input, output, session: Session):
             choices=possible_state_selections,
             selected=selected_states,
         )
-        for state in selected_states:
+
+    @reactive.effect
+    @reactive.event(input.states)
+    def update_scenarios_from_state_selection():
+        # we are given experiment/job_id/states to be valid selections
+        # because the above methods have already triggered
+        experiment = input.experiment()
+        job_id = input.job_id()
+        states = input.states()
+        scenario = input.scenario()
+        tree_job = output_blob.subdirs[experiment].subdirs[job_id]
+        for state in states:
             tree_state = tree_job.subdirs[state]
 
             # peak inside the state to ensure there is something in there...
@@ -236,7 +259,7 @@ def server(input, output, session: Session):
                     selected=default_scenario_list[0],
                 )
 
-    @output(id="plot")
+    @output(id="plot_overview")
     @render_widget
     @reactive.event(input.action_button)
     def _():
@@ -262,6 +285,7 @@ def server(input, output, session: Session):
                 cache_paths,
                 states,
                 state_pop_sizes=pop_sizes,
+                day_fidelity=OVERVIEW_DAY_FIDELITY,
                 plot_titles=OVERVIEW_PLOT_TITLES,
                 plot_types=OVERVIEW_PLOT_TYPES,
                 plot_normalizations=OVERVIEW_PLOT_Y_AXIS_NORMALIZATION,
@@ -271,11 +295,7 @@ def server(input, output, session: Session):
         except FileNotFoundError as e:
             raise e
         # we have the figure, now update the light/dark mode depending on the switch
-        dark_mode = input.dark_mode()
-        if dark_mode:
-            theme = "plotly_dark"
-        else:
-            theme = "plotly_white"
+        theme = sutils.shiny_to_plotly_theme(input.dark_mode())
         fig.update_layout(template=theme)
         return fig
 
@@ -295,19 +315,16 @@ def server(input, output, session: Session):
             exp, job_id, states, scenario, azure_client, SHINY_CACHE_PATH
         )
         try:
+            # only load first state for fair
             fig = sutils.load_checkpoint_inference_chains(
-                cache_paths,
+                cache_paths[0],
                 overview_subplot_height=OVERVIEW_SUBPLOT_HEIGHT,
                 overview_subplot_width=OVERVIEW_SUBPLOT_WIDTH,
             )
         except FileNotFoundError as e:
             raise e
         # we have the figure, now update the light/dark mode depending on the switch
-        dark_mode = input.dark_mode()
-        if dark_mode:
-            theme = "plotly_dark"
-        else:
-            theme = "plotly_white"
+        theme = sutils.shiny_to_plotly_theme(input.dark_mode())
         fig.update_layout(template=theme)
         return fig
 
@@ -324,21 +341,18 @@ def server(input, output, session: Session):
         states = input.states()
         scenario = input.scenario()
         cache_paths = sutils.get_azure_files(
-            exp, job_id, states, scenario, azure_client
+            exp, job_id, states, scenario, azure_client, SHINY_CACHE_PATH
         )
         try:
+            # we have the figure, now update the light/dark mode depending on the switch
             fig = sutils.load_checkpoint_inference_correlations(
-                cache_paths,
-                overview_subplot_size=OVERVIEW_SUBPLOT_WIDTH,
+                cache_paths[0],
+                overview_subplot_size=1500,
             )
         except FileNotFoundError as e:
             raise e
         # we have the figure, now update the light/dark mode depending on the switch
-        dark_mode = input.dark_mode()
-        if dark_mode:
-            theme = "plotly_dark"
-        else:
-            theme = "plotly_white"
+        theme = sutils.shiny_to_plotly_theme(input.dark_mode())
         fig.update_layout(template=theme)
         return fig
 
@@ -355,21 +369,18 @@ def server(input, output, session: Session):
         states = input.states()
         scenario = input.scenario()
         cache_paths = sutils.get_azure_files(
-            exp, job_id, states, scenario, azure_client
+            exp, job_id, states, scenario, azure_client, SHINY_CACHE_PATH
         )
         try:
+            # we have the figure, now update the light/dark mode depending on the switch
             fig = sutils.load_checkpoint_inference_violin_plots(
-                cache_paths,
-                overview_subplot_size=OVERVIEW_SUBPLOT_WIDTH,
+                cache_paths[0],
+                overview_subplot_size=1500,
             )
         except FileNotFoundError as e:
             raise e
         # we have the figure, now update the light/dark mode depending on the switch
-        dark_mode = input.dark_mode()
-        if dark_mode:
-            theme = "plotly_dark"
-        else:
-            theme = "plotly_white"
+        theme = sutils.shiny_to_plotly_theme(input.dark_mode())
         fig.update_layout(template=theme)
         return fig
 

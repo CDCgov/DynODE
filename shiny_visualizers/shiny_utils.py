@@ -339,7 +339,7 @@ def load_checkpoint_inference_chains(
             cols=col,
         )
     fig.update_layout(
-        width=overview_subplot_width + 50,
+        width=overview_subplot_width * num_cols + 50,
         height=overview_subplot_height * num_rows + 50,
         title_text="",
         legend_tracegroupgap=0,
@@ -499,6 +499,7 @@ def _generate_row_wise_legends(fig, num_cols):
 
 def _normalize_timelines(
     all_state_timelines,
+    day_fidelity,
     plot_types,
     plot_normalizations,
     states,
@@ -521,6 +522,19 @@ def _normalize_timelines(
                 all_state_timelines["state"] == state_name,
                 cols,
             ] *= normalization_factor
+    if day_fidelity > 1:
+        # calculate rolling averages every `day_fidelity` days, then drop the inbetween days
+        # this lowers the size of the dataframe which improves runtime of the HTML
+        all_state_timelines = (
+            (
+                all_state_timelines.groupby(["state", "chain_particle"])
+                .rolling(window=day_fidelity, on="date")
+                .mean()
+                .reset_index()
+            )
+            .drop(["level_2"], axis=1, inplace=False)
+            .iloc[::day_fidelity, :]
+        )
     return all_state_timelines
 
 
@@ -555,6 +569,7 @@ def load_default_timelines(
     cache_paths: list[str],
     states: list[str],
     state_pop_sizes: list[float],
+    day_fidelity: int,
     plot_types: np.ndarray[str],
     plot_titles: np.ndarray[str],
     plot_normalizations: np.ndarray[int],
@@ -610,6 +625,7 @@ def load_default_timelines(
     # normalize our dataframe by the given y axis normalization schemes
     all_state_timelines = _normalize_timelines(
         all_state_timelines,
+        day_fidelity,
         plot_types,
         plot_normalizations,
         states,
@@ -694,16 +710,17 @@ def load_default_timelines(
                 # if we are plotting medians, have those display in the legend
                 # ruff: noqa: E731
                 selector = lambda data: "Median" in data["name"]
-            # only show 1 legend since all states have same schema
-            fig.update_traces(
-                showlegend=True,
-                selector=selector,
-                col=1,
-            )
-            # show tooltips for medians/single particle value to 4 sig figs
-            fig.update_traces(hovertemplate="%{y:.4g}", selector=selector)
-            _generate_row_wise_legends(fig, num_states)
+        # only show 1 legend since all states have same schema
+        fig.update_traces(
+            showlegend=True,
+            selector=selector,
+            col=1,
+        )
+        # show tooltips for medians/single particle value to 4 sig figs
+        fig.update_traces(hovertemplate="%{y:.4g}", selector=selector)
+        _generate_row_wise_legends(fig, num_states)
         # lastly we update the whole figure's width and height with some padding
+    print("displaying overview plot...")
     fig.update_layout(
         width=overview_subplot_width * num_states + 50,
         height=overview_subplot_height * num_unique_plots_in_timelines + 50,
@@ -711,6 +728,7 @@ def load_default_timelines(
         # legend_tracegroupgap=0,
         hovermode="x unified",
     )
+    # fig.update_xaxes(rangeslider=dict(visible=False))
 
     # update each plots description to be far left
     fig.update_annotations(
@@ -727,3 +745,20 @@ def load_default_timelines(
     )
 
     return fig
+
+
+def shiny_to_plotly_theme(shiny_theme: str):
+    """shiny themes are "dark" and "light", plotly themes are
+    "plotly_dark" and "plotly_white", this function converts from shiny to plotly theme names
+
+    Parameters
+    ----------
+    shiny_theme : str
+        shiny theme as str
+
+    Returns
+    -------
+    str
+        plotly theme as str, used in `fig.update_layout(template=theme)`
+    """
+    return "plotly_%s" % (shiny_theme if shiny_theme == "dark" else "white")
