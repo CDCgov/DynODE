@@ -1,3 +1,5 @@
+import json
+import math
 import os
 from typing import Iterable, Union
 
@@ -5,10 +7,13 @@ import numpy as np
 import pandas as pd
 import plotly
 import plotly.express as px
+import plotly.graph_objects
 from azure.core.paging import ItemPaged
 from cfa_azure.clients import AzureClient
 from cfa_azure.helpers import download_directory
 from plotly.subplots import make_subplots
+
+from mechanistic_model.utils import flatten_list_parameters
 
 
 def build_azure_connection(
@@ -130,7 +135,7 @@ def append_local_projects_to_tree(local_cache_path, root):
 def get_azure_files(
     exp: str,
     jobid: str,
-    state: str,
+    states: list[str],
     scenario: str,
     azure_client: AzureClient,
     local_cache_path: str,
@@ -147,8 +152,8 @@ def get_azure_files(
         experiment name
     jobid : str
         jobid name
-    state : str
-        usps postal code of the state
+    state : list[str]
+        list of usps postal code of each state requested
     scenario : str
         optional scenario, N/A if not applicable to the directory structure
     azure_client : cfa_azure.AzureClient
@@ -157,24 +162,50 @@ def get_azure_files(
         the path to the local cache where files are stored
     Returns
     -------
-    str
-        path into which files were loaded (if they did not already exist there)
+    list[str]
+        paths into which files were loaded (if they did not already exist there)
     """
+    return_paths = []
+    for state in states:
+        azure_blob_path = os.path.join(exp, jobid, state)
+        if scenario != "N/A":  # if visualizing a scenario append to the path
+            azure_blob_path = os.path.join(azure_blob_path, scenario)
+        azure_blob_path = azure_blob_path.replace("\\", "/") + "/"
+        dest_path = os.path.join(local_cache_path, azure_blob_path)
+        # if we already loaded this before, dont redownload it all!
+        if not os.path.exists(dest_path):
+            download_directory(
+                azure_client.out_cont_client, azure_blob_path, local_cache_path
+            )
+        return_paths.append(dest_path)
+    return return_paths
 
-    if not os.path.exists(local_cache_path):
-        os.makedirs(local_cache_path)
-    azure_blob_path = os.path.join(exp, jobid, state)
-    if scenario != "N/A":  # if visualizing a scenario append to the path
-        azure_blob_path = os.path.join(azure_blob_path, scenario)
-    azure_blob_path = azure_blob_path.replace("\\", "/") + "/"
-    dest_path = os.path.join(local_cache_path, azure_blob_path)
-    # if we already loaded this before, dont redownload it all!
-    if os.path.exists(dest_path):
-        return dest_path
-    download_directory(
-        azure_client.out_cont_client, azure_blob_path, local_cache_path
-    )
-    return dest_path
+
+def get_population_sizes(
+    states: tuple[str],
+    state_name_lookup: pd.DataFrame,
+    state_pop_lookup: pd.DataFrame,
+):
+    """loads population CSVs and returns the population size of each state
+
+    Parameters
+    ----------
+    states : tuple[str]
+        tuple of each state as a USPS postal code
+    demographic_data_path : str
+        path to the directory containing age distribution and pop count csvs
+    """
+    states = [
+        state_name_lookup[state_name_lookup["abbreviation"] == state][
+            "location_name"
+        ].iloc[0]
+        for state in states
+    ]
+    pop_sizes = []
+    for state_name in states:
+        state_pop = state_pop_lookup[state_pop_lookup["STNAME"] == state_name]
+        pop_sizes.append(state_pop["POPULATION"].iloc[0])
+    return pop_sizes
 
 
 def _create_figure_from_timeline(
@@ -189,6 +220,10 @@ def _create_figure_from_timeline(
     PRIVATE FUNCTION
     plots a line plot given a pandas dataframe and some x/y axis to plot and group bys.
     Formats this figure according to the plot_type title passed.
+    By default traces that belong to grouped categories in `group_by` are all marked
+    with a "remove_duplicate" in their name attribute, except the first of the group.
+    This is useful for only exposing 1 group to the legend instead of all four.
+    By default legends and hover tool tips are disabled for all traces
 
     Parameters
     ----------
@@ -211,6 +246,7 @@ def _create_figure_from_timeline(
     plotly.graph_objs.Figure
         figure used to append traces
     """
+    # we use plotly express since it has the `line_group` param
     line = px.line(
         timeline,
         x=x_axis,
@@ -219,22 +255,32 @@ def _create_figure_from_timeline(
         labels=y_axis,
         line_group=group_by,
     )
-    for data in line.data:
+    groups = len(timeline[group_by].unique()) if group_by else 1
+    for i, data in enumerate(line.data, 0):
         # if we pass a list of y_axis, we provide labels only for what
         # differs from label to label, this aids in readability
         if data.name == plot_type:
             new_name = data.name.replace("_", " ")
         else:
             new_name = data.name.replace(plot_type, "").replace("_", "-")
-        data.name = new_name
-        # hover template rounds to 4 sig figs
-        data.hovertemplate = "%{y:.4g}"
+        # we want to remove duplicate legend entries, so we mark duplicates in the name
+        data.name = new_name + (
+            "" if (i % groups == 0) or (i == 0) else "remove_duplicate"
+        )
+        # by default we disable hover tooltips,
+        # we will enable them later for select lines only
+        data.hoverinfo = "none"
+        data.hovertemplate = None
+        data.showlegend = False
     return line
 
 
-def load_checkpoint_inference_chains(cache_path) -> plotly.graph_objs.Figure:
+def load_checkpoint_inference_chains(
+    cache_path,
+    overview_subplot_width: int,
+    overview_subplot_height: int,
+) -> plotly.graph_objs.Figure:
     """
-    NOT YET IMPLEMENTED
     Given a path a folder containing downloaded azure files, checks for the existence
     of the checkpoint.json file, if it exists, returns a figure plotting
     the inference chains of each of the sampled parameters, raises a FileNotFoundError if csv
@@ -244,18 +290,194 @@ def load_checkpoint_inference_chains(cache_path) -> plotly.graph_objs.Figure:
     ----------
     cache_path : str
         path to the local path on machine with files within.
+    subplot_width: int
+        integer representing pixel width of each subplot in the overview
+    subplot_height: int
+        integer representing pixel height of each subplot in the overview
 
     Returns
     -------
     Figure
-        plotly Figure with `n` rows and `m` columns where `n` is the number of columns
-        within azure_visualizer_timeline identified by OVERVIEW_PLOT_TYPES global var.
+        plotly Figure with each of the sampled parameters as its own line plot
     """
-    return cache_path
+    checkpoint_path = os.path.join(cache_path, "checkpoint.json")
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(
+            "attempted to visualize an inference chain without an `checkpoint.json` file"
+        )
+    posteriors = json.load(open(checkpoint_path, "r"))
+    # any sampled parameters created via numpyro.plate will mess up the data
+    # flatten plated parameters into separate keys
+    posteriors: dict[str, list] = flatten_list_parameters(posteriors)
+    num_sampled_parameters = len(posteriors.keys())
+    # we want a mostly square subplot, so lets sqrt and take floor/ceil to deal with odd numbers
+    num_rows = math.isqrt(num_sampled_parameters)
+    num_cols = math.ceil(num_sampled_parameters / num_rows)
+    # we will title these subplots and make sure to leave blank titles in case of odd numbers
+    subplot_titles_padded = list(posteriors.keys()) + [""] * (
+        num_rows * num_cols - num_sampled_parameters
+    )
+    fig = make_subplots(
+        num_rows,
+        num_cols,
+        horizontal_spacing=0.01,
+        vertical_spacing=0.08,
+        subplot_titles=subplot_titles_padded,
+    )
+    for i, particles in enumerate(posteriors.values()):
+        particles = np.array(particles)
+        row = int(i / num_cols) + 1
+        col = i % num_cols + 1
+        num_chains = particles.shape[0]
+        columns = ["chain_%s" % chain for chain in range(num_chains)]
+        # right now particles.shape = (chain, sample), transpose so columns are our chain num
+        df = pd.DataFrame(particles.transpose(), columns=columns)
+        traces = px.line(df, y=columns)["data"]
+        fig.add_traces(
+            traces,
+            rows=row,
+            cols=col,
+        )
+    fig.update_layout(
+        width=overview_subplot_width * num_cols + 50,
+        height=overview_subplot_height * num_rows + 50,
+        title_text="",
+        legend_tracegroupgap=0,
+        hovermode=False,
+    )
+    # only keep one copy of the legend since they all the same
+    fig.update_traces(showlegend=False)
+    fig.update_traces(showlegend=True, row=1, col=1)
+    return fig
+
+
+def load_checkpoint_inference_correlations(
+    cache_path,
+    overview_subplot_size: int,
+) -> plotly.graph_objs.Figure:
+    """Given a path a folder containing downloaded azure files, checks for the existence
+    of the checkpoint.json file, if it exists, returns a figure plotting
+    the correlation of each sampled parameter with all other sampled parameters
+
+    Parameters
+    ----------
+    cache_path : str
+        path to the local path on machine with files within.
+    overview_subplot_size: int
+        the side of the width/height of the correlation matrix in pixels
+
+    Returns
+    -------
+    Figure
+        plotly Figure with `n` rows and `n` columns where `n` is the number of sampled parameters
+    """
+    checkpoint_path = os.path.join(cache_path, "checkpoint.json")
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(
+            "attempted to visualize an inference correlation without an `checkpoint.json` file"
+        )
+    posteriors = json.load(open(checkpoint_path, "r"))
+    posteriors: dict[str, list] = flatten_list_parameters(posteriors)
+    # Flatten matrices including chains and create Correlation DataFrame
+    posteriors = {
+        key: np.array(matrix).flatten() for key, matrix in posteriors.items()
+    }
+    # Compute the correlation matrix, reverse it so diagonal starts @ top left
+    correlation_matrix = pd.DataFrame(posteriors).corr()[::-1]
+
+    # Create a heatmap of the correlation matrix
+    fig = plotly.graph_objects.Figure(
+        plotly.graph_objects.Heatmap(
+            x=correlation_matrix.columns,
+            y=correlation_matrix.index,
+            z=np.array(correlation_matrix),
+            text=correlation_matrix.values,
+            texttemplate="%{text:.2f}",
+            # colorscale="RdBu_r",
+            colorscale="Blues",
+        )
+    )
+    # do some small style choices
+    fig.update_layout(
+        width=overview_subplot_size + 50,
+        height=overview_subplot_size + 50,
+        title_text="",
+        legend_tracegroupgap=0,
+        # hovermode=False,
+    )
+    return fig
+
+
+def load_checkpoint_inference_violin_plots(
+    cache_path,
+    overview_subplot_size: int,
+) -> plotly.graph_objs.Figure:
+    """Given a path a folder containing downloaded azure files, checks for the existence
+    of the checkpoint.json file, if it exists, returns a figure of one violin plot per
+    sampled parameter describing the distribution of sampled values.
+
+    Parameters
+    ----------
+    cache_path : str
+        path to the local path on machine with files within.
+
+    Returns
+    -------
+    Figure
+        plotly Figure with each of the sampled parameters as its own violin plot
+    """
+    checkpoint_path = os.path.join(cache_path, "checkpoint.json")
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(
+            "attempted to visualize an inference correlation without an `checkpoint.json` file"
+        )
+    posteriors = json.load(open(checkpoint_path, "r"))
+    # flatten any usage of numpyro.plate into separate parameters,
+    # otherwise youll get nonsense in the next step
+    posteriors: dict[str, list] = flatten_list_parameters(posteriors)
+    # flatten all the chains together for the violin plots
+    posteriors = {
+        key: np.array(matrix).flatten() for key, matrix in posteriors.items()
+    }
+    num_sampled_parameters = len(posteriors.keys())
+    # we want a mostly square subplot, so lets sqrt and take floor/ceil to deal with odd numbers
+    num_rows = math.isqrt(num_sampled_parameters)
+    num_cols = math.ceil(num_sampled_parameters / num_rows)
+    # we will title these subplots and make sure to leave blank titles in case of odd numbers
+    subplot_titles_padded = list(posteriors.keys()) + [""] * (
+        num_rows * num_cols - num_sampled_parameters
+    )
+    fig = make_subplots(
+        num_rows,
+        num_cols,
+        horizontal_spacing=0.01,
+        vertical_spacing=0.08,
+        subplot_titles=subplot_titles_padded,
+    )
+    for i, particles in enumerate(posteriors.values()):
+        row = int(i / num_cols) + 1
+        col = i % num_cols + 1
+        # create violin plot, center it and have outliers show up as points inside the plot
+        data = plotly.graph_objects.Violin(
+            y=particles, pointpos=0, hoverinfo="skip"
+        )
+        fig.add_trace(data, row=row, col=col)
+    fig.update_layout(
+        width=overview_subplot_size + 50,
+        height=overview_subplot_size + 50,
+        title_text="",
+        legend_tracegroupgap=0,
+        hovermode=False,
+    )
+    # x axis labels are not useful on violin plots
+    fig.update_xaxes(visible=False, showticklabels=False)
+    # turn off legends since the subplot title tells you what parameter is being shown
+    fig.update_traces(showlegend=False)
+    return fig
 
 
 def _generate_row_wise_legends(fig, num_cols):
-    # here we are setting up one legend per row, it is messy but plotly does not
+    # here we are setting up one legend per row, it is messy bc plotly does not
     # usually allow for subplot row legends so we have to go through
     # each yaxis in the whole plot and do it this way
     for i, yaxis in enumerate(fig.select_yaxes()):
@@ -275,10 +497,92 @@ def _generate_row_wise_legends(fig, num_cols):
             )
 
 
+def _cleanup_and_normalize_timelines(
+    all_state_timelines,
+    day_fidelity,
+    plot_types,
+    plot_normalizations,
+    states,
+    state_pop_sizes,
+):
+    # we do not need float 64 precision for plotting, lets go to float32
+    # Select columns with 'float64' dtype
+    float_cols = list(all_state_timelines.select_dtypes(include="float64"))
+    all_state_timelines[float_cols] = all_state_timelines[float_cols].astype(
+        "float32"
+    )
+    # round down near-zero values to zero to make plots cleaner
+    all_state_timelines[float_cols] = all_state_timelines[float_cols].mask(
+        np.isclose(all_state_timelines[float_cols], 0, atol=1e-4), 0
+    )
+    for plot_type, plot_normalization in zip(plot_types, plot_normalizations):
+        for state_name, state_pop in zip(states, state_pop_sizes):
+            # if normalization is set to 1, we dont normalize at all.
+            normalization_factor = (
+                plot_normalization / state_pop
+                if plot_normalization > 1
+                else 1.0
+            )
+            # select all columns from that column type
+            cols = [
+                col for col in all_state_timelines.columns if plot_type in col
+            ]
+            # update that states columns by the normalization factor chosen for that column
+            all_state_timelines.loc[
+                all_state_timelines["state"] == state_name,
+                cols,
+            ] *= normalization_factor
+    if day_fidelity > 1:
+        # calculate rolling averages every `day_fidelity` days, then drop the inbetween days
+        # this lowers the size of the dataframe which improves runtime of the HTML
+        all_state_timelines = (
+            (
+                all_state_timelines.groupby(["state", "chain_particle"])
+                .rolling(window=day_fidelity, on="date")
+                .mean()
+                .reset_index()
+            )
+            .drop(["level_2"], axis=1, inplace=False)
+            .iloc[::day_fidelity, :]
+        )
+    return all_state_timelines
+
+
+def _combine_state_timelines(cache_paths, states):
+    all_state_timelines = pd.DataFrame()
+    for cache_path, state in zip(cache_paths, states):
+        timeline_path = os.path.join(
+            cache_path, "azure_visualizer_timeline.csv"
+        )
+        if not os.path.exists(timeline_path):
+            raise FileNotFoundError(
+                "attempted to visualize an overview from %s without an `azure_visualizer_timeline.csv` file"
+                % cache_path
+            )
+        timelines = pd.read_csv(timeline_path)
+        assert (
+            "date" in timelines.columns
+        ), "something went wrong in the creation of azure_visualizer_timeline.csv, there is no date column"
+        # count the `chain_particle` column, if it exists,
+        # to figure out how many particles we are working with
+        # if the column does not exist, na_na as placeholder
+        if "chain_particle" not in timelines.columns:
+            timelines["chain_particle"] = "na_na"
+        timelines["state"] = state
+        all_state_timelines = pd.concat(
+            [all_state_timelines, timelines], axis=0, ignore_index=True
+        )
+    return all_state_timelines
+
+
 def load_default_timelines(
-    cache_path: str,
+    cache_paths: list[str],
+    states: list[str],
+    state_pop_sizes: list[float],
+    day_fidelity: int,
     plot_types: np.ndarray[str],
     plot_titles: np.ndarray[str],
+    plot_normalizations: np.ndarray[int],
     overview_subplot_width: int,
     overview_subplot_height: int,
 ) -> plotly.graph_objs.Figure:
@@ -290,8 +594,10 @@ def load_default_timelines(
 
     Parameters
     ----------
-    cache_path : str
-        path to the local path on machine with files within.
+    cache_paths: list[str]
+        list of paths to the local files being visualized.
+    states: list[str]
+        parallel list to cache_paths marking the state contained within each cache_path
     plot_types: np.ndarray[str]
         numpy array of strings representing all the plot types able to be plotted
         if they are not found within azure_visualizer_timeline they are skipped
@@ -309,102 +615,158 @@ def load_default_timelines(
         plotly Figure with `n` rows and `m` columns where `n` is the number of plots
         within azure_visualizer_timeline identified by OVERVIEW_PLOT_TYPES global var.
     """
-    timeline_path = os.path.join(cache_path, "azure_visualizer_timeline.csv")
-    if not os.path.exists(timeline_path):
-        raise FileNotFoundError(
-            "attempted to visualize an overview without an `azure_visualizer_timeline.csv` file"
-        )
-    timelines = pd.read_csv(timeline_path)
-    assert (
-        "date" in timelines.columns
-    ), "something went wrong in the creation of azure_visualizer_timeline.csv, there is no date column"
-    # count the `chain_particle` column, if it exists,
-    # to figure out how many particles we are working with
-    # if the column does not exist, na_na as placeholder
-    if "chain_particle" not in timelines.columns:
-        timelines["chain_particle"] = "na_na"
+    num_states = len(states)
+    all_state_timelines = _combine_state_timelines(cache_paths, states)
 
-    num_individual_particles = len(timelines["chain_particle"].unique())
+    num_individual_particles = len(
+        all_state_timelines["chain_particle"].unique()
+    )
     # we are counting the number of plot_types that are within timelines.columns
     # this way we dont try to plot something that timelines does not have
     plots_in_timelines = [
-        any([plot_type in col for col in timelines.columns])
+        any([plot_type in col for col in all_state_timelines.columns])
         for plot_type in plot_types
     ]
     num_unique_plots_in_timelines = sum(plots_in_timelines)
     # select only the plots we actually find within `timelines`
     plot_types = plot_types[plots_in_timelines].tolist()
     plot_titles = plot_titles[plots_in_timelines].tolist()
-    # rather than using row_titles which appear weirdly,
-    # we will title only the left most plot of each row
-    subplot_titles_spaced = [
-        (
-            plot_titles[int(i / num_individual_particles)]
-            if i % num_individual_particles == 0
-            else ""
+    plot_normalizations = plot_normalizations[plots_in_timelines].tolist()
+    # normalize our dataframe by the given y axis normalization schemes
+    all_state_timelines = _cleanup_and_normalize_timelines(
+        all_state_timelines,
+        day_fidelity,
+        plot_types,
+        plot_normalizations,
+        states,
+        state_pop_sizes,
+    )
+    # some more plotly hacking to space the titles correctly
+    plot_titles_spaced = (
+        np.array(
+            [
+                [plot_title] + [""] * (num_states - 1)
+                for plot_title in plot_titles
+            ]
         )
-        for i in range(
-            num_unique_plots_in_timelines * num_individual_particles
-        )
-    ]
-
-    # total_subplots = num_individual_particles * num_unique_plots
-    # generate subplots with some basic settings
+        .flatten()
+        .tolist()
+    )
+    # total_subplots = num_plots_in_timeline * num_states
     fig = make_subplots(
         rows=num_unique_plots_in_timelines,
-        cols=num_individual_particles,
+        cols=num_states,
         shared_xaxes=True,
         shared_yaxes=True,
         x_title="date",
         row_heights=[overview_subplot_height] * num_unique_plots_in_timelines,
-        column_widths=[overview_subplot_width] * num_individual_particles,
-        subplot_titles=subplot_titles_spaced,
+        column_widths=[overview_subplot_width] * num_states,
+        column_titles=states,
+        subplot_titles=plot_titles_spaced,
         horizontal_spacing=0.01,
         vertical_spacing=0.03,
     )
 
     # go through each plot type, look for matching columns within `timlines` and plot
     # that plot_type for each chain_particle pair. plotly rows/cols are index at 1 not 0
-    for plot_num, (plot_title, plot_type) in enumerate(
-        zip(plot_titles, plot_types), start=1
-    ):
-        # for example "vaccination_" in "vaccination_0_17" is true
-        # so we include this column in the plot under that plot_type
-        columns_to_plot = [
-            col for col in timelines.columns if plot_type in col
-        ]
-        # generates a big figure of the column(s) of interest, possibly grouped by chain_particle
-        plot_by_chain_particle = _create_figure_from_timeline(
-            timelines,
-            plot_title,
-            x_axis="date",
-            y_axis=columns_to_plot,
-            plot_type=plot_type,
-            group_by="chain_particle",
-        )
-        # _create_figure_from_timeline gives us a figure obj, not quite what we need
-        # we can query the "data" key to get access to each trace, but it flattens the columns and chain_particles
-        # into a single list, so we need creative indexing to traverse the flattened list,
-        # e.g. group_by_num * num_individual_particles + chain_particle_idx
-        for chain_particle_idx in range(num_individual_particles):
-            for col_num in range(len(columns_to_plot)):
-                fig.add_trace(
-                    plot_by_chain_particle["data"][
-                        col_num * num_individual_particles + chain_particle_idx
-                    ],
-                    row=plot_num,
-                    col=chain_particle_idx + 1,  # 1 start indexing, not 0 here
+    for state_num, state in enumerate(states, start=1):
+        print("Plotting State : " + state)
+        for plot_num, (plot_title, plot_type) in enumerate(
+            zip(plot_titles, plot_types), start=1
+        ):
+            # for example "vaccination_" in "vaccination_0_17" is true
+            # so we include this column in the plot under that plot_type
+            columns_to_plot = [
+                col for col in all_state_timelines.columns if plot_type in col
+            ]
+            # generates a big figure of the column(s) of interest, possibly grouped by chain_particle
+            plot_by_chain_particle = _create_figure_from_timeline(
+                all_state_timelines[all_state_timelines["state"] == state],
+                plot_title,
+                x_axis="date",
+                y_axis=columns_to_plot,
+                plot_type=plot_type,
+                group_by="chain_particle",
+            )
+
+            fig.add_traces(
+                plot_by_chain_particle["data"], rows=plot_num, cols=state_num
+            )
+            # ruff: noqa: E731
+            selector = lambda data: "remove_duplicate" not in data["name"]
+
+            if num_individual_particles > 1:
+                fig.update_traces(opacity=0.5, row=plot_num, col=state_num)
+                medians = (
+                    all_state_timelines[all_state_timelines["state"] == state]
+                    .groupby(by=["date"])[columns_to_plot]
+                    .median()
                 )
-    _generate_row_wise_legends(fig, num_individual_particles)
-    # lastly we update the whole figure's width and height with some padding
+                medians = medians.reset_index()
+                # no group by since we collapsed chain_particle dim
+                median_lines = _create_figure_from_timeline(
+                    medians,
+                    plot_title,
+                    x_axis="date",
+                    y_axis=columns_to_plot,
+                    plot_type=plot_type,
+                )
+                for data in median_lines["data"]:
+                    data["opacity"] = 1.0
+                    data["name"] = data["name"] + " Median"
+                fig.add_traces(
+                    median_lines["data"], rows=plot_num, cols=state_num
+                )
+                # if we are plotting medians, have those display in the legend
+                # ruff: noqa: E731
+                selector = lambda data: "Median" in data["name"]
+        # only show 1 legend since all states have same schema
+        fig.update_traces(
+            showlegend=True,
+            selector=selector,
+            col=1,
+        )
+        # show tooltips for medians/single particle value to 4 sig figs
+        fig.update_traces(hovertemplate="%{y:.4g}", selector=selector)
+        _generate_row_wise_legends(fig, num_states)
+        # lastly we update the whole figure's width and height with some padding
+    print("displaying overview plot...")
     fig.update_layout(
-        width=overview_subplot_width + 50,
+        width=overview_subplot_width * num_states + 50,
         height=overview_subplot_height * num_unique_plots_in_timelines + 50,
         title_text="",
-        legend_tracegroupgap=0,
         hovermode="x unified",
     )
-    # this is for the row titles font and position
-    fig.update_annotations(font_size=16, x=0.0, xanchor="left")
+
+    # update each plots description to be far left
+    fig.update_annotations(
+        font_size=16,
+        x=0.0,
+        xanchor="left",
+        selector=lambda data: data["text"] in plot_titles,
+    )
+    # update state column labels to be in center of each column
+    fig.update_annotations(
+        font_size=12,
+        xanchor="center",
+        selector=lambda data: data["text"] in states,
+    )
 
     return fig
+
+
+def shiny_to_plotly_theme(shiny_theme: str):
+    """shiny themes are "dark" and "light", plotly themes are
+    "plotly_dark" and "plotly_white", this function converts from shiny to plotly theme names
+
+    Parameters
+    ----------
+    shiny_theme : str
+        shiny theme as str
+
+    Returns
+    -------
+    str
+        plotly theme as str, used in `fig.update_layout(template=theme)`
+    """
+    return "plotly_%s" % (shiny_theme if shiny_theme == "dark" else "white")
