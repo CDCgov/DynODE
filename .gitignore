@@ -78,6 +78,7 @@ testing.py
 !exp/fifty_state_2202_2307_3strain/template_configs/*.json
 !exp/fifty_state_2304_2404_3strain/template_configs/*.json
 !exp/fifty_state_5strain_2202_2404/template_configs/*.json
+!exp/fifty_state_6strain_2202_2407/template_configs/*.json
 
 #####
 # Python
