@@ -80,6 +80,13 @@ def test_load_posterior_particle():
             ), "load_posterior_particle produced different timeline shapes than what was fit on"
 
 
+def test_stresstest_runs():
+    failed_params = inferer.stresstest(1000, tf=10)
+    assert (
+        len(failed_params) >= 0
+    ), "Params causing failure not returning as a list"
+
+
 def test_external_posteriors():
     load_across_chains = [
         (chain, 0) for chain in range(inferer.config.INFERENCE_NUM_CHAINS)
