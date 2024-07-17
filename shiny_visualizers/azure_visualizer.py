@@ -131,10 +131,11 @@ app_ui = ui.page_fluid(
             ),
             ui.input_action_button("action_button", "Visualize Output"),
             ui.input_selectize(
-                "chain_particle",
-                "Chain+Particle",
-                default_chain_particle_list,
-                selected=default_chain_particle_list[0],
+                "overview_cols",
+                "Overview Columns",
+                OVERVIEW_PLOT_TITLES.tolist(),
+                selected=OVERVIEW_PLOT_TITLES.tolist(),
+                multiple=True,
             ),
             ui.input_dark_mode(id="dark_mode", mode="dark"),
             # ui.input_switch("dark_mode", "Dark Mode", True),
@@ -262,7 +263,7 @@ def server(input, output, session: Session):
     @output(id="plot_overview")
     @render_widget
     @reactive.event(input.action_button)
-    def _():
+    def plot_overview():
         """
         Gets the files associated with each selected experiment+job+state+scenario combo
         and visualizes some summary statistics about the run
@@ -272,28 +273,36 @@ def server(input, output, session: Session):
         job_id = input.job_id()
         states = input.states()
         scenario = input.scenario()
-        # get files and store them localy
+        # user selected some columns they want out of all selections
+        selected_columns = input.overview_cols()
+        # get indexes of selected columns to pass correct parallel arrays as well
+        selected_columns_indexes = [
+            i
+            for i, col in enumerate(OVERVIEW_PLOT_TITLES)
+            if col in selected_columns
+        ]
+        # get requested state files and store them localy
         cache_paths = sutils.get_azure_files(
             exp, job_id, states, scenario, azure_client, SHINY_CACHE_PATH
         )
+        # lookup state population sizes for normalization per 100k
         pop_sizes = sutils.get_population_sizes(
             states, STATE_NAME_LOOKUP, POP_COUNTS_LOOKUP
         )
-        try:
-            # read in the timelines.csv if it exists, and load the figure, error if it doesnt exist
-            fig = sutils.load_default_timelines(
-                cache_paths,
-                states,
-                state_pop_sizes=pop_sizes,
-                day_fidelity=OVERVIEW_DAY_FIDELITY,
-                plot_titles=OVERVIEW_PLOT_TITLES,
-                plot_types=OVERVIEW_PLOT_TYPES,
-                plot_normalizations=OVERVIEW_PLOT_Y_AXIS_NORMALIZATION,
-                overview_subplot_height=OVERVIEW_SUBPLOT_HEIGHT,
-                overview_subplot_width=OVERVIEW_SUBPLOT_WIDTH,
-            )
-        except FileNotFoundError as e:
-            raise e
+        # read in the timelines.csv if it exists, and load the figure, error if it doesnt exist
+        fig = sutils.load_default_timelines(
+            cache_paths,
+            states,
+            state_pop_sizes=pop_sizes,
+            day_fidelity=OVERVIEW_DAY_FIDELITY,
+            plot_titles=OVERVIEW_PLOT_TITLES[selected_columns_indexes],
+            plot_types=OVERVIEW_PLOT_TYPES[selected_columns_indexes],
+            plot_normalizations=OVERVIEW_PLOT_Y_AXIS_NORMALIZATION[
+                selected_columns_indexes
+            ],
+            overview_subplot_height=OVERVIEW_SUBPLOT_HEIGHT,
+            overview_subplot_width=OVERVIEW_SUBPLOT_WIDTH,
+        )
         # we have the figure, now update the light/dark mode depending on the switch
         theme = sutils.shiny_to_plotly_theme(input.dark_mode())
         fig.update_layout(template=theme)
@@ -302,7 +311,7 @@ def server(input, output, session: Session):
     @output(id="plot_inference_chains")
     @render_widget
     @reactive.event(input.action_button)
-    def _():
+    def plot_inference_chains():
         """
         Gets the files associated with each selected experiment+job+state+scenario combo
         and visualizes the inference chains on the inference run (if applicable)
@@ -314,15 +323,12 @@ def server(input, output, session: Session):
         cache_paths = sutils.get_azure_files(
             exp, job_id, states, scenario, azure_client, SHINY_CACHE_PATH
         )
-        try:
-            # only load first state for fair
-            fig = sutils.load_checkpoint_inference_chains(
-                cache_paths[0],
-                overview_subplot_height=OVERVIEW_SUBPLOT_HEIGHT,
-                overview_subplot_width=OVERVIEW_SUBPLOT_WIDTH,
-            )
-        except FileNotFoundError as e:
-            raise e
+        # only load first state for chains
+        fig = sutils.load_checkpoint_inference_chains(
+            cache_paths[0],
+            overview_subplot_height=OVERVIEW_SUBPLOT_HEIGHT,
+            overview_subplot_width=OVERVIEW_SUBPLOT_WIDTH,
+        )
         # we have the figure, now update the light/dark mode depending on the switch
         theme = sutils.shiny_to_plotly_theme(input.dark_mode())
         fig.update_layout(template=theme)
@@ -331,7 +337,7 @@ def server(input, output, session: Session):
     @output(id="plot_sample_correlations")
     @render_widget
     @reactive.event(input.action_button)
-    def _():
+    def plot_sample_correlations():
         """
         Gets the files associated with each selected experiment+job+states+scenario combo
         and visualizes the inference correlations on the inference run (if applicable)
@@ -343,14 +349,11 @@ def server(input, output, session: Session):
         cache_paths = sutils.get_azure_files(
             exp, job_id, states, scenario, azure_client, SHINY_CACHE_PATH
         )
-        try:
-            # we have the figure, now update the light/dark mode depending on the switch
-            fig = sutils.load_checkpoint_inference_correlations(
-                cache_paths[0],
-                overview_subplot_size=1500,
-            )
-        except FileNotFoundError as e:
-            raise e
+        # we have the figure, now update the light/dark mode depending on the switch
+        fig = sutils.load_checkpoint_inference_correlations(
+            cache_paths[0],
+            overview_subplot_size=1500,
+        )
         # we have the figure, now update the light/dark mode depending on the switch
         theme = sutils.shiny_to_plotly_theme(input.dark_mode())
         fig.update_layout(template=theme)
@@ -359,7 +362,7 @@ def server(input, output, session: Session):
     @output(id="plot_sample_violins")
     @render_widget
     @reactive.event(input.action_button)
-    def _():
+    def plot_sample_violins():
         """
         Gets the files associated with that experiment+job+state+scenario combo
         and visualizes the sampled values of the inference run as violin plots (if applicable)
@@ -371,14 +374,11 @@ def server(input, output, session: Session):
         cache_paths = sutils.get_azure_files(
             exp, job_id, states, scenario, azure_client, SHINY_CACHE_PATH
         )
-        try:
-            # we have the figure, now update the light/dark mode depending on the switch
-            fig = sutils.load_checkpoint_inference_violin_plots(
-                cache_paths[0],
-                overview_subplot_size=1500,
-            )
-        except FileNotFoundError as e:
-            raise e
+        # we have the figure, now update the light/dark mode depending on the switch
+        fig = sutils.load_checkpoint_inference_violin_plots(
+            cache_paths[0],
+            overview_subplot_size=1500,
+        )
         # we have the figure, now update the light/dark mode depending on the switch
         theme = sutils.shiny_to_plotly_theme(input.dark_mode())
         fig.update_layout(template=theme)

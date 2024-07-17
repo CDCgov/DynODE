@@ -497,7 +497,7 @@ def _generate_row_wise_legends(fig, num_cols):
             )
 
 
-def _normalize_timelines(
+def _cleanup_and_normalize_timelines(
     all_state_timelines,
     day_fidelity,
     plot_types,
@@ -505,6 +505,16 @@ def _normalize_timelines(
     states,
     state_pop_sizes,
 ):
+    # we do not need float 64 precision for plotting, lets go to float32
+    # Select columns with 'float64' dtype
+    float_cols = list(all_state_timelines.select_dtypes(include="float64"))
+    all_state_timelines[float_cols] = all_state_timelines[float_cols].astype(
+        "float32"
+    )
+    # round down near-zero values to zero to make plots cleaner
+    all_state_timelines[float_cols] = all_state_timelines[float_cols].mask(
+        np.isclose(all_state_timelines[float_cols], 0, atol=1e-4), 0
+    )
     for plot_type, plot_normalization in zip(plot_types, plot_normalizations):
         for state_name, state_pop in zip(states, state_pop_sizes):
             # if normalization is set to 1, we dont normalize at all.
@@ -623,7 +633,7 @@ def load_default_timelines(
     plot_titles = plot_titles[plots_in_timelines].tolist()
     plot_normalizations = plot_normalizations[plots_in_timelines].tolist()
     # normalize our dataframe by the given y axis normalization schemes
-    all_state_timelines = _normalize_timelines(
+    all_state_timelines = _cleanup_and_normalize_timelines(
         all_state_timelines,
         day_fidelity,
         plot_types,
@@ -725,10 +735,8 @@ def load_default_timelines(
         width=overview_subplot_width * num_states + 50,
         height=overview_subplot_height * num_unique_plots_in_timelines + 50,
         title_text="",
-        # legend_tracegroupgap=0,
         hovermode="x unified",
     )
-    # fig.update_xaxes(rangeslider=dict(visible=False))
 
     # update each plots description to be far left
     fig.update_annotations(
