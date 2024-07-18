@@ -261,4 +261,4 @@ if __name__ == "__main__":
     # stderror = sys.stderr
     save_path = "/output/fifty_state_6strain_2202_2407/%s/%s/" % (jobid, state)
     runner = EpochOneRunner(save_path)
-    runner.process_state(state, jobid, jobid_in_path=False)
+    runner.process_state(state, jobid, jobid_in_path=True)

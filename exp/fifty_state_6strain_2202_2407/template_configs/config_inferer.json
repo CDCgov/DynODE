@@ -156,8 +156,8 @@
     "MIN_HOMOLOGOUS_IMMUNITY": {
         "distribution": "Beta",
         "params": {
-            "concentration1": 750,
-            "concentration0": 2250
+            "concentration1": 500,
+            "concentration0": 1500
         }
     },
     "WANING_PROTECTIONS": [
@@ -512,6 +512,6 @@
     "INFERENCE_NUM_SAMPLES": 1000,
     "INFERENCE_NUM_CHAINS": 4,
     "INFERENCE_PROGRESS_BAR": true,
-    "MAX_TREE_DEPTH": 7,
+    "MAX_TREE_DEPTH": 8,
     "MODEL_RAND_SEED": 8675310
 }
