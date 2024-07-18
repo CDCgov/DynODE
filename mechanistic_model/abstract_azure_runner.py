@@ -281,7 +281,7 @@ class AbstractAzureRunner(ABC):
         extra_timelines: pd.DataFrame = None,
     ) -> str:
         """saves history of inferer sampled values for use by the azure visualizer.
-        saves JSON file to `self.azure_output_dir/timeline_filename`.
+        saves CSV file to `self.azure_output_dir/timeline_filename`.
         Look at `shiny_visualizers/azure_visualizer.py` for logic on parsing and visualizing the chains.
         Will error if inferer.infer() has not been run previous to this call.
 
