@@ -1,0 +1,50 @@
+{
+    "DEMOGRAPHIC_DATA_PATH": "/input/data/demographic-data/",
+    "REGIONS": [
+        "Alabama"
+    ],
+    "INIT_DATE": "2024-06-30",
+    "VACCINATION_SEASON_CHANGE": "2025-07-01",
+    "AGE_LIMITS": [
+        0,
+        18,
+        50,
+        65
+    ],
+    "NUM_STRAINS": 7,
+    "MAX_VACCINATION_COUNT": 3,
+    "NUM_WANING_COMPARTMENTS": 4,
+    "WANING_TIMES": [
+        70,
+        70,
+        70,
+        0
+    ],
+    "COMPARTMENT_IDX": [
+        "S",
+        "E",
+        "I",
+        "C"
+    ],
+    "S_AXIS_IDX": [
+        "age",
+        "hist",
+        "vax",
+        "wane"
+    ],
+    "I_AXIS_IDX": [
+        "age",
+        "hist",
+        "vax",
+        "strain"
+    ],
+    "STRAIN_IDX": [
+        "omicron",
+        "BA2BA5",
+        "XBB1",
+        "XBB2",
+        "JN1",
+        "KP",
+        "X"
+    ]
+}
