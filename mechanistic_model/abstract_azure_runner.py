@@ -10,10 +10,12 @@ import json
 import os
 import warnings
 from abc import ABC, abstractmethod
+from typing import Union
 
 import numpy as np
 import pandas as pd
 from diffrax import Solution
+from jax import Array
 
 import mechanistic_model.utils as utils
 from mechanistic_model import SEIC_Compartments
@@ -279,6 +281,8 @@ class AbstractAzureRunner(ABC):
         timeline_filename: str = "azure_visualizer_timeline.csv",
         particles_saved=1,
         extra_timelines: pd.DataFrame = None,
+        tf: Union[int, None] = None,
+        external_particle: dict[str, Array] = {},
     ) -> str:
         """saves history of inferer sampled values for use by the azure visualizer.
         saves CSV file to `self.azure_output_dir/timeline_filename`.
@@ -298,6 +302,14 @@ class AbstractAzureRunner(ABC):
             a pandas dataframe containing a `date` column along with additional columns you wish
             to be recorded. Dates predicted by `inferer` not included in `extra_timelines` will
             be filled with `None`. `extra_timelines` are added identically to all `particles_saved`
+        tf: Union[int, None]:
+            number of days to run posterior model for, defaults to same number of days used in fitting
+            if possible.
+        external_posteriors: dict
+            for use of particles defined somewhere outside of this instance of the MechanisticInferer.
+            For example, loading a checkpoint.json containing saved posteriors from an Azure Batch job.
+            expects keys that match those given to `numpyro.sample` often from
+            inference_algo.get_samples(group_by_chain=True).
 
         Returns
         -------
@@ -308,19 +320,22 @@ class AbstractAzureRunner(ABC):
             self.azure_output_dir,
             timeline_filename,
         )
-        assert (
-            "date" in extra_timelines.columns
-        ), "extra_timelines lacks a `date` column, "
-        "can not be certain of when these observations occur"
-        # attempt conversion to datetime column if it is not already
-        try:
-            extra_timelines["date"] = pd.to_datetime(extra_timelines["date"])
-        except Exception as e:
-            # we tried to cast `date` column to datetime and it failed, print and reraise error
-            print(
-                "Encountered an error trying to parse extra_timelines[date] into a datetime column"
-            )
-            raise e
+        if isinstance(extra_timelines, pd.DataFrame):
+            assert (
+                "date" in extra_timelines.columns
+            ), "extra_timelines lacks a `date` column, "
+            "can not be certain of when these observations occur"
+            # attempt conversion to datetime column if it is not already
+            try:
+                extra_timelines["date"] = pd.to_datetime(
+                    extra_timelines["date"]
+                )
+            except Exception as e:
+                # we tried to cast `date` column to datetime and it failed, print and reraise error
+                print(
+                    "Encountered an error trying to parse extra_timelines[date] into a datetime column"
+                )
+                raise e
 
         all_particles_df = pd.DataFrame()
         # randomly select `particles_saved` particles from the number of samples run
@@ -336,7 +351,11 @@ class AbstractAzureRunner(ABC):
             ]
             # assuming the inferer has finished fitting
             # load those particle posteriors and their solution dicts
-            posteriors = inferer.load_posterior_particle(chain_particle_pairs)
+            posteriors = inferer.load_posterior_particle(
+                chain_particle_pairs,
+                tf=tf,
+                external_particle=external_particle,
+            )
             for (chain, particle), sol_dct in posteriors.items():
                 # content of `sol_dct` depends on return value of inferer.likelihood func
                 infection_timeline, hospitalizations, static_parameters = (
@@ -355,7 +374,8 @@ class AbstractAzureRunner(ABC):
                 )
                 df["chain_particle"] = "%s_%s" % (chain, particle)
                 # add user specified extra timelines, filling in missing dates
-                df = df.merge(extra_timelines, on="date", how="left")
+                if isinstance(extra_timelines, pd.DataFrame):
+                    df = df.merge(extra_timelines, on="date", how="left")
 
                 # add this chain/particle combo onto the main df
                 all_particles_df = pd.concat(
