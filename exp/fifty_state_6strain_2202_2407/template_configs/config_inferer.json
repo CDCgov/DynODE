@@ -497,7 +497,13 @@
             }
         }
     },
-    "SEASONALITY_SECOND_WAVE": 0.0,
+    "SEASONALITY_SECOND_WAVE":  {
+        "distribution": "Beta",
+        "params": {
+            "concentration1": 1000,
+            "concentration0": 1000
+        }
+    },
     "SEASONALITY_SHIFT": {
         "distribution": "TruncatedNormal",
         "params": {
@@ -507,11 +513,11 @@
             "high": 35
         }
     },
-    "INFERENCE_PRNGKEY": 8675310,
+    "INFERENCE_PRNGKEY": 8675311,
     "INFERENCE_NUM_WARMUP": 1000,
     "INFERENCE_NUM_SAMPLES": 1000,
     "INFERENCE_NUM_CHAINS": 4,
     "INFERENCE_PROGRESS_BAR": true,
-    "MAX_TREE_DEPTH": 8,
+    "MAX_TREE_DEPTH": 9,
     "MODEL_RAND_SEED": 8675310
 }

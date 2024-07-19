@@ -148,6 +148,19 @@ class SMHInferer(MechanisticInferer):
         )
         # axis = 0 because we take diff across time
         model_incidence = jnp.diff(model_incidence, axis=0)
+        # save the final timestep of solution array for each compartment
+        numpyro.deterministic(
+            "final_timestep_s", solution.ys[self.config.COMPARTMENT_IDX.S][-1]
+        )
+        numpyro.deterministic(
+            "final_timestep_e", solution.ys[self.config.COMPARTMENT_IDX.E][-1]
+        )
+        numpyro.deterministic(
+            "final_timestep_i", solution.ys[self.config.COMPARTMENT_IDX.I][-1]
+        )
+        numpyro.deterministic(
+            "final_timestep_c", solution.ys[self.config.COMPARTMENT_IDX.C][-1]
+        )
         # sample intrinsic infection hospitalization rate here
         ihr_mult_prior_means = jnp.array([0.02, 0.05, 0.14])
         ihr_mult_prior_variances = (
@@ -187,7 +200,8 @@ class SMHInferer(MechanisticInferer):
         ihr_mult_2 = numpyro.sample(
             "ihr_mult_2", Dist.Beta(ihr_mult_prior_a[2], ihr_mult_prior_b[2])
         )
-        ihr_3 = numpyro.sample("ihr_3", Dist.Beta(40 * 10, 360 * 10))
+        # ihr_3 = numpyro.sample("ihr_3", Dist.Beta(40 * 10, 360 * 10))
+        ihr_3 = numpyro.deterministic("ihr_3", 0.15)
         ihr = jnp.array([ihr_mult_0, ihr_mult_1, ihr_mult_2, 1]) * ihr_3
 
         # sample ihr multiplier due to previous infection or vaccinations
