@@ -1,4 +1,4 @@
-from exp.fifty_state_6strain_2202_2407.postaz_process import *
+from exp.fifty_state_6strain_2202_2407.postaz_process import retrieve_post_samp, replace_and_simulate, 
 import arviz as az
 from sklearn.metrics import mean_squared_error
 import numpy as np
@@ -6,13 +6,37 @@ import jax.numpy as jnp
 import jax
 from jax import vmap, jit
 from functools import partial
-
+import copy
+import datetime
+import json
+import multiprocessing as mp
+import os
+import random
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from cycler import cycler
+from matplotlib.backends.backend_pdf import PdfPages
+from exp.fifty_state_6strain_2202_2407.inferer_smh import SMHInferer
+from exp.fifty_state_6strain_2202_2407.run_task import (
+    rework_initial_state,
+)
+from mechanistic_model.covid_sero_initializer import CovidSeroInitializer
+from mechanistic_model.mechanistic_runner import MechanisticRunner
+from model_odes.seip_model import seip_ode2
+plt.switch_backend("agg") 
+suffix = "6strains_v0"
+az_output_path = "/output/fifty_state_6strain_2202_2407/smh_6str_prelim_3/"
+pdf_filename = f"output/acc_{suffix}.pdf"
+final_model_day = 890
+initial_model_day = 0
 
 def hosp_var_posterior(samp, inferer, runner):
     nsamp = len(samp["ihr_3"][0])  # Number of samples per chain
     nchain = len(samp["ihr_3"])  # Number of chains
-    # each element of the list all_samples is a dictionary of unique values for each parameter.
-    # the list contains-if you consider a "vertical line" across all dictionaries- the 4 particles- as we have 4 chains- of each parameter.
+    # each element of the list all_samples is a dictionary of unique values for each parameter from the ODE.
+    # the list contains-if you consider a "vertical line" across all dictionaries- the 4 particles, as we have 4 chains for each parameter.
     # Randomly select a subset of posterior samples for simulation
     ranindex = random.sample(
         list(range(nsamp)), 25
@@ -95,3 +119,83 @@ def mcmc_accuracy_measures(pred_hosps_list, pred_var_list, obs_hosps, obs_var_pr
     df_total=pd.concat([df_waic,df_rmse])
     
     return df_total
+
+if __name__=='__main__':
+    
+    states = [
+    "AL",
+    "AK",
+    "AZ",
+    "AR",
+    "CA",
+    "CO",
+    "CT",
+    "DE",
+    "FL",
+    "GA",
+    "HI",
+    "ID",
+    "IL",
+    "IN",
+    "IA",
+    "KS",
+    "KY",
+    "LA",
+    "ME",
+    "MD",
+    "MA",
+    "MI",
+    "MN",
+    "MS",
+    "MO",
+    "MT",
+    "NE",
+    "NV",
+    "NH",
+    "NJ",
+    "NM",
+    "NY",
+    "NC",
+    "ND",
+    "OH",
+    "OK",
+    "OR",
+    "PA",
+    "RI",
+    "SC",
+    "SD",
+    "TN",
+    "TX",
+    "UT",
+    "VT",
+    "VA",
+    "WA",
+    "WV",
+    "WI",
+    "WY",
+]
+
+states_omit = []
+for st in states:
+    json_file = os.path.join(az_output_path, st, "checkpoint.json")
+    if not os.path.exists(json_file):
+        states_omit.append(st)
+states = list(set(states).difference(set(states_omit)))
+states.sort()
+# states = ["US", "AK", "AL", "IL", "WA"]
+# states = ["US"] + states
+print(states)
+
+# %%
+pool = mp.Pool(5)
+figs, median_dfs = zip(*pool.map(process_plot_state, [st for st in states]))
+df_total = zip(*pool.map(process_plot_state, [st for st in states]))
+
+pdf_pages = PdfPages(pdf_filename)
+for f in figs:
+    pdf_pages.savefig(f)
+    plt.close(f)
+pdf_pages.close()
+
+pool.close()
+pd.concat(median_dfs).to_csv(f"output/medians{suffix}.csv", index=False)

@@ -30,9 +30,9 @@ import pandas as pd
 # ]
 
 CONFIG_MOLDS = [
-    "exp/fifty_state_5strain_2202_2404/template_configs/config_global.json",
-    "exp/fifty_state_5strain_2202_2404/template_configs/config_inferer.json",
-    "exp/fifty_state_5strain_2202_2404/template_configs/config_initializer.json",
+    "exp/fifty_state_6strain_2202_2407/template_configs/config_global.json",
+    "exp/fifty_state_6strain_2202_2407/template_configs/config_inferer.json",
+    "exp/fifty_state_6strain_2202_2407/template_configs/config_initializer.json",
 ]
 
 
@@ -117,10 +117,7 @@ def populate_config_files(dir, configs):
                         state_config["INITIAL_INFECTIONS"] = int(
                             float(
                                 "%.3g"
-                                % (
-                                    state_pop
-                                    * (mold_initial_inf / mold_pop_size)
-                                )
+                                % (state_pop * (mold_initial_inf / mold_pop_size))
                             )
                         )
                     # round pop sizes 3 sig figs then convert to int
@@ -239,8 +236,8 @@ if __name__ == "__main__":
     states = args.states
     if "all" in states:
         states = get_all_codes()
-    states.remove("US")
-    states.remove("DC")
+    # states.remove("US")
+    # states.remove("DC")
 
     config_molds = args.config_molds
     create_state_subdirectories(exp, states)

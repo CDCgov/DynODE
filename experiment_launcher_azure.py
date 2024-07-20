@@ -9,12 +9,10 @@ import os
 from cfa_azure.clients import AzureClient
 
 # specify job ID, cant already exist
-
-<<<<<<< HEAD
-DOCKER_IMAGE_TAG = "ben-scenarios-20240715"
+DOCKER_IMAGE_TAG = "antonio-scenarios-20240720"
 # number of seconds of a full experiment run before timeout
 # for `s` states to run and `n` nodes dedicated,`s/n` * runtime 1 state secs needed
-TIMEOUT_MINS = 240
+TIMEOUT_MINS = 400
 EXPERIMENTS_DIRECTORY = "exp"
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Experiment Azure Launcher")
@@ -97,7 +95,6 @@ for statedir in os.listdir(states_path_local):
         # also include the -j flag to specify the jobid
         client.add_task(
             job_id=job_id,
-            docker_cmd="python %s -s %s -j %s"
-            % (runner_path_docker, statedir, job_id),
+            docker_cmd="python %s -s %s -j %s" % (runner_path_docker, statedir, job_id),
         )
 client.monitor_job(job_id=job_id)
