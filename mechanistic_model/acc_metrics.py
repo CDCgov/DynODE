@@ -70,7 +70,7 @@ def hosp_var_posterior(samp, inferer, runner, particles_per_chain, final_model_d
     
     return pred_hosps_list, pred_var_list
 
-def mcmc_accuracy_measures(state, final_model_day, initial_model_day, samp, particles_per_chain):
+def mcmc_accuracy_measures(state, final_model_day, initial_model_day, particles_per_chain):
     
     samp=retrieve_post_samp(state)
     (
