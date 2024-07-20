@@ -1,4 +1,4 @@
-from exp.fifty_state_6strain_2202_2407.postaz_process import retrieve_post_samp, replace_and_simulate, 
+from exp.fifty_state_6strain_2202_2407.postaz_process import (retrieve_inferer_obs, retrieve_post_samp, replace_and_simulate, simulate_hospitalization )
 import arviz as az
 from sklearn.metrics import mean_squared_error
 import numpy as np
@@ -6,9 +6,9 @@ import jax.numpy as jnp
 import jax
 from jax import vmap, jit
 from functools import partial
-import copy
-import datetime
-import json
+# import copy
+# import datetime
+# import json
 import multiprocessing as mp
 import os
 import random
@@ -16,30 +16,23 @@ import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from cycler import cycler
-from matplotlib.backends.backend_pdf import PdfPages
-from exp.fifty_state_6strain_2202_2407.inferer_smh import SMHInferer
-from exp.fifty_state_6strain_2202_2407.run_task import (
-    rework_initial_state,
-)
-from mechanistic_model.covid_sero_initializer import CovidSeroInitializer
-from mechanistic_model.mechanistic_runner import MechanisticRunner
-from model_odes.seip_model import seip_ode2
-plt.switch_backend("agg") 
-suffix = "6strains_v0"
-az_output_path = "/output/fifty_state_6strain_2202_2407/smh_6str_prelim_3/"
-pdf_filename = f"output/acc_{suffix}.pdf"
-final_model_day = 890
-initial_model_day = 0
+# from matplotlib.backends.backend_pdf import PdfPages
 
-def hosp_var_posterior(samp, inferer, runner):
+# plt.switch_backend("agg") 
+# suffix = "6strains_v0"
+# az_output_path = "/output/fifty_state_6strain_2202_2407/smh_6str_prelim_3/"
+# pdf_filename = f"output/acc_{suffix}.pdf"
+# final_model_day = 890
+# initial_model_day = 0
+
+def hosp_var_posterior(samp, inferer, runner, particles_per_chain, final_model_day, initial_model_day):
     nsamp = len(samp["ihr_3"][0])  # Number of samples per chain
     nchain = len(samp["ihr_3"])  # Number of chains
     # each element of the list all_samples is a dictionary of unique values for each parameter from the ODE.
     # the list contains-if you consider a "vertical line" across all dictionaries- the 4 particles, as we have 4 chains for each parameter.
     # Randomly select a subset of posterior samples for simulation
     ranindex = random.sample(
-        list(range(nsamp)), 25
+        list(range(nsamp)), particles_per_chain
     )  # Randomly select 25 samples per chain
     all_samples = [
         {k: v[c][r] for k, v in samp.items()} for r in ranindex for c in range(nchain)
@@ -48,7 +41,7 @@ def hosp_var_posterior(samp, inferer, runner):
     pred_var_list = []
     
     def process_per_sample(inferer, runner, f):
-        output = replace_and_simulate(inferer, runner, f)
+        output = replace_and_simulate(inferer, runner, f, final_model_day, initial_model_day)
         ihr = jnp.array(
             [
                 f["ihr_mult_0"] * f["ihr_3"],
@@ -93,7 +86,19 @@ def hosp_var_posterior(samp, inferer, runner):
     return pred_hosps_list, pred_var_list
 
 #ESTE ULTIMO TEM QUE TER APENAS state COMO PARAMETRO
-def mcmc_accuracy_measures(pred_hosps_list, pred_var_list, obs_hosps, obs_var_prop):
+def mcmc_accuracy_measures(state, final_model_day, initial_model_day, samp, particles_per_chain):
+    
+    (
+        inferer,
+        runner,
+        obs_hosps,
+        obs_hosps_days,
+        obs_sero_lmean,
+        obs_sero_days,
+        obs_var_prop,
+        obs_var_days,
+    )=retrieve_inferer_obs(state,final_model_day,initial_model_day)
+    pred_hosps_list, pred_var_list=hosp_var_posterior(samp, inferer, runner, particles_per_chain, final_model_day, initial_model_day)
     trace_hosps = az.from_dict(posterior_predictive={"hospitalizations": pred_hosps_list},
                                observed_data={"hospitalizations": obs_hosps})
     waic_hosps = az.waic(trace_hosps)
@@ -102,7 +107,7 @@ def mcmc_accuracy_measures(pred_hosps_list, pred_var_list, obs_hosps, obs_var_pr
     waic_strain_results={}
     for strain in range(pred_var_list[0].shape[-1]):
         trace_vars_strain=az.from_dict(posterior_predictive={"variant proportions":[p[:, strain] for p in pred_var_list]},
-                                       observed_data={"variant_proportions:" obs_var_prop[:,strain]})
+                                       observed_data={"variant_proportions:" }: obs_var_prop[:, strain])
         waic_strain_results[f"WAIC for strain {strain}"]=az.waic(trace_vars_strain)
     # for strain, waic in waic_strain_results.items():
     #     print(f"strain {strain} has WAIC: {waic}")
@@ -119,83 +124,3 @@ def mcmc_accuracy_measures(pred_hosps_list, pred_var_list, obs_hosps, obs_var_pr
     df_total=pd.concat([df_waic,df_rmse])
     
     return df_total
-
-if __name__=='__main__':
-    
-    states = [
-    "AL",
-    "AK",
-    "AZ",
-    "AR",
-    "CA",
-    "CO",
-    "CT",
-    "DE",
-    "FL",
-    "GA",
-    "HI",
-    "ID",
-    "IL",
-    "IN",
-    "IA",
-    "KS",
-    "KY",
-    "LA",
-    "ME",
-    "MD",
-    "MA",
-    "MI",
-    "MN",
-    "MS",
-    "MO",
-    "MT",
-    "NE",
-    "NV",
-    "NH",
-    "NJ",
-    "NM",
-    "NY",
-    "NC",
-    "ND",
-    "OH",
-    "OK",
-    "OR",
-    "PA",
-    "RI",
-    "SC",
-    "SD",
-    "TN",
-    "TX",
-    "UT",
-    "VT",
-    "VA",
-    "WA",
-    "WV",
-    "WI",
-    "WY",
-]
-
-states_omit = []
-for st in states:
-    json_file = os.path.join(az_output_path, st, "checkpoint.json")
-    if not os.path.exists(json_file):
-        states_omit.append(st)
-states = list(set(states).difference(set(states_omit)))
-states.sort()
-# states = ["US", "AK", "AL", "IL", "WA"]
-# states = ["US"] + states
-print(states)
-
-# %%
-pool = mp.Pool(5)
-figs, median_dfs = zip(*pool.map(process_plot_state, [st for st in states]))
-df_total = zip(*pool.map(process_plot_state, [st for st in states]))
-
-pdf_pages = PdfPages(pdf_filename)
-for f in figs:
-    pdf_pages.savefig(f)
-    plt.close(f)
-pdf_pages.close()
-
-pool.close()
-pd.concat(median_dfs).to_csv(f"output/medians{suffix}.csv", index=False)
