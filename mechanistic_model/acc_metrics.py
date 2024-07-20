@@ -6,24 +6,9 @@ import jax.numpy as jnp
 import jax
 from jax import vmap, jit
 from functools import partial
-# import copy
-# import datetime
-# import json
-import multiprocessing as mp
-import os
 import random
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-# from matplotlib.backends.backend_pdf import PdfPages
-
-# plt.switch_backend("agg") 
-# suffix = "6strains_v0"
-# az_output_path = "/output/fifty_state_6strain_2202_2407/smh_6str_prelim_3/"
-# pdf_filename = f"output/acc_{suffix}.pdf"
-# final_model_day = 890
-# initial_model_day = 0
 
 def hosp_var_posterior(samp, inferer, runner, particles_per_chain, final_model_day, initial_model_day):
     nsamp = len(samp["ihr_3"][0])  # Number of samples per chain
@@ -85,9 +70,9 @@ def hosp_var_posterior(samp, inferer, runner, particles_per_chain, final_model_d
     
     return pred_hosps_list, pred_var_list
 
-#ESTE ULTIMO TEM QUE TER APENAS state COMO PARAMETRO
 def mcmc_accuracy_measures(state, final_model_day, initial_model_day, samp, particles_per_chain):
     
+    samp=retrieve_post_samp(state)
     (
         inferer,
         runner,
