@@ -16,7 +16,7 @@ print(os.getcwd())
 # sys.path.append(os.getcwd())
 import jax.numpy as jnp
 import pandas as pd
-from inferer_smh import SMHInferer
+from exp.fifty_state_6strain_2202_2407.inferer_smh import SMHInferer
 
 from mechanistic_model.abstract_azure_runner import AbstractAzureRunner
 from mechanistic_model.covid_sero_initializer import CovidSeroInitializer
@@ -82,9 +82,7 @@ class EpochOneRunner(AbstractAzureRunner):
         print("Running the following state: " + state + "\n")
         # global_config include definitions such as age bin bounds and strain definitions
         # Any value or data structure that needs context to be interpretted is here.
-        GLOBAL_CONFIG_PATH = os.path.join(
-            state_config_path, "config_global.json"
-        )
+        GLOBAL_CONFIG_PATH = os.path.join(state_config_path, "config_global.json")
         # a temporary global config that matches with original initializer
         TEMP_GLOBAL_CONFIG_PATH = os.path.join(
             state_config_path, "temp_config_global.json"
@@ -100,9 +98,7 @@ class EpochOneRunner(AbstractAzureRunner):
             state_config_path, "config_initializer.json"
         )
         # defines prior __distributions__ for inferring runner variables.
-        INFERER_CONFIG_PATH = os.path.join(
-            state_config_path, "config_inferer.json"
-        )
+        INFERER_CONFIG_PATH = os.path.join(state_config_path, "config_inferer.json")
         # save copies of the used config files to output for reproducibility purposes
         shutil.copy(
             GLOBAL_CONFIG_PATH,
@@ -130,9 +126,7 @@ class EpochOneRunner(AbstractAzureRunner):
         hosp_data_filename = "%s_hospitalization.csv" % (
             initializer.config.REGIONS[0].replace(" ", "_")
         )
-        hosp_data_path = os.path.join(
-            inferer.config.HOSP_PATH, hosp_data_filename
-        )
+        hosp_data_path = os.path.join(inferer.config.HOSP_PATH, hosp_data_filename)
         hosp_data = pd.read_csv(hosp_data_path)
         hosp_data["date"] = pd.to_datetime(hosp_data["date"])
         # special setting for HI
@@ -159,9 +153,7 @@ class EpochOneRunner(AbstractAzureRunner):
         sero_data_filename = "%s_sero.csv" % (
             initializer.config.REGIONS[0].replace(" ", "_")
         )
-        sero_data_path = os.path.join(
-            inferer.config.SERO_PATH, sero_data_filename
-        )
+        sero_data_path = os.path.join(inferer.config.SERO_PATH, sero_data_filename)
         sero_data = pd.read_csv(sero_data_path)
         sero_data["date"] = pd.to_datetime(sero_data["date"])
         # align sero to infections assuming 14-day seroconversion delay
@@ -176,14 +168,10 @@ class EpochOneRunner(AbstractAzureRunner):
             sero_data["rate"] / (100.0 - sero_data["rate"])
         )
         # make sero into day x agegroup matrix
-        obs_sero_lmean = sero_data.groupby(["day"])["logit_rate"].apply(
-            np.array
-        )
+        obs_sero_lmean = sero_data.groupby(["day"])["logit_rate"].apply(np.array)
         obs_sero_days = obs_sero_lmean.index.to_list()
         obs_sero_lmean = jnp.array(obs_sero_lmean.to_list())
-        obs_sero_lmean = obs_sero_lmean.at[np.isinf(obs_sero_lmean)].set(
-            jnp.nan
-        )
+        obs_sero_lmean = obs_sero_lmean.at[np.isinf(obs_sero_lmean)].set(jnp.nan)
         # set sero sd, currently this is an arbitrary tunable parameters
         # dependent on sero sample size.
         obs_sero_n = sero_data.groupby(["day"])["n"].apply(np.array)
@@ -193,9 +181,7 @@ class EpochOneRunner(AbstractAzureRunner):
         var_data_filename = "%s_strain_prop.csv" % (
             initializer.config.REGIONS[0].replace(" ", "_")
         )
-        var_data_path = os.path.join(
-            inferer.config.VAR_PATH, var_data_filename
-        )
+        var_data_path = os.path.join(inferer.config.VAR_PATH, var_data_filename)
         # currently working up to third strain which is XBB1
         var_data = pd.read_csv(var_data_path)
         var_data = var_data[var_data["strain"] < 5]
