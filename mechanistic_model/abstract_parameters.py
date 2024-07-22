@@ -242,19 +242,17 @@ class AbstractParameters:
         # shifting splines if needed for multi-epochs, 0 by default
         t_added = getattr(self.config, "VACCINATION_MODEL_DAYS_SHIFT", 0)
         # default to 1.0 (unchanged) if parameter does not exist
-        vax_coeffs = jnp.array(
-            getattr(
-                self.config,
-                "AGE_DOSE_SPECIFIC_VAX_COEF",
-                np.ones(
-                    (
-                        self.config.NUM_AGE_GROUPS,
-                        self.config.MAX_VACCINATION_COUNT + 1,
-                    )
-                ),
-            )
+        vaccination_rates_log = utils.evaluate_cubic_spline(
+            t + t_added,
+            self.config.VACCINATION_MODEL_KNOT_LOCATIONS,
+            self.config.VACCINATION_MODEL_BASE_EQUATIONS,
+            self.config.VACCINATION_MODEL_KNOTS,
         )
-        return vax_coeffs * jnp.exp(
+        # one of the side effects of exp() is setting exp(0) -> 1
+        # we dont want this behavior in our vaccination rates obviously
+        # so we find the locations of zero and save them to remask 0 -> 0 after exp() op
+        zero_mask = jnp.where(vaccination_rates_log == 0, 0, 1)
+        return zero_mask * jnp.exp(
             utils.evaluate_cubic_spline(
                 t + t_added,
                 self.config.VACCINATION_MODEL_KNOT_LOCATIONS,
