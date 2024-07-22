@@ -16,7 +16,7 @@ print(os.getcwd())
 # sys.path.append(os.getcwd())
 import jax.numpy as jnp
 import pandas as pd
-from .inferer_projection import ProjectionParameters
+from inferer_projection import ProjectionParameters
 
 from mechanistic_model.abstract_azure_runner import AbstractAzureRunner
 from mechanistic_model.covid_sero_initializer import CovidSeroInitializer
@@ -25,9 +25,12 @@ from mechanistic_model.utils import combine_strains, combined_strains_mapping
 from model_odes.seip_model import seip_ode2
 
 jax.config.update("jax_enable_x64", True)
+# SCENARIOS:
+# scenario_vax1_it32_ve40
+# scenario_vax1_it93_ve40
 
 # will be multiplied by number of chains to get total number of posteriors
-NUM_SAMPLES_PER_STATE_PER_SCENARIO = 1
+NUM_SAMPLES_PER_STATE_PER_SCENARIO = 25
 
 
 class ProjectionRunner(AbstractAzureRunner):
@@ -40,11 +43,8 @@ class ProjectionRunner(AbstractAzureRunner):
     ):
         fitting_period_num_days = 870
         projection_period_num_days = 365
-        # posteriors_path = os.path.join(
-        #     "/output/exp/fifty_state_6strain_2202_2407/smh_6str_prelim_7", state
-        # )
         posteriors_path = os.path.join(
-            "/home/uva5/repos/cfa-scenarios-model2/output/exp/fifty_state_6strain_2202_2407/smh_6str_prelim_7",
+            "/output/fifty_state_6strain_2202_2407/scen_6str_v1_2",
             state,
         )
         checkpoint_path = os.path.join(posteriors_path, "checkpoint.json")
@@ -54,15 +54,9 @@ class ProjectionRunner(AbstractAzureRunner):
         posteriors = json.load(open(checkpoint_path, "r"))
         # the final states of the fitting period are saved within posteriors
         # step 1: define your paths, now in the input
-        # state_config_path = os.path.join(
-        #     "/input/exp/projections_2407_2507/states",
-        #     state,
-        #     scenario,
-        # )
         state_config_path = os.path.join(
-            "/home/uva5/repos/cfa-scenarios-model2/exp/projections_2407_2507/states",
+            "/input/exp/projections_2407_2507/%s/states" % jobid,
             state,
-            scenario,
         )
         # state_config_path = "exp/fifty_state_sero_second_try/" + args.state + "/"
         print("Running the following state: " + state + "\n")
@@ -71,10 +65,9 @@ class ProjectionRunner(AbstractAzureRunner):
         GLOBAL_CONFIG_PATH = os.path.join(
             state_config_path, "config_global.json"
         )
-        # a temporary global config that matches with original initializer
-        # defines prior __distributions__ for inferring runner variables.
+        # a config file that defines the scenario being run
         INFERER_CONFIG_PATH = os.path.join(
-            state_config_path, "config_inferer.json"
+            state_config_path, "%s.json" % scenario
         )
         # save copies of the used config files to output for reproducibility purposes
         shutil.copy(
@@ -94,7 +87,7 @@ class ProjectionRunner(AbstractAzureRunner):
         self.save_inference_timelines(
             inferer,
             particles_saved=NUM_SAMPLES_PER_STATE_PER_SCENARIO,
-            external_particles=posteriors,
+            external_particle=posteriors,
             tf=projection_period_num_days,
         )
 
@@ -122,18 +115,10 @@ if __name__ == "__main__":
     # we are going to be rerouting stdout and stderror to files in our output blob
     # stdout = sys.stdout
     # stderror = sys.stderr
-    # save_path = "/output/projections_2407_2507/%s/%s/%s/" % (
-    #     jobid,
-    #     state,
-    #     scenario,
-    # )
-    save_path = (
-        "/home/uva5/repos/cfa-scenarios-model2/output/projections_2407_2507/%s/%s/%s/"
-        % (
-            jobid,
-            state,
-            scenario,
-        )
+    save_path = "/output/projections_2407_2507/%s/%s/%s/" % (
+        jobid,
+        state,
+        scenario,
     )
     runner = ProjectionRunner(save_path)
     runner.process_state(state, jobid, jobid_in_path=False, scenario=scenario)

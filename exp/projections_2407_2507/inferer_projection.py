@@ -12,6 +12,10 @@ from mechanistic_model.mechanistic_runner import MechanisticRunner
 from config.config import Config
 from mechanistic_model import SEIC_Compartments
 import mechanistic_model.utils as utils
+import copy
+import jax
+from functools import partial
+from jax.scipy.stats.norm import pdf
 
 
 class ProjectionParameters(MechanisticInferer):
@@ -31,7 +35,6 @@ class ProjectionParameters(MechanisticInferer):
         self.runner = runner
         self.infer_complete = False  # flag once inference completes
         self.set_infer_algo(prior_inferer=prior_inferer)
-        self.retrieve_population_counts()
         self.load_vaccination_model()
         self.load_contact_matrix()
 
@@ -98,7 +101,113 @@ class ProjectionParameters(MechanisticInferer):
         return self.inference_algo
 
     def get_parameters(self):
-        parameters = super().get_parameters()
+        """
+        Overriding the get_parameters() method to work with an undefined initial state
+        because projections only define their initial state by sampling the `final_timestep` parameter
+        we need self.POPULATION to only be evaluated after self.INITIAL_STATE has been pulled from the posteriors
+
+        this method is close to super().get_parameters() but difers because it does not use `self.POPULATION` since
+        it does not exist yet, it must be set only AFTER initial state exists.
+        """
+
+        freeze_params = copy.deepcopy(self.config)
+        # copied code vebaitem from super().get_parameters()
+        parameters = {
+            "INIT_DATE": freeze_params.INIT_DATE,
+            "CONTACT_MATRIX": freeze_params.CONTACT_MATRIX,
+            "NUM_STRAINS": freeze_params.NUM_STRAINS,
+            # "POPULATION": freeze_params.POPULATION,
+            "NUM_AGE_GROUPS": freeze_params.NUM_AGE_GROUPS,
+            "NUM_WANING_COMPARTMENTS": freeze_params.NUM_WANING_COMPARTMENTS,
+            "WANING_PROTECTIONS": freeze_params.WANING_PROTECTIONS,
+            "MAX_VACCINATION_COUNT": freeze_params.MAX_VACCINATION_COUNT,
+            "STRAIN_INTERACTIONS": freeze_params.STRAIN_INTERACTIONS,
+            "VACCINE_EFF_MATRIX": freeze_params.VACCINE_EFF_MATRIX,
+            "BETA_TIMES": freeze_params.BETA_TIMES,
+            "STRAIN_R0s": freeze_params.STRAIN_R0s,
+            "INFECTIOUS_PERIOD": freeze_params.INFECTIOUS_PERIOD,
+            "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
+            "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
+            "INTRODUCTION_SCALES": freeze_params.INTRODUCTION_SCALES,
+            "INTRODUCTION_PCTS": freeze_params.INTRODUCTION_PCTS,
+            "INITIAL_INFECTIONS_SCALE": freeze_params.INITIAL_INFECTIONS_SCALE,
+            "CONSTANT_STEP_SIZE": freeze_params.CONSTANT_STEP_SIZE,
+            "SEASONALITY_AMPLITUDE": freeze_params.SEASONALITY_AMPLITUDE,
+            "SEASONALITY_SECOND_WAVE": freeze_params.SEASONALITY_SECOND_WAVE,
+            "SEASONALITY_SHIFT": freeze_params.SEASONALITY_SHIFT,
+            "MIN_HOMOLOGOUS_IMMUNITY": freeze_params.MIN_HOMOLOGOUS_IMMUNITY,
+        }
+        parameters = utils.sample_if_distribution(parameters)
+        # re-create the CROSSIMMUNITY_MATRIX since we may be sampling the STRAIN_INTERACTIONS matrix now
+        parameters["CROSSIMMUNITY_MATRIX"] = (
+            utils.strain_interaction_to_cross_immunity2(
+                freeze_params.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
+            )
+        )
+        # create parameters based on other possibly sampled parameters
+        beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
+        gamma = 1 / parameters["INFECTIOUS_PERIOD"]
+        sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]
+        # last waning time is zero since last compartment does not wane
+        # catch a division by zero error here.
+        waning_rates = np.array(
+            [
+                1 / waning_time if waning_time > 0 else 0
+                for waning_time in freeze_params.WANING_TIMES
+            ]
+        )
+
+        # numpyro needs to believe it is sampling from something in order for the override to work
+        def fake_sampler():
+            return numpyro.distributions.Normal()
+
+        # fake_sampler will be overriden in runtime by the `final_timestep` values of the posteriors
+        # final_timestep refers to the final state of the system after fitting, aka day 0 of projection
+        parameters["INITIAL_STATE"] = tuple(
+            [
+                jnp.array(numpyro.sample("final_timestep_s", fake_sampler())),
+                jnp.array(numpyro.sample("final_timestep_e", fake_sampler())),
+                jnp.array(numpyro.sample("final_timestep_i", fake_sampler())),
+                jnp.array(numpyro.sample("final_timestep_c", fake_sampler())),
+            ]
+        )
+        # inserting this line here, needs to be in freeze_params to avoid memory leaks
+        # of multiple chains modifying self.POPULATION
+        freeze_params.POPULATION = self.retrieve_population_counts(
+            parameters["INITIAL_STATE"]
+        )
+        # allows the ODEs to just pass time as a parameter, makes them look cleaner
+        external_i_function_prefilled = jax.tree_util.Partial(
+            self.external_i,
+            introduction_times=parameters["INTRODUCTION_TIMES"],
+            introduction_scales=parameters["INTRODUCTION_SCALES"],
+            introduction_pcts=parameters["INTRODUCTION_PCTS"],
+            population=freeze_params.POPULATION,
+        )
+        # # pre-calculate the minimum value of the seasonality curves
+        seasonality_function_prefilled = jax.tree_util.Partial(
+            self.seasonality,
+            seasonality_amplitude=parameters["SEASONALITY_AMPLITUDE"],
+            seasonality_second_wave=parameters["SEASONALITY_SECOND_WAVE"],
+            seasonality_shift=parameters["SEASONALITY_SHIFT"],
+        )
+        # add final parameters, if your model expects added parameters, add them here
+        parameters = dict(
+            parameters,
+            **{
+                "BETA": beta,
+                "SIGMA": sigma,
+                "GAMMA": gamma,
+                "WANING_RATES": waning_rates,
+                "EXTERNAL_I": external_i_function_prefilled,
+                "VACCINATION_RATES": self.vaccination_rate,
+                "BETA_COEF": self.beta_coef,
+                "SEASONAL_VACCINATION_RESET": self.seasonal_vaccination_reset,
+                "SEASONALITY": seasonality_function_prefilled,
+                "POPULATION": freeze_params.POPULATION,
+            }
+        )
+        # new code for projections in particular
         parameters["STRAIN_R0s"] = jnp.array(
             [
                 parameters["STRAIN_R0s"][0],
@@ -121,31 +230,55 @@ class ProjectionParameters(MechanisticInferer):
         parameters["BETA"] = (
             parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
         )
-        parameters["STRAIN_INTERACTIONS"][6][4] = (
-            parameters["STRAIN_INTERACTIONS"][5][3]
-            + parameters["STRAIN_INTERACTIONS"][4][2]
-        ) / 2.0
-        parameters["STRAIN_INTERACTIONS"][6][5] = (
-            parameters["STRAIN_INTERACTIONS"][5][4]
-            + parameters["STRAIN_INTERACTIONS"][4][3]
-        ) / 2.0
+        parameters["STRAIN_INTERACTIONS"] = (
+            parameters["STRAIN_INTERACTIONS"]
+            .at[6, 4]
+            .set(
+                (
+                    parameters["STRAIN_INTERACTIONS"][5, 3]
+                    + parameters["STRAIN_INTERACTIONS"][4, 2]
+                )
+                / 2.0
+            )
+        )
+        parameters["STRAIN_INTERACTIONS"] = (
+            parameters["STRAIN_INTERACTIONS"]
+            .at[6, 5]
+            .set(
+                (
+                    parameters["STRAIN_INTERACTIONS"][5, 4]
+                    + parameters["STRAIN_INTERACTIONS"][4, 3]
+                )
+                / 2.0
+            )
+        )
         parameters["CROSSIMMUNITY_MATRIX"] = (
             utils.strain_interaction_to_cross_immunity2(
                 self.config.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
             )
         )
 
-        def fake_sampler():
-            return numpyro.distributions.Normal()
-
-        parameters["INITIAL_STATE"] = tuple(
-            numpyro.sample("final_timestep_s", fake_sampler()),
-            numpyro.sample("final_timestep_e", fake_sampler()),
-            numpyro.sample("final_timestep_i", fake_sampler()),
-            numpyro.sample("final_timestep_c", fake_sampler()),
-        )
-
         return parameters
+
+    def retrieve_population_counts(self, initial_state):
+        return np.sum(  # sum together S+E+I compartments
+            np.array(
+                [
+                    np.sum(
+                        compartment,
+                        axis=(
+                            self.config.S_AXIS_IDX.hist,
+                            self.config.S_AXIS_IDX.vax,
+                            self.config.S_AXIS_IDX.wane,
+                        ),
+                    )  # sum over all but age bin axis
+                    for compartment in initial_state[
+                        : self.config.COMPARTMENT_IDX.C
+                    ]  # avoid summing the book-keeping C compartment
+                ]
+            ),
+            axis=(0),  # sum across compartments, keep age bins
+        )
 
     def rework_initial_state(self, initial_state):
         """
@@ -169,6 +302,169 @@ class ProjectionParameters(MechanisticInferer):
             c_new,
         )
         return initial_state
+
+    def scale_initial_infections(
+        self, scale_factor, INITIAL_STATE
+    ) -> SEIC_Compartments:
+        """
+        overriden version that does not use self.INITIAL_STATE
+        a function which modifies returns a modified version of
+        self.INITIAL_STATE scaling the number of initial infections by `scale_factor`.
+
+        Preserves the ratio of the Exposed/Infectious compartment population sizes.
+        Does not modified self.INITIAL_STATE, returns a copy.
+
+        Parameters
+        ----------
+        scale_factor: float
+            a multiplier value >=0.0.
+            `scale_factor` < 1 reduces number of initial infections,
+            `scale_factor` == 1.0 leaves initial infections unchanged,
+            `scale_factor` > 1 increases number of initial infections.
+
+        Returns
+        ---------
+        A copy of INITIAL_INFECTIONS with each compartment being scaled according to `scale_factor`
+        """
+        pop_counts_by_compartment = jnp.array(
+            [
+                jnp.sum(compartment)
+                for compartment in INITIAL_STATE[
+                    : self.config.COMPARTMENT_IDX.C
+                ]
+            ]
+        )
+        initial_infections = (
+            pop_counts_by_compartment[self.config.COMPARTMENT_IDX.E]
+            + pop_counts_by_compartment[self.config.COMPARTMENT_IDX.I]
+        )
+        initial_susceptibles = pop_counts_by_compartment[
+            self.config.COMPARTMENT_IDX.S
+        ]
+        # total_pop_size = initial_susceptibles + initial_infections
+        new_infections_size = scale_factor * initial_infections
+        # negative if scale_factor < 1.0
+        gained_infections = new_infections_size - initial_infections
+        scale_factor_susceptible_compartment = 1 - (
+            gained_infections / initial_susceptibles
+        )
+        # multiplying E and I by the same scale_factor preserves their relative ratio
+        scale_factors = [
+            scale_factor_susceptible_compartment,
+            scale_factor,
+            scale_factor,
+            1.0,  # for the C compartment, unchanged.
+        ]
+        # scale each compartment and return
+        initial_state = tuple(
+            [
+                compartment * factor
+                for compartment, factor in zip(INITIAL_STATE, scale_factors)
+            ]
+        )
+        return initial_state
+
+    @partial(jax.jit, static_argnums=(0))
+    def external_i(
+        self,
+        t,
+        introduction_times: jax.Array,
+        introduction_scales: jax.Array,
+        introduction_pcts: jax.Array,
+        population,
+    ) -> jax.Array:
+        """
+        Given some time t, returns jnp.array of shape self.INITIAL_STATE[self.config.COMPARTMENT_IDX.I] representing external infected persons
+        interacting with the population. it does so by calling some function f_s(t) for each strain s.
+
+        MUST BE CONTINUOUS AND DIFFERENTIABLE FOR ALL TIMES t.
+
+        The stratafication of the external population is decided by the introduced strains, which are defined by
+        3 parallel lists of the time they peak (`introduction_times`),
+        the number of external infected individuals introduced as a % of the tracked population (`introduction_pcts`)
+        and how quickly or slowly those individuals contact the tracked population (`introduction_scales`)
+
+        Parameters
+        ----------
+        `t`: float as Traced<ShapedArray(float64[])>
+            current time in the model, due to the just-in-time nature of Jax this float value may be contained within a
+            traced array of shape () and size 1. Thus no explicit comparison should be done on "t".
+
+        `introduction_times`: list[int] as Traced<ShapedArray(float64[])>
+            a list representing the times at which external strains should be introduced, in days, after t=0 of the model
+            This list is ordered inversely to self.config.STRAIN_R0s. If 2 external strains are defined, the two
+            values in `introduction_times` will refer to the last 2 STRAIN_R0s, not the first two.
+
+        `introduction_scales`: list[float] as Traced<ShapedArray(float64[])>
+            a list representing the standard deviation of the curve that external strains are introduced with, in days
+            This list is ordered inversely to self.config.STRAIN_R0s. If 2 external strains are defined, the two
+            values in `introduction_times` will refer to the last 2 STRAIN_R0s, not the first two.
+
+        `introduction_pcts`: list[float] as Traced<ShapedArray(float64[])>
+            a list representing the proportion of each age bin in self.POPULATION[self.config.INTRODUCTION_AGE_MASK]
+            that will be exposed to the introduced strain over the entire course of the introduction.
+            This list is ordered inversely to self.config.STRAIN_R0s. If 2 external strains are defined, the two
+            values in `introduction_times` will refer to the last 2 STRAIN_R0s, not the first two.
+
+        Returns
+        -----------
+        external_i_compartment: jax.Array
+            jnp.array(shape=(self.INITIAL_STATE[self.config.COMPARTMENT_IDX.I].shape)) of external individuals to the system
+            interacting with susceptibles within the system, used to impact force of infection.
+        """
+
+        # define a function that returns 0 for non-introduced strains
+        def zero_function(_):
+            return 0
+
+        external_i_distributions = [
+            zero_function for _ in range(self.config.NUM_STRAINS)
+        ]
+        introduction_percentage_by_strain = [0] * self.config.NUM_STRAINS
+        for introduced_strain_idx, (
+            introduced_time,
+            introduction_scale,
+            introduction_perc,
+        ) in enumerate(
+            zip(introduction_times, introduction_scales, introduction_pcts)
+        ):
+            # earlier introduced strains earlier will be placed closer to historical strains (0 and 1)
+            dist_idx = (
+                self.config.NUM_STRAINS
+                - self.config.NUM_INTRODUCED_STRAINS
+                + introduced_strain_idx
+            )
+            # use a normal PDF with std dv
+            external_i_distributions[dist_idx] = partial(
+                pdf, loc=introduced_time, scale=introduction_scale
+            )
+            introduction_percentage_by_strain[dist_idx] = introduction_perc
+        # with our external_i_distributions set up, now we can execute them on `t`
+        # set up our return value
+        external_i_compartment = jnp.zeros(
+            (
+                self.config.NUM_AGE_GROUPS,
+                self.config.NUM_STRAINS + 1,
+                self.config.MAX_VACCINATION_COUNT + 1,
+                self.config.NUM_STRAINS,
+            )
+        )
+        introduction_age_mask = jnp.where(
+            jnp.array(self.config.INTRODUCTION_AGE_MASK),
+            1,
+            0,
+        )
+        for strain in self.config.STRAIN_IDX:
+            external_i_distribution = external_i_distributions[strain]
+            introduction_perc = introduction_percentage_by_strain[strain]
+            external_i_compartment = external_i_compartment.at[
+                introduction_age_mask, 0, 0, strain
+            ].set(
+                external_i_distribution(t)
+                * introduction_perc
+                * population[introduction_age_mask]
+            )
+        return external_i_compartment
 
     def likelihood(
         self,
@@ -201,7 +497,7 @@ class ProjectionParameters(MechanisticInferer):
         initial_state = self.rework_initial_state(parameters["INITIAL_STATE"])
         if "INITIAL_INFECTIONS_SCALE" in parameters.keys():
             initial_state = self.scale_initial_infections(
-                parameters["INITIAL_INFECTIONS_SCALE"]
+                parameters["INITIAL_INFECTIONS_SCALE"], initial_state
             )
 
         solution = self.runner.run(
@@ -354,7 +650,7 @@ class ProjectionParameters(MechanisticInferer):
                 ],
                 axis=(2, 3),
             )
-            sim_seroprevalence = 1 - never_infected / self.config.POPULATION
+            sim_seroprevalence = 1 - never_infected / parameters["POPULATION"]
             sim_lseroprevalence = jnp.log(
                 sim_seroprevalence / (1 - sim_seroprevalence)
             )  # logit seroprevalence
