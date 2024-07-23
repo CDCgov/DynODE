@@ -89,7 +89,6 @@ if __name__ == "__main":
     statistics_good = show_statistics(good_states, bad=0)
 
     df_total = pd.concat([statistics_bad, statistics_good], axis=1)
-    output_dir = "/home/ZNM9/.local/cfa-scenarios-model-1/output/"
     output_file = "good_bad_stats.csv"
-    output_path = os.path.join(output_dir, output_file)
-    df_total.to_csv("total_stat.csv", index=True)
+    output_dir = f"output/{output_file}"
+    df_total.to_csv(output_dir, index=True)

@@ -79,8 +79,8 @@ class SMHInferer(MechanisticInferer):
                 parameters["STRAIN_R0s"][0],
                 parameters["STRAIN_R0s"][1],
                 parameters["STRAIN_R0s"][2],
-                numpyro.deterministic("STRAIN_R0s_1", parameters["STRAIN_R0s"][2]),
-                numpyro.deterministic("STRAIN_R0s_2", parameters["STRAIN_R0s"][2]),
+                numpyro.deterministic("GlobalR0", parameters["STRAIN_R0s"][2]),
+                numpyro.deterministic("Global_R0", parameters["STRAIN_R0s"][2]),
             ]
         )
         parameters["BETA"] = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]

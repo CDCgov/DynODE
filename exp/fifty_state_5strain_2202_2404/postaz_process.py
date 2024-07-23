@@ -25,17 +25,15 @@ from model_odes.seip_model import seip_ode2
 plt.switch_backend("agg")
 model_day = 880
 suffix = "_v1_5strain"
-az_output_path = "/output/fifty_state_5strain_2202_2404/smh_5str_prelim_1/"
-pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
+az_output_path = "/output/fifty_state_5strain_2202_2404/SMH_5strains_071624/"
+# pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
 
 
 # %%
 def retrieve_inferer_obs(state):
     state_config_path = os.path.join(az_output_path, state)
     print("Retrieving " + state + "\n")
-    GLOBAL_CONFIG_PATH = os.path.join(
-        state_config_path, "config_global_used.json"
-    )
+    GLOBAL_CONFIG_PATH = os.path.join(state_config_path, "config_global_used.json")
     TEMP_GLOBAL_CONFIG_PATH = os.path.join(
         state_config_path, "temp_config_global_template.json"
     )
@@ -47,20 +45,14 @@ def retrieve_inferer_obs(state):
     INITIALIZER_CONFIG_PATH = os.path.join(
         state_config_path, "config_initializer_used.json"
     )
-    INFERER_CONFIG_PATH = os.path.join(
-        state_config_path, "config_inferer_used.json"
-    )
+    INFERER_CONFIG_PATH = os.path.join(state_config_path, "config_inferer_used.json")
 
     # sets up the initial conditions, initializer.get_initial_state() passed to runner
-    initializer = CovidSeroInitializer(
-        INITIALIZER_CONFIG_PATH, TEMP_GLOBAL_CONFIG_PATH
-    )
+    initializer = CovidSeroInitializer(INITIALIZER_CONFIG_PATH, TEMP_GLOBAL_CONFIG_PATH)
     runner = MechanisticRunner(seip_ode2)
     initial_state = initializer.get_initial_state()
     initial_state = rework_initial_state(initial_state)
-    inferer = SMHInferer(
-        GLOBAL_CONFIG_PATH, INFERER_CONFIG_PATH, runner, initial_state
-    )
+    inferer = SMHInferer(GLOBAL_CONFIG_PATH, INFERER_CONFIG_PATH, runner, initial_state)
     # observed data
     hosp_data_filename = "%s_hospitalization.csv" % (
         initializer.config.REGIONS[0].replace(" ", "_")
@@ -96,9 +88,7 @@ def retrieve_inferer_obs(state):
         (sero_data["day"] >= 0) & (sero_data["day"] <= model_day)
     ].sort_values(by=["day", "age"], ascending=True, inplace=False)
     # transform data to logit scale
-    sero_data["logit_rate"] = np.log(
-        sero_data["rate"] / (100.0 - sero_data["rate"])
-    )
+    sero_data["logit_rate"] = np.log(sero_data["rate"] / (100.0 - sero_data["rate"]))
     # make sero into day x agegroup matrix
     obs_sero_lmean = sero_data.groupby(["day"])["logit_rate"].apply(np.array)
     obs_sero_days = obs_sero_lmean.index.to_list()
@@ -147,9 +137,7 @@ def retrieve_post_samp(state):
 
 def replace_and_simulate(inferer, runner, fitted_medians):
     m = copy.deepcopy(inferer)
-    m.config.INITIAL_INFECTIONS_SCALE = fitted_medians[
-        "INITIAL_INFECTIONS_SCALE"
-    ]
+    m.config.INITIAL_INFECTIONS_SCALE = fitted_medians["INITIAL_INFECTIONS_SCALE"]
     m.config.INTRODUCTION_TIMES = [
         fitted_medians["INTRODUCTION_TIMES_0"],
         fitted_medians["INTRODUCTION_TIMES_1"],
@@ -161,8 +149,8 @@ def replace_and_simulate(inferer, runner, fitted_medians):
             fitted_medians["STRAIN_R0s_0"],
             fitted_medians["STRAIN_R0s_1"],
             fitted_medians["STRAIN_R0s_2"],
-            fitted_medians["STRAIN_R0s_3"],
-            fitted_medians["STRAIN_R0s_4"],
+            fitted_medians["GlobalR0"],
+            fitted_medians["Global_R0"],
         ]
     )
     m.config.STRAIN_INTERACTIONS = jnp.array(
@@ -192,16 +180,12 @@ def replace_and_simulate(inferer, runner, fitted_medians):
             ],
         ]
     )
-    m.config.MIN_HOMOLOGOUS_IMMUNITY = fitted_medians[
-        "MIN_HOMOLOGOUS_IMMUNITY"
-    ]
+    m.config.MIN_HOMOLOGOUS_IMMUNITY = fitted_medians["MIN_HOMOLOGOUS_IMMUNITY"]
     m.config.SEASONALITY_AMPLITUDE = fitted_medians["SEASONALITY_AMPLITUDE"]
     m.config.SEASONALITY_SHIFT = fitted_medians["SEASONALITY_SHIFT"]
 
     parameters = m.get_parameters()
-    initial_state = m.scale_initial_infections(
-        parameters["INITIAL_INFECTIONS_SCALE"]
-    )
+    initial_state = m.scale_initial_infections(parameters["INITIAL_INFECTIONS_SCALE"])
 
     output = runner.run(
         initial_state,
@@ -214,14 +198,10 @@ def replace_and_simulate(inferer, runner, fitted_medians):
 
 def simulate_hospitalization(output, ihr, ihr_immune_mult):
     model_incidence = jnp.sum(output.ys[3], axis=4)
-    model_incidence_no_exposures = jnp.diff(
-        model_incidence[:, :, 0, 0], axis=0
-    )
+    model_incidence_no_exposures = jnp.diff(model_incidence[:, :, 0, 0], axis=0)
 
     model_incidence_prev_exposure = jnp.sum(model_incidence, axis=(2, 3))
-    model_incidence_prev_exposure = jnp.diff(
-        model_incidence_prev_exposure, axis=0
-    )
+    model_incidence_prev_exposure = jnp.diff(model_incidence_prev_exposure, axis=0)
     # subtract no exposures to get prev_exposures
     model_incidence_prev_exposure -= model_incidence_no_exposures
 
@@ -340,9 +320,7 @@ def process_plot_state(state):
     ranindex = random.sample(list(range(nsamp)), 3)
 
     fitted_samples = [
-        {k: v[c][r] for k, v in samp.items()}
-        for r in ranindex
-        for c in range(nchain)
+        {k: v[c][r] for k, v in samp.items()} for r in ranindex for c in range(nchain)
     ]
 
     f = copy.deepcopy(fitted_medians)
@@ -357,9 +335,9 @@ def process_plot_state(state):
         output = replace_and_simulate(inferer, runner, f)
         ihr = jnp.array(
             [
-                f["ihr_mult_0"]*f["ihr_3"],
-                f["ihr_mult_1"]*f["ihr_3"],
-                f["ihr_mult_2"]*f["ihr_3"],
+                f["ihr_mult_0"] * f["ihr_3"],
+                f["ihr_mult_1"] * f["ihr_3"],
+                f["ihr_mult_2"] * f["ihr_3"],
                 f["ihr_3"],
             ]
         )
@@ -381,9 +359,7 @@ def process_plot_state(state):
             ),
         )
         strain_incidence = jnp.diff(strain_incidence, axis=0)
-        sim_vars = (
-            strain_incidence / jnp.sum(strain_incidence, axis=-1)[:, None]
-        )
+        sim_vars = strain_incidence / jnp.sum(strain_incidence, axis=-1)[:, None]
         sim_var_list.append(sim_vars)
 
     # Visualization (Fitted vs Observed)
@@ -456,9 +432,16 @@ states = [
     "WI",
     "WY",
 ]
-states_omit = ["WV", "GA", "AL", "TX","WI",
-    "WY","VT",
-    "VA",]
+states_omit = [
+    "WV",
+    "GA",
+    "AL",
+    "TX",
+    "WI",
+    "WY",
+    "VT",
+    "VA",
+]
 for st in states:
     json_file = os.path.join(az_output_path, st, "checkpoint.json")
     if not os.path.exists(json_file):
@@ -471,15 +454,15 @@ print(states)
 
 # %%
 pool = mp.Pool(5)
-figs, median_dfs = zip(*pool.map(process_plot_state, [st for st in states]))
+# #figs, median_dfs = zip(*pool.map(process_plot_state, [st for st in states]))
 
-pdf_pages = PdfPages(pdf_filename)
-for f in figs:
-    pdf_pages.savefig(f)
-    plt.close(f)
-pdf_pages.close()
+# pdf_pages = PdfPages(pdf_filename)
+# for f in figs:
+#     pdf_pages.savefig(f)
+#     plt.close(f)
+# pdf_pages.close()
 
-pool.close()
-pd.concat(median_dfs).to_csv(f"output/medians{suffix}.csv", index=False)
+# pool.close()
+# pd.concat(median_dfs).to_csv(f"output/medians{suffix}.csv", index=False)
 
 # %%
