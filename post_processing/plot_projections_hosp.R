@@ -64,7 +64,7 @@ states <- projection_raw$state |> unique()
 states_history <- purrr::map_dfr(states, retrieve_history_hosp, .id = "state")
 states_history$state <- states[as.numeric(states_history$state)]
 total_history <- states_history |>
-  filter(date >= ymd("2023-07-01")) # limit historical length to display
+  filter(date >= ymd("2023-07-01")) |> # limit historical length to display
   group_by(date, state) |>
   summarise(hosp = sum(hosp) * 7)
 
@@ -73,11 +73,11 @@ pdf("output/projections_2024_v0.pdf", width = 10, height = 10,
     onefile = TRUE)
 for (st in state.abb) {
   p <- ggplot() +
-    geom_line(aes(x = date, y = hosp), data = total_history |>
-                filter(date >= ymd("2023-07-01"), state == "IL")) +
+    geom_line(aes(x = date, y = hosp), data = total_history |> filter(state == st)) +
     geom_line(aes(x = date, y = hosp_all, group = interaction(vs, chain_particle),
                   colour = vs),
-              data = total_projection_all |> filter(state == "IL"), alpha = 0.05) +
+              data = total_projection_all |> filter(state == st),
+              alpha = 0.05) +
     facet_wrap(~ it, ncol = 2, labeller = as_labeller(ITlab)) +
     scale_x_date(breaks = ymd(c("2023-07-01", "2023-10-01", "2024-01-01", "2024-04-01", 
                                 "2024-07-01", "2024-09-01", "2024-11-01", "2025-01-01", 
@@ -87,7 +87,7 @@ for (st in state.abb) {
                         labels = c("No booster", "Booster for all")) +
     guides(colour = guide_legend(override.aes = list(alpha = 1))) +
     labs(y = "Weekly hospitalizations",
-         title = "IL") +
+         title = st) +
     theme(
       legend.position = "inside",
       legend.location = "plot",
@@ -101,5 +101,4 @@ for (st in state.abb) {
     )
   print(p)
 }
-
-ggsave("test.pdf", p, width = 10, height = 10, units = "in")
+dev.off()
