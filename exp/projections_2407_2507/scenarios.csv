@@ -1,0 +1,13 @@
+vaccination,intro_time,immune_escape,vaccine_efficacy,id
+0,aug,100,50,0
+0,sep,100,50,1
+0,oct,100,50,2
+0,nov,100,50,3
+0,dec,100,50,4
+0,non,100,50,5
+1,aug,100,50,0
+1,sep,100,50,1
+1,oct,100,50,2
+1,nov,100,50,3
+1,dec,100,50,4
+1,non,100,50,5
