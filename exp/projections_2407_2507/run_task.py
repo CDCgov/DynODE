@@ -31,6 +31,7 @@ jax.config.update("jax_enable_x64", True)
 
 # will be multiplied by number of chains to get total number of posteriors
 NUM_SAMPLES_PER_STATE_PER_SCENARIO = 25
+HISTORICAL_FIT_PATH = "/output/fifty_state_6strain_2202_2407/scen_6str_v1_2"
 
 
 class ProjectionRunner(AbstractAzureRunner):
@@ -44,7 +45,7 @@ class ProjectionRunner(AbstractAzureRunner):
         fitting_period_num_days = 870
         projection_period_num_days = 365
         posteriors_path = os.path.join(
-            "/output/fifty_state_6strain_2202_2407/scen_6str_v1_2",
+            HISTORICAL_FIT_PATH,
             state,
         )
         checkpoint_path = os.path.join(posteriors_path, "checkpoint.json")

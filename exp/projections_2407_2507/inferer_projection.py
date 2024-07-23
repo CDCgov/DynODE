@@ -233,7 +233,7 @@ class ProjectionParameters(MechanisticInferer):
         parameters["STRAIN_INTERACTIONS"] = (
             parameters["STRAIN_INTERACTIONS"]
             .at[6, 4]
-            .set(
+            .multiply(
                 (
                     parameters["STRAIN_INTERACTIONS"][5, 3]
                     + parameters["STRAIN_INTERACTIONS"][4, 2]
@@ -244,7 +244,7 @@ class ProjectionParameters(MechanisticInferer):
         parameters["STRAIN_INTERACTIONS"] = (
             parameters["STRAIN_INTERACTIONS"]
             .at[6, 5]
-            .set(
+            .multiply(
                 (
                     parameters["STRAIN_INTERACTIONS"][5, 4]
                     + parameters["STRAIN_INTERACTIONS"][4, 3]
@@ -495,10 +495,6 @@ class ProjectionParameters(MechanisticInferer):
         """
         parameters = self.get_parameters()
         initial_state = self.rework_initial_state(parameters["INITIAL_STATE"])
-        if "INITIAL_INFECTIONS_SCALE" in parameters.keys():
-            initial_state = self.scale_initial_infections(
-                parameters["INITIAL_INFECTIONS_SCALE"], initial_state
-            )
 
         solution = self.runner.run(
             initial_state,
