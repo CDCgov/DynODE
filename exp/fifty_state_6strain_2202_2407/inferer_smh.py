@@ -79,20 +79,12 @@ class SMHInferer(MechanisticInferer):
                 parameters["STRAIN_R0s"][0],
                 parameters["STRAIN_R0s"][1],
                 parameters["STRAIN_R0s"][2],
-                numpyro.deterministic(
-                    "STRAIN_R0s_3", parameters["STRAIN_R0s"][2]
-                ),
-                numpyro.deterministic(
-                    "STRAIN_R0s_4", parameters["STRAIN_R0s"][2]
-                ),
-                numpyro.deterministic(
-                    "STRAIN_R0s_5", parameters["STRAIN_R0s"][2]
-                ),
+                numpyro.deterministic("STRAIN_R0s_3", parameters["STRAIN_R0s"][2]),
+                numpyro.deterministic("STRAIN_R0s_4", parameters["STRAIN_R0s"][2]),
+                numpyro.deterministic("STRAIN_R0s_5", parameters["STRAIN_R0s"][2]),
             ]
         )
-        parameters["BETA"] = (
-            parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
-        )
+        parameters["BETA"] = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
 
         return parameters
 
@@ -205,9 +197,7 @@ class SMHInferer(MechanisticInferer):
         ihr = jnp.array([ihr_mult_0, ihr_mult_1, ihr_mult_2, 1]) * ihr_3
 
         # sample ihr multiplier due to previous infection or vaccinations
-        ihr_immune_mult = numpyro.sample(
-            "ihr_immune_mult", Dist.Beta(100 * 6, 300 * 6)
-        )
+        ihr_immune_mult = numpyro.sample("ihr_immune_mult", Dist.Beta(100 * 6, 300 * 6))
 
         # sample ihr multiplier due to JN1 (assuming JN1 has less severity)
         # ihr_jn1_mult = numpyro.sample(
@@ -247,10 +237,7 @@ class SMHInferer(MechanisticInferer):
             model_incidence_no_exposures_non_jn1 * ihr
             + model_incidence_no_exposures_jn1 * ihr * ihr_jn1_mult
             + model_incidence_w_exposures_non_jn1 * ihr * ihr_immune_mult
-            + model_incidence_w_exposures_jn1
-            * ihr
-            * ihr_immune_mult
-            * ihr_jn1_mult
+            + model_incidence_w_exposures_jn1 * ihr * ihr_immune_mult * ihr_jn1_mult
         )
 
         if infer_mode:
@@ -264,16 +251,12 @@ class SMHInferer(MechanisticInferer):
             # for observed, multiply number by number of days within an interval
             obs_hosps_interval = (
                 obs_hosps
-                * jnp.bincount(hosps_interval_ind, length=len(obs_hosps_days))[
-                    :, None
-                ]
+                * jnp.bincount(hosps_interval_ind, length=len(obs_hosps_days))[:, None]
             )
             # for simulated, aggregate by index
             sim_hosps_interval = jnp.array(
                 [
-                    jnp.bincount(
-                        hosps_interval_ind, m, length=len(obs_hosps_days)
-                    )
+                    jnp.bincount(hosps_interval_ind, m, length=len(obs_hosps_days))
                     for m in model_hosps.T
                 ]
             ).T
@@ -290,9 +273,7 @@ class SMHInferer(MechanisticInferer):
 
             ## Seroprevalence
             never_infected = jnp.sum(
-                solution.ys[self.config.COMPARTMENT_IDX.S][
-                    obs_sero_days, :, 0, :, :
-                ],
+                solution.ys[self.config.COMPARTMENT_IDX.S][obs_sero_days, :, 0, :, :],
                 axis=(2, 3),
             )
             sim_seroprevalence = 1 - never_infected / self.config.POPULATION

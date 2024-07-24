@@ -7,7 +7,8 @@ import os
 import random
 
 import numpy as np
-from mechanistic_model.acc_metrics import *
+
+# from acc_metrics import *
 
 
 import jax.numpy as jnp
@@ -28,14 +29,14 @@ from model_odes.seip_model import seip_ode2
 
 plt.switch_backend("agg")
 suffix = "_v2_6strain"
-az_output_path = "/output/fifty_state_6strain_2202_2407/smh_6str_prelim_3/"
+az_output_path = "/output/fifty_state_2204_2407_6strain/SMH_6strains_072024/"
 pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
 final_model_day = 890
 initial_model_day = 0
 
 
 # %%
-def retrieve_inferer_obs(state, final_model_day, initial_model_day):
+def retrieve_inferer_obs(state, initial_model_day):
     state_config_path = os.path.join(az_output_path, state)
     print("Retrieving " + state + "\n")
     GLOBAL_CONFIG_PATH = os.path.join(state_config_path, "config_global_used.json")
@@ -140,7 +141,7 @@ def retrieve_post_samp(state):
     return post_samp, fitted_medians
 
 
-def replace_and_simulate(inferer, runner, fitted_medians, final_model_day):
+def replace_and_simulate(inferer, runner, fitted_medians):
     m = copy.deepcopy(inferer)
     m.config.INITIAL_INFECTIONS_SCALE = fitted_medians["INITIAL_INFECTIONS_SCALE"]
     m.config.INTRODUCTION_TIMES = [
@@ -270,7 +271,6 @@ def plot_obsvfit(
     sim_var_list,
     obs_var_days,
     inferer,
-    final_model_day,
 ):
     dates = np.array(
         [
@@ -359,7 +359,7 @@ def process_plot_state(state):
         obs_sero_days,
         obs_var_prop,
         obs_var_days,
-    ) = retrieve_inferer_obs(state, final_model_day, initial_model_day)
+    ) = retrieve_inferer_obs(state, initial_model_day)
 
     nsamp = len(samp["ihr_0"][0])
     nchain = len(samp["ihr_0"])
@@ -378,7 +378,7 @@ def process_plot_state(state):
     sim_sero_list = []
     sim_var_list = []
     for f in fitted_samples:
-        output = replace_and_simulate(inferer, runner, f, final_model_day)
+        output = replace_and_simulate(inferer, runner, f)
         ihr = jnp.array(
             [
                 f["ihr_mult_0"] * f["ihr_3"],
@@ -498,7 +498,7 @@ figs, median_dfs = zip(*pool.map(process_plot_state, [st for st in states]))
 
 # Now reset final_model_day, initial_model_day, if desired.
 
-final_model_day = 890
+# final_model_day = 890
 initial_model_day = 790
 particles_per_chain = 25
 # Loop over states

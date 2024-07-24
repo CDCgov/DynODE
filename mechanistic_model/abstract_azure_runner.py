@@ -191,7 +191,7 @@ class AbstractAzureRunner(ABC):
             axis=(model.config.S_AXIS_IDX.vax, model.config.S_AXIS_IDX.wane),
         )
         # 1-never_infected is those sero-positive / POPULATION to make proportions
-        sim_sero = 1 - never_infected / model.config.POPULATION
+        sim_sero = 1 - never_infected / parameters["POPULATION"]
         for age_bin_str in model.config.AGE_GROUP_STRS:
             age_bin_idx = model.config.AGE_GROUP_IDX[age_bin_str]
             age_bin_str = age_bin_str.replace("-", "_")
@@ -239,9 +239,9 @@ class AbstractAzureRunner(ABC):
             df["%s_strain_proportion" % strain_name] = strain_proportions[
                 s_idx
             ]
-            df[
-                "%s_external_introductions" % strain_name
-            ] = external_i_timeline[:, s_idx]
+            df["%s_external_introductions" % strain_name] = (
+                external_i_timeline[:, s_idx]
+            )
             df["%s_average_immunity" % strain_name] = population_immunity[
                 s_idx, :
             ]
@@ -357,6 +357,7 @@ class AbstractAzureRunner(ABC):
                 external_particle=external_particle,
             )
             for (chain, particle), sol_dct in posteriors.items():
+                print(chain, particle)
                 # content of `sol_dct` depends on return value of inferer.likelihood func
                 infection_timeline, hospitalizations, static_parameters = (
                     sol_dct["solution"],

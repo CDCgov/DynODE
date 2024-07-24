@@ -99,10 +99,10 @@ def mcmc_accuracy_measures(state, particles_per_chain):
     # pred_hosps_list.shape == (nchain, ranindex, time_series, age_group)
     # pred_var_list.shape == (nchain, ranindex, time_series, strains)
     # obs_hosps.shape == (112, 4)
-    nsamp = len(samp["ihr_3"][0])  # Number of samples per chain
     nchain = len(samp["ihr_3"])
     obs_hosps = jnp.tile(jnp.array(obs_hosps), (nchain, len(ranindex), 1, 1))
     log_likelihood_array = []
+    print("starting log-likelihood setup")
     for pred_hosps_chain in pred_hosps_list:
         log_likelihood_chain = []
         for pred_hosps in pred_hosps_chain:
@@ -110,14 +110,13 @@ def mcmc_accuracy_measures(state, particles_per_chain):
             pred_hosps = jnp.array(pred_hosps)
             pred_hosps = pred_hosps[jnp.array(obs_hosps_days), :]
             mask_incidence = ~jnp.isnan(obs_hosps)
-            print("starting likelihood setup")
             with numpyro.handlers.mask(mask=mask_incidence):
                 log_likelihood = dist.Poisson(pred_hosps).log_prob(obs_hosps)
             log_likelihood_chain.append(log_likelihood)
         log_likelihood_array.append(log_likelihood_chain)
-        print("finishing it")
-        # log_likelihood_array.shape == (nchains, ranindex, 112, 4)
-        # pred_hosps_list.shape == (nchains, ranindex, 112, 4)
+    print("finishing it")
+    # log_likelihood_array.shape == (nchains, ranindex, 112, 4)
+    # pred_hosps_list.shape == (nchains, ranindex, 112, 4)
     # Randomly pick some samples per chain
     posteriors_selected = {
         key: np.array(value)[:, ranindex] for key, value in samp.items()
