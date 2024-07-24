@@ -40,87 +40,42 @@ def hosp_var_posterior(
     pred_hosps_list = []
     pred_var_list = []
 
-    #     def process_per_sample(inferer, runner, f):
-    #         output = replace_and_simulate(inferer, runner, f)
-    #         ihr = jnp.array(
-    #             [
-    #                 f["ihr_mult_0"] * f["ihr_3"],
-    #                 f["ihr_mult_1"] * f["ihr_3"],
-    #                 f["ihr_mult_2"] * f["ihr_3"],
-    #                 f["ihr_3"],
-    #             ]
-    #         )
-    #         ihr_immune_mult = f["ihr_immune_mult"]
-    #         ihr_jn1_mult = f["ihr_jn1_mult"]
-    #         pred_hosps = simulate_hospitalization(
-    #             output, ihr, ihr_immune_mult, ihr_jn1_mult
-    #         )
+    for chain in range(nchain):
+        single_chain_hosps = []
+        single_chain_var_prop = []
+        for sample in range(nsamp):
+            f = {key: value[chain][sample] for key, value in samp.items()}
+            output = replace_and_simulate(inferer, runner, f)
+            ihr = jnp.array(
+                [
+                    f["ihr_mult_0"] * f["ihr_3"],
+                    f["ihr_mult_1"] * f["ihr_3"],
+                    f["ihr_mult_2"] * f["ihr_3"],
+                    f["ihr_3"],
+                ]
+            )
+            ihr_immune_mult = f["ihr_immune_mult"]
+            ihr_jn1_mult = f["ihr_jn1_mult"]
+            pred_hosps = simulate_hospitalization(output, ihr, ihr_immune_mult)
 
-    #         strain_incidence = jnp.sum(
-    #             output.ys[inferer.config.COMPARTMENT_IDX.C],
-    #             axis=(
-    #                 inferer.config.I_AXIS_IDX.age + 1,
-    #                 inferer.config.I_AXIS_IDX.hist + 1,
-    #                 inferer.config.I_AXIS_IDX.vax + 1,
-    #             ),
-    #         )
-    #         strain_incidence = jnp.diff(strain_incidence, axis=0)
-    #         pred_vars = strain_incidence / jnp.sum(strain_incidence, axis=-1)
+            strain_incidence = jnp.sum(
+                output.ys[inferer.config.COMPARTMENT_IDX.C],
+                axis=(
+                    inferer.config.I_AXIS_IDX.age + 1,
+                    inferer.config.I_AXIS_IDX.hist + 1,
+                    inferer.config.I_AXIS_IDX.vax + 1,
+                ),
+            )
+            strain_incidence = jnp.diff(strain_incidence, axis=0)
+            pred_vars = strain_incidence / jnp.sum(
+                strain_incidence, axis=-1, keepdims=True
+            )
+            single_chain_hosps.append(pred_hosps)
+            single_chain_var_prop.append(pred_vars)
+        pred_hosps_list.append(single_chain_hosps)
+        pred_var_list.append(single_chain_var_prop)
 
-    #         return pred_hosps, pred_vars
-
-    #     # Vectorize the function
-    #     vectorized_process_sample = vmap(partial(process_per_sample, inferer, runner))
-
-    #     # JIT compile the vectorized function
-    #     jit_vectorized_process_sample = jit(vectorized_process_sample)
-
-    #     # Convert the list of dictionaries to a dictionary of lists (if not already)
-    #     all_samples_dict = {
-    #         key: jnp.array(
-    #             [f[key] for f in all_samples]
-    #         ).flatten()  # here, f is a dictionary from all_samples, so we're varying over all dictionaries of all_samples which have a fixed key
-    #         for key, balue in all_samples[0].items()
-    #     }
-
-    #     # Apply the JIT-compiled and vectorized function
-    #     pred_hosps_array, pred_vars_array = jit_vectorized_process_sample(all_samples_dict)
-
-    #     # Convert the arrays to lists if needed
-    #     pred_hosps_list = list(pred_hosps_array)
-    #     pred_var_list = list(pred_vars_array)
-
-    #     return pred_hosps_list, pred_var_list
-
-    for f in all_samples:
-        output = replace_and_simulate(inferer, runner, f)
-        ihr = jnp.array(
-            [
-                f["ihr_mult_0"] * f["ihr_3"],
-                f["ihr_mult_1"] * f["ihr_3"],
-                f["ihr_mult_2"] * f["ihr_3"],
-                f["ihr_3"],
-            ]
-        )
-        ihr_immune_mult = f["ihr_immune_mult"]
-        ihr_jn1_mult = f["ihr_jn1_mult"]
-        pred_hosps = simulate_hospitalization(output, ihr, ihr_immune_mult)
-
-        strain_incidence = jnp.sum(
-            output.ys[inferer.config.COMPARTMENT_IDX.C],
-            axis=(
-                inferer.config.I_AXIS_IDX.age + 1,
-                inferer.config.I_AXIS_IDX.hist + 1,
-                inferer.config.I_AXIS_IDX.vax + 1,
-            ),
-        )
-        strain_incidence = jnp.diff(strain_incidence, axis=0)
-        pred_vars = strain_incidence / jnp.sum(strain_incidence, axis=-1, keepdims=True)
-
-        pred_hosps_list.append(pred_hosps)
-        pred_var_list.append(pred_vars)
-
-    return pred_hosps_list, pred_var_list
+    return pred_hosps_list, pred_var_list, ranindex
 
 
 def mcmc_accuracy_measures(state, particles_per_chain):
@@ -138,50 +93,65 @@ def mcmc_accuracy_measures(state, particles_per_chain):
     ) = retrieve_inferer_obs(
         state
     )  # , initial_model_day=0)
-    pred_hosps_list, pred_var_list = hosp_var_posterior(
+    pred_hosps_list, pred_var_list, ranindex = hosp_var_posterior(
         samp, inferer, runner, particles_per_chain
-    )  # , initial_model_day=0
-
-    log_likelihoods = []
-    for pred_hosps in pred_hosps_list:
-        # Ensure that pred_hosps and obs_hosps_interval have the same shape
-        mask_incidence = ~jnp.isnan(obs_hosps)
-        with numpyro.handlers.mask(mask=mask_incidence):
-            log_likelihood = dist.Poisson(pred_hosps).log_prob(obs_hosps)
-        # log_likelihoods.append(log_likelihood)
-    # Stack log likelihoods to create a single array and sum over the time axis and age group (axis=0, 1)
-    # log_like = jnp.sum(jnp.stack(log_likelihood), axis=(0, 1))
+    )
+    # pred_hosps_list.shape == (nchain, ranindex, time_series, age_group)
+    # pred_var_list.shape == (nchain, ranindex, time_series, strains)
+    # obs_hosps.shape == (112, 4)
     nsamp = len(samp["ihr_3"][0])  # Number of samples per chain
-    nchain = len(samp["ihr_3"])  # Number of chains
-    # each element of the list all_samples is a dictionary of unique values for each parameter from the ODE.
-    # Randomly select a subset of posterior samples for simulation
-    ranindex = random.sample(
-        list(range(nsamp)), particles_per_chain
-    )  # Randomly pick some samples per chain
-    all_samples = [
-        {k: v[c][r] for k, v in samp.items()} for r in ranindex for c in range(nchain)
-    ]
+    nchain = len(samp["ihr_3"])
+    obs_hosps = jnp.tile(jnp.array(obs_hosps), (nchain, len(ranindex), 1, 1))
+    log_likelihood_array = []
+    for pred_hosps_chain in pred_hosps_list:
+        log_likelihood_chain = []
+        for pred_hosps in pred_hosps_chain:
+            # Ensure that pred_hosps and obs_hosps_interval have the same shape
+            pred_hosps = jnp.array(pred_hosps)
+            pred_hosps = pred_hosps[jnp.array(obs_hosps_days), :]
+            mask_incidence = ~jnp.isnan(obs_hosps)
+            print("starting likelihood setup")
+            with numpyro.handlers.mask(mask=mask_incidence):
+                log_likelihood = dist.Poisson(pred_hosps).log_prob(obs_hosps)
+            log_likelihood_chain.append(log_likelihood)
+        log_likelihood_array.append(log_likelihood_chain)
+        print("finishing it")
+        # log_likelihood_array.shape == (nchains, ranindex, 112, 4)
+        # pred_hosps_list.shape == (nchains, ranindex, 112, 4)
+    # Randomly pick some samples per chain
+    posteriors_selected = {
+        key: np.array(value)[:, ranindex] for key, value in samp.items()
+    }
+
     trace_hosps = az.from_dict(
         posterior_predictive={"hospitalizations": pred_hosps_list},
         observed_data={"hospitalizations": obs_hosps},
-        log_likelihood={"log likelihood:": log_likelihood},
-        posteriors={
-            str(key): jnp.array(
-                [f[key] for f in all_samples]
-            ).flatten()  # here, f is a dictionary from all_samples, so we're varying over all dictionaries of all_samples which have a fixed key
-            for key, balue in all_samples[0].items()
-        },
+        log_likelihood={"log likelihood:": log_likelihood_array},
+        posteriors=posteriors_selected,
     )
-    waic_hosps = az.waic(trace_hosps)
 
+    waic_hosps = az.waic(trace_hosps)
     rmse = {}
-    rmse_hosp = np.sqrt(mean_squared_error(jnp.median(pred_hosps_list), obs_hosps))
-    for strain in range(pred_var_list[0].shape[-1]):
-        rmse[f"RMSE strain {strain}"] = np.sqrt(
-            mean_squared_error(jnp.median(pred_var_list[:, :, strain]), obs_hosps)
-        )
+    # rmse_hosp = np.sqrt(
+    #     mean_squared_error(
+    #         jnp.median(jnp.array(pred_hosps_list), axis=0,1)[
+    #             jnp.array(obs_hosps_days), :
+    #         ],
+    #         jnp.array(obs_hosps),
+    #     )
+    # )
+    # for strain in range(jnp.array(pred_var_list)[0].shape[-1]):
+    #     rmse[f"RMSE strain {strain}"] = np.sqrt(
+    #         mean_squared_error(
+    #             jnp.median(
+    #                 jnp.array(pred_var_list[:, jnp.array(obs_hosps_days), strain]),
+    #                 axis=(0, 1),
+    #             ),
+    #             obs_hosps,
+    #         )
+    #     )
     df_rmse = pd.DataFrame(rmse)
-    df_rmse["RMSE Hospitalizations"] = rmse_hosp
+    # df_rmse["RMSE Hospitalizations"] = rmse_hosp
 
     df_waic = pd.DataFrame(waic_hosps)
     # df_waic["WAIC for hospitalizations"] = waic_hosps
@@ -264,12 +234,13 @@ states.sort()
 # states = ["US"] + states
 print(states)
 # %%
-pool = mp.Pool(5)
-df_total = zip(
-    *pool.map(
-        mcmc_accuracy_measures(state=st, particles_per_chain=100),
-        [st for st in states],
-    )
-)
-pool.close()
-pd.concat(df_total).to_csv(f"output/accuracy.csv", index=False)
+# pool = mp.Pool(5)
+# df_total = zip(
+#     *pool.map(
+#         mcmc_accuracy_measures(state=st, particles_per_chain=2),
+#         [st for st in states],
+#     )
+# )
+# pool.close()
+# pd.concat(df_total).to_csv(f"output/accuracy.csv", index=False)
+mcmc_accuracy_measures(state="MN", particles_per_chain=2)
