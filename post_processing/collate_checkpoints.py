@@ -3,8 +3,8 @@ import os
 import csv
 import warnings
 
-OUTPUT_PATH = "/output/fifty_state_5strain_2202_2404/"
-JOB_ID = "SMH_5strains_071624"
+OUTPUT_PATH = "/output/fifty_state_6strain_2202_2407/"
+JOB_ID = "SMH_6strains_072524_fixed"
 
 
 def collate_checkpoints_to_csv(output_path, jobid, suffix="v0"):
@@ -36,6 +36,10 @@ def collate_checkpoints_to_csv(output_path, jobid, suffix="v0"):
             checkpoint_path = os.path.join(state_path, "checkpoint.json")
             if os.path.exists(checkpoint_path):
                 checkpoint = json.load(open(checkpoint_path, "r"))
+                del checkpoint["final_timestep_s"]
+                del checkpoint["final_timestep_e"]
+                del checkpoint["final_timestep_i"]
+                del checkpoint["final_timestep_c"]
                 # Iterate over each parameter in the JSON data
                 for parameter_name, values in checkpoint.items():
                     # Iterate over each chain and sample number in the 2D list of values
@@ -54,4 +58,4 @@ def collate_checkpoints_to_csv(output_path, jobid, suffix="v0"):
 
 
 if __name__ == "__main__":
-    collate_checkpoints_to_csv(OUTPUT_PATH, JOB_ID)
+    collate_checkpoints_to_csv(OUTPUT_PATH, JOB_ID, suffix="v7_6strain_noseason")

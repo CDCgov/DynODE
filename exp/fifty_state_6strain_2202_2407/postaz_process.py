@@ -24,8 +24,10 @@ from model_odes.seip_model import seip_ode2
 
 plt.switch_backend("agg")
 model_day = 890
-suffix = "_v4_6strain"
-az_output_path = "/output/fifty_state_6strain_2202_2407/smh_6str_prelim_6/"
+suffix = "_v7_6strain_noseason"
+az_output_path = (
+    "/output/fifty_state_6strain_2202_2407/SMH_6strains_072524_fixed/"
+)
 pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
 
 
@@ -138,6 +140,10 @@ def retrieve_inferer_obs(state):
 def retrieve_fitted_medians(state):
     json_file = os.path.join(az_output_path, state, "checkpoint.json")
     post_samp = json.load(open(json_file, "r"))
+    del post_samp["final_timestep_s"]
+    del post_samp["final_timestep_e"]
+    del post_samp["final_timestep_i"]
+    del post_samp["final_timestep_c"]
     fitted_medians = {
         k: jnp.median(jnp.array(v), axis=(0, 1)) for k, v in post_samp.items()
     }
