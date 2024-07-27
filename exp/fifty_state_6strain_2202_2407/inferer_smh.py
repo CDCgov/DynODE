@@ -314,7 +314,6 @@ class SMHInferer(MechanisticInferer):
                 [incd / jnp.sum(incd) for incd in strain_incidence_interval]
             )
             sim_var_sd = jnp.ones(sim_var_prop.shape) * obs_var_sd
-
             numpyro.sample(
                 "variant_proportion",
                 Dist.Normal(sim_var_prop, sim_var_sd),

@@ -2,7 +2,8 @@
 import copy
 import datetime
 import json
-import multiprocessing as mp
+
+# import multiprocessing as mp
 import os
 import random
 
@@ -29,7 +30,7 @@ from model_odes.seip_model import seip_ode2
 
 plt.switch_backend("agg")
 suffix = "_v2_6strain"
-az_output_path = "/output/fifty_state_2204_2407_6strain/SMH_6strains_072024/"
+az_output_path = "/output/fifty_state_2204_2407_6strain/smh_6str_prelim_6/"
 pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
 final_model_day = 890
 initial_model_day = 0
@@ -52,6 +53,7 @@ def retrieve_inferer_obs(state, initial_model_day):
         state_config_path, "config_initializer_used.json"
     )
     INFERER_CONFIG_PATH = os.path.join(state_config_path, "config_inferer_used.json")
+    print()
 
     # sets up the initial conditions, initializer.get_initial_state() passed to runner
     initializer = CovidSeroInitializer(INITIALIZER_CONFIG_PATH, TEMP_GLOBAL_CONFIG_PATH)
@@ -493,25 +495,23 @@ states.sort()
 print(states)
 
 # %%
-pool = mp.Pool(5)
-figs, median_dfs = zip(*pool.map(process_plot_state, [st for st in states]))
+# pool = mp.Pool(5)
+# figs, median_dfs = zip(*pool.map(process_plot_state, [st for st in states]))
 
-# Now reset final_model_day, initial_model_day, if desired.
+# # Now reset final_model_day, initial_model_day, if desired.
 
-# final_model_day = 890
-initial_model_day = 790
-particles_per_chain = 25
-# Loop over states
-df_mcmc = zip(*pool.map(mcmc_accuracy_measures(state=st), [st for st in states]))
+# initial_model_day = 0
+# particles_per_chain = 25
 
-pdf_pages = PdfPages(pdf_filename)
-for f in figs:
-    pdf_pages.savefig(f)
-    pdf_pages.savefig(df_mcmc)
-    plt.close(f)
-pdf_pages.close()
 
-pool.close()
-pd.concat(median_dfs).to_csv(f"output/medians{suffix}.csv", index=False)
+# pdf_pages = PdfPages(pdf_filename)
+# for f in figs:
+#     pdf_pages.savefig(f)
+#     pdf_pages.savefig(df_mcmc)
+#     plt.close(f)
+# pdf_pages.close()
+
+# pool.close()
+# pd.concat(median_dfs).to_csv(f"output/medians{suffix}.csv", index=False)
 
 # %%
