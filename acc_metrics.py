@@ -196,7 +196,7 @@ def compare_elpd_per_state(suffix1, suffix2):
             if abs(z_score) > 2:
                 l.append(f"hospitalizations for state {k} is significant")
             else:
-                l.append(f"hospitalizations for state {k} insignificant")
+                l.append(f"variant_prop for state {k} insignificant")
         l = pd.Series(l, index=df1.columns)
         return l
     else:
