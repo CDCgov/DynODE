@@ -141,6 +141,11 @@ class ProjectionParameters(MechanisticInferer):
         )
         return strain_x_intro_time
 
+    def vaccination_rate(self, t):
+        return getattr(
+            self.config, "VACCINATION_RATE_MULTIPLIER", 1.0
+        ) * super().vaccination_rate(t)
+
     def get_parameters(self):
         """
         Overriding the get_parameters() method to work with an undefined initial state
