@@ -100,6 +100,47 @@ class ProjectionParameters(MechanisticInferer):
         self.inference_timesteps = max(obs_hosps_days) + 1
         return self.inference_algo
 
+    def sample_strain_x_intro_time(self, fitting_period_num_days=870):
+        """
+        Samples a value of the strain X intro time based on the lags between introduction times of the fitted strains
+        """
+        # use numpyro.sample to read in the posterior values of the intro times
+        # we only introduced strains BA2BA5 - KP, so go through those (index exclusive so ends at X)
+        past_introduction_times = jnp.array(
+            [
+                numpyro.sample(
+                    "INTRODUCTION_TIMES_%s" % idx,
+                    numpyro.distributions.Normal(),
+                )
+                for idx, strain in enumerate(
+                    self.config.STRAIN_IDX._member_names_[
+                        self.config.STRAIN_IDX.BA2BA5 : self.config.STRAIN_IDX.X
+                    ]
+                )
+            ]
+        )
+        # get the diff between intro times to get the lags between introductions
+        intro_lags = jnp.diff(past_introduction_times)
+        # get the mean / sd of those lags and create a normal distribution to sample from
+        mean_lag, sd_lags = jnp.mean(intro_lags), jnp.std(intro_lags)
+        lag_dist = numpyro.distributions.Normal(mean_lag, sd_lags)
+        # sample from the lags dist, add it to the KP strain introduction to get the new intro time
+        # for strain X
+        strain_x_intro_time = past_introduction_times[-1] + numpyro.sample(
+            "INTRO_LAG_X", lag_dist
+        )
+        # since INTRODUCTION_TIME_KP is given in terms of the fitting days, we will get a number
+        # greater than the number of days we fit for, subtract that number to get
+        # when in our projection period this introduction will occur.
+        strain_x_intro_time = jnp.max(
+            jnp.array([0, strain_x_intro_time - fitting_period_num_days])
+        )
+        # max with zero to avoid negatives
+        strain_x_intro_time = numpyro.deterministic(
+            "INTRODUCTION_TIME_X", strain_x_intro_time
+        )
+        return strain_x_intro_time
+
     def get_parameters(self):
         """
         Overriding the get_parameters() method to work with an undefined initial state
@@ -176,6 +217,9 @@ class ProjectionParameters(MechanisticInferer):
         freeze_params.POPULATION = self.retrieve_population_counts(
             parameters["INITIAL_STATE"]
         )
+        strain_x_intro_time = self.sample_strain_x_intro_time()
+        # reset our intro time to the sampled lag distribution intro time for strain X
+        parameters["INTRODUCTION_TIMES"] = jnp.array([strain_x_intro_time])
         # allows the ODEs to just pass time as a parameter, makes them look cleaner
         external_i_function_prefilled = jax.tree_util.Partial(
             self.external_i,
