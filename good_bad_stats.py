@@ -112,7 +112,7 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
+    main()
 
     suffix1 = "v0"
     suffix2 = "v1"
