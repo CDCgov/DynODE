@@ -141,6 +141,7 @@ class ProjectionParameters(MechanisticInferer):
         )
         return strain_x_intro_time
 
+    @partial(jax.jit, static_argnums=(0))
     def vaccination_rate(self, t):
         return getattr(
             self.config, "VACCINATION_RATE_MULTIPLIER", 1.0
