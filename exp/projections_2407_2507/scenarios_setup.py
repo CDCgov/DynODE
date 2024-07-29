@@ -67,12 +67,12 @@ def create_multiple_scenarios_configs(state_config, state_abb, subdir_path):
     """
     print(state_abb)
     intro_time_lookup = {
-        "aug": 32,
-        "sep": 63,
-        "oct": 93,
-        "nov": 124,
-        "dec": 154,
-        "non": 800,
+        "aug": [32],
+        "sep": [63],
+        "oct": [93],
+        "nov": [124],
+        "dec": [154],
+        "non": [],
     }
     df = pd.read_csv(SCEN_CSV)
     dicts = []
@@ -89,7 +89,10 @@ def create_multiple_scenarios_configs(state_config, state_abb, subdir_path):
             f"/input/data/vaccination-data/2024_06_30_to_2025_06_28_vax{str(vs)}/"
         )
         # intro time convert from month to day in model
-        st_config["INTRODUCTION_TIMES"] = [intro_time_lookup[it]]
+        st_config["INTRODUCTION_TIMES"] = intro_time_lookup[it]
+        if it == "non":
+            st_config["INTRODUCTION_SCALES"] = []
+            st_config["INTRODUCTION_PCTS"] = []
         # inject multiplier that get used in inferer_projection
         st_config["STRAIN_INTERACTIONS"][6][4] = ie / 100
         st_config["STRAIN_INTERACTIONS"][6][5] = ie / 100

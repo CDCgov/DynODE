@@ -112,7 +112,7 @@ class ProjectionParameters(MechanisticInferer):
                     "INTRODUCTION_TIMES_%s" % idx,
                     numpyro.distributions.Normal(),
                 )
-                for idx, strain in enumerate(
+                for idx, _ in enumerate(
                     self.config.STRAIN_IDX._member_names_[
                         self.config.STRAIN_IDX.BA2BA5 : self.config.STRAIN_IDX.X
                     ]
@@ -217,9 +217,15 @@ class ProjectionParameters(MechanisticInferer):
         freeze_params.POPULATION = self.retrieve_population_counts(
             parameters["INITIAL_STATE"]
         )
-        strain_x_intro_time = self.sample_strain_x_intro_time()
-        # reset our intro time to the sampled lag distribution intro time for strain X
-        parameters["INTRODUCTION_TIMES"] = jnp.array([strain_x_intro_time])
+        # if we are introducing a strain, the INTRODUCTION_TIMES array will be non-empty
+        # and if we specifically want to sample strain_x intro time, we set that flag to True
+        if (
+            parameters["INTRODUCTION_TIMES"]
+            and self.config.SAMPLE_STRAIN_X_INTRO_TIME
+        ):
+            strain_x_intro_time = self.sample_strain_x_intro_time()
+            # reset our intro time to the sampled lag distribution intro time for strain X
+            parameters["INTRODUCTION_TIMES"] = jnp.array([strain_x_intro_time])
         # allows the ODEs to just pass time as a parameter, makes them look cleaner
         external_i_function_prefilled = jax.tree_util.Partial(
             self.external_i,
