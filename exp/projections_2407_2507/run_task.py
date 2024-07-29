@@ -31,7 +31,7 @@ jax.config.update("jax_enable_x64", True)
 
 # will be multiplied by number of chains to get total number of posteriors
 NUM_SAMPLES_PER_STATE_PER_SCENARIO = 25
-HISTORICAL_FIT_PATH = "/output/fifty_state_6strain_2202_2407/scen_6str_v1_2"
+HISTORICAL_FIT_PATH = "/output/fifty_state_6strain_2202_2407/SMH_6strains_072624_seasonality_constrained"
 
 
 class ProjectionRunner(AbstractAzureRunner):

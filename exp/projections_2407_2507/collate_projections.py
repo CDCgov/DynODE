@@ -4,8 +4,8 @@ import os
 import pandas as pd
 
 OUTPUT_PATH = "/output/projections_2407_2507/"
-JOB_ID = "proj_2024_run_3"
-suffix = "v0"
+JOB_ID = "proj_2024_240728_wseason"
+suffix = "v9_6strain_wseason"
 
 job_path = os.path.join(OUTPUT_PATH, JOB_ID)
 states = os.listdir(job_path)

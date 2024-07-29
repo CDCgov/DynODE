@@ -4,7 +4,7 @@ import csv
 import warnings
 
 OUTPUT_PATH = "/output/fifty_state_6strain_2202_2407/"
-JOB_ID = "SMH_6strains_072524_fixed"
+JOB_ID = "SMH_6strains_072624_seasonality_constrained"
 
 
 def collate_checkpoints_to_csv(output_path, jobid, suffix="v0"):
@@ -58,4 +58,6 @@ def collate_checkpoints_to_csv(output_path, jobid, suffix="v0"):
 
 
 if __name__ == "__main__":
-    collate_checkpoints_to_csv(OUTPUT_PATH, JOB_ID, suffix="v7_6strain_noseason")
+    collate_checkpoints_to_csv(
+        OUTPUT_PATH, JOB_ID, suffix="v9_6strain_wseason"
+    )

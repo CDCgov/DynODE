@@ -17,7 +17,7 @@ import pandas as pd
 
 CONFIG_MOLDS = [
     "exp/projections_2407_2507/template_configs/config_global.json",
-    "exp/projections_2407_2507/template_configs/scenario_template.json",
+    "exp/projections_2407_2507/template_configs/scenario_template_wseason.json",
 ]
 
 EXP_FOLDER = "exp/projections_2407_2507"
