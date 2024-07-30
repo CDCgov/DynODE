@@ -1437,9 +1437,11 @@ def imply_immune_history_dist_from_strains(
     for strain in range(0, num_historical_strains):
         # fill in single strain immune state first. no repeated exposures yet.
         single_strain_state = new_immune_state(0, strain)
-        immune_history_dist[:, single_strain_state, 0, :] = (
-            strain_exposure_dist[:, strain, :]
-        )  # TODO remove 0
+        immune_history_dist[
+            :, single_strain_state, 0, :
+        ] = strain_exposure_dist[
+            :, strain, :
+        ]  # TODO remove 0
         # now grab individuals from previous states and infect 1/2 of them with this strain
         multi_strain_states = []
         for prev_state in immune_states:
@@ -2557,9 +2559,12 @@ def find_files(
         list of filenames containing `filename_contains`
     """
     # Create a pattern to match filenames containing 'postprocess' with any extension
-    pattern = directory + "/*%s*.*" % filename_contains
+    if recursive:
+        pattern = directory + "/**/*%s*.*" % filename_contains
+    else:
+        pattern = directory + "/*%s*.*" % filename_contains
 
     # Use glob to find all matching files
     postprocess_files = glob.glob(pattern, recursive=recursive)
 
-    return postprocess_files
+    return [os.path.basename(file) for file in postprocess_files]
