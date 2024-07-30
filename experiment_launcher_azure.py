@@ -7,6 +7,7 @@ import argparse
 import os
 
 from cfa_azure.clients import AzureClient
+from mechanistic_model.utils import find_files, sort_filenames_by_suffix
 
 # specify job ID, cant already exist
 
@@ -87,6 +88,7 @@ client.set_pool("scenarios_8cpu_pool_new")
 
 # command to run the job
 client.add_job(job_id=job_id)
+task_ids = []
 # add a task for each state directory in the states folder of this experiment
 for statedir in os.listdir(states_path_local):
     statedir_path = os.path.join(states_path_local, statedir)
@@ -95,9 +97,35 @@ for statedir in os.listdir(states_path_local):
         # we use the -s flag with the subdir name,
         # since experiment directories are structured with USPS state codes as directory names
         # also include the -j flag to specify the jobid
-        client.add_task(
+        task_id = client.add_task(
             job_id=job_id,
             docker_cmd="python %s -s %s -j %s"
             % (runner_path_docker, statedir, job_id),
         )
+        # append this list onto our running list of tasks
+        task_ids += task_id
+# get all paths to postprocess scripts on this machine
+postprocess_scripts = find_files(
+    folder_path_local, filename_contains="postprocess_states"
+)
+# lets sort postprocess scripts in order of their suffix
+postprocess_scripts = sort_filenames_by_suffix(postprocess_scripts)
+# [] means no postprocessing scripts in this experiment
+if postprocess_scripts:
+    # translate paths to docker paths
+    postprocess_scripts_docker = [
+        os.path.join(folder_path_docker, filename)
+        for filename in postprocess_scripts
+    ]
+    for postprocess_script in postprocess_scripts_docker:
+        # depends_on flag requires postprocessing scripts to await completion of all previously run tasks
+        # this means postprocess_states.py requires all states to finish
+        # postprocessing scripts will require all earlier postprocessing scripts to finish before starting as well.
+        postprocess_task_id = client.add_task(
+            job_id=job_id,
+            docker_cmd="python %s -j %s" % (postprocess_script, job_id),
+            depends_on=task_ids,
+        )
+        task_ids += postprocess_task_id
+
 client.monitor_job(job_id=job_id)
