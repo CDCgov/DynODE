@@ -22,21 +22,21 @@ for st in states:
         if os.path.exists(
             os.path.join(state_path, sc, "azure_visualizer_timeline.csv")
         ):
-            df = pd.read_csv(csv_path)
-            df_select = df[
-                [
+            df = pd.read_csv(
+                csv_path,
+                usecols=[
                     "chain_particle",
                     "date",
                     "pred_hosp_0_17",
                     "pred_hosp_18_49",
                     "pred_hosp_50_64",
                     "pred_hosp_65+",
-                ]
-            ].copy()
+                ],
+            )
 
-            df_select["state"] = st
-            df_select["scenario"] = sc
-            dfs.append(df_select)
+            df["state"] = st
+            df["scenario"] = sc
+            dfs.append(df)
 
 final_df = pd.concat(dfs)
 final_df.to_csv(f"./output/projections_2407_2507_{suffix}.csv", index=False)
