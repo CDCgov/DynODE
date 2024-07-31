@@ -150,19 +150,21 @@ def mcmc_accuracy_measures(
             log_likelihood_array_vars.append(log_likelihood_chain_hosps)
 
         trace_hosps = az.from_dict(
-            posterior_predictive={"hospitalizations": pred_vars_list},
-            observed_data={"hospitalizations": obs_var_prop},
+            posterior_predictive={"pred_vars_prop": pred_vars_list},
+            observed_data={"vars_prop_obs_data": obs_var_prop},
             log_likelihood={"log likelihood:": log_likelihood_array_vars},
             posteriors=posteriors_selected,
         )
         waic_vars = az.waic(trace_hosps)
         df_waic_vars = pd.DataFrame(waic_vars)
-        df_waic_vars.drop(["waic_i", "scale", "warning"], axis=0, inplace=True)
+        df_waic_vars.drop(["waic_i"], axis=0, inplace=True)
         df_waic_vars.index = [x + f"_variant_proportions" for x in df_waic_vars.index]
 
-    df_waic = pd.concat([df_waic_hosps, df_waic_vars], axis=0)
-    df_waic.columns = [state]
-    return df_waic, waic_hosps, waic_vars
+        df_waic = pd.concat([df_waic_hosps, df_waic_vars], axis=0)
+        df_waic.columns = [state]
+        return df_waic, waic_hosps, waic_vars
+    else:
+        return df_waic_hosps, waic_hosps
 
     # now we should plot the difference btw the elpds. the az_output_path should be a list of two paths.
     # should have fixed mcmc_accuracy_measures() variables.
