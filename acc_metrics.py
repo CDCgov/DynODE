@@ -25,7 +25,7 @@ jax.config.update("jax_enable_x64", True)
 
 
 def mcmc_accuracy_measures(
-    state, particles_per_chain, initial_model_day, variant=False
+    state, particles_per_chain, initial_model_day, az_output, variant=False
 ):
     print("getting samples via json.load()")
     samp, fitted_means = retrieve_post_samp(state)
@@ -162,46 +162,10 @@ def mcmc_accuracy_measures(
 
     df_waic = pd.concat([df_waic_hosps, df_waic_vars], axis=0)
     df_waic.columns = [state]
-    return df_waic
+    return df_waic, waic_hosps, waic_vars
 
-
-# both accuracy csv files should have same US states, particles_per_chain and observed data, i.e same initial model day.
-def compare_elpd_per_state(suffix1, suffix2):
-    df1 = pd.read_csv('f"output/accuracy{suffix1}.csv"')
-    df2 = pd.read_csv('f"output/accuracy{suffix2}.csv"')
-    if df1.columns == df2.columns:
-        l = []
-        for k in df1.columns:
-            elpd1 = df1.loc[0, k]
-            elpd2 = df2.loc[0, k]
-            s1 = df1.loc[1, k]
-            s2 = df2.loc[1, k]
-            elpd1, elpd2, s1, s2 = float(elpd1), float(elpd2), float(s1), float(s2)
-            z_score = (elpd1 - elpd2) / (np.sqrt(s1**2 + s2**2))
-            if abs(z_score) > 2:
-                l.append(f"hospitalizations for state {k} is significant")
-            else:
-                l.append(f"hospitalizations for state {k} insignificant")
-        l = pd.Series(l, index=df1.columns)
-        df1 = pd.read_csv('f"output/accuracy{suffix1}.csv"')
-        df2 = pd.read_csv('f"output/accuracy{suffix2}.csv"')
-        l = []
-        for k in df1.columns:
-            elpd1 = df1.loc[7, k]
-            elpd2 = df2.loc[7, k]
-            s1 = df1.loc[8, k]
-            s2 = df2.loc[8, k]
-            elpd1, elpd2, s1, s2 = float(elpd1), float(elpd2), float(s1), float(s2)
-            z_score = (elpd1 - elpd2) / (np.sqrt(s1**2 + s2**2))
-            if abs(z_score) > 2:
-                l.append(f"hospitalizations for state {k} is significant")
-            else:
-                l.append(f"variant_prop for state {k} insignificant")
-        l = pd.Series(l, index=df1.columns)
-        return l
-    else:
-        print("states must be the same at same order")
-
+    # now we should plot the difference btw the elpds. the az_output_path should be a list of two paths.
+    # should have fixed mcmc_accuracy_measures() variables.
 
 
 if __name__ == "__main__":
@@ -265,8 +229,12 @@ if __name__ == "__main__":
     for st in states:
         try:
             print(f"Processing state: {st}")
-            result = mcmc_accuracy_measures(
-                state=st, particles_per_chain=80, initial_model_day=560, variant=True
+            result, waic_hosps, waic_vars = mcmc_accuracy_measures(
+                state=st,
+                particles_per_chain=80,
+                initial_model_day=560,
+                az_output=az_output_path,
+                variant=True,
             )
             print(f"Result for state {st}:")
             print(result)
@@ -281,5 +249,4 @@ if __name__ == "__main__":
 
 final_df.to_csv(f"output/accuracy{suffix}.csv", index=True)
 
-# Now, given two models A, B, will use compare_elpd_per_state to compare state by state and return the suffixes
-# corresponding to the model.
+# we use compare_elpd_per_state to compare state by state and return the suffixes corresponding to the model.
