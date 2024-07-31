@@ -23,7 +23,7 @@ class ExampleRunner(AbstractAzureRunner):
 
     # override the process state command since this is what
     # each individual runner must figure out for itself
-    def process_state(self, state):
+    def process_state(self, jobid, state):
         """
         A similar version to example_end_to_end_run.py but modified to run on Azure batch
 
@@ -34,7 +34,10 @@ class ExampleRunner(AbstractAzureRunner):
         """
         # step 1: define your paths NOTE: These are all within the docker container!
         # /input is a MOUNTED drive that we upload these files into right before the job launched
-        config_path = "/input/exp/example_azure_experiment/states/%s/" % state
+        config_path = "/input/exp/example_azure_experiment/%s/states/%s/" % (
+            jobid,
+            state,
+        )
         # global_config include definitions such as age bin bounds and strain definitions
         # Any value or data structure that needs context to be interpretted is here.
         GLOBAL_CONFIG_PATH = config_path + "config_global.json"
@@ -89,4 +92,4 @@ state = args.state
 jobid = args.jobid
 save_path = "/output/example_output/%s/%s/" % (jobid, state)
 runner = ExampleRunner(save_path)
-runner.process_state(state)
+runner.process_state(jobid, state)
