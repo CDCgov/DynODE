@@ -81,13 +81,31 @@ def plot_epld_per_state_comparasion(
         az_output=az_output[1],
         variant=variant,
     )
-    
-    compare_dict_hosps={f'hospitalizations from the model whose azure output path is {az_output[0].split('/')[-1]}': waic_hosps_0,
-                  f'hospitalizations from the model whose azure output path is {az_output[1].split('/')[-1]}': waic_hosps_1}
-    
-    compare_dict_vars={f'hospitalizations from the model whose azure output is {az_output[0].split('/')[-1]}': waic_vars_0,
-                  f'hospitalizations from the model whose azure output is {az_output[1].split('/')[-1]}': waic_vars_1}
-    
-    return az.plot_elpd(compare_dict=compare_dict_hosps, threshold=2, ic=ic), az.plot_elpd(compare_dict=compare_dict_vars, threshold=2, ic=ic)
+
+    compare_dict_hosps = {
+        f"hospitalizations from the model whose azure output path is {az_output[0]}": waic_hosps_0,
+        f"hospitalizations from the model whose azure output path is {az_output[1]}": waic_hosps_1,
+    }
+    return az.plot_elpd(compare_dict=compare_dict_hosps, threshold=2, ic=ic)
+
+    if variant == True:
+
+        compare_dict_vars = {
+            f"var_props from the model whose azure output is {az_output[0]}": waic_vars_0,
+            f"var_props from the model whose azure output is {az_output[1]}": waic_vars_1,
+        }
+
+        return az.plot_elpd(compare_dict=compare_dict_vars, threshold=2, ic=ic)
 
 
+plot_epld_per_state_comparasion(
+    state="AL",
+    particles_per_chain=50,
+    initial_model_day=760,
+    az_output=[
+        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_6/",
+        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/",
+    ],
+    ic="waic",
+    variant=False,
+)

@@ -169,7 +169,6 @@ def mcmc_accuracy_measures(
 
 
 if __name__ == "__main__":
-
     states = [
         "AL",
         "AK",
@@ -242,11 +241,11 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Error processing state {st}: {e}")
 
-    # Combine individual DataFrames into oneif dframe:
-    final_df = pd.concat(dframe.values(), axis=1)
-    final_df.columns = dframe.keys()
-    print(final_df)
+        # Combine individual DataFrames into oneif dframe:
+        final_df = pd.concat(dframe.values(), axis=1)
+        final_df.columns = dframe.keys()
+        print(final_df)
 
-final_df.to_csv(f"output/accuracy{suffix}.csv", index=True)
+    final_df.to_csv(f"output/accuracy{suffix}.csv", index=True)
 
-# we use compare_elpd_per_state to compare state by state and return the suffixes corresponding to the model.
+    # we use compare_elpd_per_state to compare state by state and return the suffixes corresponding to the model.
