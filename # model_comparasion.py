@@ -63,7 +63,7 @@ def compare_elpd_per_state(suffix1, suffix2):
 
 
 def plot_epld_per_state_comparasion(
-    state, particles_per_chain, initial_model_day, az_output, variant=False
+    state, particles_per_chain, initial_model_day, az_output, ic, variant
 ):
 
     df_waic_0, waic_hosps_0, waic_vars_0 = mcmc_accuracy_measures(
@@ -85,9 +85,9 @@ def plot_epld_per_state_comparasion(
     compare_dict_hosps={f'hospitalizations from the model whose azure output path is {az_output[0].split('/')[-1]}': waic_hosps_0,
                   f'hospitalizations from the model whose azure output path is {az_output[1].split('/')[-1]}': waic_hosps_1}
     
-    compare_dict_vars={f'hospitalizations from the model whose azure output path is {az_output[0].split('/')[-1]}': waic_vars_0,
-                  f'hospitalizations from the model whose azure output path is {az_output[1].split('/')[-1]}': waic_vars_1}
+    compare_dict_vars={f'hospitalizations from the model whose azure output is {az_output[0].split('/')[-1]}': waic_vars_0,
+                  f'hospitalizations from the model whose azure output is {az_output[1].split('/')[-1]}': waic_vars_1}
     
-    return az.plot_elpd(compare_dict=compare_dict_hosps), az.plot_elpd(compare_dict=compare_dict_vars)
+    return az.plot_elpd(compare_dict=compare_dict_hosps, threshold=2, ic=ic), az.plot_elpd(compare_dict=compare_dict_vars, threshold=2, ic=ic)
 
 
