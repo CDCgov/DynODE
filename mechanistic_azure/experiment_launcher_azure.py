@@ -5,7 +5,7 @@ and another to specify the location of the state-specific runner script, which w
 
 import argparse
 
-from azure.azure_utilities import AzureExperimentLauncher
+from mechanistic_azure.azure_utilities import AzureExperimentLauncher
 
 # specify job ID, cant already exist
 
@@ -28,21 +28,31 @@ parser.add_argument(
     help="the experiment name, must match the experiment directory within %s"
     % EXPERIMENTS_DIRECTORY,
     required=True,
+    nargs="+",  # require at least 1 experiment
 )
 args = parser.parse_args()
-experiment_name: str = args.experiment_name
+experiment_names: list[str] = args.experiment_name
 job_id: str = args.job_id
-
+# upload dockerfile used
 launcher = AzureExperimentLauncher(
-    experiment_name,
+    experiment_names[0],
     job_id,
     azure_config_toml=SECRETS_PATH,
     experiment_directory=EXPERIMENTS_DIRECTORY,
     docker_image_name=DOCKER_IMAGE_TAG,
 )
 launcher.set_resource_pool(pool_name="scenarios_4cpu_pool")
-state_task_ids = launcher.launch_states()
-postprocessing_tasks = launcher.launch_postprocess(
-    depend_on_task_ids=state_task_ids
-)
+all_tasks_run = []
+# all experiments will be placed under the same jobid,
+# subsequent experiments depend on prior ones to finish before starting
+for experiment_name in experiment_names:
+    launcher.set_all_paths(
+        experiments_folder_name=EXPERIMENTS_DIRECTORY,
+        experiment_name=experiment_name,
+    )
+    state_task_ids = launcher.launch_states(depend_on_task_ids=all_tasks_run)
+    postprocessing_tasks = launcher.launch_postprocess(
+        depend_on_task_ids=state_task_ids
+    )
+    all_tasks_run += state_task_ids + postprocessing_tasks
 launcher.azure_client.monitor_job(job_id)

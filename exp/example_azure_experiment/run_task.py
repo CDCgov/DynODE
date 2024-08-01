@@ -90,6 +90,6 @@ parser.add_argument(
 args = parser.parse_args()
 state = args.state
 jobid = args.jobid
-save_path = "/output/example_output/%s/%s/" % (jobid, state)
+save_path = "/output/example_azure_experiment/%s/%s/" % (jobid, state)
 runner = ExampleRunner(save_path)
 runner.process_state(jobid, state)

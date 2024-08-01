@@ -302,18 +302,18 @@ class AzureExperimentLauncher:
         # lets sort postprocess scripts in order of their suffix
         postprocess_scripts = sort_filenames_by_suffix(postprocess_scripts)
         # [] means no postprocessing scripts in this experiment
+        postprocess_task_ids = []
         if postprocess_scripts:
             # translate paths to docker paths
             postprocess_scripts_docker = [
                 os.path.join(self.experiment_path_docker, filename)
                 for filename in postprocess_scripts
             ]
-            postprocess_task_ids = []
             for postprocess_script in postprocess_scripts_docker:
                 # depends_on flag requires postprocessing scripts to await completion of all previously run tasks
                 # this means postprocess_states.py requires all states to finish
                 # postprocessing scripts will require all earlier postprocessing scripts to finish before starting as well.
-                postprocess_task_id = self.client.add_task(
+                postprocess_task_id = self.azure_client.add_task(
                     job_id=self.job_id,
                     docker_cmd="python %s -j %s"
                     % (postprocess_script, self.job_id),
