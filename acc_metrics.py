@@ -25,7 +25,12 @@ jax.config.update("jax_enable_x64", True)
 
 
 def mcmc_accuracy_measures(
-    state, particles_per_chain, initial_model_day, az_output, variant=False
+    state,
+    particles_per_chain,
+    initial_model_day,
+    az_output,
+    ic,
+    variant=False,
 ):
     print("getting samples via json.load()")
     samp, fitted_means = retrieve_post_samp(state)
@@ -67,7 +72,6 @@ def mcmc_accuracy_measures(
         for particle_index in particle_indexes:
             sol_dct = posteriors_solution_dct[(chain, particle_index)]
             # get the solution object and the predicted hosp out of the solution dct
-
             output = sol_dct["solution"]
             hosps = sol_dct["hospitalizations"]
             strain_incidence = jnp.sum(
@@ -85,13 +89,13 @@ def mcmc_accuracy_measures(
             # select only obs hosp days
             pred_hosps_chain.append(jnp.array(hosps)[jnp.array(obs_hosps_days), ...])
             pred_vars_chain.append(jnp.array(pred_vars)[jnp.array(obs_var_days), ...])
-            print(jnp.shape(jnp.array(hosps)), jnp.shape(jnp.array(pred_vars)))
+        print(jnp.shape(jnp.array(hosps)), jnp.shape(jnp.array(pred_vars)))
         pred_hosps_list.append(pred_hosps_chain)
         pred_vars_list.append(pred_vars_chain)
 
-    # pred_hosps_list.shape == (nchain, ranindex, time_series, age_group)
-    # pred_var_list.shape == (nchain, ranindex, time_series, strains)
-    # obs_hosps.shape == (112, 4)
+        # pred_hosps_list.shape == (nchain, ranindex, time_series, age_group)
+        # pred_var_list.shape == (nchain, ranindex, time_series, strains)
+        # obs_hosps.shape == (112, 4)
     nchain = len(samp["ihr_3"])
     log_likelihood_array_hosps = []
     # go through each chain/sample and get the log likelihood of pred hosp given obs hosp
@@ -103,10 +107,10 @@ def mcmc_accuracy_measures(
             mask_incidence = ~jnp.isnan(obs_hosps)
             with numpyro.handlers.mask(mask=mask_incidence):
                 log_likelihood = dist.Poisson(pred_hosps).log_prob(obs_hosps)
-            log_likelihood_chain_hosps.append(log_likelihood)
+                log_likelihood_chain_hosps.append(log_likelihood)
         log_likelihood_array_hosps.append(log_likelihood_chain_hosps)
 
-    # repeat obs_hosp, obs_var_prop chain * sample times so the shape matches the pred hosp arrays
+        # repeat obs_hosp, obs_var_prop chain * sample times so the shape matches the pred hosp arrays
     obs_hosps = jnp.tile(jnp.array(obs_hosps), (nchain, len(particle_indexes), 1, 1))
 
     # log_likelihood_array.shape == (nchains, ranindex, 112, 4)
@@ -123,51 +127,95 @@ def mcmc_accuracy_measures(
         log_likelihood={"log likelihood:": log_likelihood_array_hosps},
         posteriors=posteriors_selected,
     )
+    if ic == "waic":
+        waic_hosps = az.waic(trace_hosps)
+        df_waic_hosps = pd.DataFrame(waic_hosps)
+        df_waic_hosps.drop(["waic_i"], axis=0, inplace=True)
 
-    waic_hosps = az.waic(trace_hosps)
-    df_waic_hosps = pd.DataFrame(waic_hosps)
-    df_waic_hosps.drop(["waic_i"], axis=0, inplace=True)
+        df_waic_hosps.index = [x + f"_hosps" for x in df_waic_hosps.index]
 
-    df_waic_hosps.index = [x + f"_hosps" for x in df_waic_hosps.index]
+        if variant == True:
+            obs_var_prop = jnp.tile(
+                jnp.array(obs_var_prop), (nchain, len(particle_indexes), 1, 1)
+            )
+            log_likelihood_array_vars = []
+            for pred_vars_chain in pred_vars_list:
+                log_likelihood_chain_vars = []
+                for pred_vars in pred_vars_chain:
+                    mask_incidence = ~jnp.isnan(obs_var_prop)
+                    with numpyro.handlers.mask(mask=mask_incidence):
+                        pred_vars_sd = jnp.ones(
+                            jnp.shape(jnp.array(pred_vars))
+                        ) * jnp.std(jnp.array(obs_var_prop))
+                        log_likelihood = dist.Normal(pred_vars, pred_vars_sd).log_prob(
+                            obs_var_prop
+                        )
+                    log_likelihood_chain_vars.append(log_likelihood)
+                log_likelihood_array_vars.append(log_likelihood_chain_hosps)
 
-    if variant == True:
-        obs_var_prop = jnp.tile(
-            jnp.array(obs_var_prop), (nchain, len(particle_indexes), 1, 1)
-        )
-        log_likelihood_array_vars = []
-        for pred_vars_chain in pred_vars_list:
-            log_likelihood_chain_vars = []
-            for pred_vars in pred_vars_chain:
-                mask_incidence = ~jnp.isnan(obs_var_prop)
-                with numpyro.handlers.mask(mask=mask_incidence):
-                    pred_vars_sd = jnp.ones(jnp.shape(jnp.array(pred_vars))) * jnp.std(
-                        jnp.array(obs_var_prop)
-                    )
-                    log_likelihood = dist.Normal(pred_vars, pred_vars_sd).log_prob(
-                        obs_var_prop
-                    )
-                log_likelihood_chain_vars.append(log_likelihood)
-            log_likelihood_array_vars.append(log_likelihood_chain_hosps)
+            trace_hosps = az.from_dict(
+                posterior_predictive={"pred_vars_prop": pred_vars_list},
+                observed_data={"vars_prop_obs_data": obs_var_prop},
+                log_likelihood={"log likelihood:": log_likelihood_array_vars},
+                posteriors=posteriors_selected,
+            )
+            waic_vars = az.waic(trace_hosps)
+            df_waic_vars = pd.DataFrame(waic_vars)
+            df_waic_vars.drop(["waic_i"], axis=0, inplace=True)
+            df_waic_vars.index = [
+                x + f"_variant_proportions" for x in df_waic_vars.index
+            ]
 
+            df_waic = pd.concat([df_waic_hosps, df_waic_vars], axis=0)
+            df_waic.columns = [state]
+            return df_waic, waic_hosps, waic_vars
+        else:
+            return df_waic_hosps, waic_hosps
+    if ic == "loo":
         trace_hosps = az.from_dict(
-            posterior_predictive={"pred_vars_prop": pred_vars_list},
-            observed_data={"vars_prop_obs_data": obs_var_prop},
-            log_likelihood={"log likelihood:": log_likelihood_array_vars},
-            posteriors=posteriors_selected,
+            posterior={"param": posteriors_selected},
+            posterior_predictive={"hospitalizations": pred_hosps_list},
+            observed_data={"hospitalizations": obs_hosps},
+            log_likelihood={"log_likelihood": log_likelihood_array_hosps},
         )
-        waic_vars = az.waic(trace_hosps)
-        df_waic_vars = pd.DataFrame(waic_vars)
-        df_waic_vars.drop(["waic_i"], axis=0, inplace=True)
-        df_waic_vars.index = [x + f"_variant_proportions" for x in df_waic_vars.index]
+        loo_hosps = az.loo(trace_hosps)
+        df_loo_hosps = pd.DataFrame(loo_hosps)
 
-        df_waic = pd.concat([df_waic_hosps, df_waic_vars], axis=0)
-        df_waic.columns = [state]
-        return df_waic, waic_hosps, waic_vars
-    else:
-        return df_waic_hosps, waic_hosps
+        df_loo_hosps.index = [x + f"_hosps" for x in df_loo_hosps.index]
 
-    # now we should plot the difference btw the elpds. the az_output_path should be a list of two paths.
-    # should have fixed mcmc_accuracy_measures() variables.
+        if variant == True:
+            obs_var_prop = jnp.tile(
+                jnp.array(obs_var_prop), (nchain, len(particle_indexes), 1, 1)
+            )
+            log_likelihood_array_vars = []
+            for pred_vars_chain in pred_vars_list:
+                log_likelihood_chain_vars = []
+                for pred_vars in pred_vars_chain:
+                    mask_incidence = ~jnp.isnan(obs_var_prop)
+                    with numpyro.handlers.mask(mask=mask_incidence):
+                        pred_vars_sd = jnp.ones(
+                            jnp.shape(jnp.array(pred_vars))
+                        ) * jnp.std(jnp.array(obs_var_prop))
+                        log_likelihood = dist.Normal(pred_vars, pred_vars_sd).log_prob(
+                            obs_var_prop
+                        )
+                    log_likelihood_chain_vars.append(log_likelihood)
+                log_likelihood_array_vars.append(log_likelihood_chain_vars)
+            trace_hosps = az.from_dict(
+                posterior_predictive={"pred_vars_prop": pred_vars_list},
+                observed_data={"vars_prop_obs_data": obs_var_prop},
+                log_likelihood={"log likelihood:": log_likelihood_array_vars},
+                posteriors=posteriors_selected,
+            )
+            loo_vars = az.loo(trace_hosps)
+            df_loo_vars = pd.DataFrame(loo_vars)
+            df_loo_vars.index = [x + f"_variant_proportions" for x in df_loo_vars.index]
+
+            df_loo = pd.concat([df_loo_hosps, df_loo_vars], axis=0)
+            df_loo.columns = [state]
+            return df_loo, loo_hosps, loo_vars
+        else:
+            return df_loo_hosps, loo_hosps
 
 
 if __name__ == "__main__":
@@ -225,29 +273,67 @@ if __name__ == "__main__":
     ]
     states = states.sort()
     az_output_path = "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/"
-    suffix = "v1"
-    dframe = {}
-    for st in states:
-        try:
-            print(f"Processing state: {st}")
-            result, waic_hosps, waic_vars = mcmc_accuracy_measures(
-                state=st,
-                particles_per_chain=80,
-                initial_model_day=560,
-                az_output=az_output_path,
-                variant=True,
-            )
-            print(f"Result for state {st}:")
-            print(result)
-            dframe[st] = result
-        except Exception as e:
-            print(f"Error processing state {st}: {e}")
+    suffix = "v2"
+    print(
+        mcmc_accuracy_measures(
+            state="AL",
+            particles_per_chain=80,
+            initial_model_day=560,
+            az_output=az_output_path,
+            ic="waic",
+            variant=False,
+        )
+    )
 
-        # Combine individual DataFrames into oneif dframe:
-        final_df = pd.concat(dframe.values(), axis=1)
-        final_df.columns = dframe.keys()
-        print(final_df)
+    # dframe = {}
+    # for st in states:
+    #     try:
+    #         print(f"Processing state: {st}")
+    #         result, hosps, vars = mcmc_accuracy_measures(
+    #             state=st,
+    #             particles_per_chain=80,
+    #             initial_model_day=560,
+    #             az_output=az_output_path,
+    #             ic="waic",
+    #             variant=False,
+    #         )
+    #         print(f"Result for state {st}:")
+    #         print(result)
+    #         dframe[st] = result
+    #     except Exception as e:
+    #         print(f"Error processing state {st}: {e}")
 
-    final_df.to_csv(f"output/accuracy{suffix}.csv", index=True)
+    #     # Combine individual DataFrames into oneif dframe:
+    #     final_df = pd.concat(dframe.values(), axis=1)
+    #     final_df.columns = dframe.keys()
+    #     print(final_df)
+
+    # final_df.to_csv(f"output/accuracy{suffix}.csv", index=True)
+
+    # suffix = "v3"
+    # dframe = {}
+    # for st in states:
+    #     try:
+    #         print(f"Processing state: {st}")
+    #         result, waic_hosps, waic_vars = mcmc_accuracy_measures(
+    #             state=st,
+    #             particles_per_chain=80,
+    #             initial_model_day=560,
+    #             az_output=az_output_path,
+    #             ic="loo",
+    #             variant=False,
+    #         )
+    #         print(f"Result for state {st}:")
+    #         print(result)
+    #         dframe[st] = result
+    #     except Exception as e:
+    #         print(f"Error processing state {st}: {e}")
+
+    #     # Combine individual DataFrames into one dframe:
+    #     final_df = pd.concat(dframe.values(), axis=1)
+    #     final_df.columns = dframe.keys()
+    #     print(final_df)
+
+    # final_df.to_csv(f"output/accuracy{suffix}.csv", index=True)
 
     # we use compare_elpd_per_state to compare state by state and return the suffixes corresponding to the model.

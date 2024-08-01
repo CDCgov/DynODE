@@ -1,5 +1,9 @@
 # model_comparasion
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import figure, show
+import matplotlib
 
+matplotlib.use("TkAgg")
 import pandas as pd
 import numpy as np
 import arviz as az
@@ -7,6 +11,7 @@ import numpyro
 import jax.numpy as jnp
 from acc_metrics import mcmc_accuracy_measures
 
+az.style.use("arviz-doc")
 # both accuracy csv files-corresponding to each suffix- should have same US states, particles_per_chain and observed data, i.e same initial model day.
 
 
@@ -62,6 +67,10 @@ def compare_elpd_per_state(suffix1, suffix2):
         return []
 
 
+# now we should plot the difference between the elpds. the az_output_path should be a list of two paths.
+# should have fixed mcmc_accuracy_measures() variables.
+
+
 def plot_epld_per_state_comparasion(
     state, particles_per_chain, initial_model_day, az_output, ic, variant
 ):
@@ -72,6 +81,7 @@ def plot_epld_per_state_comparasion(
             particles_per_chain=particles_per_chain,
             initial_model_day=initial_model_day,
             az_output=az_output[0],
+            ic=ic,
             variant=variant,
         )
 
@@ -80,6 +90,7 @@ def plot_epld_per_state_comparasion(
             particles_per_chain=particles_per_chain,
             initial_model_day=initial_model_day,
             az_output=az_output[1],
+            ic=ic,
             variant=variant,
         )
 
@@ -94,14 +105,23 @@ def plot_epld_per_state_comparasion(
         }
 
         return az.plot_elpd(
-            compare_dict=compare_dict_hosps, threshold=2, ic=ic
-        ), az.plot_elpd(compare_dict=compare_dict_vars, threshold=2, ic=ic)
+            compare_dict=compare_dict_hosps,
+            threshold=2,
+            ic=ic,
+            xlabels=True,
+        ), az.plot_elpd(
+            compare_dict=compare_dict_vars,
+            threshold=2,
+            ic=ic,
+            xlabels=True,
+        )
     else:
         df_waic_0, waic_hosps_0 = mcmc_accuracy_measures(
             state=state,
             particles_per_chain=particles_per_chain,
             initial_model_day=initial_model_day,
             az_output=az_output[0],
+            ic=ic,
             variant=variant,
         )
 
@@ -110,6 +130,7 @@ def plot_epld_per_state_comparasion(
             particles_per_chain=particles_per_chain,
             initial_model_day=initial_model_day,
             az_output=az_output[1],
+            ic=ic,
             variant=variant,
         )
 
@@ -117,22 +138,26 @@ def plot_epld_per_state_comparasion(
             f"hospitalizations from the model whose azure output path is {az_output[0]}": waic_hosps_0,
             f"hospitalizations from the model whose azure output path is {az_output[1]}": waic_hosps_1,
         }
-        compare_dict_vars = {
-            f"var_props from the model whose azure output is {az_output[0]}": waic_vars_0,
-            f"var_props from the model whose azure output is {az_output[1]}": waic_vars_1,
-        }
 
-        return az.plot_elpd(compare_dict=compare_dict_hosps, threshold=2, ic=ic)
+        return az.plot_elpd(
+            compare_dict=compare_dict_hosps,
+            threshold=2,
+            ic=ic,
+            xlabels=True,
+            show=True,
+        )
 
 
-plot_epld_per_state_comparasion(
+axes = plot_epld_per_state_comparasion(
     state="AL",
-    particles_per_chain=50,
+    particles_per_chain=5,
     initial_model_day=760,
     az_output=[
         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_6/",
         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/",
     ],
-    ic="waic",
+    ic="loo",
     variant=False,
 )
+fig = axes.get_figure()
+fig.show()
