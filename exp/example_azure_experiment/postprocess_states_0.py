@@ -1,9 +1,9 @@
 """A super basic postprocessing script which just combines all the azure_visualizer_timeline's together for each state into one """
 
-import os
 import argparse
-import pandas as pd
+import os
 
+import pandas as pd
 
 parser = argparse.ArgumentParser()
 
