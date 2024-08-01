@@ -1,6 +1,8 @@
-from cfa_azure.clients import AzureClient
-from mechanistic_model.utils import find_files, sort_filenames_by_suffix
 import os
+
+from cfa_azure.clients import AzureClient
+
+from mechanistic_model.utils import find_files, sort_filenames_by_suffix
 
 
 class AzureExperimentLauncher:
@@ -39,28 +41,104 @@ class AzureExperimentLauncher:
             path to the `Dockerfile` used to build docker image, by default "./Dockerfile"
         """
         self.azure_config_toml = azure_config_toml
-        self.experiment_directory = experiment_directory
-        self.experiment_name = experiment_name
-        self.container_registry_name = container_registry_name
-        self.image_repo_name = image_repo_name
-        self.docker_image_name = docker_image_name
+        self._container_registry_name = container_registry_name
+        self._image_repo_name = image_repo_name
+        self._docker_image_name = docker_image_name
         self.job_id = job_id
-        (
-            self.experiment_path_local,
-            self.experiment_path_docker,
-            self.experiment_path_blob,
-            self.states_path_local,
-            self.states_path_docker,
-            self.runner_path_local,
-            self.runner_path_docker,
-        ) = self._identify_local_and_docker_paths(
-            experiment_directory, experiment_name
-        )
-        self.azure_client = self._setup_azure_client(path_to_dockerfile)
+        self.job_launched = False
+        self.set_all_paths(experiment_directory, experiment_name)
+        self._setup_azure_client(path_to_dockerfile)
 
-    def _identify_local_and_docker_paths(
-        self, experiments_folder_name: str, experiment_name: str, job_id: str
-    ) -> tuple[str, str, str, str, str, str]:
+    def set_experiment_paths(
+        self, experiments_folder_name, experiment_name
+    ) -> None:
+        """
+        identifies the location of the experiment on the local machine, docker enviorment, and storage blob input data
+        NOTE: we prepend /input/ to all docker paths since our azure blob is MOUNTED onto a docker container
+
+        Parameters
+        ----------
+        experiments_folder_name : str
+            name of the top level folder holding individual experiments
+        experiment_name : str
+            name of the experiment being run, a subdirectory of `experiments_folder_name`
+        """
+        self._experiments_folder_name = experiments_folder_name
+        self._experiment_name = experiment_name
+        # using the experiment name, get the local (this machine) and docker (azure batch node) paths to each file
+        # NOTE: we prepend /input/ to the docker path since our azure blob is MOUNTED onto a docker container
+        # and the mount appears as a folder /input
+        experiment_path_local = os.path.join(
+            experiments_folder_name, experiment_name
+        )
+        experiment_path_docker = os.path.join(
+            "/input/", experiments_folder_name, experiment_name, self.job_id
+        )
+        experiment_path_blob = os.path.join(
+            experiments_folder_name, experiment_name, self.job_id
+        )
+        assert os.path.exists(experiment_path_local), (
+            "Experiment does not exist at expected directory %s"
+            % experiment_path_local
+        )
+        self.experiment_path_local = experiment_path_local
+        self.experiment_path_docker = experiment_path_docker
+        self.experiment_path_blob = experiment_path_blob
+
+    def set_runner_paths(
+        self, runner_script_filename: str = "run_task.py"
+    ) -> None:
+        """identifies the local and docker path of the runner script, on which each state is run.
+        NOTE: runner scripts MUST be inside the top level of the experiment, e.g. exp/experiment_name/run_task.py
+
+        Parameters
+        ----------
+        runner_script_filename : str, optional
+            filename of the runner script, by default "run_task.py"
+        """
+        # get a path to the run_task python script, both on this machine and in the docker blob
+        runner_path_local = os.path.join(
+            self.experiment_path_local, runner_script_filename
+        )
+        runner_path_docker = os.path.join(
+            self.experiment_path_docker, runner_script_filename
+        )
+        assert os.path.exists(runner_path_local), (
+            "make sure your %s is found inside of your experiment folder, was not found at %s"
+            % (runner_script_filename, runner_path_local)
+        )
+        self.runner_path_local = runner_path_local
+        self.runner_path_docker = runner_path_docker
+
+    def set_state_paths(self, states_folder_name: str = "states") -> None:
+        """identifies the location of the directory containing all states run, both locally and within the docker enviorment
+
+        Parameters
+        ----------
+        states_folder_name : str, optional
+            folder containing the states to be run, by default "states"
+        """
+        states_path_local = os.path.join(
+            self.experiment_path_local, states_folder_name
+        )
+        states_path_docker = os.path.join(
+            self.experiment_path_docker, states_folder_name
+        )
+        # check that the files are in the right place locally
+        assert os.path.exists(states_path_local), (
+            "was unable to find which states you are launching within %s"
+            % states_path_local
+        )
+        self.states_path_local = states_path_local
+        self.states_path_docker = states_path_docker
+
+    def set_all_paths(
+        self,
+        experiments_folder_name: str,
+        experiment_name: str,
+        runner_script_filename: str = "run_task.py",
+        states_folder_name: str = "states",
+    ):
         """Using the name of the experiment being run, along with where experiments are stored
         identify and validate that necessary files and folders exist on the users local machine.
         Then deduce the locations of those same files on Azure Storage once they are uploaded.
@@ -73,58 +151,15 @@ class AzureExperimentLauncher:
             name of the top level folder holding individual experiments
         experiment_name : str
             name of the experiment being run, a subdirectory of `experiments_folder_name`
-        job_id : str
-            job id of the job being launched, must be unique
-
-        Returns
-        ----------
-        tuple[str] local/docker paths to relevant files
-        `experiment_path_local`: path to the experiment folder (experiments_folder_name + experiment_name) \n
-        `experiment_path_docker`: path to the experiment folder on the docker machine \n
-        `experiment_path_blob`: path to the experiment folder within the storage blob \n
-        `states_path_local`: path to the states folder within the experiment\n
-        `states_path_local`: path to the state folder within the experiment on the docker machine\n
-        `runner_path_local`: path to the run_task script to run individual states\n
-        `runner_path_docker`: path to the run_task script on the docker machine\n
+        runner_script_filename : str, optional
+            filename of the runner script, by default "run_task.py"
+        states_folder_name : str, optional
+            folder containing the states to be run, by default "states"
 
         """
-        # using the experiment name, get the local (this machine) and docker (azure batch node) paths to each file
-        # NOTE: we prepend /input/ to the docker path since our azure blob is MOUNTED onto a docker container
-        # and the mount appears as a folder /input
-        experiment_path_local = os.path.join(
-            experiments_folder_name, experiment_name
-        )
-        experiment_path_docker = os.path.join(
-            "/input/", experiments_folder_name, experiment_name, job_id
-        )
-        experiment_path_blob = os.path.join(
-            experiments_folder_name, experiment_name, job_id
-        )
-        # get a path to the run_task python script, both on this machine and in the docker blob
-        runner_path_local = os.path.join(experiment_path_local, "run_task.py")
-        runner_path_docker = os.path.join(
-            experiment_path_docker, "run_task.py"
-        )
-        # get a path to the `states` folder, both on this machine and in the docker blob
-        states_path_local = os.path.join(experiment_path_local, "states")
-        states_path_docker = os.path.join(experiment_path_docker, "states")
-        # check that the files are in the right place locally
-        assert os.path.exists(
-            runner_path_local
-        ), "make sure your run_task.py is found inside of your experiment folder"
-        assert os.path.exists(
-            states_path_local
-        ), "please rerun this file specifying the experiment directory, "
-        "it must include a /states/ folder within it containing the state folders filled with configs"
-        return (
-            experiment_path_local,
-            experiment_path_docker,
-            experiment_path_blob,
-            states_path_local,
-            states_path_docker,
-            runner_path_local,
-            runner_path_docker,
-        )
+        self.set_experiment_paths(experiments_folder_name, experiment_name)
+        self.set_runner_paths(runner_script_filename)
+        self.set_state_paths(states_folder_name)
 
     def _setup_azure_client(self, path_to_dockerfile="./Dockerfile"):
         """sets up an AzureClient with cfa_azure package,
@@ -135,19 +170,15 @@ class AzureExperimentLauncher:
         ----------
         path_to_dockerfile : str, optional
             path to the Dockerfile, by default "./Dockerfile"
-
-        Returns
-        ----------
-        AzureClient a cfa_azure client after packaging and uploading the docker image and experiment files
         """
         # start up azure client with authentication toml
         azure_client = AzureClient(config_path=self.azure_config_toml)
         # run `docker build` using the Dockerfile in the cwd, apply tag
         azure_client.package_and_upload_dockerfile(
             path_to_dockerfile=path_to_dockerfile,
-            registry_name=self.container_registry_name,
-            repo_name=self.image_repo_name,
-            tag=self.docker_image_name,
+            registry_name=self._container_registry_name,
+            repo_name=self._image_repo_name,
+            tag=self._docker_image_name,
         )
         # create the input and output blobs, for now they must be named /input and /output
         azure_client.set_input_container(
@@ -157,15 +188,7 @@ class AzureExperimentLauncher:
             "scenarios-mechanistic-output", "output"
         )
 
-        # upload the experiment folder so that the runner_path_docker & states_path_docker point to the correct places
-        # here we pass `location=self.experiment_path_blob` because we are not uploading from the docker container
-        # therefore we dont need the /input/ mount directory
-        azure_client.upload_files_in_folder(
-            [self.experiment_path_local],
-            "scenarios-mechanistic-input",
-            location=self.experiment_path_blob,
-        )
-        return azure_client
+        self.azure_client = azure_client
 
     def set_resource_pool(
         self,
@@ -199,20 +222,40 @@ class AzureExperimentLauncher:
         else:
             self.azure_client.set_pool(pool_name)
 
-    def launch_states(
-        self,
-    ) -> list[str]:
+    def _upload_experiment_to_blob(self):
+        """
+        upload the experiment folder so that the runner_path_docker & states_path_docker point to the correct places
+        here we pass `location=self.experiment_path_blob` because we are not uploading from the docker container
+        therefore we dont need the /input/ mount directory
+        """
+        self.azure_client.upload_files_in_folder(
+            [self.experiment_path_local],
+            "scenarios-mechanistic-input",
+            location=self.experiment_path_blob,
+        )
+
+    def launch_states(self, depend_on_task_ids: list[str] = None) -> list[str]:
         """Launches an Azure Batch job under `self.job_id`,
         populating it with tasks for each subdirectory within your experiment's `states` directory
         passing each state name to `run_task.py` with the -s flag and the job_id with the -j flag.
 
+        Parameters
+        ----------
+        depend_on_task_ids: list[str], optional
+            list of task ids on which each state depends on finishing to start themselves, defaults to None
         Returns
         -------
         list[str]
             list of all tasks launched under `job_id`
         """
-        # command to run the job
-        self.azure_client.add_job(job_id=self.job_id)
+        # command to run the job, if we have already launched states previously, dont recreate the job
+        if not self.job_launched:
+            self.azure_client.add_job(job_id=self.job_id)
+            self.job_launched = True
+        # upload the experiment folder so that the runner_path_docker & states_path_docker point to the correct places
+        # here we pass `location=self.experiment_path_blob` because we are not uploading from the docker container
+        # therefore we dont need the /input/ mount directory
+        self._upload_experiment_to_blob()
         task_ids = []
         # add a task for each state directory in the states folder of this experiment
         for statedir in os.listdir(self.states_path_local):
@@ -226,6 +269,7 @@ class AzureExperimentLauncher:
                     job_id=self.job_id,
                     docker_cmd="python %s -s %s -j %s"
                     % (self.runner_path_docker, statedir, self.job_id),
+                    depends_on=depend_on_task_ids,
                 )
                 # append this list onto our running list of tasks
                 task_ids += task_id
@@ -233,7 +277,7 @@ class AzureExperimentLauncher:
 
     def launch_postprocess(
         self,
-        depend_on_task_ids: str,
+        depend_on_task_ids: list[str],
     ) -> list[str]:
         """Launches postprocessing scripts from within `experiment_path_local` identified by
         the postprocess_states tag and an optional suffix.
