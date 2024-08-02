@@ -68,7 +68,7 @@
                     "transform": "AffineTransform",
                     "params": {
                         "loc": 2.0,
-                        "scale": 2.0,
+                        "scale": 3.0,
                         "domain": {
                             "constraint": "unit_interval",
                             "params": {}
@@ -77,7 +77,9 @@
                 }
             }
         },
-        1.0, 1.0, 1.0
+        1.0,
+        1.0,
+        1.0
     ],
     "INFECTIOUS_PERIOD": 7.0,
     "EXPOSED_TO_INFECTIOUS": 3.6,
@@ -156,8 +158,8 @@
     "MIN_HOMOLOGOUS_IMMUNITY": {
         "distribution": "Beta",
         "params": {
-            "concentration1": 500,
-            "concentration0": 1500
+            "concentration1": 1000,
+            "concentration0": 3000
         }
     },
     "WANING_PROTECTIONS": [
@@ -480,15 +482,15 @@
             "base_distribution": {
                 "distribution": "Beta",
                 "params": {
-                    "concentration1": 72,
-                    "concentration0": 28
+                    "concentration1": 50,
+                    "concentration0": 50
                 }
             },
             "transforms": {
                 "transform": "AffineTransform",
                 "params": {
-                    "loc": 0.02,
-                    "scale": 0.18,
+                    "loc": 0.00,
+                    "scale": 0.20,
                     "domain": {
                         "constraint": "unit_interval",
                         "params": {}
@@ -500,8 +502,8 @@
     "SEASONALITY_SECOND_WAVE":  {
         "distribution": "Beta",
         "params": {
-            "concentration1": 1000,
-            "concentration0": 1000
+            "concentration1": 100,
+            "concentration0": 100
         }
     },
     "SEASONALITY_SHIFT": {
@@ -509,11 +511,11 @@
         "params": {
             "loc": -10,
             "scale": 1,
-            "low": -55,
-            "high": 35
+            "low": -30,
+            "high": 20
         }
     },
-    "INFERENCE_PRNGKEY": 8675311,
+    "INFERENCE_PRNGKEY": 8675312,
     "INFERENCE_NUM_WARMUP": 1000,
     "INFERENCE_NUM_SAMPLES": 1000,
     "INFERENCE_NUM_CHAINS": 4,

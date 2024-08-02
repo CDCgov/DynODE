@@ -66,7 +66,7 @@ class EpochOneRunner(AbstractAzureRunner):
         super().__init__(azure_output_dir)
 
     def process_state(self, state, jobid=None, jobid_in_path=False):
-        model_day = 870
+        model_day = 890
         # step 1: define your paths, now in the input
         state_config_path = os.path.join(
             "/input/exp/fifty_state_6strain_2202_2407/states", state
@@ -215,9 +215,8 @@ class EpochOneRunner(AbstractAzureRunner):
         var_data_path = os.path.join(
             inferer.config.VAR_PATH, var_data_filename
         )
-        # currently working up to third strain which is XBB1
         var_data = pd.read_csv(var_data_path)
-        var_data = var_data[var_data["strain"] < 6]
+        var_data = var_data[var_data["strain"] < 6]  # up to strain 5
         var_data["date"] = pd.to_datetime(var_data["date"])
         var_data["day"] = (
             var_data["date"] - pd.to_datetime("2022-02-11")
