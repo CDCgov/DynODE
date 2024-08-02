@@ -8,6 +8,7 @@
     "VACCINATION_MODEL_DATA": "/input/data/vaccination-data/2024_06_30_to_2025_06_28_vax88/",
     "SEASONAL_VACCINATION": false,
     "SAMPLE_STRAIN_X_INTRO_TIME": true,
+    "JN1_KP_R0_MULTIPLIER": 1.0,
     "STRAIN_R0s": [
         {
             "distribution": "TransformedDistribution",
@@ -458,9 +459,45 @@
     "BETA_COEFICIENTS": [
         1.0
     ],
-    "SEASONALITY_AMPLITUDE": 0.0,
-    "SEASONALITY_SECOND_WAVE": 0.0,
-    "SEASONALITY_SHIFT": 0.0,
+    "SEASONALITY_AMPLITUDE": {
+        "distribution": "TransformedDistribution",
+        "params": {
+            "base_distribution": {
+                "distribution": "Beta",
+                "params": {
+                    "concentration1": 50,
+                    "concentration0": 50
+                }
+            },
+            "transforms": {
+                "transform": "AffineTransform",
+                "params": {
+                    "loc": 0.0,
+                    "scale": 0.1,
+                    "domain": {
+                        "constraint": "unit_interval",
+                        "params": {}
+                    }
+                }
+            }
+        }
+    },
+    "SEASONALITY_SECOND_WAVE": {
+        "distribution": "Beta",
+        "params": {
+            "concentration1": 100,
+            "concentration0": 100
+        }
+    },
+    "SEASONALITY_SHIFT": {
+        "distribution": "TruncatedNormal",
+        "params": {
+            "loc": -10,
+            "scale": 1,
+            "low": -30,
+            "high": 20
+        }
+    },
     "INFERENCE_PRNGKEY": 8675311,
     "INFERENCE_NUM_WARMUP": 1000,
     "INFERENCE_NUM_SAMPLES": 1000,

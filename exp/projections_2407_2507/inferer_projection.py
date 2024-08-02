@@ -19,7 +19,6 @@ from mechanistic_model.mechanistic_runner import MechanisticRunner
 
 
 class ProjectionParameters(MechanisticInferer):
-
     def __init__(
         self,
         global_variables_path: str,
@@ -186,10 +185,10 @@ class ProjectionParameters(MechanisticInferer):
         }
         parameters = utils.sample_if_distribution(parameters)
         # re-create the CROSSIMMUNITY_MATRIX since we may be sampling the STRAIN_INTERACTIONS matrix now
-        parameters["CROSSIMMUNITY_MATRIX"] = (
-            utils.strain_interaction_to_cross_immunity2(
-                freeze_params.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
-            )
+        parameters[
+            "CROSSIMMUNITY_MATRIX"
+        ] = utils.strain_interaction_to_cross_immunity2(
+            freeze_params.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
         )
         # create parameters based on other possibly sampled parameters
         beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
@@ -272,11 +271,15 @@ class ProjectionParameters(MechanisticInferer):
                 numpyro.deterministic(
                     "STRAIN_R0s_3", parameters["STRAIN_R0s"][2]
                 ),
-                numpyro.deterministic(
-                    "STRAIN_R0s_4", parameters["STRAIN_R0s"][2]
+                freeze_params.JN1_KP_R0_MULTIPLIER
+                * numpyro.deterministic(
+                    "STRAIN_R0s_4",
+                    parameters["STRAIN_R0s"][2],
                 ),
-                numpyro.deterministic(
-                    "STRAIN_R0s_5", parameters["STRAIN_R0s"][2]
+                freeze_params.JN1_KP_R0_MULTIPLIER
+                * numpyro.deterministic(
+                    "STRAIN_R0s_5",
+                    parameters["STRAIN_R0s"][2],
                 ),
                 numpyro.deterministic(
                     "STRAIN_R0s_6", parameters["STRAIN_R0s"][2]
@@ -310,10 +313,10 @@ class ProjectionParameters(MechanisticInferer):
             .at[6, 5]
             .set(1 - immune_escape_65)
         )
-        parameters["CROSSIMMUNITY_MATRIX"] = (
-            utils.strain_interaction_to_cross_immunity2(
-                self.config.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
-            )
+        parameters[
+            "CROSSIMMUNITY_MATRIX"
+        ] = utils.strain_interaction_to_cross_immunity2(
+            self.config.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
         )
 
         return parameters
