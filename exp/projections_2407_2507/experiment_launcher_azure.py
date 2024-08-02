@@ -69,14 +69,14 @@ client.upload_files_in_folder(
 )
 
 # IF CREATING A NEW POOL UNCOMMENT THE NEXT TWO LINES
-client.set_pool_info(
-    mode="autoscale",
-    autoscale_formula_path="secrets/autoscale.txt",
-    timeout=TIMEOUT_MINS,
-)
-client.create_pool(pool_name="scenarios_4cpu_pool_new")
+# client.set_pool_info(
+#     mode="autoscale",
+#     autoscale_formula_path="secrets/autoscale.txt",
+#     timeout=TIMEOUT_MINS,
+# )
+# client.create_pool(pool_name="scenarios_4cpu_pool_new")
 # TO USE EXISTING POOL USE THIS LINE
-client.set_pool("scenarios_4cpu_pool_new")
+client.set_pool("scenarios_2cpu_pool")
 # command to run the job
 client.add_job(job_id=job_id)
 # add a task for each scenario json in state directory in the states folder of this experiment

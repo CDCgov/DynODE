@@ -14,14 +14,10 @@ sys.path.append("/input/exp/fifty_state_6strain_2202_2407/")
 print(os.getcwd())
 # sys.path.append(".")
 # sys.path.append(os.getcwd())
-import jax.numpy as jnp
-import pandas as pd
 from inferer_projection import ProjectionParameters
 
 from mechanistic_model.abstract_azure_runner import AbstractAzureRunner
-from mechanistic_model.covid_sero_initializer import CovidSeroInitializer
 from mechanistic_model.mechanistic_runner import MechanisticRunner
-from mechanistic_model.utils import combine_strains, combined_strains_mapping
 from model_odes.seip_model import seip_ode2
 
 jax.config.update("jax_enable_x64", True)
@@ -31,7 +27,7 @@ jax.config.update("jax_enable_x64", True)
 
 # will be multiplied by number of chains to get total number of posteriors
 NUM_SAMPLES_PER_STATE_PER_SCENARIO = 25
-HISTORICAL_FIT_PATH = "/output/fifty_state_6strain_2202_2407/SMH_6strains_072624_seasonality_constrained"
+HISTORICAL_FIT_PATH = "/output/fifty_state_6strain_2202_2407/scen_6str_v1_2"
 
 
 class ProjectionRunner(AbstractAzureRunner):
@@ -42,7 +38,6 @@ class ProjectionRunner(AbstractAzureRunner):
     def process_state(
         self, state, jobid=None, jobid_in_path=False, scenario=None
     ):
-        fitting_period_num_days = 870
         projection_period_num_days = 365
         posteriors_path = os.path.join(
             HISTORICAL_FIT_PATH,
@@ -85,6 +80,7 @@ class ProjectionRunner(AbstractAzureRunner):
             GLOBAL_CONFIG_PATH, INFERER_CONFIG_PATH, runner
         )
         # self.save_inference_posteriors(inferer)
+        np.random.seed(4326)
         self.save_inference_timelines(
             inferer,
             particles_saved=NUM_SAMPLES_PER_STATE_PER_SCENARIO,

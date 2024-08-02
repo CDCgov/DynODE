@@ -8,7 +8,6 @@ state-specific folder, to be collected later.
 
 import argparse
 import copy
-import itertools
 import json
 import os
 
@@ -72,9 +71,11 @@ def create_multiple_scenarios_configs(state_config, state_abb, subdir_path):
         "oct": [93],
         "nov": [124],
         "dec": [154],
-        "non": [],
+        "none": [],
+        "sample": [1],
     }
     df = pd.read_csv(SCEN_CSV)
+    # df = df[["b" in x for x in df["id"]]]
     dicts = []
     paths = []
     for index, row in df.iterrows():
@@ -85,14 +86,22 @@ def create_multiple_scenarios_configs(state_config, state_abb, subdir_path):
 
         st_config = copy.deepcopy(state_config)
         # vax0 no booster (except children), vax1 with booster across all age
-        st_config["VACCINATION_MODEL_DATA"] = (
-            f"/input/data/vaccination-data/2024_06_30_to_2025_06_28_vax{str(vs)}/"
-        )
+        if vs == 0:
+            st_config["VACCINATION_MODEL_DATA"] = (
+                "/input/data/vaccination-data/2024_06_30_to_2025_06_28_vax0/"
+            )
+        else:
+            st_config["VACCINATION_MODEL_DATA"] = (
+                "/input/data/vaccination-data/2024_06_30_to_2025_06_28_vax1/"
+            )
+            st_config["VACCINATION_RATE_MULTIPLIER"] = vs / 100
+
         # intro time convert from month to day in model
         st_config["INTRODUCTION_TIMES"] = intro_time_lookup[it]
-        if it == "non":
+        if it == "none":
             st_config["INTRODUCTION_SCALES"] = []
             st_config["INTRODUCTION_PCTS"] = []
+        st_config["SAMPLE_STRAIN_X_INTRO_TIME"] = it == "sample"
         # inject multiplier that get used in inferer_projection
         st_config["STRAIN_INTERACTIONS"][6][4] = ie / 100
         st_config["STRAIN_INTERACTIONS"][6][5] = ie / 100

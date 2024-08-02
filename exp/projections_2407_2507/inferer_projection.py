@@ -1,21 +1,21 @@
+import copy
 import os
+from functools import partial
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 import numpyro
 import numpyro.distributions as Dist
 from jax.random import PRNGKey
+from jax.scipy.stats.norm import pdf
 from numpyro.infer import MCMC
 
-from mechanistic_model.mechanistic_inferer import MechanisticInferer
-from mechanistic_model.mechanistic_runner import MechanisticRunner
+import mechanistic_model.utils as utils
 from config.config import Config
 from mechanistic_model import SEIC_Compartments
-import mechanistic_model.utils as utils
-import copy
-import jax
-from functools import partial
-from jax.scipy.stats.norm import pdf
+from mechanistic_model.mechanistic_inferer import MechanisticInferer
+from mechanistic_model.mechanistic_runner import MechanisticRunner
 
 
 class ProjectionParameters(MechanisticInferer):
@@ -100,7 +100,7 @@ class ProjectionParameters(MechanisticInferer):
         self.inference_timesteps = max(obs_hosps_days) + 1
         return self.inference_algo
 
-    def sample_strain_x_intro_time(self, fitting_period_num_days=870):
+    def sample_strain_x_intro_time(self, fitting_period_num_days=890):
         """
         Samples a value of the strain X intro time based on the lags between introduction times of the fitted strains
         """
@@ -286,27 +286,29 @@ class ProjectionParameters(MechanisticInferer):
         parameters["BETA"] = (
             parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
         )
+        avg_2strain_interaction = (
+            parameters["STRAIN_INTERACTIONS"][5, 3]
+            + parameters["STRAIN_INTERACTIONS"][4, 2]
+        ) / 2
+        avg_1strain_interaction = (
+            parameters["STRAIN_INTERACTIONS"][5, 4]
+            + parameters["STRAIN_INTERACTIONS"][4, 3]
+        ) / 2
+        immune_escape_64 = (1 - avg_2strain_interaction) * parameters[
+            "STRAIN_INTERACTIONS"
+        ][6, 4]
+        immune_escape_65 = (1 - avg_1strain_interaction) * parameters[
+            "STRAIN_INTERACTIONS"
+        ][6, 5]
         parameters["STRAIN_INTERACTIONS"] = (
             parameters["STRAIN_INTERACTIONS"]
             .at[6, 4]
-            .multiply(
-                (
-                    parameters["STRAIN_INTERACTIONS"][5, 3]
-                    + parameters["STRAIN_INTERACTIONS"][4, 2]
-                )
-                / 2.0
-            )
+            .set(1 - immune_escape_64)
         )
         parameters["STRAIN_INTERACTIONS"] = (
             parameters["STRAIN_INTERACTIONS"]
             .at[6, 5]
-            .multiply(
-                (
-                    parameters["STRAIN_INTERACTIONS"][5, 4]
-                    + parameters["STRAIN_INTERACTIONS"][4, 3]
-                )
-                / 2.0
-            )
+            .set(1 - immune_escape_65)
         )
         parameters["CROSSIMMUNITY_MATRIX"] = (
             utils.strain_interaction_to_cross_immunity2(
