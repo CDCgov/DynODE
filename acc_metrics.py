@@ -207,7 +207,7 @@ def mcmc_accuracy_measures(
                 log_likelihood={"log likelihood:": log_likelihood_array_vars},
                 posteriors=posteriors_selected,
             )
-            loo_vars = az.loo(trace_hosps)
+            loo_vars = az.loo(trace_hosps, pointwise=True)
             df_loo_vars = pd.DataFrame(loo_vars)
             df_loo_vars.index = [x + f"_variant_proportions" for x in df_loo_vars.index]
 
@@ -271,19 +271,18 @@ if __name__ == "__main__":
         # "WI",
         # "WY",
     ]
-    states = states.sort()
-    az_output_path = "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/"
-    suffix = "v2"
-    print(
-        mcmc_accuracy_measures(
-            state="AL",
-            particles_per_chain=80,
-            initial_model_day=560,
-            az_output=az_output_path,
-            ic="waic",
-            variant=False,
-        )
-    )
+    az_output_path = "/output/fifty_state_2204_2407_6strain/smh_6str_prelim_7/"
+    suffix0 = "prelim_7_waic"
+    # print(
+    #     mcmc_accuracy_measures(
+    #         state="AL",
+    #         particles_per_chain=80,
+    #         initial_model_day=560,
+    #         az_output=az_output_path,
+    #         ic="waic",
+    #         variant=False,
+    #     )
+    # )
 
     # dframe = {}
     # for st in states:
@@ -308,32 +307,32 @@ if __name__ == "__main__":
     #     final_df.columns = dframe.keys()
     #     print(final_df)
 
-    # final_df.to_csv(f"output/accuracy{suffix}.csv", index=True)
+    # final_df.to_csv(f"output/accuracy{suffix0}.csv", index=True)
 
-    # suffix = "v3"
-    # dframe = {}
-    # for st in states:
-    #     try:
-    #         print(f"Processing state: {st}")
-    #         result, waic_hosps, waic_vars = mcmc_accuracy_measures(
-    #             state=st,
-    #             particles_per_chain=80,
-    #             initial_model_day=560,
-    #             az_output=az_output_path,
-    #             ic="loo",
-    #             variant=False,
-    #         )
-    #         print(f"Result for state {st}:")
-    #         print(result)
-    #         dframe[st] = result
-    #     except Exception as e:
-    #         print(f"Error processing state {st}: {e}")
+    suffix1 = "prelim_7_loo_w/_vars"
+    dframe = {}
+    for st in states:
+        try:
+            print(f"Processing state: {st}")
+            result, hosps, vars = mcmc_accuracy_measures(
+                state=st,
+                particles_per_chain=80,
+                initial_model_day=560,
+                az_output=az_output_path,
+                ic="loo",
+                variant=True,
+            )
+            print(f"Result for state {st}:")
+            print(result)
+            dframe[st] = result
+        except Exception as e:
+            print(f"Error processing state {st}: {e}")
 
-    #     # Combine individual DataFrames into one dframe:
-    #     final_df = pd.concat(dframe.values(), axis=1)
-    #     final_df.columns = dframe.keys()
-    #     print(final_df)
+        # Combine individual DataFrames into one dframe:
+        final_df = pd.concat(dframe.values(), axis=1)
+        final_df.columns = dframe.keys()
+        print(final_df)
 
-    # final_df.to_csv(f"output/accuracy{suffix}.csv", index=True)
+    final_df.to_csv(f"output/accuracy{suffix1}.csv", index=True)
 
     # we use compare_elpd_per_state to compare state by state and return the suffixes corresponding to the model.
