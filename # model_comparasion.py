@@ -3,6 +3,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure, show
 import matplotlib
+from exp.fifty_state_6strain_2202_2407.postaz_process import retrieve_inferer_obs
 
 matplotlib.use("TkAgg")
 import pandas as pd
@@ -16,7 +17,7 @@ az.style.use("arviz-doc")
 # both accuracy csv files-corresponding to each suffix- should have same US states, particles_per_chain and observed data, i.e same initial model day.
 
 
-def compare_elpd_per_state(suffix1, suffix2):
+def pvalue_model_comparasion_per_state(suffix1, suffix2):
     suffix1 = suffix1
     suffix2 = suffix2
 
@@ -75,6 +76,22 @@ def compare_elpd_per_state(suffix1, suffix2):
 def plot_elpd_per_state_comparasion(
     state, particles_per_chain, initial_model_day, az_output, ic, variant
 ):
+    (
+        inferer,
+        runner,
+        obs_hosps,
+        obs_hosps_days,
+        obs_sero_lmean,
+        obs_sero_days,
+        obs_var_prop,
+        obs_var_days,
+    ) = retrieve_inferer_obs(state=state, initial_model_day=initial_model_day)
+    age_group_colors = [f"C{i}" for i in range(obs_hosps.shape[-1])] * obs_hosps.shape[
+        0
+    ]
+    var_prop_colors = [
+        f"C{i}" for i in range(obs_var_prop.shape[-1])
+    ] * obs_var_prop.shape[0]
     if variant == True:
 
         df_0, hosps_0, vars_0 = mcmc_accuracy_measures(
@@ -105,17 +122,33 @@ def plot_elpd_per_state_comparasion(
             f"var_props from the model whose azure output is {az_output[1]}": vars_1,
         }
 
-        return az.plot_elpd(
+        ax0, ax1 = az.plot_elpd(
             compare_dict=compare_dict_hosps,
             threshold=2,
             ic=ic,
             xlabels=True,
+            color=age_group_colors,
+            legend=True,
         ), az.plot_elpd(
             compare_dict=compare_dict_vars,
             threshold=2,
             ic=ic,
             xlabels=True,
+            color=var_prop_colors,
+            legend=True,
         )
+
+        # Adjust legend
+
+        # legend_labels = [f"Age Group {i}"for i in range(len(age_group_colors))]
+
+        # handles0, _ = ax0.get_legend_handles_labels()
+
+        # ax0.legend(handles0=handles[:len(age_group_colors)], labels=legend_labels, title="Age Groups")
+
+        # Adjust x-axis labels to show only the number of weeks
+
+        return ax0, ax1
     else:
         df_0, hosps_0 = mcmc_accuracy_measures(
             state=state,
@@ -140,13 +173,17 @@ def plot_elpd_per_state_comparasion(
             f"hospitalizations {az_output[1]}": hosps_1,
         }
 
-        return az.plot_elpd(
+        ax = az.plot_elpd(
             compare_dict=compare_dict_hosps,
             threshold=2,
             ic=ic,
             xlabels=True,
             show=False,
+            color=age_group_colors,
+            legend=True,
         )
+
+        return ax
 
 
 def comparasion_per_state(
@@ -248,19 +285,21 @@ def comparasion_plot(
 
 
 ######### Plots individual ELPD difference per observed data. Useful to compare where observed data is scarse #########
-ax00, ax0 = plot_elpd_per_state_comparasion(
+ax0, ax1 = plot_elpd_per_state_comparasion(
     state="CA",
-    particles_per_chain=5,
-    initial_model_day=560,
+    particles_per_chain=250,
+    initial_model_day=690,
     az_output=[
         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_1/",
         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/",
     ],
-    ic="waic",
+    ic="loo",
     variant=True,
 )
 fig0 = ax0.get_figure()
-fig0.savefig("output/test_waic_var_CA.png")
+fig0.savefig("output/testing_loo_hosp_CA.png")
+fig1 = ax1.get_figure()
+fig1.savefig("output/testing_loo_var_prop_CA.png")
 
 
 ######### Plots the full model comparasion per state ###########
