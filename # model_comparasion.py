@@ -12,62 +12,9 @@ import arviz as az
 import numpyro
 import jax.numpy as jnp
 from acc_metrics import mcmc_accuracy_measures
+import scipy.stats as stats
 
 az.style.use("arviz-doc")
-# both accuracy csv files-corresponding to each suffix- should have same US states, particles_per_chain and observed data, i.e same initial model day.
-
-
-def pvalue_model_comparasion_per_state(suffix1, suffix2):
-    suffix1 = suffix1
-    suffix2 = suffix2
-
-    df1 = pd.read_csv(f"output/accuracy{suffix1}.csv")
-    df2 = pd.read_csv(f"output/accuracy{suffix2}.csv")
-    print(df1.columns[1:])
-    if tuple(df1.columns) == tuple(df2.columns):
-        print(df1.iloc[1, 1 : len(df1.columns)])
-        print(df2.iloc[1, 1 : len(df1.columns)])
-        l = []
-        for k in range(1, len(df1.columns)):
-            elpd1 = df1.iloc[0, k]
-            elpd2 = df2.iloc[0, k]
-            s1 = df1.iloc[1, k]
-            s2 = df2.iloc[1, k]
-            elpd1, elpd2, s1, s2 = float(elpd1), float(elpd2), float(s1), float(s2)
-            z_score = np.abs(elpd1 - elpd2) / (np.sqrt(s1**2 + s2**2))
-            if abs(z_score) > 4:
-                l.append(
-                    f"hospitalizations accuracy difference for state {df1.columns[k]} is significant"
-                )
-            else:
-                l.append(
-                    f"hospitalizations accuracy difference for state {df1.columns[k]} insignificant"
-                )
-        l = pd.Series(l, index=df1.columns[1:])
-        df1 = pd.read_csv(f"output/accuracy{suffix1}.csv")
-        df2 = pd.read_csv(f"output/accuracy{suffix2}.csv")
-        l1 = []
-        for k in range(1, len(df1.columns)):
-            elpd1 = df1.iloc[7, k]
-            elpd2 = df2.iloc[7, k]
-            s1 = df1.iloc[8, k]
-            s2 = df2.iloc[8, k]
-            elpd1, elpd2, s1, s2 = float(elpd1), float(elpd2), float(s1), float(s2)
-            z_score = np.abs(elpd2 - elpd1) / (np.sqrt(s1**2 + s2**2))
-            if z_score > 2:
-                l1.append(
-                    f"variant prop accuracy difference for state {df2.columns[k]} is significant"
-                )
-            else:
-                l1.append(
-                    f"variant_prop accuracy difference for state {df2.columns[k]} insignificant"
-                )
-        l1 = pd.Series(l, index=df1.columns[1:])
-        return l, l1
-    else:
-        print("states must be the same at same order")
-        return []
-
 
 # now we should plot the difference between the elpds. the az_output_path should be a list of two paths.
 # should have fixed mcmc_accuracy_measures() variables.
@@ -186,6 +133,9 @@ def plot_elpd_per_state_comparasion(
         return ax
 
 
+# both models should have same US state, particles_per_chain and observed data.
+
+
 def comparasion_per_state(
     state, particles_per_chain, initial_model_day, az_output, ic, variant
 ):
@@ -219,11 +169,23 @@ def comparasion_per_state(
             f"var_props from the model whose azure output is {az_output[1]}": vars_1,
         }
 
-        return az.compare(
+        df0 = az.compare(
             compare_dict=compare_dict_hosps,
-        ), az.compare(
+        )
+        p = df0["elpd_diff"] / df0["dse"]
+        p_value = 2 * (1 - stats.norm.cdf(abs(p)))
+
+        df0["p_value"] = p_value
+
+        df1 = az.compare(
             compare_dict=compare_dict_vars,
         )
+        p = df1["elpd_diff"] / df1["dse"]
+        p_value = 2 * (1 - stats.norm.cdf(abs(p)))
+
+        df1["p_value"] = p_value
+
+        return df0, df1
     else:
         df_0, hosps_0 = mcmc_accuracy_measures(
             state=state,
@@ -247,10 +209,14 @@ def comparasion_per_state(
             f"hospitalizations {az_output[0]}": hosps_0,
             f"hospitalizations {az_output[1]}": hosps_1,
         }
-
-        return az.compare(
+        df = az.compare(
             compare_dict=compare_dict_hosps,
         )
+        p = df["elpd_diff"] / df["dse"]
+        p_value = 2 * (1 - stats.norm.cdf(abs(p)))
+
+        df["p_value"] = p_value
+        return df
 
 
 def comparasion_plot(
@@ -268,7 +234,7 @@ def comparasion_plot(
         return az.plot_compare(comparasion)
 
 
-######################--------------------- Model_Comparasion.csv per state------------------------- ##########################################################
+##################################--------------------- Model_Comparasion.csv per state------------------------- ##########################################################
 
 # df = comparasion_per_state(
 #     state="CA",
