@@ -96,8 +96,8 @@ def plot_elpd_per_state_comparasion(
         )
 
         compare_dict_hosps = {
-            f"hospitalizations from the model whose azure output path is {az_output[0]}": hosps_0,
-            f"hospitalizations from the model whose azure output path is {az_output[1]}": hosps_1,
+            f"hosps from the model whose azure output path is {az_output[0]}": hosps_0,
+            f"hosps from the model whose azure output path is {az_output[1]}": hosps_1,
         }
 
         compare_dict_vars = {
@@ -144,7 +144,7 @@ def plot_elpd_per_state_comparasion(
             compare_dict=compare_dict_hosps,
             threshold=2,
             ic=ic,
-            xlabels=False,
+            xlabels=True,
             show=False,
         )
 
@@ -248,19 +248,19 @@ def comparasion_plot(
 
 
 ######### Plots individual ELPD difference per observed data. Useful to compare where observed data is scarse #########
-ax0, ax1 = plot_elpd_per_state_comparasion(
+ax00, ax0 = plot_elpd_per_state_comparasion(
     state="CA",
-    particles_per_chain=90,
+    particles_per_chain=5,
     initial_model_day=560,
     az_output=[
         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_1/",
         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/",
     ],
-    ic="loo",
+    ic="waic",
     variant=True,
 )
-fig1 = ax1.get_figure()
-fig1.savefig("output/acc_fig_loo_var_prop_CA.png")
+fig0 = ax0.get_figure()
+fig0.savefig("output/test_waic_var_CA.png")
 
 
 ######### Plots the full model comparasion per state ###########

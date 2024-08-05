@@ -44,7 +44,7 @@ def mcmc_accuracy_measures(
         obs_var_prop,
         obs_var_days,
     ) = retrieve_inferer_obs(state, initial_model_day)
-    print(obs_var_prop.shape)
+    print("obs_var_prop and hosps shapes: ", obs_var_prop.shape, obs_hosps.shape)
     # get random particle_index
     particle_indexes = np.random.choice(
         range(inferer.config.INFERENCE_NUM_SAMPLES),
@@ -122,22 +122,21 @@ def mcmc_accuracy_measures(
     }
 
     trace_hosps = az.from_dict(
+        posterior=posteriors_selected,
         posterior_predictive={"hospitalizations": pred_hosps_list},
         observed_data={"hospitalizations": obs_hosps},
         log_likelihood={"log likelihood:": log_likelihood_array_hosps},
-        posteriors=posteriors_selected,
     )
     if ic == "waic":
         waic_hosps = az.waic(trace_hosps)
         df_waic_hosps = pd.DataFrame(waic_hosps)
-        df_waic_hosps.drop(["waic_i"], axis=0, inplace=True)
-
         df_waic_hosps.index = [x + f"_hosps" for x in df_waic_hosps.index]
 
         if variant == True:
-            obs_var_prop = jnp.tile(
-                jnp.array(obs_var_prop), (nchain, len(particle_indexes), 1, 1)
-            )
+            # obs_var_prop = jnp.tile(
+            #     jnp.array(obs_var_prop), (nchain, len(particle_indexes), 1, 1)
+            # )
+            print(jnp.shape(jnp.array(obs_var_prop)))
             log_likelihood_array_vars = []
             for pred_vars_chain in pred_vars_list:
                 log_likelihood_chain_vars = []
@@ -151,13 +150,12 @@ def mcmc_accuracy_measures(
                             obs_var_prop
                         )
                     log_likelihood_chain_vars.append(log_likelihood)
-                log_likelihood_array_vars.append(log_likelihood_chain_hosps)
-
+                log_likelihood_array_vars.append(log_likelihood_chain_vars)
             trace_hosps = az.from_dict(
+                posterior=posteriors_selected,
                 posterior_predictive={"pred_vars_prop": pred_vars_list},
                 observed_data={"vars_prop_obs_data": obs_var_prop},
                 log_likelihood={"log likelihood:": log_likelihood_array_vars},
-                posteriors=posteriors_selected,
             )
             waic_vars = az.waic(trace_hosps)
             df_waic_vars = pd.DataFrame(waic_vars)
@@ -184,9 +182,9 @@ def mcmc_accuracy_measures(
         df_loo_hosps.index = [x + f"_hosps" for x in df_loo_hosps.index]
 
         if variant == True:
-            obs_var_prop = jnp.tile(
-                jnp.array(obs_var_prop), (nchain, len(particle_indexes), 1, 1)
-            )
+            # obs_var_prop = jnp.tile(
+            #     jnp.array(obs_var_prop), (nchain, len(particle_indexes), 1, 1)
+            # )
             log_likelihood_array_vars = []
             for pred_vars_chain in pred_vars_list:
                 log_likelihood_chain_vars = []
@@ -201,13 +199,13 @@ def mcmc_accuracy_measures(
                         )
                     log_likelihood_chain_vars.append(log_likelihood)
                 log_likelihood_array_vars.append(log_likelihood_chain_vars)
-            trace_hosps = az.from_dict(
+            trace_vars = az.from_dict(
+                posterior={"param": posteriors_selected},
                 posterior_predictive={"pred_vars_prop": pred_vars_list},
                 observed_data={"vars_prop_obs_data": obs_var_prop},
                 log_likelihood={"log likelihood:": log_likelihood_array_vars},
-                posteriors=posteriors_selected,
             )
-            loo_vars = az.loo(trace_hosps, pointwise=True)
+            loo_vars = az.loo(trace_vars)
             df_loo_vars = pd.DataFrame(loo_vars)
             df_loo_vars.index = [x + f"_variant_proportions" for x in df_loo_vars.index]
 
@@ -273,17 +271,6 @@ if __name__ == "__main__":
     ]
     az_output_path = "/output/fifty_state_2204_2407_6strain/smh_6str_prelim_7/"
     suffix0 = "prelim_7_waic"
-    # print(
-    #     mcmc_accuracy_measures(
-    #         state="AL",
-    #         particles_per_chain=80,
-    #         initial_model_day=560,
-    #         az_output=az_output_path,
-    #         ic="waic",
-    #         variant=False,
-    #     )
-    # )
-
     # dframe = {}
     # for st in states:
     #     try:
@@ -309,17 +296,17 @@ if __name__ == "__main__":
 
     # final_df.to_csv(f"output/accuracy{suffix0}.csv", index=True)
 
-    suffix1 = "prelim_7_loo_w/_vars"
+    suffix1 = "prelim_7_waic_w/_vars"
     dframe = {}
     for st in states:
         try:
             print(f"Processing state: {st}")
             result, hosps, vars = mcmc_accuracy_measures(
                 state=st,
-                particles_per_chain=80,
+                particles_per_chain=5,
                 initial_model_day=560,
                 az_output=az_output_path,
-                ic="loo",
+                ic="waic",
                 variant=True,
             )
             print(f"Result for state {st}:")
@@ -334,5 +321,3 @@ if __name__ == "__main__":
         print(final_df)
 
     final_df.to_csv(f"output/accuracy{suffix1}.csv", index=True)
-
-    # we use compare_elpd_per_state to compare state by state and return the suffixes corresponding to the model.
