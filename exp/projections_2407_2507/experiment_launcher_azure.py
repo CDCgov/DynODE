@@ -41,11 +41,8 @@ runner_path_docker = os.path.join(folder_path_docker, "run_task.py")
 states_path_local = os.path.join(folder_path_local, "states")
 states_path_docker = os.path.join(folder_path_docker, "states")
 # get docker paths of our postprocessing scripts
-runner_path_postprocess_0 = os.path.join(
+postprocess_path_docker = os.path.join(
     folder_path_docker, "collate_projections.py"
-)
-runner_path_postprocess_1 = os.path.join(
-    folder_path_docker, "collate_checkpoints.py"
 )
 # check that the files are in the right place locally
 assert os.path.exists(
@@ -110,12 +107,7 @@ for statedir in os.listdir(states_path_local):
 # after all the tasks have finished launching, we launch our postprocessing scripts
 client.add_task(
     job_id=job_id,
-    docker_cmd="python %s -j %s" % (runner_path_postprocess_0, job_id),
-    depends_on=task_ids,
-)
-client.add_task(
-    job_id=job_id,
-    docker_cmd="python %s -j %s" % (runner_path_postprocess_1, job_id),
+    docker_cmd="python %s -j %s" % (postprocess_path_docker, job_id),
     depends_on=task_ids,
 )
 client.monitor_job(job_id=job_id)
