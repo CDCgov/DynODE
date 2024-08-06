@@ -10,7 +10,7 @@ from cfa_azure.clients import AzureClient
 
 # specify job ID, cant already exist
 
-DOCKER_IMAGE_TAG = "ben-scenarios-20240726"
+DOCKER_IMAGE_TAG = "scenarios-20240806"
 # number of seconds of a full experiment run before timeout
 # for `s` states to run and `n` nodes dedicated,`s/n` * runtime 1 state secs needed
 TIMEOUT_MINS = 360
@@ -40,6 +40,13 @@ runner_path_docker = os.path.join(folder_path_docker, "run_task.py")
 # get a path to the `states` folder, both on this machine and in the docker blob
 states_path_local = os.path.join(folder_path_local, "states")
 states_path_docker = os.path.join(folder_path_docker, "states")
+# get docker paths of our postprocessing scripts
+runner_path_postprocess_0 = os.path.join(
+    folder_path_docker, "collate_projections.py"
+)
+runner_path_postprocess_1 = os.path.join(
+    folder_path_docker, "collate_checkpoints.py"
+)
 # check that the files are in the right place locally
 assert os.path.exists(
     runner_path_local
@@ -79,6 +86,7 @@ client.upload_files_in_folder(
 client.set_pool("scenarios_2cpu_pool")
 # command to run the job
 client.add_job(job_id=job_id)
+task_ids = []
 # add a task for each scenario json in state directory in the states folder of this experiment
 for statedir in os.listdir(states_path_local):
     statedir_path = os.path.join(states_path_local, statedir)
@@ -93,9 +101,21 @@ for statedir in os.listdir(states_path_local):
             if "config_global" not in f
         ]
         for sc in scens:
-            client.add_task(
+            task_id = client.add_task(
                 job_id=job_id,
                 docker_cmd="python %s -s %s -j %s -sc %s"
                 % (runner_path_docker, statedir, job_id, sc),
             )
+            task_ids.append(task_id)
+# after all the tasks have finished launching, we launch our postprocessing scripts
+client.add_task(
+    job_id=job_id,
+    docker_cmd="python %s -j %s" % (runner_path_postprocess_0, job_id),
+    depends_on=task_ids,
+)
+client.add_task(
+    job_id=job_id,
+    docker_cmd="python %s -j %s" % (runner_path_postprocess_1, job_id),
+    depends_on=task_ids,
+)
 client.monitor_job(job_id=job_id)
