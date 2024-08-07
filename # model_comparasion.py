@@ -212,7 +212,6 @@ def comparasion_per_state(
         p_value = 2 * (1 - stats.norm.cdf(abs(p)))
 
         df["p_value"] = p_value
-        print([df.loc[0:, "p_value"]])
 
         return df, plot
     elif variant == True and len(az_output) > 2:
@@ -240,7 +239,7 @@ def comparasion_per_state(
 
 df, plot = comparasion_per_state(
     state="CA",
-    particles_per_chain=5,
+    particles_per_chain=100,
     initial_model_day=560,
     az_output=[
         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_1/",
@@ -251,12 +250,12 @@ df, plot = comparasion_per_state(
         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_6/",
         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/",
     ],
-    ic="waic",
+    ic="loo",
     variant=False,
 )
-df.to_csv("output/all_prelim_model_hosps_waic_CA.csv")
+df.to_csv("output/all_prelim_model_hosps_loo_CA.csv")
 fig0 = plot.get_figure()
-fig0.savefig("output/all_prelim_waic_hosps_CA.png")
+fig0.savefig("output/all_prelim_loo_hosps_CA.png")
 
 
 ######### Plots individual ELPD difference per observed data. Useful to compare where observed data is scarse #########

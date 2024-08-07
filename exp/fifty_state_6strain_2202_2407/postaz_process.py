@@ -20,7 +20,7 @@ import pandas as pd
 from cycler import cycler
 from matplotlib.backends.backend_pdf import PdfPages
 
-from exp.fifty_state_6strain_2202_2407.inferer_smh import SMHInferer
+from inferer_smh_6strains import SMHInferer
 from exp.fifty_state_6strain_2202_2407.run_task import (
     rework_initial_state,
 )
