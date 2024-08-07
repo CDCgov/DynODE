@@ -16,7 +16,7 @@ print(os.getcwd())
 # sys.path.append(os.getcwd())
 import jax.numpy as jnp
 import pandas as pd
-from exp.fifty_state_5strain_2202_2404.inferer_smh import SMHInferer
+from inferer_smh import SMHInferer
 from mechanistic_model.abstract_azure_runner import AbstractAzureRunner
 from mechanistic_model.covid_sero_initializer import CovidSeroInitializer
 from mechanistic_model.mechanistic_runner import MechanisticRunner
