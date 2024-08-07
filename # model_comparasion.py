@@ -236,51 +236,51 @@ def comparasion_plot(
 
 ##################################--------------------- Model_Comparasion.csv per state------------------------- ##########################################################
 
-# df = comparasion_per_state(
-#     state="CA",
-#     particles_per_chain=80,
-#     initial_model_day=560,
-#     az_output=[
-#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_1/",
-#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/",
-#     ],
-#     ic="waic",
-#     variant=False,
-# )
-# df.to_csv("output/model_comparasion_waic_CA.csv")
+df = comparasion_per_state(
+    state="CA",
+    particles_per_chain=80,
+    initial_model_day=560,
+    az_output=[
+        f"/output/fifty_state_6strain_2204_2407/smh_6str_prelim_{k}/"
+        for k in range(1, 8)
+    ],
+    ic="waic",
+    variant=False,
+)
+df.to_csv("output/all_prelim_model_comparasion_waic_CA.csv")
 
 
 ######### Plots individual ELPD difference per observed data. Useful to compare where observed data is scarse #########
-ax0, ax1 = plot_elpd_per_state_comparasion(
-    state="CA",
-    particles_per_chain=250,
-    initial_model_day=690,
-    az_output=[
-        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_1/",
-        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/",
-    ],
-    ic="loo",
-    variant=True,
-)
-fig0 = ax0.get_figure()
-fig0.savefig("output/testing_loo_hosp_CA.png")
-fig1 = ax1.get_figure()
-fig1.savefig("output/testing_loo_var_prop_CA.png")
+# ax0, ax1 = plot_elpd_per_state_comparasion(
+#     state="CA",
+#     particles_per_chain=90,
+#     initial_model_day=690,
+#     az_output=[
+#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_1/",
+#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_1/",
+#     ],
+#     ic="loo",
+#     variant=True,
+# )
+# fig0 = ax0.get_figure()
+# fig0.savefig("output/testing_loo_hosp_CA.png")
+# fig1 = ax1.get_figure()
+# fig1.savefig("output/testing_loo_var_prop_CA.png")
 
 
 ######### Plots the full model comparasion per state ###########
 
 
-# ax0 = comparasion_plot(
-#     state="CA",
-#     particles_per_chain=80,
-#     initial_model_day=560,
-#     az_output=[
-#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_1/",
-#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/",
-#     ],
-#     ic="waic",
-#     variant=False,
-# )
-# fig0 = ax0.get_figure()
-# fig0.savefig("output/acc_fig_waic_hosps_CA.png")
+ax0 = comparasion_plot(
+    state="CA",
+    particles_per_chain=80,
+    initial_model_day=560,
+    az_output=[
+        f"/output/fifty_state_6strain_2204_2407/smh_6str_prelim_{k}/"
+        for k in range(1, 8)
+    ],
+    ic="waic",
+    variant=False,
+)
+fig0 = ax0.get_figure()
+fig0.savefig("output/acc_all_prelim_fig_waic_hosps_CA.png")
