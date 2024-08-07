@@ -41,7 +41,7 @@ def plot_elpd_per_state_comparasion(
     ] * obs_var_prop.shape[0]
     if variant == True:
 
-        df_0, hosps_0, vars_0 = mcmc_accuracy_measures(
+        [df_0, hosps_0, vars_0] = mcmc_accuracy_measures(
             state=state,
             particles_per_chain=particles_per_chain,
             initial_model_day=initial_model_day,
@@ -50,7 +50,7 @@ def plot_elpd_per_state_comparasion(
             variant=variant,
         )
 
-        df_1, hosps_1, vars_1 = mcmc_accuracy_measures(
+        [df_1, hosps_1, vars_1] = mcmc_accuracy_measures(
             state=state,
             particles_per_chain=particles_per_chain,
             initial_model_day=initial_model_day,
@@ -139,7 +139,8 @@ def plot_elpd_per_state_comparasion(
 def comparasion_per_state(
     state, particles_per_chain, initial_model_day, az_output, ic, variant
 ):
-    if variant == True:
+    # if variant=True then it will be very time consume to have len(az_output)>2.
+    if variant == True and len(az_output) == 2:
 
         df_0, hosps_0, vars_0 = mcmc_accuracy_measures(
             state=state,
@@ -174,80 +175,88 @@ def comparasion_per_state(
         )
         p = df0["elpd_diff"] / df0["dse"]
         p_value = 2 * (1 - stats.norm.cdf(abs(p)))
+        plot0 = az.plot_compare(df0)
 
         df0["p_value"] = p_value
 
         df1 = az.compare(
             compare_dict=compare_dict_vars,
         )
+        plot1 = az.plot_compare(df1)
+
         p = df1["elpd_diff"] / df1["dse"]
         p_value = 2 * (1 - stats.norm.cdf(abs(p)))
 
         df1["p_value"] = p_value
 
-        return df0, df1
-    else:
-        df_0, hosps_0 = mcmc_accuracy_measures(
-            state=state,
-            particles_per_chain=particles_per_chain,
-            initial_model_day=initial_model_day,
-            az_output=az_output[0],
-            ic=ic,
-            variant=variant,
-        )
-
-        df_1, hosps_1 = mcmc_accuracy_measures(
-            state=state,
-            particles_per_chain=particles_per_chain,
-            initial_model_day=initial_model_day,
-            az_output=az_output[1],
-            ic=ic,
-            variant=variant,
-        )
+        return df0, df1, plot0, plot1
+    elif variant == False and len(az_output) >= 2:
 
         compare_dict_hosps = {
-            f"hospitalizations {az_output[0]}": hosps_0,
-            f"hospitalizations {az_output[1]}": hosps_1,
+            f"hosps_evaluation_model_{k+1}": mcmc_accuracy_measures(
+                state=state,
+                particles_per_chain=particles_per_chain,
+                initial_model_day=initial_model_day,
+                az_output=az_output[k],
+                ic=ic,
+                variant=variant,
+            )[1]
+            for k in range(len(az_output))
         }
+
         df = az.compare(
             compare_dict=compare_dict_hosps,
         )
+        plot = az.plot_compare(df)
         p = df["elpd_diff"] / df["dse"]
         p_value = 2 * (1 - stats.norm.cdf(abs(p)))
 
         df["p_value"] = p_value
-        return df
+        print([df.loc[0:, "p_value"]])
+
+        return df, plot
+    elif variant == True and len(az_output) > 2:
+        print(
+            "Too many azure outputs, while considering variant proportions, due to time increasing, compare at most 2 models."
+        )
 
 
-def comparasion_plot(
-    state, particles_per_chain, initial_model_day, az_output, ic, variant
-):
-    if variant == True:
-        comparasion0, comparasion1 = comparasion_per_state(
-            state, particles_per_chain, initial_model_day, az_output, ic, variant
-        )
-        return az.plot_compare(comparasion0), az.plot_compare(comparasion1)
-    else:
-        comparasion = comparasion_per_state(
-            state, particles_per_chain, initial_model_day, az_output, ic, variant
-        )
-        return az.plot_compare(comparasion)
+# def comparasion_plot(
+#     state, particles_per_chain, initial_model_day, az_output, ic, variant
+# ):
+#     if variant == True:
+#         comparasion0, comparasion1 = comparasion_per_state(
+#             state, particles_per_chain, initial_model_day, az_output, ic, variant
+#         )
+#         return az.plot_compare(comparasion0), az.plot_compare(comparasion1)
+#     else:
+#         comparasion = comparasion_per_state(
+#             state, particles_per_chain, initial_model_day, az_output, ic, variant
+#         )
+#         return az.plot_compare(comparasion)
 
 
 ##################################--------------------- Model_Comparasion.csv per state------------------------- ##########################################################
 
-df = comparasion_per_state(
+df, plot = comparasion_per_state(
     state="CA",
-    particles_per_chain=80,
+    particles_per_chain=5,
     initial_model_day=560,
     az_output=[
-        f"/output/fifty_state_6strain_2204_2407/smh_6str_prelim_{k}/"
-        for k in range(1, 8)
+        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_1/",
+        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_2/",
+        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_3/",
+        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_4/",
+        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_5/",
+        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_6/",
+        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/",
     ],
     ic="waic",
     variant=False,
 )
-df.to_csv("output/all_prelim_model_comparasion_waic_CA.csv")
+df.to_csv("output/all_prelim_model_hosps_waic_CA.csv")
+fig0 = plot.get_figure()
+fig0.savefig("output/all_prelim_waic_hosps_CA.png")
 
 
 ######### Plots individual ELPD difference per observed data. Useful to compare where observed data is scarse #########
@@ -271,16 +280,16 @@ df.to_csv("output/all_prelim_model_comparasion_waic_CA.csv")
 ######### Plots the full model comparasion per state ###########
 
 
-ax0 = comparasion_plot(
-    state="CA",
-    particles_per_chain=80,
-    initial_model_day=560,
-    az_output=[
-        f"/output/fifty_state_6strain_2204_2407/smh_6str_prelim_{k}/"
-        for k in range(1, 8)
-    ],
-    ic="waic",
-    variant=False,
-)
-fig0 = ax0.get_figure()
-fig0.savefig("output/acc_all_prelim_fig_waic_hosps_CA.png")
+# ax0 = comparasion_plot(
+#     state="CA",
+#     particles_per_chain=80,
+#     initial_model_day=560,
+#     az_output=[
+#         f"/output/fifty_state_6strain_2204_2407/smh_6str_prelim_{k}/"
+#         for k in range(1, 8)
+#     ],
+#     ic="waic",
+#     variant=False,
+# )
+# fig0 = ax0.get_figure()
+# fig0.savefig("output/acc_all_prelim_fig_waic_hosps_CA.png")

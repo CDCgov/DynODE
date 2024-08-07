@@ -24,6 +24,9 @@ from exp.fifty_state_6strain_2202_2407.inferer_smh import SMHInferer
 jax.config.update("jax_enable_x64", True)
 
 
+# variant should be either set to True or False
+
+
 def mcmc_accuracy_measures(
     state,
     particles_per_chain,
@@ -166,9 +169,9 @@ def mcmc_accuracy_measures(
 
             df_waic = pd.concat([df_waic_hosps, df_waic_vars], axis=0)
             df_waic.columns = [state]
-            return df_waic, waic_hosps, waic_vars
+            return [df_waic, waic_hosps, waic_vars]
         else:
-            return df_waic_hosps, waic_hosps
+            return [df_waic_hosps, waic_hosps]
     if ic == "loo":
         trace_hosps = az.from_dict(
             posterior={"param": posteriors_selected},
@@ -211,9 +214,9 @@ def mcmc_accuracy_measures(
 
             df_loo = pd.concat([df_loo_hosps, df_loo_vars], axis=0)
             df_loo.columns = [state]
-            return df_loo, loo_hosps, loo_vars
+            return [df_loo, loo_hosps, loo_vars]
         else:
-            return df_loo_hosps, loo_hosps
+            return [df_loo_hosps, loo_hosps]
 
 
 if __name__ == "__main__":
@@ -301,7 +304,7 @@ if __name__ == "__main__":
     for st in states:
         try:
             print(f"Processing state: {st}")
-            result, hosps, vars = mcmc_accuracy_measures(
+            (result, hosps, vars) = mcmc_accuracy_measures(
                 state=st,
                 particles_per_chain=5,
                 initial_model_day=560,
