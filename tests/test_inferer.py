@@ -130,7 +130,7 @@ def test_random_sampling_across_chains_and_particles():
     for chain in range(inferer.config.INFERENCE_NUM_CHAINS):
         # get both particles across both inferers for this chain
         inferer1_chain_particle_0 = inferer1_posteriors[(chain, 0)]
-        inferer1_chain_particle_1 = inferer1_posteriors[(chain, 1)]
+        # inferer1_chain_particle_1 = inferer1_posteriors[(chain, 1)]
         inferer2_chain_particle_0 = inferer2_posteriors[(chain, 0)]
         inferer2_chain_particle_1 = inferer2_posteriors[(chain, 1)]
         # make sure that we are randomly sampling the dropped parameter
