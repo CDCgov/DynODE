@@ -1,0 +1,129 @@
+{
+    "SCENARIO_NAME": "test covid run for testing suite",
+    "CONTACT_MATRIX_PATH": "/input/data/demographic-data/contact_matrices",
+    "SAVE_PATH": "/output/",
+    "HOSPITALIZATION_DATA_PATH": "/input/data/hospital_220213_220108.csv",
+    "VACCINATION_MODEL_DATA": "/input/data/spline_fits.csv",
+    "SEASONAL_VACCINATION": false,
+    "STRAIN_R0s": [
+        1.2,
+        1.8,
+        {
+            "distribution": "TransformedDistribution",
+            "params": {
+                "base_distribution": {
+                    "distribution": "Beta",
+                    "params": {
+                        "concentration1": 8,
+                        "concentration0": 2
+                    }
+                },
+                "transforms": {
+                    "transform": "AffineTransform",
+                    "params": {
+                        "loc": 2.5,
+                        "scale": 1,
+                        "domain": {
+                            "constraint": "unit_interval",
+                            "params": {}
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "INFECTIOUS_PERIOD": {
+        "distribution": "TruncatedNormal",
+        "params": {
+            "loc": 10,
+            "scale": 2,
+            "low": 1.0
+        }
+    },
+    "EXPOSED_TO_INFECTIOUS": 3.6,
+    "INITIAL_INFECTIONS_SCALE": 1.0,
+    "INTRODUCTION_TIMES": [
+        {
+            "distribution": "TruncatedNormal",
+            "params": {
+                "loc": 60,
+                "scale": 20,
+                "low": 10
+            }
+        }
+    ],
+    "CONSTANT_STEP_SIZE": 0,
+    "INTRODUCTION_PCTS": [
+        0.01
+    ],
+    "INTRODUCTION_SCALES": [
+        10
+    ],
+    "INTRODUCTION_AGE_MASK": [
+        false,
+        true,
+        false,
+        false
+    ],
+    "MIN_HOMOLOGOUS_IMMUNITY": 0.1,
+    "WANING_PROTECTIONS": [
+        1.0,
+        0.942,
+        0.942,
+        0.942,
+        0.0
+    ],
+    "STRAIN_INTERACTIONS": [
+        [
+            1.0,
+            0.7,
+            0.49
+        ],
+        [
+            0.7,
+            1.0,
+            0.7
+        ],
+        [
+            0.49,
+            0.7,
+            1.0
+        ]
+    ],
+    "VACCINE_EFF_MATRIX": [
+        [
+            0,
+            0.34,
+            0.68
+        ],
+        [
+            0,
+            0.24,
+            0.48
+        ],
+        [
+            0,
+            0.14,
+            0.28
+        ]
+    ],
+    "BETA_TIMES": [
+        0.0,
+        120.0,
+        150
+    ],
+    "BETA_COEFICIENTS": [
+        1.0,
+        1.0,
+        1.0
+    ],
+    "SEASONALITY_AMPLITUDE": 0.15,
+    "SEASONALITY_SECOND_WAVE": 0.5,
+    "SEASONALITY_SHIFT": 0,
+    "INFERENCE_PRNGKEY": 8675309,
+    "INFERENCE_NUM_WARMUP": 100,
+    "INFERENCE_NUM_SAMPLES": 500,
+    "INFERENCE_NUM_CHAINS": 4,
+    "INFERENCE_PROGRESS_BAR": true,
+    "MODEL_RAND_SEED": 8675309
+}

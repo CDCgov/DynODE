@@ -15,11 +15,11 @@ import pandas as pd
 # these are the configs that will be copied into each state-level directory
 # their REGIONS key will be modified to match the state they work with.
 CONFIG_MOLDS = [
-    "exp/example_template_configs/config_global.json",
-    "exp/example_template_configs/config_inferer_covid.json",
-    "exp/example_template_configs/config_initializer_covid.json",
-    "exp/example_template_configs/config_runner_covid.json",
-    "exp/example_template_configs//config_interpreter_covid.json",
+    "exp/example_azure_experiment/example_template_configs/config_global.json",
+    "exp/example_azure_experiment/example_template_configs/config_inferer_covid.json",
+    "exp/example_azure_experiment/example_template_configs/config_initializer_covid.json",
+    "exp/example_azure_experiment/example_template_configs/config_runner_covid.json",
+    "exp/example_azure_experiment/example_template_configs/config_interpreter_covid.json",
 ]
 EXPERIMENT_DIRECTORY = "exp"
 
