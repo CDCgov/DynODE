@@ -1447,9 +1447,10 @@ def imply_immune_history_dist_from_strains(
     for strain in range(0, num_historical_strains):
         # fill in single strain immune state first. no repeated exposures yet.
         single_strain_state = new_immune_state(0, strain)
-        immune_history_dist[:, single_strain_state, 0, :] = (
-            strain_exposure_dist[:, strain, :]
-        )  # TODO remove 0
+        # TODO remove 0
+        immune_history_dist[
+            :, single_strain_state, 0, :
+        ] = strain_exposure_dist[:, strain, :]
         # now grab individuals from previous states and infect 1/2 of them with this strain
         multi_strain_states = []
         for prev_state in immune_states:
@@ -2598,3 +2599,75 @@ class dual_logger_err(object):
 
     def flush(self):
         self.file.flush()
+
+
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+# OS operations CODE
+# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+def find_files(
+    directory: str, filename_contains: str, recursive=False
+) -> list[str]:
+    """searched `directory` for any files with `filename_contains`,
+    optionally searched recrusively down from `directory`
+
+    Parameters
+    ----------
+    directory : str
+        directory, absolute or relative from which to start search
+    filename_contains : str
+        partial file name to search for
+    recursive : bool (optional)
+        whether to recursively search subfolders within `directory`
+
+    Returns
+    -------
+    list[str]
+        list of filenames containing `filename_contains`
+    """
+    # Create a pattern to match filenames containing 'postprocess' with any extension
+    if recursive:
+        pattern = directory + "/**/*%s*.*" % filename_contains
+    else:
+        pattern = directory + "/*%s*.*" % filename_contains
+
+    # Use glob to find all matching files
+    postprocess_files = glob.glob(pattern, recursive=recursive)
+
+    return [os.path.basename(file) for file in postprocess_files]
+
+
+def sort_filenames_by_suffix(filenames) -> list[str]:
+    """Given a list of filenames, sorts them by the _1/2/3 suffix
+    handles a no suffix case as first element.
+    An example ordering would be:
+    `[file.py, file_0.py, file_5.py, file_11.py, file_new_15.py]`
+
+    Parameters
+    ----------
+    filenames : list[str]
+        list of filenames, ending with _int suffixes.
+
+    Returns
+    ----------
+    same filenames list but sorted by suffix order.
+    """
+
+    def extract_number(filename):
+        # Find the last occurrence of '_'
+        last_underscore_index = filename.rfind("_")
+
+        # Check if '_' exists in the filename
+        if last_underscore_index != -1:
+            start = last_underscore_index + 1
+            end = filename.rfind(".")
+            number_str = filename[start:end]
+
+            # Check if the extracted substring is a valid integer
+            if number_str.isdigit():
+                return int(number_str)
+
+        return 0
+
+    return sorted(filenames, key=extract_number)

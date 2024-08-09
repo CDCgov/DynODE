@@ -374,7 +374,7 @@ class MechanisticInferer(AbstractParameters):
             if possible.
         external_posteriors: dict
             for use of particles defined somewhere outside of this instance of the MechanisticInferer.
-            For example, loading a checkpoint.json containing saved posteriors from an Azure Batch job.
+            For example, loading a checkpoint.json containing saved posteriors from a different run.
             expects keys that match those given to `numpyro.sample` often from
             inference_algo.get_samples(group_by_chain=True).
 
@@ -395,7 +395,8 @@ class MechanisticInferer(AbstractParameters):
         Very important note if you choose to use `external_posteriors`. In the scenario
         this instance of `MechanisticInferer.likelihood` samples parameters not named in `external_posteriors`
         they will be RESAMPLED AT RANDOM. This method will not error and will instead fill in those
-        missing samples according to the PRNGKey seeded with self.config.INFERENCE_PRNGKEY.
+        missing samples according to the PRNGKey seeded with self.config.INFERENCE_PRNGKEY as well as
+        unique salting of each chain_particle combination.
 
         This may be useful to you if you wish to obtain confidence intervals by varying a particular value.
         """
@@ -437,21 +438,44 @@ class MechanisticInferer(AbstractParameters):
                 single_particle_samples[param] = posterior_samples[param][
                     chain_num
                 ][particle_num]
-
+            # run likelihood of that particular chain and particle
             single_particle_dct = self._load_posterior_single_particle(
-                single_particle_samples, tf
+                single_particle_samples,
+                tf,
+                chain_paricle_seed=chain_num * 10000 + particle_num,
             )
             # add this particle/chain run onto the return dict
             return_dct[(chain_num, particle_num)] = single_particle_dct
         return return_dct
 
     def _load_posterior_single_particle(
-        self, single_particle: dict[str, jax.Array], tf: int
+        self,
+        single_particle: dict[str, jax.typing.ArrayLike],
+        tf: int,
+        chain_paricle_seed: int,
     ) -> dict:
         """
         PRIVATE FUNCTION
         used by `load_posterior_particle` to actually execute a single posterior particle on `self.likelihood`
         Dont touch unless you know what you are doing.
+
+        Parameters
+        ----------
+        single_particle : dict[str, jax.typing.ArrayLike]
+            a dictionary linking a parameter name to its posterior value,
+            a single value or list depending on the sampled parameter
+        tf : int
+            the number of days to run the posteriors for
+        chain_paricle_seed : int
+            some salting unique to the particle being run, used to randomize any NEW parameters sampled that are
+            not within `single_particle`
+
+        Returns
+        -------
+        dict[str: [jax.Array, Solution]]
+            a solution_dict containing the return value of `self.likelihood` as well as
+            a field `posteriors` containing the values within `single_particle` as well as
+            any new sampled values created by `self.likelihood` that were not found in `single_particle`
         """
         # run the model with the same seed, but this time
         # all calls to numpyro.sample() will lookup the value from single_particle_chain
@@ -459,7 +483,9 @@ class MechanisticInferer(AbstractParameters):
         substituted_model = numpyro.handlers.substitute(
             numpyro.handlers.seed(
                 self.likelihood,
-                jax.random.PRNGKey(self.config.INFERENCE_PRNGKEY),
+                jax.random.PRNGKey(
+                    self.config.INFERENCE_PRNGKEY + chain_paricle_seed
+                ),
             ),
             single_particle,
         )
