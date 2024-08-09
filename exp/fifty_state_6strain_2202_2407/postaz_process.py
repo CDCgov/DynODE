@@ -1,10 +1,7 @@
 # %%
-import copy
-import datetime
 import json
 import multiprocessing as mp
 import os
-import random
 
 import jax.numpy as jnp
 import matplotlib.dates as mdates
@@ -15,18 +12,16 @@ from cycler import cycler
 from matplotlib.backends.backend_pdf import PdfPages
 
 from exp.fifty_state_6strain_2202_2407.inferer_smh import SMHInferer
-from exp.fifty_state_6strain_2202_2407.run_task import (
-    rework_initial_state,
-)
+from exp.fifty_state_6strain_2202_2407.run_task import rework_initial_state
 from mechanistic_model.covid_sero_initializer import CovidSeroInitializer
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 from model_odes.seip_model import seip_ode2
 
 plt.switch_backend("agg")
 model_day = 890
-suffix = "_v7_6strain_noseason"
+suffix = "_v12_6strain_wseason_morer0"
 az_output_path = (
-    "/output/fifty_state_6strain_2202_2407/SMH_6strains_072524_fixed/"
+    "/output/fifty_state_6strain_2202_2407/SMH_6strains_240731_moreR0/"
 )
 pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
 

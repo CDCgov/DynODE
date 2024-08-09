@@ -73,6 +73,9 @@ class SMHInferer(MechanisticInferer):
 
     def get_parameters(self):
         parameters = super().get_parameters()
+        multiplier = 1 + 0.1 * numpyro.sample(
+            "JN1_KP_R0_MULTIPLIER", Dist.Beta(500, 500)
+        )
         parameters["STRAIN_R0s"] = jnp.array(
             [
                 parameters["STRAIN_R0s"][0],
@@ -82,10 +85,10 @@ class SMHInferer(MechanisticInferer):
                     "STRAIN_R0s_3", parameters["STRAIN_R0s"][2]
                 ),
                 numpyro.deterministic(
-                    "STRAIN_R0s_4", parameters["STRAIN_R0s"][2]
+                    "STRAIN_R0s_4", multiplier * parameters["STRAIN_R0s"][2]
                 ),
                 numpyro.deterministic(
-                    "STRAIN_R0s_5", parameters["STRAIN_R0s"][2]
+                    "STRAIN_R0s_5", multiplier * parameters["STRAIN_R0s"][2]
                 ),
             ]
         )
@@ -209,7 +212,7 @@ class SMHInferer(MechanisticInferer):
         )
 
         # sample ihr multiplier due to JN1 (assuming JN1 has less severity)
-        ihr_jn1_mult = numpyro.sample("ihr_jn1_mult", Dist.Beta(400, 4))
+        ihr_jn1_mult = numpyro.sample("ihr_jn1_mult", Dist.Beta(360, 40))
         # ihr_jn1_mult = numpyro.deterministic("ihr_jn1_mult", 0.95)
 
         # calculate modelled hospitalizations based on the ihrs

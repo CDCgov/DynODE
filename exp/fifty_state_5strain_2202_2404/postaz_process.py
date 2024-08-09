@@ -1,10 +1,7 @@
 # %%
-import copy
-import datetime
 import json
 import multiprocessing as mp
 import os
-import random
 
 import jax.numpy as jnp
 import matplotlib.dates as mdates
@@ -15,21 +12,20 @@ from cycler import cycler
 from matplotlib.backends.backend_pdf import PdfPages
 
 from exp.fifty_state_5strain_2202_2404.inferer_smh import SMHInferer
-from exp.fifty_state_5strain_2202_2404.run_task import (
-    rework_initial_state,
-)
+from exp.fifty_state_5strain_2202_2404.run_task import rework_initial_state
 from mechanistic_model.covid_sero_initializer import CovidSeroInitializer
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 from model_odes.seip_model import seip_ode2
 
 plt.switch_backend("agg")
-model_day = 880
-suffix = "_v1_5strain"
-az_output_path = "/output/fifty_state_5strain_2202_2404/smh_5str_prelim_1/"
+model_day = 800
+suffix = "_v16_5strain"
+az_output_path = (
+    "/output/fifty_state_5strain_2202_2404/SMH_5strains_240807_v16/"
+)
 pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
 
 
-# %%
 def retrieve_inferer_obs(state):
     state_config_path = os.path.join(az_output_path, state)
     print("Retrieving " + state + "\n")
@@ -110,7 +106,7 @@ def retrieve_inferer_obs(state):
     var_data_path = os.path.join(inferer.config.VAR_PATH, var_data_filename)
     # currently working up to third strain which is XBB1
     var_data = pd.read_csv(var_data_path)
-    var_data = var_data[var_data["strain"] < 5]
+    var_data = var_data[var_data["strain"] < 6]
     var_data["date"] = pd.to_datetime(var_data["date"])
     var_data["day"] = (
         var_data["date"] - pd.to_datetime("2022-02-11")
@@ -135,195 +131,35 @@ def retrieve_inferer_obs(state):
     )
 
 
-def retrieve_post_samp(state):
+def retrieve_fitted_medians(state):
     json_file = os.path.join(az_output_path, state, "checkpoint.json")
     post_samp = json.load(open(json_file, "r"))
+    del post_samp["final_timestep_s"]
+    del post_samp["final_timestep_e"]
+    del post_samp["final_timestep_i"]
+    del post_samp["final_timestep_c"]
     fitted_medians = {
         k: jnp.median(jnp.array(v), axis=(0, 1)) for k, v in post_samp.items()
     }
 
-    return post_samp, fitted_medians
+    return fitted_medians
 
 
-def replace_and_simulate(inferer, runner, fitted_medians):
-    m = copy.deepcopy(inferer)
-    m.config.INITIAL_INFECTIONS_SCALE = fitted_medians[
-        "INITIAL_INFECTIONS_SCALE"
-    ]
-    m.config.INTRODUCTION_TIMES = [
-        fitted_medians["INTRODUCTION_TIMES_0"],
-        fitted_medians["INTRODUCTION_TIMES_1"],
-        fitted_medians["INTRODUCTION_TIMES_2"],
-        fitted_medians["INTRODUCTION_TIMES_3"],
-    ]
-    m.config.STRAIN_R0s = jnp.array(
-        [
-            fitted_medians["STRAIN_R0s_0"],
-            fitted_medians["STRAIN_R0s_1"],
-            fitted_medians["STRAIN_R0s_2"],
-            fitted_medians["STRAIN_R0s_3"],
-            fitted_medians["STRAIN_R0s_4"],
-        ]
+def retrieve_timeline(state):
+    csv_file = os.path.join(
+        az_output_path, state, "azure_visualizer_timeline.csv"
     )
-    m.config.STRAIN_INTERACTIONS = jnp.array(
-        [
-            [fitted_medians["STRAIN_INTERACTIONS_0_0"], 1.0, 1.0, 1.0, 1.0],
-            [fitted_medians["STRAIN_INTERACTIONS_1_0"], 1.0, 1.0, 1.0, 1.0],
-            [
-                fitted_medians["STRAIN_INTERACTIONS_2_0"],
-                fitted_medians["STRAIN_INTERACTIONS_2_1"],
-                1.0,
-                1.0,
-                1.0,
-            ],
-            [
-                0.5,
-                fitted_medians["STRAIN_INTERACTIONS_3_1"],
-                fitted_medians["STRAIN_INTERACTIONS_3_2"],
-                1.0,
-                1.0,
-            ],
-            [
-                0.5,
-                0.5,
-                fitted_medians["STRAIN_INTERACTIONS_4_2"],
-                fitted_medians["STRAIN_INTERACTIONS_4_3"],
-                1.0,
-            ],
-        ]
-    )
-    m.config.MIN_HOMOLOGOUS_IMMUNITY = fitted_medians[
-        "MIN_HOMOLOGOUS_IMMUNITY"
-    ]
-    m.config.SEASONALITY_AMPLITUDE = fitted_medians["SEASONALITY_AMPLITUDE"]
-    m.config.SEASONALITY_SHIFT = fitted_medians["SEASONALITY_SHIFT"]
+    timeline = pd.read_csv(csv_file)
+    timeline["date"] = pd.to_datetime(timeline["date"])
 
-    parameters = m.get_parameters()
-    initial_state = m.scale_initial_infections(
-        parameters["INITIAL_INFECTIONS_SCALE"]
-    )
-
-    output = runner.run(
-        initial_state,
-        parameters,
-        tf=model_day,
-    )
-
-    return output
-
-
-def simulate_hospitalization(output, ihr, ihr_immune_mult):
-    model_incidence = jnp.sum(output.ys[3], axis=4)
-    model_incidence_no_exposures = jnp.diff(
-        model_incidence[:, :, 0, 0], axis=0
-    )
-
-    model_incidence_prev_exposure = jnp.sum(model_incidence, axis=(2, 3))
-    model_incidence_prev_exposure = jnp.diff(
-        model_incidence_prev_exposure, axis=0
-    )
-    # subtract no exposures to get prev_exposures
-    model_incidence_prev_exposure -= model_incidence_no_exposures
-
-    # calculate weekly model hospitalizations with the two IHRs we created
-    model_hosps = (
-        model_incidence_no_exposures * ihr
-        + model_incidence_prev_exposure * ihr * ihr_immune_mult
-    )
-
-    return model_hosps
-
-
-def plot_obsvfit(
-    obs_hosps,
-    sim_hosps_list,
-    obs_hosps_days,
-    obs_sero,
-    sim_sero_list,
-    obs_sero_days,
-    obs_var_prop,
-    sim_var_list,
-    obs_var_days,
-    inferer,
-):
-    dates = np.array(
-        [
-            inferer.config.INIT_DATE + datetime.timedelta(days=x)
-            for x in range(model_day)
-        ]
-    )
-    date_format = mdates.DateFormatter("%b\n%y")
-    colors = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]
-    fig, axs = plt.subplots(3, 1)
-    axs[0].xaxis.set_major_formatter(date_format)
-    axs[0].set_yscale("log")
-    axs[0].set_prop_cycle(cycler(color=colors))
-    for i, sh in enumerate(sim_hosps_list):
-        if i == 0:
-            axs[0].plot(
-                dates,
-                sh,
-                label=["0-17", "18-49", "50-64", "65+"],
-                alpha=0.1,
-            )
-        else:
-            axs[0].plot(dates, sh, alpha=0.1)
-
-    axs[0].plot(dates[obs_hosps_days], obs_hosps, linestyle=":")
-    # for h, c in zip(obs_hosps.T, colors):
-    #     axs[0].scatter(dates[obs_hosps_days], np.log10(h), s=4, color=c)
-    axs[0].set_title(inferer.config.REGIONS[0] + ": Observed vs fitted")
-    axs[0].set_ylabel("Hospitalization")
-    axs[0].set_ylim([0.1, 500])
-    # axs[0].legend(ncol=2)
-
-    axs[1].xaxis.set_major_formatter(date_format)
-    axs[1].set_prop_cycle(cycler(color=colors))
-    for ss in sim_sero_list:
-        axs[1].plot(dates, ss[1:], alpha=0.1)
-    for s, c in zip(jnp.transpose(obs_sero), colors):
-        axs[1].scatter(dates[obs_sero_days], s, color=c)
-    axs[1].set_ylabel("Seroprevalence")
-    axs[1].set_ylim([0, 1.1])
-
-    colors2 = [
-        "#7fc97f",
-        "#beaed4",
-        "#fdc086",
-        "#ffff99",
-        "#386cb0",
-        "#f0027f",
-    ]
-    axs[2].set_prop_cycle(cycler(color=colors2[:5]))
-    axs[2].xaxis.set_major_formatter(date_format)
-    for i, sv in enumerate(sim_var_list):
-        if i == 0:
-            axs[2].plot(
-                dates[:model_day],
-                sv[:, :model_day],
-                alpha=0.1,
-                label=inferer.config.STRAIN_IDX,
-            )
-        else:
-            axs[2].plot(
-                dates[:model_day],
-                sv[:, :model_day],
-                alpha=0.1,
-            )
-    for v, c in zip(jnp.transpose(obs_var_prop), colors2[:5]):
-        axs[2].scatter(dates[obs_var_days], v, color=c, s=7)
-    axs[2].set_ylabel("Variant proportion")
-
-    fig.set_size_inches(8, 10)
-    fig.set_dpi(300)
-    leg = fig.legend()
-    for lh in leg.legend_handles:
-        lh.set_alpha(1)
-    return fig
+    return timeline
 
 
 def process_plot_state(state):
-    samp, fitted_medians = retrieve_post_samp(state)
+    timeline = retrieve_timeline(state)
+    fitted_medians = retrieve_fitted_medians(state)
+    fitted_medians["state"] = state
+    median_df = pd.DataFrame(fitted_medians, index=[state])
     (
         inferer,
         runner,
@@ -335,71 +171,89 @@ def process_plot_state(state):
         obs_var_days,
     ) = retrieve_inferer_obs(state)
 
-    nsamp = len(samp["ihr_3"][0])
-    nchain = len(samp["ihr_3"])
-    ranindex = random.sample(list(range(nsamp)), 3)
-
-    fitted_samples = [
-        {k: v[c][r] for k, v in samp.items()}
-        for r in ranindex
-        for c in range(nchain)
+    obs_sero = 1 / (1 + np.exp(-obs_sero_lmean))
+    chain_particles = timeline["chain_particle"].unique()
+    date_format = mdates.DateFormatter("%b\n%y")
+    colors_age = ["#e41a1c", "#377eb8", "#4daf4a", "#984ea3"]
+    colors_strain = [
+        "#1b9e77",
+        "#d95f02",
+        "#7570b3",
+        "#e7298a",
+        "#66a61e",
+        "#e6ab02",
     ]
+    fig, axs = plt.subplots(3, 1)
+    # Configs
+    axs[0].xaxis.set_major_formatter(date_format)
+    axs[0].set_prop_cycle(cycler(color=colors_age))
+    axs[0].set_title(state + ": Observed vs fitted")
+    axs[0].set_ylim([0.01, 500])
+    axs[0].set_yscale("log")
+    axs[0].set_ylabel("Hospitalization")
 
-    f = copy.deepcopy(fitted_medians)
-    f["state"] = state
-    median_df = pd.DataFrame(f, index=[state])
+    axs[1].xaxis.set_major_formatter(date_format)
+    axs[1].set_prop_cycle(cycler(color=colors_age))
+    axs[1].set_ylabel("Seroprevalence")
+    axs[1].set_ylim([0, 1.1])
 
-    obs_sero = 1 / (1 + jnp.exp(-obs_sero_lmean))
-    sim_hosps_list = []
-    sim_sero_list = []
-    sim_var_list = []
-    for f in fitted_samples:
-        output = replace_and_simulate(inferer, runner, f)
-        ihr = jnp.array(
-            [
-                f["ihr_mult_0"]*f["ihr_3"],
-                f["ihr_mult_1"]*f["ihr_3"],
-                f["ihr_mult_2"]*f["ihr_3"],
-                f["ihr_3"],
+    axs[2].set_prop_cycle(cycler(color=colors_strain[:6]))
+    axs[2].xaxis.set_major_formatter(date_format)
+    axs[2].set_ylabel("Variant proportion")
+    # Simulated
+    for i, cp in enumerate(chain_particles):
+        sub_df = timeline[timeline["chain_particle"] == cp]
+        sim_hosp = np.array(
+            sub_df[
+                [
+                    "pred_hosp_0_17",
+                    "pred_hosp_18_49",
+                    "pred_hosp_50_64",
+                    "pred_hosp_65+",
+                ]
             ]
         )
-        ihr_immune_mult = f["ihr_immune_mult"]
-        sim_hosps = simulate_hospitalization(output, ihr, ihr_immune_mult)
-        # sim_hosps = sim_hosps[obs_hosps_days,]
-        sim_hosps_list.append(sim_hosps)
-
-        never_infected = jnp.sum(output.ys[0][:, :, 0, :, :], axis=(2, 3))
-        sim_sero = 1 - never_infected / inferer.config.POPULATION
-        sim_sero_list.append(sim_sero)
-
-        strain_incidence = jnp.sum(
-            output.ys[inferer.config.COMPARTMENT_IDX.C],
-            axis=(
-                inferer.config.I_AXIS_IDX.age + 1,
-                inferer.config.I_AXIS_IDX.hist + 1,
-                inferer.config.I_AXIS_IDX.vax + 1,
-            ),
+        sim_sero = np.array(
+            sub_df[["sero_0_17", "sero_18_49", "sero_50_64", "sero_65+"]]
         )
-        strain_incidence = jnp.diff(strain_incidence, axis=0)
-        sim_vars = (
-            strain_incidence / jnp.sum(strain_incidence, axis=-1)[:, None]
-        )
-        sim_var_list.append(sim_vars)
+        sp_columns = [x for x in sub_df.columns if "strain_proportion" in x]
+        sim_var_prop = np.array(sub_df[sp_columns])
+        if i == 0:
+            dates = np.array(sub_df["date"])
+            axs[0].plot(
+                dates,
+                sim_hosp,
+                label=["0-17", "18-49", "50-64", "65+"],
+                alpha=0.1,
+            )
+            axs[2].plot(
+                dates,
+                sim_var_prop,
+                alpha=0.1,
+                label=inferer.config.STRAIN_IDX,
+            )
+        else:
+            axs[0].plot(dates, sim_hosp, alpha=0.1)
+            axs[2].plot(
+                dates,
+                sim_var_prop,
+                alpha=0.1,
+            )
 
-    # Visualization (Fitted vs Observed)
-    fig = plot_obsvfit(
-        obs_hosps,
-        sim_hosps_list,
-        obs_hosps_days,
-        obs_sero,
-        sim_sero_list,
-        obs_sero_days,
-        obs_var_prop,
-        sim_var_list,
-        obs_var_days,
-        inferer,
-    )
+        axs[1].plot(dates, sim_sero, alpha=0.1)
 
+    # Observed
+    axs[0].plot(dates[obs_hosps_days], obs_hosps, linestyle=":")
+    for s, c in zip(jnp.transpose(obs_sero), colors_age):
+        axs[1].scatter(dates[obs_sero_days], s, color=c)
+    for v, c in zip(jnp.transpose(obs_var_prop), colors_strain[:6]):
+        axs[2].scatter(dates[obs_var_days], v, color=c, s=7)
+
+    fig.set_size_inches(8, 10)
+    fig.set_dpi(300)
+    leg = fig.legend(loc=7)
+    for lh in leg.legend_handles:
+        lh.set_alpha(1)
     return fig, median_df
 
 
@@ -456,18 +310,19 @@ states = [
     "WI",
     "WY",
 ]
-states_omit = ["WV", "GA", "AL", "TX","WI",
-    "WY","VT",
-    "VA",]
+states_omit = []
 for st in states:
-    json_file = os.path.join(az_output_path, st, "checkpoint.json")
-    if not os.path.exists(json_file):
+    csv_file = os.path.join(
+        az_output_path, st, "azure_visualizer_timeline.csv"
+    )
+    if not os.path.exists(csv_file):
         states_omit.append(st)
 states = list(set(states).difference(set(states_omit)))
 states.sort()
-# states = ["US", "AK", "AL", "IL", "WA"]
+# states = ["CA", "IN", "IL", "WA"]
 # states = ["US"] + states
 print(states)
+
 
 # %%
 pool = mp.Pool(5)
@@ -481,5 +336,3 @@ pdf_pages.close()
 
 pool.close()
 pd.concat(median_dfs).to_csv(f"output/medians{suffix}.csv", index=False)
-
-# %%

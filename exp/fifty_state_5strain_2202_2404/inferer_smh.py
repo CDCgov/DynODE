@@ -1,7 +1,6 @@
 import os
 
 import jax.numpy as jnp
-import numpy as np
 import numpyro
 import numpyro.distributions as Dist
 from jax.random import PRNGKey
@@ -79,11 +78,15 @@ class SMHInferer(MechanisticInferer):
                 parameters["STRAIN_R0s"][0],
                 parameters["STRAIN_R0s"][1],
                 parameters["STRAIN_R0s"][2],
-                numpyro.deterministic("STRAIN_R0s_1", parameters["STRAIN_R0s"][2]),
-                numpyro.deterministic("STRAIN_R0s_2", parameters["STRAIN_R0s"][2]),
+                parameters["STRAIN_R0s"][3],
+                numpyro.deterministic(
+                    "STRAIN_R0s_4", parameters["STRAIN_R0s"][2]
+                ),
             ]
         )
-        parameters["BETA"] = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
+        parameters["BETA"] = (
+            parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
+        )
 
         return parameters
 
@@ -139,6 +142,19 @@ class SMHInferer(MechanisticInferer):
         )
         # axis = 0 because we take diff across time
         model_incidence = jnp.diff(model_incidence, axis=0)
+        # save the final timestep of solution array for each compartment
+        numpyro.deterministic(
+            "final_timestep_s", solution.ys[self.config.COMPARTMENT_IDX.S][-1]
+        )
+        numpyro.deterministic(
+            "final_timestep_e", solution.ys[self.config.COMPARTMENT_IDX.E][-1]
+        )
+        numpyro.deterministic(
+            "final_timestep_i", solution.ys[self.config.COMPARTMENT_IDX.I][-1]
+        )
+        numpyro.deterministic(
+            "final_timestep_c", solution.ys[self.config.COMPARTMENT_IDX.C][-1]
+        )
         # sample intrinsic infection hospitalization rate here
         # m_i is ratio btw the average across all states of the median of ihr_0 and the average across all states
         # of the median of ihr_3 produced from a previous fit
@@ -151,7 +167,11 @@ class SMHInferer(MechanisticInferer):
             0.0002923281265483212,
         )
 
-        m_0, m_1, m_2 = 0.020448716487218747, 0.048698216511437936, 0.1402618274806952
+        m_0, m_1, m_2 = (
+            0.020448716487218747,
+            0.048698216511437936,
+            0.1402618274806952,
+        )
 
         ihr_mult_0 = numpyro.sample(
             "ihr_mult_0",
@@ -174,16 +194,21 @@ class SMHInferer(MechanisticInferer):
                 (m_2 * (1 - m_2) / v_2 - 1) * (1 - m_2),
             ),
         )
-        ihr_3 = numpyro.sample("ihr_3", Dist.Beta(40 * 4, 360 * 4))
+        ihr_3 = numpyro.sample("ihr_3", Dist.Beta(60 * 20, 340 * 20))
         ihr = jnp.array(
             [ihr_3 * ihr_mult_0, ihr_3 * ihr_mult_1, ihr_3 * ihr_mult_2, ihr_3]
         )
 
         # sample ihr multiplier due to previous infection or vaccinations
-        ihr_immune_mult = numpyro.sample("ihr_immune_mult", Dist.Beta(100 * 6, 300 * 6))
+        ihr_immune_mult = numpyro.sample(
+            "ihr_immune_mult", Dist.Beta(100 * 6, 300 * 6)
+        )
 
         # sample ihr multiplier due to JN1 (assuming JN1 has less severity)
-        ihr_jn1_mult = numpyro.sample("ihr_jn1_mult", Dist.Beta(100, 1))
+        # ihr_jn1_mult = numpyro.sample("ihr_jn1_mult", Dist.Beta(100, 1))
+        ihr_jn1_mult = numpyro.sample(
+            "ihr_jn1_mult", Dist.Beta(380 * 3, 20 * 3)
+        )
 
         # calculate modelled hospitalizations based on the ihrs
         # add 1 to wane because we have time dimension prepended
@@ -193,13 +218,15 @@ class SMHInferer(MechanisticInferer):
         )
 
         model_incidence_no_exposures_non_jn1 = jnp.sum(
-            model_incidence[:, :, 0, 0, :2], axis=-1
+            model_incidence[:, :, 0, 0, :4], axis=-1
         )
-        model_incidence_no_exposures_jn1 = model_incidence[:, :, 0, 0, 2]
+        model_incidence_no_exposures_jn1 = model_incidence[:, :, 0, 0, 4]
         model_incidence_all_non_jn1 = jnp.sum(
-            model_incidence[:, :, :, :, :2], axis=(2, 3, 4)
+            model_incidence[:, :, :, :, :4], axis=(2, 3, 4)
         )
-        model_incidence_all_jn1 = jnp.sum(model_incidence[:, :, :, :, 2], axis=(2, 3))
+        model_incidence_all_jn1 = jnp.sum(
+            model_incidence[:, :, :, :, 4], axis=(2, 3)
+        )
         model_incidence_w_exposures_non_jn1 = (
             model_incidence_all_non_jn1 - model_incidence_no_exposures_non_jn1
         )
@@ -213,7 +240,10 @@ class SMHInferer(MechanisticInferer):
             model_incidence_no_exposures_non_jn1 * ihr
             + model_incidence_no_exposures_jn1 * ihr * ihr_jn1_mult
             + model_incidence_w_exposures_non_jn1 * ihr * ihr_immune_mult
-            + model_incidence_w_exposures_jn1 * ihr * ihr_immune_mult * ihr_jn1_mult
+            + model_incidence_w_exposures_jn1
+            * ihr
+            * ihr_immune_mult
+            * ihr_jn1_mult
         )
 
         if infer_mode:
@@ -227,12 +257,16 @@ class SMHInferer(MechanisticInferer):
             # for observed, multiply number by number of days within an interval
             obs_hosps_interval = (
                 obs_hosps
-                * jnp.bincount(hosps_interval_ind, length=len(obs_hosps_days))[:, None]
+                * jnp.bincount(hosps_interval_ind, length=len(obs_hosps_days))[
+                    :, None
+                ]
             )
             # for simulated, aggregate by index
             sim_hosps_interval = jnp.array(
                 [
-                    jnp.bincount(hosps_interval_ind, m, length=len(obs_hosps_days))
+                    jnp.bincount(
+                        hosps_interval_ind, m, length=len(obs_hosps_days)
+                    )
                     for m in model_hosps.T
                 ]
             ).T
@@ -249,7 +283,9 @@ class SMHInferer(MechanisticInferer):
 
             ## Seroprevalence
             never_infected = jnp.sum(
-                solution.ys[self.config.COMPARTMENT_IDX.S][obs_sero_days, :, 0, :, :],
+                solution.ys[self.config.COMPARTMENT_IDX.S][
+                    obs_sero_days, :, 0, :, :
+                ],
                 axis=(2, 3),
             )
             sim_seroprevalence = 1 - never_infected / self.config.POPULATION
