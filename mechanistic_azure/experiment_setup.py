@@ -15,12 +15,13 @@ import pandas as pd
 # these are the configs that will be copied into each state-level directory
 # their REGIONS key will be modified to match the state they work with.
 CONFIG_MOLDS = [
-    "docker_template_configs/config_global.json",
-    "docker_template_configs/config_inferer_covid.json",
-    "docker_template_configs/config_initializer_covid.json",
-    "docker_template_configs/config_runner_covid.json",
-    "docker_template_configs/config_interpreter_covid.json",
+    "exp/example_azure_experiment/example_template_configs/config_global.json",
+    "exp/example_azure_experiment/example_template_configs/config_inferer_covid.json",
+    "exp/example_azure_experiment/example_template_configs/config_initializer_covid.json",
+    "exp/example_azure_experiment/example_template_configs/config_runner_covid.json",
+    "exp/example_azure_experiment/example_template_configs/config_interpreter_covid.json",
 ]
+EXPERIMENT_DIRECTORY = "exp"
 
 
 def create_state_subdirectories(dir, state_names):
@@ -179,10 +180,10 @@ parser = argparse.ArgumentParser()
 # experiment directory
 parser.add_argument(
     "-e",
-    "--exp",
+    "--experiment_name",
     type=str,
     required=True,
-    help="str, directory experiment should be placed in, relative to this file",
+    help="str, name of the experiment states should be placed into",
 )
 # list of fips codes
 parser.add_argument(
@@ -222,8 +223,9 @@ if __name__ == "__main__":
     )
     pops = pd.concat([pops, usa_pop_row], ignore_index=True)
     args = parser.parse_args()
-    exp = args.exp
     states = args.states
+    experiment_name = args.experiment_name
+    exp = os.path.join(EXPERIMENT_DIRECTORY, experiment_name)
     if "all" in states:
         states = get_all_codes()
     config_molds = args.config_molds

@@ -75,6 +75,8 @@ testing.py
 !data/vaccination-data/2022_02_11_to_2024_04_27/*.csv
 !poetry*
 !pyproject.toml
+!azure/docker_template_configs/*.json
+!exp/example_azure_experiment/example_template_configs/*.json
 
 #####
 # Python
