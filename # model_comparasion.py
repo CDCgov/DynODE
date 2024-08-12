@@ -136,88 +136,88 @@ def plot_elpd_per_state_comparasion(
 # both models should have same US state, particles_per_chain and observed data.
 
 
-def comparasion_per_state(
-    state, particles_per_chain, initial_model_day, az_output, ic, variant
-):
-    # if variant=True then it will be very time consume to have len(az_output)>2.
-    if variant == True and len(az_output) == 2:
+# def comparasion_per_state(
+#     state, particles_per_chain, initial_model_day, az_output, ic, variant
+# ):
+#     # if variant=True then it will be very time consume to have len(az_output)>2.
+#     if variant == True and len(az_output) == 2:
 
-        df_0, hosps_0, vars_0 = mcmc_accuracy_measures(
-            state=state,
-            particles_per_chain=particles_per_chain,
-            initial_model_day=initial_model_day,
-            az_output=az_output[0],
-            ic=ic,
-            variant=variant,
-        )
+#         df_0, hosps_0, vars_0 = mcmc_accuracy_measures(
+#             state=state,
+#             particles_per_chain=particles_per_chain,
+#             initial_model_day=initial_model_day,
+#             az_output=az_output[0],
+#             ic=ic,
+#             variant=variant,
+#         )
 
-        df_1, hosps_1, vars_1 = mcmc_accuracy_measures(
-            state=state,
-            particles_per_chain=particles_per_chain,
-            initial_model_day=initial_model_day,
-            az_output=az_output[1],
-            ic=ic,
-            variant=variant,
-        )
+#         df_1, hosps_1, vars_1 = mcmc_accuracy_measures(
+#             state=state,
+#             particles_per_chain=particles_per_chain,
+#             initial_model_day=initial_model_day,
+#             az_output=az_output[1],
+#             ic=ic,
+#             variant=variant,
+#         )
 
-        compare_dict_hosps = {
-            f"hospitalizations from the model whose azure output path is {az_output[0]}": hosps_0,
-            f"hospitalizations from the model whose azure output path is {az_output[1]}": hosps_1,
-        }
+#         compare_dict_hosps = {
+#             f"hospitalizations from the model whose azure output path is {az_output[0]}": hosps_0,
+#             f"hospitalizations from the model whose azure output path is {az_output[1]}": hosps_1,
+#         }
 
-        compare_dict_vars = {
-            f"var_props from the model whose azure output is {az_output[0]}": vars_0,
-            f"var_props from the model whose azure output is {az_output[1]}": vars_1,
-        }
+#         compare_dict_vars = {
+#             f"var_props from the model whose azure output is {az_output[0]}": vars_0,
+#             f"var_props from the model whose azure output is {az_output[1]}": vars_1,
+#         }
 
-        df0 = az.compare(
-            compare_dict=compare_dict_hosps,
-        )
-        p = df0["elpd_diff"] / df0["dse"]
-        p_value = 2 * (1 - stats.norm.cdf(abs(p)))
-        plot0 = az.plot_compare(df0)
+#         df0 = az.compare(
+#             compare_dict=compare_dict_hosps,
+#         )
+#         p = df0["elpd_diff"] / df0["dse"]
+#         p_value = 2 * (1 - stats.norm.cdf(abs(p)))
+#         plot0 = az.plot_compare(df0)
 
-        df0["p_value"] = p_value
+#         df0["p_value"] = p_value
 
-        df1 = az.compare(
-            compare_dict=compare_dict_vars,
-        )
-        plot1 = az.plot_compare(df1)
+#         df1 = az.compare(
+#             compare_dict=compare_dict_vars,
+#         )
+#         plot1 = az.plot_compare(df1)
 
-        p = df1["elpd_diff"] / df1["dse"]
-        p_value = 2 * (1 - stats.norm.cdf(abs(p)))
+#         p = df1["elpd_diff"] / df1["dse"]
+#         p_value = 2 * (1 - stats.norm.cdf(abs(p)))
 
-        df1["p_value"] = p_value
+#         df1["p_value"] = p_value
 
-        return df0, df1, plot0, plot1
-    elif variant == False and len(az_output) >= 2:
+#         return df0, df1, plot0, plot1
+#     elif variant == False and len(az_output) >= 2:
 
-        compare_dict_hosps = {
-            f"hosps_evaluation_model_{k+1}": mcmc_accuracy_measures(
-                state=state,
-                particles_per_chain=particles_per_chain,
-                initial_model_day=initial_model_day,
-                az_output=az_output[k],
-                ic=ic,
-                variant=variant,
-            )[1]
-            for k in range(len(az_output))
-        }
+#         compare_dict_hosps = {
+#             f"hosps_evaluation_model_{k+1}": mcmc_accuracy_measures(
+#                 state=state,
+#                 particles_per_chain=particles_per_chain,
+#                 initial_model_day=initial_model_day,
+#                 az_output=az_output[k],
+#                 ic=ic,
+#                 variant=variant,
+#             )[1]
+#             for k in range(len(az_output))
+#         }
 
-        df = az.compare(
-            compare_dict=compare_dict_hosps,
-        )
-        plot = az.plot_compare(df)
-        p = df["elpd_diff"] / df["dse"]
-        p_value = 2 * (1 - stats.norm.cdf(abs(p)))
+#         df = az.compare(
+#             compare_dict=compare_dict_hosps,
+#         )
+#         plot = az.plot_compare(df)
+#         p = df["elpd_diff"] / df["dse"]
+#         p_value = 2 * (1 - stats.norm.cdf(abs(p)))
 
-        df["p_value"] = p_value
+#         df["p_value"] = p_value
 
-        return df, plot
-    elif variant == True and len(az_output) > 2:
-        print(
-            "Due to the increasing in  time, compare at most 2 models while considering variant proportions."
-        )
+#         return df, plot
+#     elif variant == True and len(az_output) > 2:
+#         print(
+#             "Due to the increasing in  time, compare at most 2 models while considering variant proportions."
+#         )
 
 
 # def comparasion_plot(
