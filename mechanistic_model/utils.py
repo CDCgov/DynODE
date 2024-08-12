@@ -50,6 +50,7 @@ def sample_if_distribution(parameters):
     for key, param in parameters.items():
         # if distribution, sample and replace
         if issubclass(type(param), Dist.Distribution):
+            print(key)
             param = numpyro.sample(key, param)
         # if list, check for distributions within and replace them
         elif isinstance(param, (np.ndarray, list)):
@@ -62,6 +63,7 @@ def sample_if_distribution(parameters):
                     for param_lst in flat_param
                 ]
             ):
+                print(key)
                 dim_idxs = np.unravel_index(
                     np.arange(flat_param.size), param.shape
                 )

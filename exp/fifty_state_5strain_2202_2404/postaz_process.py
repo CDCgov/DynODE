@@ -26,7 +26,7 @@ plt.switch_backend("agg")
 model_day = 880
 suffix = "_v1_5strain"
 az_output_path = "/output/fifty_state_5strain_2202_2404/SMH_5strains_071624/"
-# pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
+pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
 
 
 # %%
@@ -454,15 +454,15 @@ print(states)
 
 # %%
 pool = mp.Pool(5)
-# #figs, median_dfs = zip(*pool.map(process_plot_state, [st for st in states]))
+figs, median_dfs = zip(*pool.map(process_plot_state, [st for st in states]))
 
-# pdf_pages = PdfPages(pdf_filename)
-# for f in figs:
-#     pdf_pages.savefig(f)
-#     plt.close(f)
-# pdf_pages.close()
+pdf_pages = PdfPages(pdf_filename)
+for f in figs:
+    pdf_pages.savefig(f)
+    plt.close(f)
+pdf_pages.close()
 
-# pool.close()
-# pd.concat(median_dfs).to_csv(f"output/medians{suffix}.csv", index=False)
+pool.close()
+pd.concat(median_dfs).to_csv(f"output/medians{suffix}.csv", index=False)
 
 # %%

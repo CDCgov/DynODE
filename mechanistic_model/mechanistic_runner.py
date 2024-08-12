@@ -54,9 +54,7 @@ class MechanisticRunner:
             - discontinuous timepoints can not be specified with constant step sizer
         - implemented with `diffrax.Tsit5()` solver
         """
-        term = ODETerm(
-            lambda t, state, parameters: self.model(state, t, parameters)
-        )
+        term = ODETerm(lambda t, state, parameters: self.model(state, t, parameters))
         solver = Tsit5()
         t0 = 0.0
         dt0 = 1.0
@@ -80,11 +78,7 @@ class MechanisticRunner:
             stepsize_controller = ConstantStepSize()
             print("using Constant Step Size ODES with size %s" % (str(dt0)))
         else:  # otherwise use adaptive step size.
-            jump_ts = (
-                list(args["BETA_TIMES"])
-                if "BETA_TIMES" in args.keys()
-                else None
-            )
+            jump_ts = list(args["BETA_TIMES"]) if "BETA_TIMES" in args.keys() else None
             stepsize_controller = PIDController(
                 rtol=1e-6,
                 atol=1e-7,
@@ -102,6 +96,6 @@ class MechanisticRunner:
             stepsize_controller=stepsize_controller,
             saveat=saveat,
             # higher for large time scales / rapid changes
-            max_steps=int(5e6),
+            max_steps=int(5e7),
         )
         return solution

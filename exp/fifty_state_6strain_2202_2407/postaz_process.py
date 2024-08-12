@@ -2,11 +2,9 @@
 import copy
 import datetime
 import json
-
-# import multiprocessing as mp
+import multiprocessing as mp
 import os
 import random
-
 import numpy as np
 
 # from acc_metrics import *
@@ -20,7 +18,7 @@ import pandas as pd
 from cycler import cycler
 from matplotlib.backends.backend_pdf import PdfPages
 
-from inferer_smh_6strains import SMHInferer
+from exp.fifty_state_6strain_2202_2407.inferer_smh_nb import SMHInferer
 from exp.fifty_state_6strain_2202_2407.run_task import (
     rework_initial_state,
 )
@@ -29,8 +27,8 @@ from mechanistic_model.mechanistic_runner import MechanisticRunner
 from model_odes.seip_model import seip_ode2
 
 plt.switch_backend("agg")
-suffix = "_v2_6strain"
-az_output_path = "/output/fifty_state_2204_2407_6strain/smh_6str_prelim_6/"
+suffix = "_v2_6strain_nb"
+az_output_path = "/output/fifty_state_2204_2407_6strain/ant-nb_higher_alpha"
 pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
 final_model_day = 890
 initial_model_day = 0
@@ -218,6 +216,7 @@ def replace_and_simulate(inferer, runner, fitted_medians):
     m.config.MIN_HOMOLOGOUS_IMMUNITY = fitted_medians["MIN_HOMOLOGOUS_IMMUNITY"]
     m.config.SEASONALITY_AMPLITUDE = fitted_medians["SEASONALITY_AMPLITUDE"]
     m.config.SEASONALITY_SHIFT = fitted_medians["SEASONALITY_SHIFT"]
+    m.config.SEASONALITY_SECOND_WAVE = fitted_medians["SEASONALITY_SECOND_WAVE"]
 
     parameters = m.get_parameters()
     initial_state = m.scale_initial_infections(parameters["INITIAL_INFECTIONS_SCALE"])
@@ -363,8 +362,8 @@ def process_plot_state(state):
         obs_var_days,
     ) = retrieve_inferer_obs(state, initial_model_day)
 
-    nsamp = len(samp["ihr_0"][0])
-    nchain = len(samp["ihr_0"])
+    nsamp = len(samp["ihr_3"][0])
+    nchain = len(samp["ihr_3"])
     ranindex = random.sample(list(range(nsamp)), 3)
 
     fitted_samples = [
@@ -373,7 +372,7 @@ def process_plot_state(state):
 
     f = copy.deepcopy(fitted_medians)
     f["state"] = state
-    median_df = pd.DataFrame(f, index=[state])
+    #    median_df = pd.DataFrame(f, index=[state])
 
     obs_sero = 1 / (1 + jnp.exp(-obs_sero_lmean))
     sim_hosps_list = []
@@ -425,7 +424,7 @@ def process_plot_state(state):
         inferer,
     )
 
-    return fig, median_df
+    return fig  # , median_df
 
 
 # %%
@@ -440,7 +439,7 @@ states = [
     "DE",
     "FL",
     "GA",
-    "HI",
+    # "HI",
     "ID",
     "IL",
     "IN",
@@ -495,23 +494,21 @@ states.sort()
 print(states)
 
 # %%
-# pool = mp.Pool(5)
-# figs, median_dfs = zip(*pool.map(process_plot_state, [st for st in states]))
+pool = mp.Pool(5)
+figs = pool.map(process_plot_state, [st for st in states])
 
-# # Now reset final_model_day, initial_model_day, if desired.
+# Now reset final_model_day, initial_model_day, if desired.
 
-# initial_model_day = 0
-# particles_per_chain = 25
+initial_model_day = 0
 
+pdf_pages = PdfPages(pdf_filename)
+for f in figs:
+    pdf_pages.savefig(f)
+    plt.close(f)
+pdf_pages.close()
 
-# pdf_pages = PdfPages(pdf_filename)
-# for f in figs:
-#     pdf_pages.savefig(f)
-#     pdf_pages.savefig(df_mcmc)
-#     plt.close(f)
-# pdf_pages.close()
-
-# pool.close()
+pool.close()
+suffix = "v007"
 # pd.concat(median_dfs).to_csv(f"output/medians{suffix}.csv", index=False)
 
 # %%

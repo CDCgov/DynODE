@@ -114,7 +114,7 @@ def plot_elpd_per_state_comparasion(
             ic=ic,
             variant=variant,
         )
-
+        print("starting hosps")
         compare_dict_hosps = {
             f"hospitalizations {az_output[0]}": hosps_0,
             f"hospitalizations {az_output[1]}": hosps_1,
@@ -216,7 +216,7 @@ def comparasion_per_state(
         return df, plot
     elif variant == True and len(az_output) > 2:
         print(
-            "Too many azure outputs, while considering variant proportions, due to time increasing, compare at most 2 models."
+            "Due to the increasing in  time, compare at most 2 models while considering variant proportions."
         )
 
 
@@ -237,44 +237,41 @@ def comparasion_per_state(
 
 ##################################--------------------- Model_Comparasion.csv per state------------------------- ##########################################################
 
-df, plot = comparasion_per_state(
+# df, plot = comparasion_per_state(
+#     state="CA",
+#     particles_per_chain=50,
+#     initial_model_day=560,
+#     az_output=[
+#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_1/",
+#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_2/",
+#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_3/",
+#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_4/",
+#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_5/",
+#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_6/",
+#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/",
+#     ],
+#     ic="loo",
+#     variant=False,
+# )
+# df.to_csv("output/all_prelim_model_hosps_loo_CA.csv")
+# fig0 = plot.get_figure()
+# fig0.savefig("output/all_prelim_loo_hosps_CA.png")
+
+
+######### Plots individual ELPD difference per observed data. Useful to compare where observed data is scarse #########
+ax0 = plot_elpd_per_state_comparasion(
     state="CA",
-    particles_per_chain=100,
-    initial_model_day=560,
+    particles_per_chain=5,
+    initial_model_day=790,
     az_output=[
-        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_1/",
-        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_2/",
-        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_3/",
         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_4/",
-        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_5/",
-        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_6/",
-        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/",
+        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_3/",
     ],
     ic="loo",
     variant=False,
 )
-df.to_csv("output/all_prelim_model_hosps_loo_CA.csv")
-fig0 = plot.get_figure()
-fig0.savefig("output/all_prelim_loo_hosps_CA.png")
-
-
-######### Plots individual ELPD difference per observed data. Useful to compare where observed data is scarse #########
-# ax0, ax1 = plot_elpd_per_state_comparasion(
-#     state="CA",
-#     particles_per_chain=90,
-#     initial_model_day=690,
-#     az_output=[
-#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_1/",
-#         "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_1/",
-#     ],
-#     ic="loo",
-#     variant=True,
-# )
-# fig0 = ax0.get_figure()
-# fig0.savefig("output/testing_loo_hosp_CA.png")
-# fig1 = ax1.get_figure()
-# fig1.savefig("output/testing_loo_var_prop_CA.png")
-
+fig0 = ax0.get_figure()
+fig0.savefig("output/testing_loo_hosp_CA.png")
 
 ######### Plots the full model comparasion per state ###########
 

@@ -135,7 +135,7 @@ def mcmc_accuracy_measures(
         df_waic_hosps = pd.DataFrame(waic_hosps)
         df_waic_hosps.index = [x + f"_hosps" for x in df_waic_hosps.index]
 
-        if variant == True:
+        if variant:
             # obs_var_prop = jnp.tile(
             #     jnp.array(obs_var_prop), (nchain, len(particle_indexes), 1, 1)
             # )
@@ -184,7 +184,7 @@ def mcmc_accuracy_measures(
 
         df_loo_hosps.index = [x + f"_hosps" for x in df_loo_hosps.index]
 
-        if variant == True:
+        if variant:
             # obs_var_prop = jnp.tile(
             #     jnp.array(obs_var_prop), (nchain, len(particle_indexes), 1, 1)
             # )
@@ -309,8 +309,8 @@ if __name__ == "__main__":
                 particles_per_chain=5,
                 initial_model_day=560,
                 az_output=az_output_path,
-                ic="waic",
-                variant=True,
+                ic="loo",
+                variant=False,
             )
             print(f"Result for state {st}:")
             print(result)

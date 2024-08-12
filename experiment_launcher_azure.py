@@ -12,7 +12,7 @@ from cfa_azure.clients import AzureClient
 DOCKER_IMAGE_TAG = "antonio-scenarios-20240720"
 # number of seconds of a full experiment run before timeout
 # for `s` states to run and `n` nodes dedicated,`s/n` * runtime 1 state secs needed
-TIMEOUT_MINS = 400
+TIMEOUT_MINS = 600
 EXPERIMENTS_DIRECTORY = "exp"
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Experiment Azure Launcher")
