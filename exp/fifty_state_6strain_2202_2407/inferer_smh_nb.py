@@ -280,22 +280,28 @@ class SMHInferer(MechanisticInferer):
             alpha = mu / pos_vmr
             mult = numpyro.sample(
                 "concentration_multiplier",
-                Dist.Beta(concentration0=10, concentration1=90),
+                Dist.Beta(concentration0=1, concentration1=99),
             )
-            conc = numpyro.sample(
-                "dispersion",
-                Dist.Gamma(
-                    concentration=jnp.multiply(
-                        alpha, jnp.array([1 / mult] * obs_hosps_interval.shape[1])
-                    ),
-                    rate=jnp.array([1] * obs_hosps_interval.shape[1]),
-                ),
-            )
+            conc = alpha / mult
+            # conc = numpyro.sample(
+            #     "dispersion",
+            #     Dist.Gamma(
+            #         concentration=jnp.multiply(
+            #             alpha, jnp.array([10 / mult] * obs_hosps_interval.shape[1])
+            #         ),
+            #         rate=jnp.array([10] * obs_hosps_interval.shape[1]),
+            #     ),
+            # )
             mask_incidence = ~jnp.isnan(obs_hosps_interval)
             with numpyro.handlers.mask(mask=mask_incidence):
                 numpyro.sample(
                     "hosps_nb",
-                    Dist.NegativeBinomial2(concentration=conc, mean=sim_hosps_interval),
+                    Dist.NegativeBinomial2(
+                        concentration=jnp.multiply(
+                            conc, jnp.array([20] * obs_hosps_interval.shape[1])
+                        ),
+                        mean=sim_hosps_interval,
+                    ),
                     obs=obs_hosps_interval,
                 )
 
@@ -352,7 +358,7 @@ class SMHInferer(MechanisticInferer):
             sim_var_prop = jnp.array(
                 [incd / jnp.sum(incd) for incd in strain_incidence_interval]
             )
-            sim_var_sd = jnp.ones(sim_var_prop.shape) * obs_var_sd
+            sim_var_sd = jnp.array(jnp.ones(sim_var_prop.shape) * obs_var_sd * 4)
 
             numpyro.sample(
                 "variant_proportion",

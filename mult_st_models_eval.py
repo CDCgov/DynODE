@@ -5,45 +5,28 @@ from exp.fifty_state_6strain_2202_2407.postaz_process import (
 from scipy import stats
 import arviz as az
 import argparse
-from sklearn.metrics import mean_squared_error
 import numpy as np
 import jax.numpy as jnp
 import jax
-import random
 import numpy as np
 import pandas as pd
 import numpyro.distributions as dist
-import os
 import numpyro
-
 from mechanistic_model import mechanistic_inferer
 from mechanistic_model.mechanistic_inferer import load_posterior_particle
-
-# import multiprocessing as mp
 from exp.fifty_state_6strain_2202_2407.inferer_smh import SMHInferer
 
 jax.config.update("jax_enable_x64", True)
 
 
-# Parsing states as arguments
-# def parse_arguments():
-#     parser = argparse.ArgumentParser(
-#         description="Run MCMC accuracy measures for multiple states."
-#     )
-#     parser.add_argument(
-#         "-s",
-#         "--states",
-#         type=str,
-#         required=True,
-#         nargs="+",
-#         help="Space-separated list of USPS postal codes representing the states",
-#     )
-#     return parser.parse_args()
-
-
-# Loads the particles and computes the log-likelihoods.
+# Loads the particles and computes the log-likelihoods. poisson_likelihood is a Boolean value. If false, computes the negative binomial likelihood.
 def load_and_compute_likelihoods(
-    state, particles_per_chain, initial_model_day, variant=False
+    state,
+    particles_per_chain,
+    initial_model_day,
+    az_output_path,
+    poisson_likelihood,
+    variant=False,
 ):
     # Load samples and initialize inferer and observation data
     print("getting samples via json.load()")
@@ -108,17 +91,36 @@ def load_and_compute_likelihoods(
         pred_hosps_list.append(pred_hosps_chain)
         pred_vars_list.append(pred_vars_chain)
 
-    # Compute log-likelihood for hospitalizations
-    log_likelihood_array_hosps = []
-    for pred_hosps_chain in pred_hosps_list:
+        # Compute log-likelihood for hospitalizations
+        log_likelihood_array_hosps = []
+    for i, pred_hosps_chain in enumerate(pred_hosps_list):
         log_likelihood_chain_hosps = []
-        for pred_hosps in pred_hosps_chain:
-            mask_incidence = ~jnp.isnan(obs_hosps)
-            with numpyro.handlers.mask(mask=mask_incidence):
-                log_likelihood = dist.Poisson(pred_hosps).log_prob(obs_hosps)
+        for j, pred_hosps in enumerate(pred_hosps_chain):
+            # Ensure that pred_hosps and obs_hosps_interval have the same shape
+            if poisson_likelihood:
+                mask_incidence = ~jnp.isnan(obs_hosps)
+                with numpyro.handlers.mask(mask=mask_incidence):
+                    log_likelihood = dist.Poisson(pred_hosps).log_prob(obs_hosps)
+                log_likelihood_chain_hosps.append(log_likelihood)
+            else:
+                with numpyro.handlers.mask(mask=mask_incidence):
+                    vmr = jnp.var(obs_hosps, axis=0) / jnp.mean(obs_hosps, axis=0)
+                    mu = jnp.mean(obs_hosps, axis=0)
+                    pos_vmr = jnp.maximum(
+                        vmr - jnp.array([1] * obs_hosps.shape[1]),
+                        jnp.array([0.01] * obs_hosps.shape[1]),
+                    )
+                    alpha = mu / pos_vmr
+                    mult = samp["concentration_multiplier"][i][particle_indexes[j]]
+                    conc = alpha / mult
+                    log_likelihood = dist.NegativeBinomial2(
+                        concentration=jnp.multiply(
+                            conc, jnp.array([20] * obs_hosps.shape[1])
+                        ),
+                        mean=pred_hosps,
+                    )
                 log_likelihood_chain_hosps.append(log_likelihood)
         log_likelihood_array_hosps.append(log_likelihood_chain_hosps)
-
     obs_hosps = jnp.tile(jnp.array(obs_hosps), (nchain, len(particle_indexes), 1, 1))
 
     result = {
@@ -195,7 +197,7 @@ def create_and_compute_ic(data, ic, state, variant=False):
 
 
 def mcmc_accuracy_measures(
-    state, particles_per_chain, initial_model_day, az_output, ic, variant=False
+    state, particles_per_chain, initial_model_day, az_output_path, ic, variant=False
 ):
     data = load_and_compute_likelihoods(
         state, particles_per_chain, initial_model_day, variant
@@ -212,12 +214,12 @@ def comparison_per_state(
     compare_dict_vars = {}
 
     # Iterate through each model output in the az_outputs_list
-    for k, az_output in enumerate(az_outputs_list):
+    for k, az_output_path in enumerate(az_outputs_list):
         hosps = mcmc_accuracy_measures(
             state=state,
             particles_per_chain=particles_per_chain,
             initial_model_day=initial_model_day,
-            az_output=az_output,
+            az_output_path=az_output_path,
             ic=ic,
             variant=variant,
         )[0]
@@ -228,7 +230,7 @@ def comparison_per_state(
                 state=state,
                 particles_per_chain=particles_per_chain,
                 initial_model_day=initial_model_day,
-                az_output=az_output,
+                az_output_path=az_output_path,
                 ic=ic,
                 variant=variant,
             )[1]
@@ -291,8 +293,8 @@ def main(
 
 # Example call to main function (replace with actual values)
 main(
-    particles_per_chain=10,
-    initial_model_day=0,
+    particles_per_chain=5,
+    initial_model_day=660,
     ic="loo",
     variant=False,
     az_outputs_list=[

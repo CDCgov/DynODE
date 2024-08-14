@@ -18,7 +18,7 @@ import pandas as pd
 from cycler import cycler
 from matplotlib.backends.backend_pdf import PdfPages
 
-from exp.fifty_state_6strain_2202_2407.inferer_smh_nb import SMHInferer
+from exp.fifty_state_6strain_2202_2407.inferer_smh import SMHInferer
 from exp.fifty_state_6strain_2202_2407.run_task import (
     rework_initial_state,
 )
@@ -27,8 +27,8 @@ from mechanistic_model.mechanistic_runner import MechanisticRunner
 from model_odes.seip_model import seip_ode2
 
 plt.switch_backend("agg")
-suffix = "_v2_6strain_nb"
-az_output_path = "/output/fifty_state_2204_2407_6strain/ant-nb_higher_alpha"
+suffix = "_v2_6strain_ant-fix_conc_more_var_prop"
+az_output_path = "/output/fifty_state_2204_2407_6strain/ant-fix_conc_more_var_prop"
 pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
 final_model_day = 890
 initial_model_day = 0
@@ -446,39 +446,39 @@ states = [
     "IA",
     "KS",
     "KY",
-    "LA",
-    "ME",
-    "MD",
-    "MA",
-    "MI",
-    "MN",
-    "MS",
-    "MO",
-    "MT",
-    "NE",
-    "NV",
-    "NH",
-    "NJ",
-    "NM",
-    "NY",
-    "NC",
-    "ND",
-    "OH",
-    "OK",
-    "OR",
-    "PA",
-    "RI",
-    "SC",
-    "SD",
-    "TN",
-    "TX",
-    "UT",
-    "VT",
-    "VA",
-    "WA",
-    "WV",
-    "WI",
-    "WY",
+    # "LA",
+    # "ME",
+    # "MD",
+    # "MA",
+    # "MI",
+    # "MN",
+    # "MS",
+    # "MO",
+    # "MT",
+    # "NE",
+    # "NV",
+    # "NH",
+    # "NJ",
+    # "NM",
+    # "NY",
+    # "NC",
+    # "ND",
+    # "OH",
+    # "OK",
+    # "OR",
+    # "PA",
+    # "RI",
+    # "SC",
+    # "SD",
+    # "TN",
+    # "TX",
+    # "UT",
+    # "VT",
+    # "VA",
+    # "WA",
+    # "WV",
+    # "WI",
+    # "WY",
 ]
 final_model_day = 890
 initial_model_day = 0
