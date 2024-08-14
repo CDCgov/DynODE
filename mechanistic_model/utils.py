@@ -972,8 +972,8 @@ def drop_sample_chains(samples: dict, dropped_chain_vals: list):
 
 
 def flatten_list_parameters(
-    samples: dict[str : np.ndarray],
-) -> dict[str : np.ndarray]:
+    samples: dict[str, np.ndarray],
+) -> dict[str, np.ndarray]:
     """
     given a dictionary of parameter names and samples, identifies any parameters that are
     placed under a single name, but actually multiple independent draws from the same distribution.

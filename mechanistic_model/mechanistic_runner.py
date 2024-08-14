@@ -20,6 +20,7 @@ from diffrax import (  # type: ignore
 from jaxtyping import PyTree
 
 from mechanistic_model import SEIC_Compartments
+from mechanistic_model.utils import date_to_sim_day
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
@@ -39,7 +40,7 @@ class MechanisticRunner:
         self,
         initial_state: SEIC_Compartments,
         args: dict,
-        tf: Union[int, datetime.datetime, datetime.date] = 100,
+        tf: Union[int, datetime.date] = 100,
     ):
         """
         run `self.model` using `initial_state` as y@t=0 and parameters provided by the `args` dictionary.
@@ -60,17 +61,16 @@ class MechanisticRunner:
         solver = Tsit5()
         t0 = 0.0
         dt0 = 1.0
-        # if user specifies end date, compare to INIT_DATE and get day diff
-        if isinstance(tf, datetime.date):
-            tf = (tf - args["INIT_DATE"]).days
-        elif isinstance(tf, datetime.datetime):
-            tf = (tf.date() - args["INIT_DATE"]).days
-        else:
-            assert isinstance(
-                tf, (int, float)
-            ), "tf must be of type int, datetime.date, or datetime.datetime"
+        tf_int = (
+            date_to_sim_day(tf, args["INIT_DATE"])
+            if isinstance(tf, datetime.date)
+            else tf
+        )
+        assert isinstance(
+            tf_int, (int, float)
+        ), "tf must be of type int float or datetime.date"
 
-        saveat = SaveAt(ts=jnp.linspace(t0, tf, int(tf) + 1))
+        saveat = SaveAt(ts=jnp.linspace(t0, tf_int, int(tf_int) + 1))
         # jump_ts describe points in time where the model is not fully differentiable
         # this is often due to piecewise changes in parameter values like Beta
         # this is why many functions in the runner/params are required to be continuously differentiable.
@@ -95,7 +95,7 @@ class MechanisticRunner:
             term,
             solver,
             t0,
-            tf,
+            tf_int,
             dt0,
             initial_state,
             args=args,
