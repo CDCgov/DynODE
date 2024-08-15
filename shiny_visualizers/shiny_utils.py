@@ -17,7 +17,7 @@ from mechanistic_model.utils import flatten_list_parameters
 
 
 def build_azure_connection(
-    config_path: str = "secrets/configuration_cfaazurebatchprd_new_sp.toml",
+    config_path: str = "secrets/configuration_cfaazurebatchprd.toml",
     input_blob_name: str = "scenarios-mechanistic-input",
     output_blob_name: str = "scenarios-mechanistic-output",
 ) -> AzureClient:
@@ -27,7 +27,7 @@ def build_azure_connection(
     Parameters
     ----------
     config_path : str, optional
-        path to your authentication toml, should not be public, by default "secrets/configuration_cfaazurebatchprd_new_sp.toml"
+        path to your authentication toml, should not be public, by default "secrets/configuration_cfaazurebatchprd.toml"
 
     Returns
     -------
