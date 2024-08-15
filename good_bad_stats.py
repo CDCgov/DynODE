@@ -7,6 +7,7 @@ import os
 az_output_path = "/output/fifty_state_2204_2407_6strain/smh_6str_prelim_7/"
 
 
+# This function retrieves the particles from the checkpoint json files and concatenate them all state by state
 def retrieve_checkpoint(states, az_output_path):
     total_df = pd.DataFrame()
     for state in states:
@@ -44,6 +45,7 @@ def retrieve_checkpoint(states, az_output_path):
     return total_df
 
 
+# This function creates a data frame with the statistics given the output of the previous function
 def show_statistics(states, bad, az_output_path):
     total_df = retrieve_checkpoint(states, az_output_path)
     if total_df.empty:
@@ -60,6 +62,7 @@ def show_statistics(states, bad, az_output_path):
     return pd.DataFrame(statistics)
 
 
+# Based on your own judgement on their plots this function groups the states into two categories: the good and bad states, returning the last function's output-the statistics of the concatenated checkpoint json files.
 def main():
     bad_states = [
         "DE",
