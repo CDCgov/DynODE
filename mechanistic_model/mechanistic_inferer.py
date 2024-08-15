@@ -96,10 +96,7 @@ class MechanisticInferer(AbstractParameters):
                 self.set_posteriors_if_exist(prior_inferer)
 
     def likelihood(
-        self,
-        obs_metrics: Union[jax.Array, None] = None,
-        tf: int = None,
-        infer_mode=True,
+        self, obs_metrics: Union[jax.Array, None] = None, tf: int = None
     ) -> dict[str, Union[Solution, jax.Array],]:
         """
         Given some observed metrics, samples the likelihood of them occuring
@@ -169,12 +166,12 @@ class MechanisticInferer(AbstractParameters):
         # sample infection hospitalization rate here
         with numpyro.plate("num_age", self.config.NUM_AGE_GROUPS):
             ihr = numpyro.sample("ihr", Dist.Beta(0.5, 10))
-        if infer_mode:
-            numpyro.sample(
-                "incidence",
-                Dist.Poisson(poisson_rates * ihr),
-                obs=obs_metrics,
-            )
+
+        numpyro.sample(
+            "incidence",
+            Dist.Poisson(poisson_rates * ihr),
+            obs=obs_metrics,
+        )
         # return Solution, hosp values, and static parameters. used by load_posterior_particle
         return {
             "solution": solution,
@@ -432,11 +429,10 @@ class MechanisticInferer(AbstractParameters):
             # get the particle chain and number
             chain_num, particle_num = particle
             single_particle_samples = {}
-            # go through each posterior and select that specific chain and particle
-            for param in posterior_samples.keys():
+            for param in posterior_samples:
                 single_particle_samples[param] = posterior_samples[param][
-                    chain_num
-                ][particle_num]
+                    chain_num, particle_num
+                ]
 
             single_particle_dct = self._load_posterior_single_particle(
                 single_particle_samples, tf
@@ -463,6 +459,6 @@ class MechanisticInferer(AbstractParameters):
             ),
             single_particle,
         )
-        sol_dct = substituted_model(tf=tf, infer_mode=False)
+        sol_dct = substituted_model(tf=tf)
         sol_dct["posteriors"] = substituted_model.data
         return sol_dct

@@ -30,10 +30,10 @@ class AbstractAzureRunner(ABC):
         if not os.path.exists(azure_output_dir):
             os.makedirs(azure_output_dir, exist_ok=True)
         # create two dual loggers to save sys.stderr and sys.stdout to files in `azure_output_dir`
-        self.dl_out = utils.dual_logger_out(
+        utils.dual_logger_out(
             os.path.join(azure_output_dir, "stdout.txt"), "w"
         )
-        self.dl_err = utils.dual_logger_err(
+        utils.dual_logger_err(
             os.path.join(azure_output_dir, "stderr.txt"), "w"
         )
 
@@ -76,32 +76,6 @@ class AbstractAzureRunner(ABC):
         with open(new_config_path, "w") as j:
             # open the location of `config_path` locally, and save it to the new_config_path
             json.dump(json.load(open(config_path, "r")), j, indent=4)
-
-    def match_index_len(
-        self, series: np.ndarray, index_len: int, pad: str = "l"
-    ) -> np.ndarray:
-        """A helper function designed to simply insert Nans on the left or right
-        of a series so that it matches the desired `index_len`"""
-
-        def _pad_fn(series, index_len, pad):
-            if "l" in pad:
-                return np.pad(
-                    series,
-                    (index_len - len(series), 0),
-                    "constant",
-                    constant_values=None,
-                )
-            elif "r" in pad:
-                return np.pad(
-                    series,
-                    (0, index_len - len(series)),
-                    "constant",
-                    constant_values=None,
-                )
-
-        if len(series) < index_len:
-            return _pad_fn(series, index_len, pad)
-        return series
 
     def _generate_model_component_timelines(
         self,
@@ -195,15 +169,13 @@ class AbstractAzureRunner(ABC):
             age_bin_str = age_bin_str.replace("-", "_")
             # save ground truth and predicted hosp by age
             if hospitalization_ground_truth is not None:
-                df["obs_hosp_%s" % (age_bin_str)] = self.match_index_len(
-                    hospitalization_ground_truth[:, age_bin_idx],
-                    len(df.index),
-                    pad="r",
-                )
+                df[
+                    "obs_hosp_%s" % (age_bin_str)
+                ] = hospitalization_ground_truth[:, age_bin_idx]
             if hospitalization_preds is not None:
-                df["pred_hosp_%s" % (age_bin_str)] = self.match_index_len(
-                    hospitalization_preds[:, age_bin_idx], len(df.index)
-                )
+                df["pred_hosp_%s" % (age_bin_str)] = hospitalization_preds[
+                    :, age_bin_idx
+                ]
             # save vaccination rate by age
             df["vaccination_%s" % (age_bin_str)] = vaccination_timeline[
                 :, age_bin_idx
@@ -219,8 +191,8 @@ class AbstractAzureRunner(ABC):
         # incidence takes a diff, thus reducing length by 1
         # since we cant measure change in infections at t=0 we just prepend None
         # plots can start the next day.
-        df["total_infection_incidence"] = self.match_index_len(
-            infection_incidence, len(df.index)
+        df["total_infection_incidence"] = np.insert(
+            infection_incidence, [0], [None]
         )
         # get strain proportion by strain for each day
         strain_proportions, _ = utils.get_timeline_from_solution_with_command(
@@ -282,7 +254,6 @@ class AbstractAzureRunner(ABC):
         inferer: MechanisticInferer,
         timeline_filename: str = "azure_visualizer_timeline.csv",
         particles_saved=1,
-        obs_hosp: np.ndarray = None,
     ) -> str:
         """saves history of inferer sampled values for use by the azure visualizer.
         saves JSON file to `self.azure_output_dir/timeline_filename`.
@@ -298,8 +269,6 @@ class AbstractAzureRunner(ABC):
             DONT CHANGE WITHOUT MODIFICATION to `shiny_visualizers/azure_visualizer.py`, by default "azure_visualizer_timeline.csv"
         particles_saved : int, optional
             the number of particles per chain to save timelines for, by default 1
-        obs_hosp: Series, optional
-            the observed hospitalization across all age bins with np.nan in place of days with no data
 
         Returns
         -------
@@ -340,7 +309,6 @@ class AbstractAzureRunner(ABC):
                     spoof_static_inferer,
                     infection_timeline,
                     hospitalization_preds=hospitalizations,
-                    hospitalization_ground_truth=obs_hosp,
                 )
                 df["chain_particle"] = "%s_%s" % (chain, particle)
                 # add this chain/particle combo onto the main df
