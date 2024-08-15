@@ -103,3 +103,74 @@ def test_external_posteriors():
             inferer1_chain["solution"].ys[inferer.config.COMPARTMENT_IDX.C],
             inferer2_chain["solution"].ys[inferer2.config.COMPARTMENT_IDX.C],
         ).all(), "rerunning the same inference particle with two different inferers produces different output"
+
+
+def test_random_sampling_across_chains_and_particles():
+    # select particle 0 across chains
+    load_across_chains = [
+        (chain, 0) for chain in range(inferer.config.INFERENCE_NUM_CHAINS)
+    ] + [(chain, 1) for chain in range(inferer.config.INFERENCE_NUM_CHAINS)]
+    inferer1_posteriors = inferer.load_posterior_particle(
+        load_across_chains, tf=100
+    )
+    inferer2 = MechanisticInferer(
+        GLOBAL_CONFIG_PATH, INFERER_CONFIG_PATH, runner, fake_initial_state
+    )
+    # lets load external particles, but drop a single parameter from them
+    # this will force the inferer to re-sample that parameter
+    external_particles = mc.get_samples(group_by_chain=True)
+    dropped_param_name = list(external_particles.keys())[0]
+    print(external_particles[dropped_param_name])
+    del external_particles[dropped_param_name]
+    inferer2_posteriors = inferer2.load_posterior_particle(
+        load_across_chains,
+        tf=100,
+        external_particle=external_particles,
+    )
+    for chain in range(inferer.config.INFERENCE_NUM_CHAINS):
+        # get both particles across both inferers for this chain
+        inferer1_chain_particle_0 = inferer1_posteriors[(chain, 0)]
+        # inferer1_chain_particle_1 = inferer1_posteriors[(chain, 1)]
+        inferer2_chain_particle_0 = inferer2_posteriors[(chain, 0)]
+        inferer2_chain_particle_1 = inferer2_posteriors[(chain, 1)]
+        # make sure that we are randomly sampling the dropped parameter
+        # this means inferer1 and inferer2 should have different values for that parameter
+        # even if it is executed within the same particle/chain
+        # also make sure that the same chain diff particle also samples a different value
+        assert (
+            inferer1_chain_particle_0["parameters"][dropped_param_name]
+            != inferer2_chain_particle_0["parameters"][dropped_param_name]
+        ), "you are not correctly sampling parameters within `load_posterior_particle"
+        # double check that different particles within the same posteriors also differ
+        # TODO this play inference scenario fails because the sampler cant move anywhere with such weird initial conditions...
+        # need to make a better testing of inference in general
+        # assert (
+        #     inferer1_chain_particle_0["parameters"][dropped_param_name]
+        #     != inferer1_chain_particle_1["parameters"][dropped_param_name]
+        # ), (
+        #     "sampled two different particles, but got the same posterior value for %s"
+        #     % dropped_param_name
+        # )
+        # check that the random sampling of "new" parameters does differ from particle to particle
+        assert (
+            inferer2_chain_particle_0["parameters"][dropped_param_name]
+            != inferer2_chain_particle_1["parameters"][dropped_param_name]
+        ), (
+            "sampled a new parameter %s across particles but got the same values"
+            % dropped_param_name
+        )
+    if inferer.config.INFERENCE_NUM_CHAINS >= 2:
+        inferer2_chain_0_particle_0 = inferer2_posteriors[(0, 0)]
+        inferer2_chain_1_particle_0 = inferer2_posteriors[(1, 0)]
+        assert (
+            inferer2_chain_0_particle_0["parameters"][dropped_param_name]
+            != inferer2_chain_1_particle_0["parameters"][dropped_param_name]
+        ), (
+            "sampled a new parameter %s across chains but got the same values"
+            % dropped_param_name
+        )
+    else:  # only have a single chain, cant run this test
+        assert False, (
+            "Unable to run all tests within test_random_sampling_across_chains_and_particles "
+            "since you have only one chain! check test_config_inferer.json"
+        )

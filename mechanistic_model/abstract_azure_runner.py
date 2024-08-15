@@ -15,6 +15,7 @@ from typing import Union
 import numpy as np
 import pandas as pd
 from diffrax import Solution
+from jax import Array
 
 import mechanistic_model.utils as utils
 from mechanistic_model import SEIC_Compartments
@@ -30,10 +31,10 @@ class AbstractAzureRunner(ABC):
         if not os.path.exists(azure_output_dir):
             os.makedirs(azure_output_dir, exist_ok=True)
         # create two dual loggers to save sys.stderr and sys.stdout to files in `azure_output_dir`
-        utils.dual_logger_out(
+        self.dl_out = utils.dual_logger_out(
             os.path.join(azure_output_dir, "stdout.txt"), "w"
         )
-        utils.dual_logger_err(
+        self.dl_err = utils.dual_logger_err(
             os.path.join(azure_output_dir, "stderr.txt"), "w"
         )
 
@@ -77,12 +78,37 @@ class AbstractAzureRunner(ABC):
             # open the location of `config_path` locally, and save it to the new_config_path
             json.dump(json.load(open(config_path, "r")), j, indent=4)
 
+    def match_index_len(
+        self, series: np.ndarray, index_len: int, pad: str = "l"
+    ) -> np.ndarray:
+        """A helper function designed to simply insert Nans on the left or right
+        of a series so that it matches the desired `index_len`"""
+
+        def _pad_fn(series, index_len, pad):
+            if "l" in pad:
+                return np.pad(
+                    series,
+                    (index_len - len(series), 0),
+                    "constant",
+                    constant_values=None,
+                )
+            elif "r" in pad:
+                return np.pad(
+                    series,
+                    (0, index_len - len(series)),
+                    "constant",
+                    constant_values=None,
+                )
+
+        if len(series) < index_len:
+            return _pad_fn(series, index_len, pad)
+        return series
+
     def _generate_model_component_timelines(
         self,
         model: AbstractParameters,
         solution: Solution,
         hospitalization_preds: SEIC_Compartments = None,
-        hospitalization_ground_truth: Union[np.ndarray, None] = None,
     ) -> pd.DataFrame:
         """
         a private function which takes two timelines of infections and hospitalizations and generates a
@@ -106,16 +132,11 @@ class AbstractAzureRunner(ABC):
         hospitalization_preds : Optional SEIC_Compartments
             models hospitalization predictions, usually the infections
             matrix with some infection hospitalization ratio applied
-        hospitalization_ground_truth: Optional np.ndarray
-            Optional observed hospitalization by age group,
-            timeline allowed to be shorter than predicted timelines
 
         NOTE
         -------------
-        `infections` `hospitalization_preds`, and `hospitalization_ground_truth` are assumed to begin at
-        parameters.config.INIT_DATE. Furthermore, it is assumed that the model predicts equal to or more
-        days than is passed in `hospitalization_ground_truth`. If you pass in more ground truth data
-        please cut it off on the last model prediction.
+        `infections` and `hospitalization_preds` are assumed to begin at
+        parameters.config.INIT_DATE.
 
         Returns
         -------
@@ -164,22 +185,27 @@ class AbstractAzureRunner(ABC):
                 for t in range(num_days_predicted)
             ]
         )
+        # select timeline of those with infect_hist 0, sum over all vax/wane tiers
+        never_infected = np.sum(
+            infections[model.config.COMPARTMENT_IDX.S][:, :, 0, :, :],
+            axis=(model.config.S_AXIS_IDX.vax, model.config.S_AXIS_IDX.wane),
+        )
+        # 1-never_infected is those sero-positive / POPULATION to make proportions
+        sim_sero = 1 - never_infected / model.config.POPULATION
         for age_bin_str in model.config.AGE_GROUP_STRS:
             age_bin_idx = model.config.AGE_GROUP_IDX[age_bin_str]
             age_bin_str = age_bin_str.replace("-", "_")
             # save ground truth and predicted hosp by age
-            if hospitalization_ground_truth is not None:
-                df[
-                    "obs_hosp_%s" % (age_bin_str)
-                ] = hospitalization_ground_truth[:, age_bin_idx]
             if hospitalization_preds is not None:
-                df["pred_hosp_%s" % (age_bin_str)] = hospitalization_preds[
-                    :, age_bin_idx
-                ]
+                df["pred_hosp_%s" % (age_bin_str)] = self.match_index_len(
+                    hospitalization_preds[:, age_bin_idx], len(df.index)
+                )
             # save vaccination rate by age
             df["vaccination_%s" % (age_bin_str)] = vaccination_timeline[
                 :, age_bin_idx
             ]
+            # save sero-positive rate by age
+            df["sero_%s" % (age_bin_str)] = sim_sero[:, age_bin_idx]
         # get total infection incidence
         infection_incidence, _ = utils.get_timeline_from_solution_with_command(
             infections,
@@ -191,8 +217,8 @@ class AbstractAzureRunner(ABC):
         # incidence takes a diff, thus reducing length by 1
         # since we cant measure change in infections at t=0 we just prepend None
         # plots can start the next day.
-        df["total_infection_incidence"] = np.insert(
-            infection_incidence, [0], [None]
+        df["total_infection_incidence"] = self.match_index_len(
+            infection_incidence, len(df.index)
         )
         # get strain proportion by strain for each day
         strain_proportions, _ = utils.get_timeline_from_solution_with_command(
@@ -254,9 +280,12 @@ class AbstractAzureRunner(ABC):
         inferer: MechanisticInferer,
         timeline_filename: str = "azure_visualizer_timeline.csv",
         particles_saved=1,
+        extra_timelines: pd.DataFrame = None,
+        tf: Union[int, None] = None,
+        external_particle: dict[str, Array] = {},
     ) -> str:
         """saves history of inferer sampled values for use by the azure visualizer.
-        saves JSON file to `self.azure_output_dir/timeline_filename`.
+        saves CSV file to `self.azure_output_dir/timeline_filename`.
         Look at `shiny_visualizers/azure_visualizer.py` for logic on parsing and visualizing the chains.
         Will error if inferer.infer() has not been run previous to this call.
 
@@ -269,6 +298,18 @@ class AbstractAzureRunner(ABC):
             DONT CHANGE WITHOUT MODIFICATION to `shiny_visualizers/azure_visualizer.py`, by default "azure_visualizer_timeline.csv"
         particles_saved : int, optional
             the number of particles per chain to save timelines for, by default 1
+        extra_timelines: pd.DataFrame, optional
+            a pandas dataframe containing a `date` column along with additional columns you wish
+            to be recorded. Dates predicted by `inferer` not included in `extra_timelines` will
+            be filled with `None`. `extra_timelines` are added identically to all `particles_saved`
+        tf: Union[int, None]:
+            number of days to run posterior model for, defaults to same number of days used in fitting
+            if possible.
+        external_posteriors: dict
+            for use of particles defined somewhere outside of this instance of the MechanisticInferer.
+            For example, loading a checkpoint.json containing saved posteriors from an Azure Batch job.
+            expects keys that match those given to `numpyro.sample` often from
+            inference_algo.get_samples(group_by_chain=True).
 
         Returns
         -------
@@ -279,6 +320,23 @@ class AbstractAzureRunner(ABC):
             self.azure_output_dir,
             timeline_filename,
         )
+        if isinstance(extra_timelines, pd.DataFrame):
+            assert (
+                "date" in extra_timelines.columns
+            ), "extra_timelines lacks a `date` column, "
+            "can not be certain of when these observations occur"
+            # attempt conversion to datetime column if it is not already
+            try:
+                extra_timelines["date"] = pd.to_datetime(
+                    extra_timelines["date"]
+                )
+            except Exception as e:
+                # we tried to cast `date` column to datetime and it failed, print and reraise error
+                print(
+                    "Encountered an error trying to parse extra_timelines[date] into a datetime column"
+                )
+                raise e
+
         all_particles_df = pd.DataFrame()
         # randomly select `particles_saved` particles from the number of samples run
         for particle in np.random.choice(
@@ -293,7 +351,11 @@ class AbstractAzureRunner(ABC):
             ]
             # assuming the inferer has finished fitting
             # load those particle posteriors and their solution dicts
-            posteriors = inferer.load_posterior_particle(chain_particle_pairs)
+            posteriors = inferer.load_posterior_particle(
+                chain_particle_pairs,
+                tf=tf,
+                external_particle=external_particle,
+            )
             for (chain, particle), sol_dct in posteriors.items():
                 # content of `sol_dct` depends on return value of inferer.likelihood func
                 infection_timeline, hospitalizations, static_parameters = (
@@ -311,6 +373,10 @@ class AbstractAzureRunner(ABC):
                     hospitalization_preds=hospitalizations,
                 )
                 df["chain_particle"] = "%s_%s" % (chain, particle)
+                # add user specified extra timelines, filling in missing dates
+                if isinstance(extra_timelines, pd.DataFrame):
+                    df = df.merge(extra_timelines, on="date", how="left")
+
                 # add this chain/particle combo onto the main df
                 all_particles_df = pd.concat(
                     [all_particles_df, df], axis=0, ignore_index=True
