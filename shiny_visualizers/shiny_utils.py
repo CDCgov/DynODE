@@ -505,12 +505,8 @@ def _cleanup_and_normalize_timelines(
     states,
     state_pop_sizes,
 ):
-    # we do not need float 64 precision for plotting, lets go to float32
     # Select columns with 'float64' dtype
     float_cols = list(all_state_timelines.select_dtypes(include="float64"))
-    all_state_timelines[float_cols] = all_state_timelines[float_cols].astype(
-        "float32"
-    )
     # round down near-zero values to zero to make plots cleaner
     all_state_timelines[float_cols] = all_state_timelines[float_cols].mask(
         np.isclose(all_state_timelines[float_cols], 0, atol=1e-4), 0

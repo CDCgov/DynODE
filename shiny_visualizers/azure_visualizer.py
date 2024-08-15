@@ -8,8 +8,9 @@ import os
 # ruff: noqa: E402
 import numpy as np
 import pandas as pd
+from plotly.graph_objects import Figure
 from shiny import App, Session, reactive, ui
-from shinywidgets import output_widget, render_widget
+from shinywidgets import output_widget, render_plotly, render_widget
 
 import shiny_visualizers.shiny_utils as sutils
 
@@ -20,7 +21,7 @@ SHINY_CACHE_PATH = "shiny_visualizers/shiny_cache"
 # this will reduce the time it takes to load the azure connection, but only shows
 # one experiment worth of data, which may be what you want...
 #  leave empty ("") to explore all experiments
-PRE_FILTER_EXPERIMENTS = "fifty_state_5strain_2202_2404"  # smh_5str_prelim_1
+PRE_FILTER_EXPERIMENTS = ""
 # when loading the overview timelines csv for each run, columns
 # are expected to have names corresponding to the type of plot they create
 # vaccination_0_17 specifies the vaccination_ plot type, multiple columns may share
@@ -261,9 +262,9 @@ def server(input, output, session: Session):
                 )
 
     @output(id="plot_overview")
-    @render_widget
+    @render_plotly
     @reactive.event(input.action_button)
-    def plot_overview():
+    def plot_overview() -> Figure:
         """
         Gets the files associated with each selected experiment+job+state+scenario combo
         and visualizes some summary statistics about the run
