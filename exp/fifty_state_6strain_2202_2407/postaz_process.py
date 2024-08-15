@@ -18,7 +18,7 @@ import pandas as pd
 from cycler import cycler
 from matplotlib.backends.backend_pdf import PdfPages
 
-from exp.fifty_state_6strain_2202_2407.inferer_smh import SMHInferer
+from exp.fifty_state_6strain_2202_2407.inferer_smh_nb import SMHInferer
 from exp.fifty_state_6strain_2202_2407.run_task import (
     rework_initial_state,
 )
@@ -27,8 +27,8 @@ from mechanistic_model.mechanistic_runner import MechanisticRunner
 from model_odes.seip_model import seip_ode2
 
 plt.switch_backend("agg")
-suffix = "_v2_6strain_ant-fix_conc_more_var_prop"
-az_output_path = "/output/fifty_state_2204_2407_6strain/ant-fix_conc_more_var_prop"
+suffix = "6strain_ant-fix_concx20_var_propx4"
+az_output_path = "/output/fifty_state_2204_2407_6strain/ant-fix-20xconc_var_prop_sd_x4"
 pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
 final_model_day = 890
 initial_model_day = 0
@@ -428,87 +428,88 @@ def process_plot_state(state):
 
 
 # %%
-states = [
-    "AL",
-    "AK",
-    "AZ",
-    "AR",
-    "CA",
-    "CO",
-    "CT",
-    "DE",
-    "FL",
-    "GA",
-    # "HI",
-    "ID",
-    "IL",
-    "IN",
-    "IA",
-    "KS",
-    "KY",
-    # "LA",
-    # "ME",
-    # "MD",
-    # "MA",
-    # "MI",
-    # "MN",
-    # "MS",
-    # "MO",
-    # "MT",
-    # "NE",
-    # "NV",
-    # "NH",
-    # "NJ",
-    # "NM",
-    # "NY",
-    # "NC",
-    # "ND",
-    # "OH",
-    # "OK",
-    # "OR",
-    # "PA",
-    # "RI",
-    # "SC",
-    # "SD",
-    # "TN",
-    # "TX",
-    # "UT",
-    # "VT",
-    # "VA",
-    # "WA",
-    # "WV",
-    # "WI",
-    # "WY",
-]
-final_model_day = 890
-initial_model_day = 0
-states_omit = []
-for st in states:
-    json_file = os.path.join(az_output_path, st, "checkpoint.json")
-    if not os.path.exists(json_file):
-        states_omit.append(st)
-states = list(set(states).difference(set(states_omit)))
-states.sort()
-# states = ["US", "AK", "AL", "IL", "WA"]
-# states = ["US"] + states
-print(states)
+if __name__ == "__main__":
+    states = [
+        "AL",
+        "AK",
+        "AZ",
+        "AR",
+        "CA",
+        "CO",
+        "CT",
+        "DE",
+        "FL",
+        "GA",
+        # "HI",
+        "ID",
+        "IL",
+        "IN",
+        "IA",
+        "KS",
+        "KY",
+        # "LA",
+        # "ME",
+        # "MD",
+        # "MA",
+        # "MI",
+        # "MN",
+        # "MS",
+        # "MO",
+        # "MT",
+        # "NE",
+        # "NV",
+        # "NH",
+        # "NJ",
+        # "NM",
+        # "NY",
+        # "NC",
+        # "ND",
+        # "OH",
+        # "OK",
+        # "OR",
+        # "PA",
+        # "RI",
+        # "SC",
+        # "SD",
+        # "TN",
+        # "TX",
+        # "UT",
+        # "VT",
+        # "VA",
+        # "WA",
+        # "WV",
+        # "WI",
+        # "WY",
+    ]
+    final_model_day = 890
+    initial_model_day = 0
+    states_omit = []
+    for st in states:
+        json_file = os.path.join(az_output_path, st, "checkpoint.json")
+        if not os.path.exists(json_file):
+            states_omit.append(st)
+    states = list(set(states).difference(set(states_omit)))
+    states.sort()
+    # states = ["US", "AK", "AL", "IL", "WA"]
+    # states = ["US"] + states
+    print(states)
 
-# %%
-pool = mp.Pool(5)
-figs = pool.map(process_plot_state, [st for st in states])
+    # %%
+    pool = mp.Pool(5)
+    figs = pool.map(process_plot_state, [st for st in states])
 
-# Now reset final_model_day, initial_model_day, if desired.
+    # Now reset final_model_day, initial_model_day, if desired.
 
-initial_model_day = 0
+    initial_model_day = 0
 
-pdf_pages = PdfPages(pdf_filename)
-for f in figs:
-    pdf_pages.savefig(f)
-    plt.close(f)
-pdf_pages.close()
+    pdf_pages = PdfPages(pdf_filename)
+    for f in figs:
+        pdf_pages.savefig(f)
+        plt.close(f)
+    pdf_pages.close()
 
-pool.close()
-suffix = "v007"
-# pd.concat(median_dfs).to_csv(f"output/medians{suffix}.csv", index=False)
+    pool.close()
+    suffix = "v007"
+    # pd.concat(median_dfs).to_csv(f"output/medians{suffix}.csv", index=False)
 
-# %%
+    # %%

@@ -2,6 +2,8 @@ from exp.fifty_state_6strain_2202_2407.postaz_process import (
     retrieve_inferer_obs,
     retrieve_post_samp,
 )
+
+# exit()
 import arviz as az
 
 from sklearn.metrics import mean_squared_error
@@ -127,7 +129,7 @@ def loglikelihood(
                             conc, jnp.array([20] * obs_hosps.shape[1])
                         ),
                         mean=pred_hosps,
-                    )
+                    ).log_prob(obs_hosps)
                 log_likelihood_chain_hosps.append(log_likelihood)
             log_likelihood_array_hosps.append(log_likelihood_chain_hosps)
     if variant:
@@ -305,9 +307,7 @@ def mcmc_accuracy_measures(
         )
         loo_hosps = az.loo(trace_hosps)
         df_loo_hosps = pd.DataFrame(loo_hosps)
-
         df_loo_hosps.index = [x + f"_hosps" for x in df_loo_hosps.index]
-
         if variant:
             log_likelihood_array_vars = []
             for pred_vars_chain in pred_vars_list:
@@ -397,7 +397,6 @@ if __name__ == "__main__":
         "/output/fifty_state_2204_2407_6strain/ant-nbinomial",
         "/output/fifty_state_2204_2407_6strain/ant-fix_conc_more_var_prop",
     ]
-    suffix0 = "prelim_7_waic"
     log_likelihood_poisson = loglikelihood(
         state="AL",
         particles_per_chain=5,
@@ -414,13 +413,16 @@ if __name__ == "__main__":
         likelihood_poisson=False,
         variant=False,
     )
+    print("negative binomial likelihood:", log_likelihood_nb)
+    print("negative binomial likelihood:", log_likelihood_poisson)
+
     log_likelihood_poisson = jnp.array(log_likelihood_poisson).ravel()
     log_likelihood_nb = jnp.array(log_likelihood_nb).ravel()
     log = log_likelihood_poisson - log_likelihood_nb
     plt.plot(log)
-    plt.yscale(
-        "log_likelihood_diff: poisson - NB"
-    )  # Set the y-axis to logarithmic scale
+    # plt.yscale(
+    #     "log_likelihood_diff: poisson - NB"
+    # )  # Set the y-axis to logarithmic scale
     plt.xlabel("samples")
     plt.ylabel("Log Difference")
     plt.title("Log Difference Plot")
