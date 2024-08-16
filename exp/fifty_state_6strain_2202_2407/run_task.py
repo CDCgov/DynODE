@@ -65,7 +65,7 @@ class EpochOneRunner(AbstractAzureRunner):
         super().__init__(azure_output_dir)
 
     def process_state(self, state, jobid=None, jobid_in_path=False):
-        model_day = 870
+        model_day = 890
         # step 1: define your paths, now in the input
         state_config_path = os.path.join(
             "/input/exp/fifty_state_6strain_2202_2407/states", state
@@ -149,6 +149,19 @@ class EpochOneRunner(AbstractAzureRunner):
         hosp_data = hosp_data.loc[
             (hosp_data["day"] >= 0) & (hosp_data["day"] <= model_day)
         ].sort_values(by=["day", "agegroup"], ascending=True, inplace=False)
+        # save a timelines df to paste into the timelines csv later on
+        obs_hosp_timeline = pd.DataFrame({"date": hosp_data["date"].unique()})
+        obs_hosp_timeline = pd.merge(obs_hosp_timeline, hosp_data, on="date").drop(
+            ["day"], axis=1
+        )
+        obs_hosp_timeline = obs_hosp_timeline.pivot(
+            index="date", columns="agegroup", values="hosp"
+        )
+        obs_hosp_timeline.columns = [
+            "obs_hosp_" + col.replace("-", "_") for col in obs_hosp_timeline.columns
+        ]
+
+        obs_hosp_timeline = obs_hosp_timeline.reset_index()
         # make hosp into day x agegroup matrix
         obs_hosps = hosp_data.groupby(["day"])["hosp"].apply(np.array)
         obs_hosps_days = obs_hosps.index.to_list()
@@ -186,9 +199,8 @@ class EpochOneRunner(AbstractAzureRunner):
             initializer.config.REGIONS[0].replace(" ", "_")
         )
         var_data_path = os.path.join(inferer.config.VAR_PATH, var_data_filename)
-        # currently working up to third strain which is XBB1
         var_data = pd.read_csv(var_data_path)
-        var_data = var_data[var_data["strain"] < 6]
+        var_data = var_data[var_data["strain"] < 6]  # up to strain 5
         var_data["date"] = pd.to_datetime(var_data["date"])
         var_data["day"] = (
             var_data["date"] - pd.to_datetime("2022-02-11")
@@ -222,7 +234,9 @@ class EpochOneRunner(AbstractAzureRunner):
         # inferer.checkpoint(
         #     save_path + "checkpoint.json", group_by_chain=True
         # )
-        self.save_inference_timelines(inferer, particles_saved=3)
+        self.save_inference_timelines(
+            inferer, particles_saved=3, extra_timelines=obs_hosp_timeline
+        )
 
 
 parser = argparse.ArgumentParser()

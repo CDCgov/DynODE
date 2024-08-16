@@ -10,7 +10,7 @@ import numpy as np
 
 # adding things to path since in a docker container pathing gets changed
 sys.path.append("/app/")
-sys.path.append("/input/exp/fifty_state_6strain_2202_2407/")
+sys.path.append("/input/exp/fifty_state_5strain_2202_2404/")
 print(os.getcwd())
 # sys.path.append(".")
 # sys.path.append(os.getcwd())
@@ -27,7 +27,9 @@ jax.config.update("jax_enable_x64", True)
 
 # will be multiplied by number of chains to get total number of posteriors
 NUM_SAMPLES_PER_STATE_PER_SCENARIO = 25
-HISTORICAL_FIT_PATH = "/output/fifty_state_6strain_2202_2407/scen_6str_v1_2"
+HISTORICAL_FIT_PATH = (
+    "/output/fifty_state_5strain_2202_2404/SMH_5strains_240807_v16"
+)
 
 
 class ProjectionRunner(AbstractAzureRunner):
@@ -38,7 +40,7 @@ class ProjectionRunner(AbstractAzureRunner):
     def process_state(
         self, state, jobid=None, jobid_in_path=False, scenario=None
     ):
-        projection_period_num_days = 365
+        projection_period_num_days = 434
         posteriors_path = os.path.join(
             HISTORICAL_FIT_PATH,
             state,
@@ -51,7 +53,7 @@ class ProjectionRunner(AbstractAzureRunner):
         # the final states of the fitting period are saved within posteriors
         # step 1: define your paths, now in the input
         state_config_path = os.path.join(
-            "/input/exp/projections_2407_2507/%s/states" % jobid,
+            "/input/exp/projections_2404_2504/%s/states" % jobid,
             state,
         )
         # state_config_path = "exp/fifty_state_sero_second_try/" + args.state + "/"
@@ -112,7 +114,7 @@ if __name__ == "__main__":
     # we are going to be rerouting stdout and stderror to files in our output blob
     # stdout = sys.stdout
     # stderror = sys.stderr
-    save_path = "/output/projections_2407_2507/%s/%s/%s/" % (
+    save_path = "/output/projections_2404_2504/%s/%s/%s/" % (
         jobid,
         state,
         scenario,

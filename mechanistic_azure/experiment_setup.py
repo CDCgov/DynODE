@@ -30,10 +30,13 @@ import pandas as pd
 # ]
 
 CONFIG_MOLDS = [
-    "exp/fifty_state_6strain_2202_2407/template_configs/config_global.json",
-    "exp/fifty_state_6strain_2202_2407/template_configs/config_inferer.json",
-    "exp/fifty_state_6strain_2202_2407/template_configs/config_initializer.json",
+    "exp/example_azure_experiment/example_template_configs/config_global.json",
+    "exp/example_azure_experiment/example_template_configs/config_inferer_covid.json",
+    "exp/example_azure_experiment/example_template_configs/config_initializer_covid.json",
+    "exp/example_azure_experiment/example_template_configs/config_runner_covid.json",
+    "exp/example_azure_experiment/example_template_configs/config_interpreter_covid.json",
 ]
+EXPERIMENT_DIRECTORY = "exp"
 
 
 def create_state_subdirectories(dir, state_names):
@@ -189,10 +192,10 @@ parser = argparse.ArgumentParser()
 # experiment directory
 parser.add_argument(
     "-e",
-    "--exp",
+    "--experiment_name",
     type=str,
     required=True,
-    help="str, directory experiment should be placed in, relative to this file",
+    help="str, name of the experiment states should be placed into",
 )
 # list of fips codes
 parser.add_argument(
@@ -232,8 +235,9 @@ if __name__ == "__main__":
     )
     pops = pd.concat([pops, usa_pop_row], ignore_index=True)
     args = parser.parse_args()
-    exp = args.exp
     states = args.states
+    experiment_name = args.experiment_name
+    exp = os.path.join(EXPERIMENT_DIRECTORY, experiment_name)
     if "all" in states:
         states = get_all_codes()
     # states.remove("US")

@@ -66,7 +66,7 @@ class EpochOneRunner(AbstractAzureRunner):
         super().__init__(azure_output_dir)
 
     def process_state(self, state, jobid=None, jobid_in_path=False):
-        model_day = 790
+        model_day = 800
         # step 1: define your paths, now in the input
         state_config_path = os.path.join(
             "/input/exp/fifty_state_5strain_2202_2404/states", state

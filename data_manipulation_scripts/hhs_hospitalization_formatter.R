@@ -18,7 +18,7 @@ theme_update(
 dat_csv <- file.path(
   "data",
   "hospitalization-data",
-  "COVID-19_Reported_Patient_Impact_and_Hospital_Capacity_by_State_Timeseries_20240424.csv" # nolint: line_length_linter.
+  "COVID-19_Reported_Patient_Impact_and_Hospital_Capacity_by_State_Timeseries_20240716.csv" # nolint: line_length_linter.
 )
 dat <- data.table::fread(dat_csv)
 
@@ -94,16 +94,16 @@ dat_adult_grouped <- dat_adult_long |>
 dat_agegroup <- bind_rows(dat_pedia, dat_adult_grouped) |>
   arrange(date, agegroup)
 
-## Subsetting to Feb 2022 to end of 2023
+## Subsetting to Feb 2022 onwards
 dat_agegroup_subset <- dat_agegroup |>
   filter(state %in% state.abb) |>
-  filter(date >= ymd("2022-02-13")) |>
-  mutate(
-    week = epiweek(date),
-    year = ifelse(week %in% 52:53 & month(date) == 1,
-      year(date) - 1, year(date)
-    )
-  ) |>
+  filter(date >= ymd("2022-02-13"))
+
+epiwk <- grates::as_epiweek(dat_agegroup_subset$date)
+dat_agegroup_subset$week <- grates::get_week(epiwk)
+dat_agegroup_subset$year <- grates::get_year(epiwk)
+
+dat_agegroup_subset <- dat_agegroup_subset |>
   group_by(year, week, state, agegroup) |>
   mutate(
     new_admission_7 = mean(new_admission),
@@ -144,7 +144,7 @@ for (st in unique(dat_all$state)) {
   stname <- states$stname[states$stusps == st]
   stname <- stringr::str_replace_all(stname, " ", "_")
   outfile <- file.path(
-    "./data/hospitalization-data/",
+    "/input/data/hospitalization-data/",
     glue::glue("{stname}_hospitalization.csv")
   )
   dat_st |>

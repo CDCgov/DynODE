@@ -152,7 +152,8 @@ class AbstractAzureRunner(ABC):
             for day in range(num_days_predicted)
         ]
         df = pd.DataFrame()
-        df["date"] = timeline
+        # needs to be datetime column for merging later on
+        df["date"] = pd.to_datetime(timeline)
         parameters = model.get_parameters()
         vaccination_func = parameters["VACCINATION_RATES"]
         seasonality_func = parameters["SEASONALITY"]

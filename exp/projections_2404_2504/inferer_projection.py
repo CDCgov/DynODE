@@ -19,6 +19,7 @@ from mechanistic_model.mechanistic_runner import MechanisticRunner
 
 
 class ProjectionParameters(MechanisticInferer):
+
     def __init__(
         self,
         global_variables_path: str,
@@ -99,7 +100,7 @@ class ProjectionParameters(MechanisticInferer):
         self.inference_timesteps = max(obs_hosps_days) + 1
         return self.inference_algo
 
-    def sample_strain_x_intro_time(self, fitting_period_num_days=890):
+    def sample_strain_x_intro_time(self, offset):
         """
         Samples a value of the strain X intro time based on the lags between introduction times of the fitted strains
         """
@@ -113,38 +114,47 @@ class ProjectionParameters(MechanisticInferer):
                 )
                 for idx, _ in enumerate(
                     self.config.STRAIN_IDX._member_names_[
-                        self.config.STRAIN_IDX.BA2BA5 : self.config.STRAIN_IDX.X
+                        self.config.STRAIN_IDX.BA2BA5 : self.config.STRAIN_IDX.KP
                     ]
                 )
             ]
         )
-        # get the diff between intro times to get the lags between introductions
-        intro_lags = jnp.diff(past_introduction_times)
-        # get the mean / sd of those lags and create a normal distribution to sample from
-        mean_lag, sd_lags = jnp.mean(intro_lags), jnp.std(intro_lags)
-        lag_dist = numpyro.distributions.Normal(mean_lag, sd_lags)
-        # sample from the lags dist, add it to the KP strain introduction to get the new intro time
-        # for strain X
-        strain_x_intro_time = past_introduction_times[-1] + numpyro.sample(
-            "INTRO_LAG_X", lag_dist
+        # get the day of year of intro for XBB1 and JN1 (fall variants)
+        init_yday = 42  # TODO: this is hardcoded
+        xbb1_yday = (init_yday + past_introduction_times[1]) % 365
+        jn1_yday = (init_yday + past_introduction_times[3]) % 365
+        mean_yday = (xbb1_yday + jn1_yday) / 2
+        sd_yday = 14  # fix at 14 days sd
+        yday_dist = Dist.Normal(loc=mean_yday, scale=sd_yday)
+
+        strain_x_intro_yday = numpyro.sample("INTRO_YDAY_X", yday_dist)
+        # ensure that intro_yday is non-negative
+        strain_x_intro_yday = jnp.max(jnp.array([0, strain_x_intro_yday]))
+        # if yday smaller than offset, add 365 to it
+        strain_x_intro_time_raw = strain_x_intro_yday - offset
+        strain_x_intro_time_raw = jnp.where(
+            strain_x_intro_time_raw < 0,
+            365 + strain_x_intro_time_raw,
+            strain_x_intro_time_raw,
         )
-        # since INTRODUCTION_TIME_KP is given in terms of the fitting days, we will get a number
-        # greater than the number of days we fit for, subtract that number to get
-        # when in our projection period this introduction will occur.
-        strain_x_intro_time = jnp.max(
-            jnp.array([0, strain_x_intro_time - fitting_period_num_days])
-        )
+
         # max with zero to avoid negatives
         strain_x_intro_time = numpyro.deterministic(
-            "INTRODUCTION_TIME_X", strain_x_intro_time
+            "INTRODUCTION_TIME_X", strain_x_intro_time_raw
         )
         return strain_x_intro_time
 
     @partial(jax.jit, static_argnums=(0))
     def vaccination_rate(self, t):
-        return getattr(
+        vaccine_offset = getattr(self.config, "ZERO_VACCINE_DAY", 0.0)
+        vaccine_rate_mult = getattr(
             self.config, "VACCINATION_RATE_MULTIPLIER", 1.0
-        ) * super().vaccination_rate(t)
+        )
+        vaccine_rate_mult = jnp.where(
+            t < vaccine_offset, 0.0, vaccine_rate_mult
+        )
+        t_offset = jnp.where(t < vaccine_offset, 0.0, t - vaccine_offset)
+        return vaccine_rate_mult * super().vaccination_rate(t_offset)
 
     def get_parameters(self):
         """
@@ -185,10 +195,10 @@ class ProjectionParameters(MechanisticInferer):
         }
         parameters = utils.sample_if_distribution(parameters)
         # re-create the CROSSIMMUNITY_MATRIX since we may be sampling the STRAIN_INTERACTIONS matrix now
-        parameters[
-            "CROSSIMMUNITY_MATRIX"
-        ] = utils.strain_interaction_to_cross_immunity2(
-            freeze_params.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
+        parameters["CROSSIMMUNITY_MATRIX"] = (
+            utils.strain_interaction_to_cross_immunity2(
+                freeze_params.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
+            )
         )
         # create parameters based on other possibly sampled parameters
         beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
@@ -225,12 +235,15 @@ class ProjectionParameters(MechanisticInferer):
         # if we are introducing a strain, the INTRODUCTION_TIMES array will be non-empty
         # and if we specifically want to sample strain_x intro time, we set that flag to True
         if (
-            parameters["INTRODUCTION_TIMES"]
+            parameters["INTRODUCTION_TIMES"][1]
             and self.config.SAMPLE_STRAIN_X_INTRO_TIME
         ):
-            strain_x_intro_time = self.sample_strain_x_intro_time()
+            init_yday = parameters["INIT_DATE"].timetuple().tm_yday
+            strain_x_intro_time = self.sample_strain_x_intro_time(
+                offset=init_yday
+            )
             # reset our intro time to the sampled lag distribution intro time for strain X
-            parameters["INTRODUCTION_TIMES"] = jnp.array([strain_x_intro_time])
+            parameters["INTRODUCTION_TIMES"][1] = strain_x_intro_time
         # allows the ODEs to just pass time as a parameter, makes them look cleaner
         external_i_function_prefilled = jax.tree_util.Partial(
             self.external_i,
@@ -268,18 +281,13 @@ class ProjectionParameters(MechanisticInferer):
                 parameters["STRAIN_R0s"][0],
                 parameters["STRAIN_R0s"][1],
                 parameters["STRAIN_R0s"][2],
+                parameters["STRAIN_R0s"][3],
                 numpyro.deterministic(
-                    "STRAIN_R0s_3", parameters["STRAIN_R0s"][2]
+                    "STRAIN_R0s_4", parameters["STRAIN_R0s"][2]
                 ),
-                freeze_params.JN1_KP_R0_MULTIPLIER
+                freeze_params.R0_MULTIPLIER
                 * numpyro.deterministic(
-                    "STRAIN_R0s_4",
-                    parameters["STRAIN_R0s"][2],
-                ),
-                freeze_params.JN1_KP_R0_MULTIPLIER
-                * numpyro.deterministic(
-                    "STRAIN_R0s_5",
-                    parameters["STRAIN_R0s"][2],
+                    "STRAIN_R0s_5", parameters["STRAIN_R0s"][3]
                 ),
                 numpyro.deterministic(
                     "STRAIN_R0s_6", parameters["STRAIN_R0s"][2]
@@ -313,10 +321,10 @@ class ProjectionParameters(MechanisticInferer):
             .at[6, 5]
             .set(1 - immune_escape_65)
         )
-        parameters[
-            "CROSSIMMUNITY_MATRIX"
-        ] = utils.strain_interaction_to_cross_immunity2(
-            self.config.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
+        parameters["CROSSIMMUNITY_MATRIX"] = (
+            utils.strain_interaction_to_cross_immunity2(
+                self.config.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
+            )
         )
 
         return parameters
@@ -347,13 +355,13 @@ class ProjectionParameters(MechanisticInferer):
         additional strain to the infection history and an additional vax tier and the infected by dimensions for E+I
         """
         s_new = jnp.pad(
-            initial_state[0], [(0, 0), (0, 1), (0, 1), (0, 0)], mode="constant"
+            initial_state[0], [(0, 0), (0, 2), (0, 1), (0, 0)], mode="constant"
         )
         e_new = jnp.pad(
-            initial_state[1], [(0, 0), (0, 1), (0, 1), (0, 1)], mode="constant"
+            initial_state[1], [(0, 0), (0, 2), (0, 1), (0, 2)], mode="constant"
         )
         i_new = jnp.pad(
-            initial_state[2], [(0, 0), (0, 1), (0, 1), (0, 1)], mode="constant"
+            initial_state[2], [(0, 0), (0, 2), (0, 1), (0, 2)], mode="constant"
         )
         c_new = jnp.zeros(i_new.shape)
         initial_state = (

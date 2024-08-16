@@ -5,7 +5,7 @@
     "HOSP_PATH": "/input/data/hospitalization-data",
     "SERO_PATH": "/input/data/serological-data/fitting-2022/",
     "VAR_PATH": "/input/data/variant-data/fitting-2022/",
-    "VACCINATION_MODEL_DATA": "/input/data/vaccination-data/2024_06_30_to_2025_06_28_scenario/",
+    "VACCINATION_MODEL_DATA": "/input/data/vaccination-data/2022_02_11_to_2024_04_27",
     "SEASONAL_VACCINATION": false,
     "STRAIN_R0s": [
         {
@@ -77,7 +77,9 @@
                 }
             }
         },
-        1.0, 1.0, 1.0, 1.0
+        1.0,
+        1.0,
+        1.0
     ],
     "INFECTIOUS_PERIOD": 7.0,
     "EXPOSED_TO_INFECTIOUS": 3.6,
@@ -90,12 +92,61 @@
             "high": 2.0
         }
     },
-    "INTRODUCTION_TIMES": [32],
+    "INTRODUCTION_TIMES": [
+        {
+            "distribution": "TruncatedNormal",
+            "params": {
+                "loc": 60,
+                "scale": 5,
+                "low": 10
+            }
+        },
+        {
+            "distribution": "TruncatedNormal",
+            "params": {
+                "loc": 250,
+                "scale": 5,
+                "low": 190
+            }
+        },
+        {
+            "distribution": "TruncatedNormal",
+            "params": {
+                "loc": 450,
+                "scale": 10,
+                "low": 400
+            }
+        },
+        {
+            "distribution": "TruncatedNormal",
+            "params": {
+                "loc": 650,
+                "scale": 5,
+                "low": 600
+            }
+        },
+        {
+            "distribution": "TruncatedNormal",
+            "params": {
+                "loc": 790,
+                "scale": 5,
+                "low": 750
+            }
+        }
+    ],
     "CONSTANT_STEP_SIZE": 0,
     "INTRODUCTION_PCTS": [
+        0.03,
+        0.03,
+        0.03,
+        0.03,
         0.03
     ],
     "INTRODUCTION_SCALES": [
+        13,
+        13,
+        13,
+        13,
         13
     ],
     "INTRODUCTION_AGE_MASK": [
@@ -146,7 +197,6 @@
             1.0,
             1.0,
             1.0,
-            1.0,
             1.0
         ],
         [
@@ -173,7 +223,6 @@
                     }
                 }
             },
-            1.0,
             1.0,
             1.0,
             1.0,
@@ -227,7 +276,6 @@
                     }
                 }
             },
-            1.0,
             1.0,
             1.0,
             1.0,
@@ -281,7 +329,6 @@
                     }
                 }
             },
-            1.0,
             1.0,
             1.0,
             1.0
@@ -336,7 +383,6 @@
                 }
             },
             1.0,
-            1.0,
             1.0
         ],
         [
@@ -389,16 +435,6 @@
                     }
                 }
             },
-            1.0,
-            1.0
-        ],
-        [
-            0.5,
-            0.5,
-            0.5,
-            0.5,
-            0.888,
-            0.888,
             1.0
         ]
     ],
@@ -406,44 +442,32 @@
         [
             0,
             0.35,
-            0.70,
             0.70
         ],
         [
             0,
             0.30,
-            0.60,
             0.60
         ],
         [
             0,
             0.25,
-            0.50,
             0.50
         ],
         [
             0,
             0.20,
-            0.40,
             0.40
         ],
         [
             0,
             0.095,
-            0.19,
-            0.40
+            0.19
         ],
         [
             0,
             0.095,
-            0.19,
-            0.40
-        ],
-        [
-            0,
-            0.095,
-            0.19,
-            0.40
+            0.19
         ]
     ],
     "BETA_TIMES": [
@@ -458,15 +482,15 @@
             "base_distribution": {
                 "distribution": "Beta",
                 "params": {
-                    "concentration1": 72,
-                    "concentration0": 28
+                    "concentration1": 60,
+                    "concentration0": 40
                 }
             },
             "transforms": {
                 "transform": "AffineTransform",
                 "params": {
-                    "loc": 0.02,
-                    "scale": 0.18,
+                    "loc": 0.00,
+                    "scale": 0.10,
                     "domain": {
                         "constraint": "unit_interval",
                         "params": {}
@@ -475,11 +499,11 @@
             }
         }
     },
-    "SEASONALITY_SECOND_WAVE":  {
+    "SEASONALITY_SECOND_WAVE": {
         "distribution": "Beta",
         "params": {
-            "concentration1": 1000,
-            "concentration0": 1000
+            "concentration1": 100,
+            "concentration0": 100
         }
     },
     "SEASONALITY_SHIFT": {
@@ -487,8 +511,8 @@
         "params": {
             "loc": -10,
             "scale": 1,
-            "low": -55,
-            "high": 35
+            "low": -25,
+            "high": 5
         }
     },
     "INFERENCE_PRNGKEY": 8675311,

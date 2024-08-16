@@ -12,7 +12,6 @@ pacman::p_get(tidyr, force = FALSE)
 pacman::p_get(janitor, force = FALSE)
 theme_set(theme_bw())
 theme_update(
-  text = element_text(family = "Open Sans"),
   strip.background = element_blank(),
   strip.text = element_text(face = "bold"),
   panel.grid = element_line(linewidth = rel(0.43), colour = "#D1D3D4"),
@@ -22,7 +21,8 @@ theme_update(
 
 # start and end date
 date_start <- ymd("2022-02-13")
-date_end <- ymd("2024-05-01")
+date_end <- ymd("2024-07-10")
+update_strain <- TRUE
 
 # regions lookup
 hhs <- c(
@@ -39,7 +39,7 @@ hhs_lookup <- data.frame(state = state.abb, hhs = hhs)
 dat_csv <- file.path(
   "data",
   "variant-data",
-  "SARS-CoV-2_Variant_Proportions_20240421.csv"
+  "SARS-CoV-2_Variant_Proportions_20240715.csv"
 )
 dat <- data.table::fread(dat_csv)
 
@@ -69,16 +69,29 @@ dat_subset <- dat_processed |>
 # 2: XBB1
 # 3: XBB2
 # 4: JN1
+# 5: KP
 variants <- unique(dat_subset$variant) |> sort()
-strain_num <- c(
-  0, 0, 1, 1, 2, 2, 4, 1, 1, 1,
-  1, 1, 1, 9, 2, 2, 2, 3, 3, 3,
-  9, 9, 9, 9, 3, 9, 9, 9, 9, 3,
-  3, 3, 9, 9, 4, 4, 4, 4, 9, 2,
-  2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-  2, 2, 2, 2, 3, 3, 3, 3
-)
-var_lookup <- data.frame(variant = variants, strain = strain_num)
+if (!update_strain) {
+  strain_num <- c(
+    0, 0, 1, 1, 2, 2, 4, 1, 1, 1,
+    1, 1, 1, 9, 2, 2, 2, 3, 3, 3,
+    9, 9, 9, 9, 3, 9, 9, 9, 9, 3,
+    3, 3, 9, 9, 4, 4, 4, 4, 9, 2,
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    2, 2, 2, 2, 3, 3, 3, 3
+  )
+  var_lookup <- data.frame(variant = variants, strain = strain_num)
+  data.table::fwrite(var_lookup, "data/variant-data/variant_lookup_20240421.csv")
+} else {
+  var_lookup <- data.table::fread("data/variant-data/variant_lookup_20240421.csv")
+  variants_new <- setdiff(variants, var_lookup$variant)
+  strain_num_new <- c(4, 4, 4, 4, 4, 4, 4, 4, 4, 5,
+                      5, 4, 4, 4, 4, 5, 9, 9)
+  # strain_num_new <- c(4, 4, 4, 4, 4, 4, 4, 5, 5, 5,
+  #                     5, 4, 4, 4, 4, 5, 9, 9)
+  var_lookup_new <- data.frame(variant = variants_new, strain = strain_num_new)
+  var_lookup <- bind_rows(var_lookup, var_lookup_new)
+}
 
 # reclassify to match current inference model
 # removing others (9) from this
@@ -94,7 +107,7 @@ dat_reclass_fill <- dat_reclass |>
   tidyr::complete(
     region = unique(dat_reclass$region),
     date = unique(dat_reclass$date),
-    strain = 0:4,
+    strain = 0:5,
     fill = list(share = 0)
   )
 
@@ -119,7 +132,7 @@ for (i in seq_len(nrow(states))) {
   )
 
   outfile <- file.path(
-    "./data/variant-data/fitting-2022",
+    "/input/data/variant-data/fitting-2022",
     glue::glue("{stname}_strain_prop.csv")
   )
 
@@ -132,5 +145,5 @@ for (i in seq_len(nrow(states))) {
 # output the whole thing
 data.table::fwrite(
   dat_reclass_fill,
-  "./data/variant-data/variant_proportions_20220219_20240316.csv"
+  "/input/data/variant-data/variant_proportions_20220219_20240608.csv"
 )

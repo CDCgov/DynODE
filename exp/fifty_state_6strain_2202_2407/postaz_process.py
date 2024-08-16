@@ -1,14 +1,15 @@
 # %%
-import copy
-import datetime
 import json
 import multiprocessing as mp
 import os
+<<<<<<< HEAD
 import random
 import numpy as np
 
 # from acc_metrics import *
 
+=======
+>>>>>>> origin/inf-hist-rework
 
 import jax.numpy as jnp
 import matplotlib.dates as mdates
@@ -18,17 +19,30 @@ import pandas as pd
 from cycler import cycler
 from matplotlib.backends.backend_pdf import PdfPages
 
+<<<<<<< HEAD
 from exp.fifty_state_6strain_2202_2407.inferer_smh_nb import SMHInferer
 from exp.fifty_state_6strain_2202_2407.run_task import (
     rework_initial_state,
 )
+=======
+from exp.fifty_state_6strain_2202_2407.inferer_smh import SMHInferer
+from exp.fifty_state_6strain_2202_2407.run_task import rework_initial_state
+>>>>>>> origin/inf-hist-rework
 from mechanistic_model.covid_sero_initializer import CovidSeroInitializer
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 from model_odes.seip_model import seip_ode2
 
 plt.switch_backend("agg")
+<<<<<<< HEAD
 suffix = "6strain_ant-fix_concx20_var_propx4"
 az_output_path = "/output/fifty_state_2204_2407_6strain/ant-fix-20xconc_var_prop_sd_x4"
+=======
+model_day = 890
+suffix = "_v12_6strain_wseason_morer0"
+az_output_path = (
+    "/output/fifty_state_6strain_2202_2407/SMH_6strains_240731_moreR0/"
+)
+>>>>>>> origin/inf-hist-rework
 pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
 final_model_day = 890
 initial_model_day = 0
@@ -134,6 +148,10 @@ def retrieve_inferer_obs(state, initial_model_day):
 def retrieve_post_samp(state):
     json_file = os.path.join(az_output_path, state, "checkpoint.json")
     post_samp = json.load(open(json_file, "r"))
+    del post_samp["final_timestep_s"]
+    del post_samp["final_timestep_e"]
+    del post_samp["final_timestep_i"]
+    del post_samp["final_timestep_c"]
     fitted_medians = {
         k: jnp.median(jnp.array(v), axis=(0, 1)) for k, v in post_samp.items()
     }

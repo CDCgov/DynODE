@@ -1,7 +1,6 @@
 import os
 
 import jax.numpy as jnp
-import numpy as np
 import numpyro
 import numpyro.distributions as Dist
 from jax.random import PRNGKey
@@ -74,14 +73,21 @@ class SMHInferer(MechanisticInferer):
 
     def get_parameters(self):
         parameters = super().get_parameters()
+        multiplier = 1 + 0.1 * numpyro.sample(
+            "JN1_KP_R0_MULTIPLIER", Dist.Beta(500, 500)
+        )
         parameters["STRAIN_R0s"] = jnp.array(
             [
                 parameters["STRAIN_R0s"][0],
                 parameters["STRAIN_R0s"][1],
                 parameters["STRAIN_R0s"][2],
                 numpyro.deterministic("STRAIN_R0s_3", parameters["STRAIN_R0s"][2]),
-                numpyro.deterministic("STRAIN_R0s_4", parameters["STRAIN_R0s"][2]),
-                numpyro.deterministic("STRAIN_R0s_5", parameters["STRAIN_R0s"][2]),
+                numpyro.deterministic(
+                    "STRAIN_R0s_4", multiplier * parameters["STRAIN_R0s"][2]
+                ),
+                numpyro.deterministic(
+                    "STRAIN_R0s_5", multiplier * parameters["STRAIN_R0s"][2]
+                ),
             ]
         )
         parameters["BETA"] = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
@@ -192,18 +198,16 @@ class SMHInferer(MechanisticInferer):
         ihr_mult_2 = numpyro.sample(
             "ihr_mult_2", Dist.Beta(ihr_mult_prior_a[2], ihr_mult_prior_b[2])
         )
-        # ihr_3 = numpyro.sample("ihr_3", Dist.Beta(40 * 10, 360 * 10))
-        ihr_3 = numpyro.deterministic("ihr_3", 0.15)
+        ihr_3 = numpyro.sample("ihr_3", Dist.Beta(60 * 20, 340 * 20))
+        # ihr_3 = numpyro.deterministic("ihr_3", 0.15)
         ihr = jnp.array([ihr_mult_0, ihr_mult_1, ihr_mult_2, 1]) * ihr_3
 
         # sample ihr multiplier due to previous infection or vaccinations
         ihr_immune_mult = numpyro.sample("ihr_immune_mult", Dist.Beta(100 * 6, 300 * 6))
 
         # sample ihr multiplier due to JN1 (assuming JN1 has less severity)
-        # ihr_jn1_mult = numpyro.sample(
-        #     "ihr_jn1_mult", Dist.Beta(400 * 4, 4 * 4)
-        # )
-        ihr_jn1_mult = numpyro.deterministic("ihr_jn1_mult", 0.95)
+        ihr_jn1_mult = numpyro.sample("ihr_jn1_mult", Dist.Beta(360, 40))
+        # ihr_jn1_mult = numpyro.deterministic("ihr_jn1_mult", 0.95)
 
         # calculate modelled hospitalizations based on the ihrs
         # add 1 to wane because we have time dimension prepended

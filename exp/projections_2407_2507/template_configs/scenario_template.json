@@ -5,8 +5,10 @@
     "HOSP_PATH": "/input/data/hospitalization-data",
     "SERO_PATH": "/input/data/serological-data/fitting-2022/",
     "VAR_PATH": "/input/data/variant-data/fitting-2022/",
-    "VACCINATION_MODEL_DATA": "/input/data/vaccination-data/2022_02_11_to_2024_04_27",
+    "VACCINATION_MODEL_DATA": "/input/data/vaccination-data/2024_06_30_to_2025_06_28_vax88/",
     "SEASONAL_VACCINATION": false,
+    "SAMPLE_STRAIN_X_INTRO_TIME": true,
+    "JN1_KP_R0_MULTIPLIER": 1.0,
     "STRAIN_R0s": [
         {
             "distribution": "TransformedDistribution",
@@ -68,7 +70,7 @@
                     "transform": "AffineTransform",
                     "params": {
                         "loc": 2.0,
-                        "scale": 3.0,
+                        "scale": 2.0,
                         "domain": {
                             "constraint": "unit_interval",
                             "params": {}
@@ -77,30 +79,10 @@
                 }
             }
         },
-        {
-            "distribution": "TransformedDistribution",
-            "params": {
-                "base_distribution": {
-                    "distribution": "Beta",
-                    "params": {
-                        "concentration1": 30,
-                        "concentration0": 70
-                    }
-                },
-                "transforms": {
-                    "transform": "AffineTransform",
-                    "params": {
-                        "loc": 2.0,
-                        "scale": 3.0,
-                        "domain": {
-                            "constraint": "unit_interval",
-                            "params": {}
-                        }
-                    }
-                }
-            }
-        },
-        1
+        1.0,
+        1.0,
+        1.0,
+        1.0
     ],
     "INFECTIOUS_PERIOD": 7.0,
     "EXPOSED_TO_INFECTIOUS": 3.6,
@@ -114,50 +96,13 @@
         }
     },
     "INTRODUCTION_TIMES": [
-        {
-            "distribution": "TruncatedNormal",
-            "params": {
-                "loc": 60,
-                "scale": 5,
-                "low": 10
-            }
-        },
-        {
-            "distribution": "TruncatedNormal",
-            "params": {
-                "loc": 250,
-                "scale": 5,
-                "low": 190
-            }
-        },
-        {
-            "distribution": "TruncatedNormal",
-            "params": {
-                "loc": 450,
-                "scale": 10,
-                "low": 400
-            }
-        },
-        {
-            "distribution": "TruncatedNormal",
-            "params": {
-                "loc": 650,
-                "scale": 5,
-                "low": 600
-            }
-        }
+        88
     ],
     "CONSTANT_STEP_SIZE": 0,
     "INTRODUCTION_PCTS": [
-        0.03,
-        0.03,
-        0.03,
         0.03
     ],
     "INTRODUCTION_SCALES": [
-        13,
-        13,
-        13,
         13
     ],
     "INTRODUCTION_AGE_MASK": [
@@ -187,8 +132,147 @@
                     "base_distribution": {
                         "distribution": "Beta",
                         "params": {
-                            "concentration1": 44.27,
-                            "concentration0": 66.4
+                            "concentration1": 40,
+                            "concentration0": 60
+                        }
+                    },
+                    "transforms": {
+                        "transform": "AffineTransform",
+                        "params": {
+                            "loc": 0.5,
+                            "scale": 0.5,
+                            "domain": {
+                                "constraint": "unit_interval",
+                                "params": {}
+                            }
+                        }
+                    }
+                }
+            },
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        [
+            {
+                "distribution": "TransformedDistribution",
+                "params": {
+                    "base_distribution": {
+                        "distribution": "Beta",
+                        "params": {
+                            "concentration1": 60,
+                            "concentration0": 40
+                        }
+                    },
+                    "transforms": {
+                        "transform": "AffineTransform",
+                        "params": {
+                            "loc": 0.5,
+                            "scale": 0.5,
+                            "domain": {
+                                "constraint": "unit_interval",
+                                "params": {}
+                            }
+                        }
+                    }
+                }
+            },
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        [
+            {
+                "distribution": "TransformedDistribution",
+                "params": {
+                    "base_distribution": {
+                        "distribution": "Beta",
+                        "params": {
+                            "concentration1": 50,
+                            "concentration0": 50
+                        }
+                    },
+                    "transforms": {
+                        "transform": "AffineTransform",
+                        "params": {
+                            "loc": 0.5,
+                            "scale": 0.5,
+                            "domain": {
+                                "constraint": "unit_interval",
+                                "params": {}
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "distribution": "TransformedDistribution",
+                "params": {
+                    "base_distribution": {
+                        "distribution": "Beta",
+                        "params": {
+                            "concentration1": 80,
+                            "concentration0": 20
+                        }
+                    },
+                    "transforms": {
+                        "transform": "AffineTransform",
+                        "params": {
+                            "loc": 0.5,
+                            "scale": 0.5,
+                            "domain": {
+                                "constraint": "unit_interval",
+                                "params": {}
+                            }
+                        }
+                    }
+                }
+            },
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        [
+            0.5,
+            {
+                "distribution": "TransformedDistribution",
+                "params": {
+                    "base_distribution": {
+                        "distribution": "Beta",
+                        "params": {
+                            "concentration1": 50,
+                            "concentration0": 50
+                        }
+                    },
+                    "transforms": {
+                        "transform": "AffineTransform",
+                        "params": {
+                            "loc": 0.5,
+                            "scale": 0.5,
+                            "domain": {
+                                "constraint": "unit_interval",
+                                "params": {}
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "distribution": "TransformedDistribution",
+                "params": {
+                    "base_distribution": {
+                        "distribution": "Beta",
+                        "params": {
+                            "concentration1": 80,
+                            "concentration0": 20
                         }
                     },
                     "transforms": {
@@ -210,43 +294,16 @@
             1.0
         ],
         [
+            0.5,
+            0.5,
             {
                 "distribution": "TransformedDistribution",
                 "params": {
                     "base_distribution": {
                         "distribution": "Beta",
                         "params": {
-                            "concentration1": 44.27,
-                            "concentration0": 66.4
-                        }
-                    },
-                    "transforms": {
-                        "transform": "AffineTransform",
-                        "params": {
-                            "loc": 0.5,
-                            "scale": 0.5,
-                            "domain": {
-                                "constraint": "unit_interval",
-                                "params": {}
-                            }
-                        }
-                    }
-                }
-            },
-            1.0,
-            1.0,
-            1.0,
-            1.0
-        ],
-        [
-            {
-                "distribution": "TransformedDistribution",
-                "params": {
-                    "base_distribution": {
-                        "distribution": "Beta",
-                        "params": {
-                            "concentration1": 55.34,
-                            "concentration0": 55.34
+                            "concentration1": 50,
+                            "concentration0": 50
                         }
                     },
                     "transforms": {
@@ -268,8 +325,8 @@
                     "base_distribution": {
                         "distribution": "Beta",
                         "params": {
-                            "concentration1": 88.54,
-                            "concentration0": 22.34
+                            "concentration1": 70,
+                            "concentration0": 30
                         }
                     },
                     "transforms": {
@@ -290,15 +347,17 @@
             1.0
         ],
         [
-            0.25,
+            0.5,
+            0.5,
+            0.5,
             {
                 "distribution": "TransformedDistribution",
                 "params": {
                     "base_distribution": {
                         "distribution": "Beta",
                         "params": {
-                            "concentration1": 55.34,
-                            "concentration0": 55.34
+                            "concentration1": 50,
+                            "concentration0": 50
                         }
                     },
                     "transforms": {
@@ -320,8 +379,8 @@
                     "base_distribution": {
                         "distribution": "Beta",
                         "params": {
-                            "concentration1": 88.54,
-                            "concentration0": 22.34
+                            "concentration1": 80,
+                            "concentration0": 20
                         }
                     },
                     "transforms": {
@@ -341,54 +400,12 @@
             1.0
         ],
         [
-            0.15,
-            0.25,
-            {
-                "distribution": "TransformedDistribution",
-                "params": {
-                    "base_distribution": {
-                        "distribution": "Beta",
-                        "params": {
-                            "concentration1": 55.34,
-                            "concentration0": 55.34
-                        }
-                    },
-                    "transforms": {
-                        "transform": "AffineTransform",
-                        "params": {
-                            "loc": 0.5,
-                            "scale": 0.5,
-                            "domain": {
-                                "constraint": "unit_interval",
-                                "params": {}
-                            }
-                        }
-                    }
-                }
-            },
-            {
-                "distribution": "TransformedDistribution",
-                "params": {
-                    "base_distribution": {
-                        "distribution": "Beta",
-                        "params": {
-                            "concentration1": 88.54,
-                            "concentration0": 22.34
-                        }
-                    },
-                    "transforms": {
-                        "transform": "AffineTransform",
-                        "params": {
-                            "loc": 0.5,
-                            "scale": 0.5,
-                            "domain": {
-                                "constraint": "unit_interval",
-                                "params": {}
-                            }
-                        }
-                    }
-                }
-            },
+            0.5,
+            0.5,
+            0.5,
+            0.5,
+            0.888,
+            0.888,
             1.0
         ]
     ],
@@ -396,27 +413,44 @@
         [
             0,
             0.35,
-            0.70
+            0.70,
+            0.88
         ],
         [
             0,
             0.30,
-            0.60
+            0.60,
+            0.88
         ],
         [
             0,
             0.25,
-            0.50
+            0.50,
+            0.88
         ],
         [
             0,
             0.20,
-            0.40
+            0.40,
+            0.88
         ],
         [
             0,
             0.095,
-            0.19
+            0.19,
+            0.88
+        ],
+        [
+            0,
+            0.095,
+            0.19,
+            0.88
+        ],
+        [
+            0,
+            0.095,
+            0.19,
+            0.88
         ]
     ],
     "BETA_TIMES": [
@@ -431,15 +465,15 @@
             "base_distribution": {
                 "distribution": "Beta",
                 "params": {
-                    "concentration1": 72,
-                    "concentration0": 28
+                    "concentration1": 50,
+                    "concentration0": 50
                 }
             },
             "transforms": {
                 "transform": "AffineTransform",
                 "params": {
-                    "loc": 0.02,
-                    "scale": 0.20,
+                    "loc": 0.0,
+                    "scale": 0.1,
                     "domain": {
                         "constraint": "unit_interval",
                         "params": {}
@@ -448,7 +482,7 @@
             }
         }
     },
-    "SEASONALITY_SECOND_WAVE":  {
+    "SEASONALITY_SECOND_WAVE": {
         "distribution": "Beta",
         "params": {
             "concentration1": 100,
@@ -461,14 +495,14 @@
             "loc": -10,
             "scale": 1,
             "low": -30,
-            "high": 10
+            "high": 20
         }
     },
-    "INFERENCE_PRNGKEY": 8675315,
+    "INFERENCE_PRNGKEY": 8675311,
     "INFERENCE_NUM_WARMUP": 1000,
     "INFERENCE_NUM_SAMPLES": 1000,
     "INFERENCE_NUM_CHAINS": 4,
     "INFERENCE_PROGRESS_BAR": true,
     "MAX_TREE_DEPTH": 9,
-    "MODEL_RAND_SEED": 8675316
+    "MODEL_RAND_SEED": 8675310
 }

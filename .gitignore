@@ -80,6 +80,9 @@ testing.py
 !exp/fifty_state_5strain_2202_2404/template_configs/*.json
 !exp/fifty_state_6strain_2202_2407/template_configs/*.json
 !exp/projections_2407_2507/template_configs/*.json
+!exp/projections_2407_2507/*.csv
+!azure/docker_template_configs/*.json
+!exp/example_azure_experiment/example_template_configs/*.json
 
 #####
 # Python
