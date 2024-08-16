@@ -210,13 +210,8 @@ if __name__ == "__main__":
         # "WI",
         # "WY",
     ]
-    ratio = pd.DataFrame(
-        columns=[
-            "Poisson log_likelihood(Hosps)/log_likelihood(Var_Prop) ",
-            "NB log_likelihood(Hosps)/log_likelihood(Var_Prop) ",
-        ],
-    )
-    i = 0
+    ratio_nb = []
+    ratio_poisson = []
     pdf_path = "output/hosps_vars_log_difference_all_states.pdf"
     with PdfPages(pdf_path) as pdf:
         for st in states:
@@ -253,9 +248,8 @@ if __name__ == "__main__":
             )
             poisson = jnp.sum(poisson_hosps) + jnp.sum(poisson_vars)
 
-            ratio.iloc[i, 0] = jnp.sum(poisson_hosps) / poisson
-            ratio.iloc[i, 1] = jnp.sum(nb_hosps) / nb
-            i += 1
+            ratio_nb.append(jnp.sum(poisson_hosps) / poisson)
+            ratio_poisson.append(jnp.sum(nb_hosps) / nb)
 
             hosps_diff = poisson_hosps - nb_hosps
             vars_diff = poisson_vars - nb_vars
@@ -269,7 +263,7 @@ if __name__ == "__main__":
                 obs_sero_days,
                 obs_var_prop,
                 obs_var_days,
-            ) = retrieve_inferer_obs(st, 0)
+            ) = retrieve_inferer_obs(st, 560)
 
             fig, ax = plt.subplots()
             ax.plot(jnp.array(obs_var_days), vars_diff)
@@ -280,5 +274,10 @@ if __name__ == "__main__":
             # Save the current figure to the PDF
             pdf.savefig(fig)
             plt.close(fig)  # Close the figure to free up memory
-    ratio.index = states
-    ratio.to_csv("output/ratio_log_likelihood.csv")
+    df = pd.DataFrame(
+        columns=["NB Hosps log-likelihood ratio", "Poisson Hosps log-likelihood ratio"]
+    )
+    df["NB Hosps log-likelihood ratio"] = ratio_nb
+    df["Poisson Hosps log-likelihood ratio"] = ratio_poisson
+    df.index = states
+    df.to_csv("output/ratio_log_likelihood.csv")

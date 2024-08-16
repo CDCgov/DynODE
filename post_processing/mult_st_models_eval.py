@@ -373,7 +373,7 @@ def main(
 
 # Example call to main function (replace with actual values)
 main(
-    particles_per_chain=100,
+    particles_per_chain=25,
     initial_model_day=560,
     ic="loo",
     # variant=False,
