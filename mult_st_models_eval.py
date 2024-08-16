@@ -227,64 +227,64 @@ def comparison_per_state(
     poisson_boolean_list,
     variant,
 ):
-    # parser = argparse.ArgumentParser(
-    #     description="Run the MCMC accuracy measures comparison for selected states."
-    # )
-    # parser.add_argument(
-    #     "-s",
-    #     "--states",
-    #     type=str,
-    #     required=True,
-    #     nargs="+",
-    #     help="space-separated list of USPS postal codes representing each state",
-    # )
-    # parser.add_argument(
-    #     "-p",
-    #     "--poisson_likelihood",
-    #     type=bool,
-    #     required=True,
-    #     nargs="+",
-    #     help="space-separated list of booleans representing whether or not (True or False) we use Poisson in the hospitalizations likelihood, corresponding to each azure output, in the same order.",
-    # )
-    # args = parser.parse_args()
-    # states = args.states
-    # poisson_boolean_list = args.poisson_likelihood
-
     # Initialize dictionaries to hold the model results
     compare_dict_hosps = {}
     compare_dict_vars = {}
 
     # Iterate through each model output in the az_outputs_list
-    for k, az_output_path in enumerate(az_outputs_list):
-        hosps = mcmc_accuracy_measures(
-            state,
-            particles_per_chain,
-            initial_model_day,
-            az_output_path,
-            ic,
-            poisson_likelihood=poisson_boolean_list[k],
+    # for k, az_output_path in enumerate(az_outputs_list):
+    #     hosps = mcmc_accuracy_measures(
+    #         state,
+    #         particles_per_chain,
+    #         initial_model_day,
+    #         az_output_path,
+    #         ic,
+    #         poisson_likelihood=poisson_boolean_list[k],
+    #         variant=variant,
+    #     )[0]
+    #     # Add the results to the comparison dictionaries
+    #     compare_dict_hosps[f"hospitalizations_model_{k+1}"] = hosps
+    #     if variant:
+    #         compare_dict_vars[f"variant_props_model_{k+1}"] = mcmc_accuracy_measures(
+    #             state=state,
+    #             particles_per_chain=particles_per_chain,
+    #             initial_model_day=initial_model_day,
+    #             az_output_path=az_output_path,
+    #             ic=ic,
+    #             poisson_likelihood=poisson_boolean_list[k],
+    #             variant=variant,
+    #         )[1]
+    compare_dict_hosps = {
+        f"hospitalizations_model_{k+1}": mcmc_accuracy_measures(
+            state=state,
+            particles_per_chain=particles_per_chain,
+            initial_model_day=initial_model_day,
+            az_output_path=az_outputs_list[k],
+            ic=ic,
             variant=variant,
+            poisson_likelihood=poisson_boolean_list[k],
         )[0]
-        # Add the results to the comparison dictionaries
-        compare_dict_hosps[f"hospitalizations_model_{k+1}"] = hosps
-        if variant:
-            compare_dict_vars[f"variant_props_model_{k+1}"] = mcmc_accuracy_measures(
+        for k in range(len(az_outputs_list))
+    }
+    if variant:
+        compare_dict_vars = {
+            f"var_props_model_{k+1}": mcmc_accuracy_measures(
                 state=state,
                 particles_per_chain=particles_per_chain,
                 initial_model_day=initial_model_day,
-                az_output_path=az_output_path,
+                az_output_path=az_outputs_list[k],
                 ic=ic,
-                poisson_likelihood=poisson_boolean_list[k],
                 variant=variant,
+                poisson_likelihood=poisson_boolean_list[k],
             )[1]
-
+            for k in range(len(az_outputs_list))
+        }
     # Perform comparison for hospitalizations
     print("starting comparison")
     compare_df_hosps = az.compare(compare_dict_hosps)
     p_hosps = compare_df_hosps["elpd_diff"] / compare_df_hosps["dse"]
     compare_df_hosps["p_value"] = 2 * (1 - stats.norm.cdf(abs(p_hosps)))
     compare_df_hosps["state"] = [state] * len(compare_df_hosps)
-
     if variant:
         # Perform comparison for variant proportions
         compare_df_vars = az.compare(compare_dict_vars)
@@ -367,22 +367,20 @@ def main(
         #     )
         all_states_df.append(compare_df)
 
-    final_comparison_df = pd.concat(all_states_df, ignore_index=True)
-    return final_comparison_df.to_csv(output_csv_path, index=False)
+    final_comparison_df = pd.concat(all_states_df)
+    return final_comparison_df.to_csv(output_csv_path, index=True)
 
 
 # Example call to main function (replace with actual values)
 main(
-    particles_per_chain=150,
-    initial_model_day=660,
+    particles_per_chain=100,
+    initial_model_day=560,
     ic="loo",
     # variant=False,
     # poisson_likelihood=True,
     az_outputs_list=[
-        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_3/",
-        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_4/",
-        "/output/fifty_state_6strain_2204_2407/smh_6str_prelim_7/",
+        "/output/fifty_state_6strain_2204_2407/ant-nbinomial/",
         "/output/fifty_state_6strain_2204_2407/ant-fix-20xconc_var_prop_sd_x4/",
     ],
-    output_csv_path="comparison_prelims_results.csv",
+    output_csv_path="test_comparison_prelims_results.csv",
 )
