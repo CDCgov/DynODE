@@ -22,37 +22,38 @@ from mechanistic_model import SEIC_Compartments
 
 
 class AbstractParameters:
+    UPSTREAM_PARAMETERS = [
+        "INIT_DATE",
+        "CONTACT_MATRIX",
+        "POPULATION",
+        "NUM_STRAINS",
+        "NUM_AGE_GROUPS",
+        "NUM_WANING_COMPARTMENTS",
+        "WANING_PROTECTIONS",
+        "MAX_VACCINATION_COUNT",
+        "STRAIN_INTERACTIONS",
+        "VACCINE_EFF_MATRIX",
+        "BETA_TIMES",
+        "STRAIN_R0s",
+        "INFECTIOUS_PERIOD",
+        "EXPOSED_TO_INFECTIOUS",
+        "INTRODUCTION_TIMES",
+        "INTRODUCTION_SCALES",
+        "INTRODUCTION_PCTS",
+        "INITIAL_INFECTIONS_SCALE",
+        "CONSTANT_STEP_SIZE",
+        "SEASONALITY_AMPLITUDE",
+        "SEASONALITY_SECOND_WAVE",
+        "SEASONALITY_SHIFT",
+        "MIN_HOMOLOGOUS_IMMUNITY",
+        "WANING_RATES",
+    ]
+
     @abstractmethod
     def __init__(self, parameters_config):
         # add these for mypy type checker
         self.config = {}
         self.INITIAL_STATE = tuple()
-        self.UPSTREAM_PARAMETERS = [
-            "INIT_DATE",
-            "CONTACT_MATRIX",
-            "POPULATION",
-            "NUM_STRAINS",
-            "NUM_AGE_GROUPS",
-            "NUM_WANING_COMPARTMENTS",
-            "WANING_PROTECTIONS",
-            "MAX_VACCINATION_COUNT",
-            "STRAIN_INTERACTIONS",
-            "VACCINE_EFF_MATRIX",
-            "BETA_TIMES",
-            "STRAIN_R0s",
-            "INFECTIOUS_PERIOD",
-            "EXPOSED_TO_INFECTIOUS",
-            "INTRODUCTION_TIMES",
-            "INTRODUCTION_SCALES",
-            "INTRODUCTION_PCTS",
-            "INITIAL_INFECTIONS_SCALE",
-            "CONSTANT_STEP_SIZE",
-            "SEASONALITY_AMPLITUDE",
-            "SEASONALITY_SECOND_WAVE",
-            "SEASONALITY_SHIFT",
-            "MIN_HOMOLOGOUS_IMMUNITY",
-            "WANING_RATES",
-        ]
         pass
 
     def _get_upstream_parameters(self) -> dict:
@@ -76,8 +77,8 @@ class AbstractParameters:
         # go through self.UPSTREAM_PARAMETERS, add them all to a dict
         parameters = {}
         for parameter in self.UPSTREAM_PARAMETERS:
-            if hasattr(freeze_params.config, parameter):
-                parameters[parameter] = getattr(freeze_params.config)
+            if hasattr(freeze_params, parameter):
+                parameters[parameter] = getattr(freeze_params, parameter)
             else:
                 raise RuntimeError(
                     """self.config does not contain a %s parameter, either include it in the
