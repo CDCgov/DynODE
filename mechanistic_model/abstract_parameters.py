@@ -164,10 +164,11 @@ class AbstractParameters:
 
     def get_parameters(self) -> dict:
         """
-        Goes through the parameters passed to the inferer, if they are distributions, it samples them.
-        Otherwise it returns their raw values.
-
-        Converts all list types with sampled values to jax tracers.
+        Goes through parameters listed in self.UPSTREAM_PARAMETERS, sampling them
+        if they are distributions, collecting them untouched otherwise.
+        Then attempts to generate any downstream parameters that rely on those parameters
+        in self.generate_downstream_parameters(). Returning the resulting dictionary
+        for use in the ODEs (ordinary differential equations)
 
         Returns
         -----------
