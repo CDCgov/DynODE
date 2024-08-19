@@ -6,13 +6,13 @@ observed metrics.
 
 import json
 import warnings
-from typing import Union
+from typing import Optional, Union
 
 import jax.numpy as jnp
 import jax.typing
 import numpy as np
 import numpyro  # type: ignore
-from diffrax import Solution
+from diffrax import Solution  # type: ignore
 from jax.random import PRNGKey
 from numpyro import distributions as Dist
 from numpyro.diagnostics import summary  # type: ignore
@@ -97,13 +97,16 @@ class MechanisticInferer(AbstractParameters):
 
     def likelihood(
         self,
-        obs_metrics: Union[jax.Array, None] = None,
-        tf: int = None,
+        obs_metrics: Optional[jax.Array] = None,
+        tf: Optional[int] = None,
         infer_mode=True,
-    ) -> dict[str, Union[Solution, jax.Array],]:
+    ) -> dict[str, Union[Solution, jax.Array, dict],]:
         """
         Given some observed metrics, samples the likelihood of them occuring
         under a set of parameter distributions sampled by self.inference_algo.
+        If `obs_metrics` is not defined and `infer_mode=False`, returns a dictionary
+        containing the Solution object returned by `self.runner`, the hospitalizations
+        predicted by the model, and the parameters returned by `self.get_parameters()`
 
         if obs_metrics is None likelihood will not actually fit to values and instead return Solutions
         based on randomly sampled values.
@@ -112,6 +115,28 @@ class MechanisticInferer(AbstractParameters):
         otherwise runs for `len(obs_metrics)` days. If both `tf` and `obs_metrics` are None, raises RuntimeError.
 
         Currently expects hospitalization data and samples IHR.
+
+        Parameters
+        ----------
+        obs_metrics : jax.Array, optional
+            observed data, currently expecting hospitalization data, by default None
+        tf : int, optional
+            days to run model for, if obs_metrics is not provided, this parameter is used, by default None
+        infer_mode : bool, optional
+            whether or not to sample log likelihood of hospitalizations
+            using `obs_metrics` as observed variables, by default True
+
+        Returns
+        -------
+        dict[str, Union[Solution, jax.Array, dict]]
+            dictionary containing three keys, `solution`, `hospitalizations`, and `parameters`
+            containing the `Solution` object returned by self.runner, the predicted hospitalizations, and
+            the parameters run respectively
+
+        Raises
+        ------
+        RuntimeError
+            if obs_metrics is None AND tf is none, raises runtime error. Need one or the other
         """
         parameters = self.get_parameters()
         if "INITIAL_INFECTIONS_SCALE" in parameters.keys():
@@ -121,12 +146,15 @@ class MechanisticInferer(AbstractParameters):
         else:
             initial_state = self.INITIAL_STATE
 
-        if tf is None and obs_metrics is None:
-            raise RuntimeError(
-                "did not specify observed metrics or a number of days to run for, "
-                "need one or the other"
-            )
-        if tf is not None:
+        if tf is None:
+            if obs_metrics is None:
+                raise RuntimeError(
+                    "did not specify observed metrics or a number of days to run for, "
+                    "need one or the other"
+                )
+            else:
+                tf = len(obs_metrics)
+        else:  # tf is an int
             # if we provide a tf, check if it is longer than or equal to the obs metrics
             # if we have observed metrics to compare to.
             assert (
@@ -136,7 +164,7 @@ class MechanisticInferer(AbstractParameters):
         solution = self.runner.run(
             initial_state,
             args=parameters,
-            tf=len(obs_metrics) if obs_metrics is not None else tf,
+            tf=tf,
         )
         # add 1 to idxs because we are stratified by time in the solution object
         # sum down to just time x age bins
@@ -282,7 +310,7 @@ class MechanisticInferer(AbstractParameters):
 
         return None
 
-    def infer(self, obs_metrics: jax.typing.ArrayLike) -> MCMC:
+    def infer(self, obs_metrics: jax.Array) -> MCMC:
         """
         Infer parameters given priors inside of self.config,
         returns an inference_algo object with posterior distributions for each sampled parameter.
@@ -355,7 +383,8 @@ class MechanisticInferer(AbstractParameters):
         tf: Union[int, None] = None,
         external_particle: dict[str, jax.Array] = {},
     ) -> dict[
-        tuple[int, int], dict[str, Union[Solution, dict[str, jax.Array]]]
+        tuple[int, int],
+        dict[str, Union[Solution, jax.Array, dict[str, jax.Array]]],
     ]:
         """
         loads a list (or singular) of particles defined by a chain/particle tuple.
