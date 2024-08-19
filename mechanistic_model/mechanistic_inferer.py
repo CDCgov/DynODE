@@ -95,11 +95,60 @@ class MechanisticInferer(AbstractParameters):
                 ), "the previous inferer is not of the same type."
                 self.set_posteriors_if_exist(prior_inferer)
 
+    def _get_predictions(
+        self, parameters: dict, solution: Solution
+    ) -> jax.Array:
+        """generates post-hoc predictions from solved timeseries in `Solution` and
+        parameters used to generate them within `parameters`. This will often be hospitalizations
+        but could be more than just that.
+
+        Parameters
+        ----------
+        parameters : dict
+            parameters object returned by `get_parameters()` possibly containing information about the
+            infection hospitalization ratio
+        solution : Solution
+            Solution object returned by `_solve_runner` or any call to `self.runner.run()`
+            containing compartment timeseries
+
+        Returns
+        -------
+        jax.Array or tuple[jax.Array]
+            one or more jax arrays representing the different post-hoc predictions generated from
+            `solution`. If fitting upon hospitalizations only, then a single jax.Array representing hospitalizations will be present.
+        """
+        # add 1 to idxs because we are stratified by time in the solution object
+        # sum down to just time x age bins
+        model_incidence = jnp.sum(
+            solution.ys[self.config.COMPARTMENT_IDX.C],
+            axis=(
+                self.config.I_AXIS_IDX.hist + 1,
+                self.config.I_AXIS_IDX.vax + 1,
+                self.config.I_AXIS_IDX.strain + 1,
+            ),
+        )
+        # axis = 0 because we take diff across time
+        model_incidence = jnp.diff(model_incidence, axis=0)
+        # override this function for more complicated hospitalization logic
+        with numpyro.plate("num_age", self.config.NUM_AGE_GROUPS):
+            ihr = numpyro.sample("ihr", Dist.Beta(0.5, 10))
+        hospitalizations = model_incidence * ihr
+        return hospitalizations
+
+    def run_simulation(self, tf):
+        parameters = self.get_parameters()
+        solution = self._solve_runner(parameters, tf)
+        hospitalizations = self._get_predictions(parameters, solution)
+        return {
+            "solution": solution,
+            "hospitalizations": hospitalizations,
+            "parameters": parameters,
+        }
+
     def likelihood(
         self,
-        obs_metrics: Union[jax.Array, None] = None,
-        tf: int = None,
-        infer_mode=True,
+        tf: int,
+        obs_metrics: jax.Array,
     ) -> dict[str, Union[Solution, jax.Array],]:
         """
         Given some observed metrics, samples the likelihood of them occuring
@@ -113,47 +162,9 @@ class MechanisticInferer(AbstractParameters):
 
         Currently expects hospitalization data and samples IHR.
         """
-        parameters = self.get_parameters()
-        if "INITIAL_INFECTIONS_SCALE" in parameters.keys():
-            initial_state = self.scale_initial_infections(
-                parameters["INITIAL_INFECTIONS_SCALE"]
-            )
-        else:
-            initial_state = self.INITIAL_STATE
-
-        if tf is None and obs_metrics is None:
-            raise RuntimeError(
-                "did not specify observed metrics or a number of days to run for, "
-                "need one or the other"
-            )
-        if tf is not None:
-            # if we provide a tf, check if it is longer than or equal to the obs metrics
-            # if we have observed metrics to compare to.
-            assert (
-                tf >= len(obs_metrics) if obs_metrics is not None else True
-            ), "len(obs_metrics) > tf"
-
-        solution = self.runner.run(
-            initial_state,
-            args=parameters,
-            tf=len(obs_metrics) if obs_metrics is not None else tf,
-        )
-        # add 1 to idxs because we are stratified by time in the solution object
-        # sum down to just time x age bins
-        model_incidence = jnp.sum(
-            solution.ys[self.config.COMPARTMENT_IDX.C],
-            axis=(
-                self.config.I_AXIS_IDX.hist + 1,
-                self.config.I_AXIS_IDX.vax + 1,
-                self.config.I_AXIS_IDX.strain + 1,
-            ),
-        )
-        # axis = 0 because we take diff across time
-        model_incidence = jnp.diff(model_incidence, axis=0)
-        poisson_rates = jnp.maximum(model_incidence, 1e-6)
-
-        # save the final timestep of solution array for each compartment
-        # this is useful for checkpointing model epochs
+        dct = self.run_simulation(tf)
+        solution = dct["solution"]
+        predicted_metrics = dct["hospitalizations"]
         numpyro.deterministic(
             "final_timestep_s", solution.ys[self.config.COMPARTMENT_IDX.S][-1]
         )
@@ -166,21 +177,12 @@ class MechanisticInferer(AbstractParameters):
         numpyro.deterministic(
             "final_timestep_c", solution.ys[self.config.COMPARTMENT_IDX.C][-1]
         )
-        # sample infection hospitalization rate here
-        with numpyro.plate("num_age", self.config.NUM_AGE_GROUPS):
-            ihr = numpyro.sample("ihr", Dist.Beta(0.5, 10))
-        if infer_mode:
-            numpyro.sample(
-                "incidence",
-                Dist.Poisson(poisson_rates * ihr),
-                obs=obs_metrics,
-            )
-        # return Solution, hosp values, and static parameters. used by load_posterior_particle
-        return {
-            "solution": solution,
-            "hospitalizations": model_incidence * ihr,
-            "parameters": parameters,
-        }
+        predicted_metrics = jnp.maximum(predicted_metrics, 1e-6)
+        numpyro.sample(
+            "incidence",
+            Dist.Poisson(predicted_metrics),
+            obs=obs_metrics,
+        )
 
     def set_posteriors_if_exist(self, prior_inferer: MCMC) -> None:
         """
@@ -482,13 +484,13 @@ class MechanisticInferer(AbstractParameters):
         # instead! this is effectively running the particle
         substituted_model = numpyro.handlers.substitute(
             numpyro.handlers.seed(
-                self.likelihood,
+                self.run_simulation,
                 jax.random.PRNGKey(
                     self.config.INFERENCE_PRNGKEY + chain_paricle_seed
                 ),
             ),
             single_particle,
         )
-        sol_dct = substituted_model(tf=tf, infer_mode=False)
+        sol_dct = substituted_model(tf=tf)
         sol_dct["posteriors"] = substituted_model.data
         return sol_dct
