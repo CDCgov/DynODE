@@ -10,15 +10,14 @@ import json
 import os
 import warnings
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Optional, Union
 
 import numpy as np
-import pandas as pd
-from diffrax import Solution
+import pandas as pd  # type: ignore
+from diffrax import Solution  # type: ignore
 from jax import Array
 
 import mechanistic_model.utils as utils
-from mechanistic_model import SEIC_Compartments
 from mechanistic_model.abstract_parameters import AbstractParameters
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
 from mechanistic_model.static_value_parameters import StaticValueParameters
@@ -79,7 +78,7 @@ class AbstractAzureRunner(ABC):
             json.dump(json.load(open(config_path, "r")), j, indent=4)
 
     def match_index_len(
-        self, series: np.ndarray, index_len: int, pad: str = "l"
+        self, series: Array, index_len: int, pad: str = "l"
     ) -> np.ndarray:
         """A helper function designed to simply insert Nans on the left or right
         of a series so that it matches the desired `index_len`"""
@@ -108,7 +107,7 @@ class AbstractAzureRunner(ABC):
         self,
         model: AbstractParameters,
         solution: Solution,
-        hospitalization_preds: SEIC_Compartments = None,
+        hospitalization_preds: Optional[Array] = None,
     ) -> pd.DataFrame:
         """
         a private function which takes two timelines of infections and hospitalizations and generates a
@@ -129,9 +128,10 @@ class AbstractAzureRunner(ABC):
         external_i_func : Optional Callable
             function used by `parameters` to generate external introductions of
             each age bin x strain strata. Takes input parameter `t` for day of sim
-        hospitalization_preds : Optional SEIC_Compartments
+        hospitalization_preds : Optional Array
             models hospitalization predictions, usually the infections
-            matrix with some infection hospitalization ratio applied
+            matrix with some infection hospitalization ratio applied,
+            must be of shape (time, age_bin)
 
         NOTE
         -------------
@@ -358,11 +358,9 @@ class AbstractAzureRunner(ABC):
             )
             for (chain, particle), sol_dct in posteriors.items():
                 # content of `sol_dct` depends on return value of inferer.likelihood func
-                infection_timeline, hospitalizations, static_parameters = (
-                    sol_dct["solution"],
-                    sol_dct["hospitalizations"],
-                    sol_dct["parameters"],
-                )
+                infection_timeline: Solution = sol_dct["solution"]
+                hospitalizations: Array = sol_dct["hospitalizations"]
+                static_parameters: dict[str, Array] = sol_dct["parameters"]
                 # spoof the inferer to return our static parameters when calling `get_parameters()`
                 # instead of trying to sample like it normally does
                 spoof_static_inferer = copy.copy(inferer)
