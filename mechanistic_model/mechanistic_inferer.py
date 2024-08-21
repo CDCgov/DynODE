@@ -139,7 +139,7 @@ class MechanisticInferer(AbstractParameters):
         self, tf: int
     ) -> dict[str, Union[Solution, jax.Array],]:
         parameters = self.get_parameters()
-        solution = self._solve_runner(parameters, tf)
+        solution = self._solve_runner(parameters, tf, self.runner)
         hospitalizations = self._get_predictions(parameters, solution)
         return {
             "solution": solution,
@@ -329,6 +329,7 @@ class MechanisticInferer(AbstractParameters):
         self.inference_algo.run(
             rng_key=PRNGKey(self.config.INFERENCE_PRNGKEY),
             obs_metrics=obs_metrics,
+            tf=len(obs_metrics),
         )
         self.inference_algo.print_summary()
         self.inference_timesteps = len(obs_metrics)
