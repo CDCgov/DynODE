@@ -39,6 +39,8 @@ To try out your own basic scenarios, check out the `config/` folder, where you c
 
 If you are interested in understanding how the model is initialized, rather than looking through the model matricies yourself, the Scenarios team has created a Shiny application allowing for easy data visualization of the model's initial state! Simply run `shiny_visualizers/visualizer_app.py` and navigate to http://localhost:8000/ and play with the data yourself.
 
+For a breakdown of the Ordinary Differential Equations at the heart of this model take a look at `ode_model.md`.
+
 ## Technical Details
 
 For a full in-depth description of the model please see the [Github Pages](https://github.com/cdcent/cfa-scenarios-model/wiki) of this repo, where a living document of the model is stored.
