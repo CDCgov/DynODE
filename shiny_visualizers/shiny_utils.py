@@ -8,59 +8,11 @@ import pandas as pd
 import plotly
 import plotly.express as px
 import plotly.graph_objects
-from azure.core.paging import ItemPaged
 from cfa_azure.clients import AzureClient
-from cfa_azure.helpers import download_directory
 from plotly.subplots import make_subplots
 
+from mechanistic_azure.azure_utilities import download_directory_from_azure
 from mechanistic_model.utils import flatten_list_parameters
-
-
-def build_azure_connection(
-    config_path: str = "secrets/configuration_cfaazurebatchprd.toml",
-    input_blob_name: str = "scenarios-mechanistic-input",
-    output_blob_name: str = "scenarios-mechanistic-output",
-) -> AzureClient:
-    """builds an AzureClient and connects input and output blobs
-    found in INPUT_BLOB_NAME and OUTPUT_BLOB_NAME global vars.
-
-    Parameters
-    ----------
-    config_path : str, optional
-        path to your authentication toml, should not be public, by default "secrets/configuration_cfaazurebatchprd.toml"
-
-    Returns
-    -------
-    AzureClient object
-    """
-    client = AzureClient(config_path=config_path)
-    client.set_input_container(input_blob_name, "input")
-    client.set_output_container(output_blob_name, "output")
-    return client
-
-
-def get_blob_names(
-    azure_client: AzureClient, name_starts_with: str
-) -> ItemPaged[str]:
-    """returns the blobs stored in OUTPUT_BLOB_NAME on Azure Storage Account
-
-    Parameters
-    ----------
-    azure_client : AzureClient
-        the Azure client with the correct authentications to access the data, built from `build_azure_connection`
-
-    Returns
-    -------
-    Iterator[str]
-        an iterator of each blob, including directories: e.g\n
-        root \n
-        root/fol1 \n
-        root/fol1/fol2 \n
-        root/fol1/fol2/file.txt \n
-    """
-    return azure_client.out_cont_client.list_blob_names(
-        name_starts_with=name_starts_with
-    )
 
 
 class Node:
@@ -165,19 +117,16 @@ def get_azure_files(
     list[str]
         paths into which files were loaded (if they did not already exist there)
     """
-    return_paths = []
+    azure_state_paths = []
     for state in states:
         azure_blob_path = os.path.join(exp, jobid, state)
         if scenario != "N/A":  # if visualizing a scenario append to the path
             azure_blob_path = os.path.join(azure_blob_path, scenario)
         azure_blob_path = azure_blob_path.replace("\\", "/") + "/"
-        dest_path = os.path.join(local_cache_path, azure_blob_path)
-        # if we already loaded this before, dont redownload it all!
-        if not os.path.exists(dest_path):
-            download_directory(
-                azure_client.out_cont_client, azure_blob_path, local_cache_path
-            )
-        return_paths.append(dest_path)
+        azure_state_paths.append(azure_blob_path)
+    return_paths = download_directory_from_azure(
+        azure_client, azure_state_paths, local_cache_path, overwrite=False
+    )
     return return_paths
 
 
