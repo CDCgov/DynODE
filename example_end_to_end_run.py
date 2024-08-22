@@ -1,5 +1,5 @@
 """
-A basic local example meant to show off the flow of running the mechanistic model
+A basic local covid example meant to show off the flow of running the mechanistic model
 
 Results produced by this basic example are not meant to be taken as serious predictions, but rather
 a demonstration with synthetic data.
@@ -48,8 +48,12 @@ if __name__ == "__main__":
     INFERER_CONFIG_PATH = config_path + "config_inferer_covid.json"
     # defines how the solution should be viewed, what slices examined, how to save.
     INTERPRETER_CONFIG_PATH = config_path + "config_interpreter_covid.json"
+
+    # step 2: Set up your initializer
     # sets up the initial conditions, initializer.get_initial_state() passed to runner
     initializer = CovidInitializer(INITIALIZER_CONFIG_PATH, GLOBAL_CONFIG_PATH)
+
+    # step 3: set up your parameters object
     # reads and interprets values from config, sets up downstream parameters
     # like beta = STRAIN_R0s / INFECTIOUS_PERIOD
     static_params = StaticValueParameters(
@@ -57,6 +61,8 @@ if __name__ == "__main__":
         RUNNER_CONFIG_PATH,
         GLOBAL_CONFIG_PATH,
     )
+
+    # step 4: set up your runner and solve ODE equation
     # A runner that does ODE solving of a single run.
     runner = MechanisticRunner(seip_ode)
     # run for 200 days, using init state and parameters from StaticValueParameters
@@ -77,7 +83,8 @@ if __name__ == "__main__":
         k = 10.0
         p = k / (k + m)
         synthetic_observed_hospitalizations = rng.negative_binomial(k, p)
-        # set up an inferer to fit back onto this data
+
+        # step 4B: set up yout inferer, defining prior distributions of some parameters
         inferer = MechanisticInferer(
             GLOBAL_CONFIG_PATH,
             INFERER_CONFIG_PATH,
@@ -88,9 +95,9 @@ if __name__ == "__main__":
         inferer.config.INFERENCE_NUM_WARMUP = 30
         inferer.config.INFERENCE_NUM_SAMPLES = 30
         inferer.set_infer_algo()
+        print("Fitting to synthetic hospitalization data: ")
         # this will print a summary of the inferred variables
         # those distributions in the Config are now posteriors
-        print("Fitting to synthetic hospitalization data: ")
         inferer.infer(synthetic_observed_hospitalizations)
         print(
             "Toy inference finished, see the distributions of posteriors above, "
@@ -98,7 +105,7 @@ if __name__ == "__main__":
             "used to generate the fake data? \n"
         )
     else:
-        # interpret the solution object in a variety of ways
+        # step 5: interpret the solution object in a variety of ways
         interpreter = SolutionInterpreter(
             solution, INTERPRETER_CONFIG_PATH, GLOBAL_CONFIG_PATH
         )
