@@ -7,10 +7,14 @@ but adapted to show the differences between Azure runs and local ones.
 import argparse
 import sys
 
+import jax.numpy as jnp
+import numpy as np
+
 sys.path.append("/app/")
 
 from mechanistic_model.abstract_azure_runner import AbstractAzureRunner
 from mechanistic_model.covid_sero_initializer import CovidSeroInitializer
+from mechanistic_model.mechanistic_inferer import MechanisticInferer
 from mechanistic_model.mechanistic_runner import MechanisticRunner
 from mechanistic_model.static_value_parameters import StaticValueParameters
 from model_odes.seip_model import seip_ode
@@ -45,6 +49,7 @@ class ExampleRunner(AbstractAzureRunner):
         INITIALIZER_CONFIG_PATH = config_path + "config_initializer_covid.json"
         # defines the running variables, strain R0s, external strain introductions etc.
         RUNNER_CONFIG_PATH = config_path + "config_runner_covid.json"
+        INFERER_CONFIG_PATH = config_path + "config_inferer_covid.json"
         self.save_config(GLOBAL_CONFIG_PATH)
         self.save_config(INITIALIZER_CONFIG_PATH)
         self.save_config(RUNNER_CONFIG_PATH)
@@ -67,7 +72,28 @@ class ExampleRunner(AbstractAzureRunner):
             tf=200,
             args=static_params.get_parameters(),
         )
-        self.save_static_run_timelines(static_params, solution)
+        # for an example inference, lets jumble our solution up a bit and attempt to fit back to it
+        ihr = [0.002, 0.004, 0.008, 0.06]
+        model_incidence = jnp.sum(solution.ys[3], axis=(2, 3, 4))
+        model_incidence = jnp.diff(model_incidence, axis=0)
+        rng = np.random.default_rng(seed=8675309)
+        m = np.asarray(model_incidence) * ihr
+        k = 10.0
+        p = k / (k + m)
+        synthetic_obs = rng.negative_binomial(k, p)
+        inferer = MechanisticInferer(
+            GLOBAL_CONFIG_PATH,
+            INFERER_CONFIG_PATH,
+            runner,
+            initializer.get_initial_state(),
+        )
+        # this will print a summary of the inferred variables
+        # those distributions in the Config are now posteriors
+        inferer.infer(synthetic_obs)
+        self.save_inference_posteriors(inferer)
+        self.save_inference_final_timesteps(inferer)
+        self.save_inference_timelines(inferer)
+        # self.save_static_run_timelines(static_params, solution)
         return solution
 
 
