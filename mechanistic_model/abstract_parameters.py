@@ -22,6 +22,33 @@ from mechanistic_model import SEIC_Compartments
 
 
 class AbstractParameters:
+    UPSTREAM_PARAMETERS = [
+        "INIT_DATE",
+        "CONTACT_MATRIX",
+        "POPULATION",
+        "NUM_STRAINS",
+        "NUM_AGE_GROUPS",
+        "NUM_WANING_COMPARTMENTS",
+        "WANING_PROTECTIONS",
+        "MAX_VACCINATION_COUNT",
+        "STRAIN_INTERACTIONS",
+        "VACCINE_EFF_MATRIX",
+        "BETA_TIMES",
+        "STRAIN_R0s",
+        "INFECTIOUS_PERIOD",
+        "EXPOSED_TO_INFECTIOUS",
+        "INTRODUCTION_TIMES",
+        "INTRODUCTION_SCALES",
+        "INTRODUCTION_PCTS",
+        "INITIAL_INFECTIONS_SCALE",
+        "CONSTANT_STEP_SIZE",
+        "SEASONALITY_AMPLITUDE",
+        "SEASONALITY_SECOND_WAVE",
+        "SEASONALITY_SHIFT",
+        "MIN_HOMOLOGOUS_IMMUNITY",
+        "WANING_RATES",
+    ]
+
     @abstractmethod
     def __init__(self, parameters_config):
         # add these for mypy type checker
@@ -29,79 +56,96 @@ class AbstractParameters:
         self.INITIAL_STATE = tuple()
         pass
 
-    def get_parameters(self) -> dict:
+    def _get_upstream_parameters(self) -> dict:
         """
-        Goes through the parameters passed to the inferer, if they are distributions, it samples them.
-        Otherwise it returns their raw values.
+        returns a dictionary containing self.UPSTREAM_PARAMETERS, erroring if any of the parameters
+        within are not found within self.config.
 
-        Converts all list types with sampled values to jax tracers.
+        Samples any parameters which are of type(numpyro.distribution).
 
         Returns
-        -----------
-        dict{str:obj} where obj may either be a float value,
-        or a jax tracer, in the case of a sampled value or list containing sampled values.
+        ------------
+        dict[str: Any]
+
+        returns a dictionary where keys map to parameters within self.UPSTREAM_PARAMETERS and the values
+        are the value of that parameter within self.config, distributions are sampled and replaced
+        with a jax ArrayLike representing that value in the JIT compilation scheme used by jax/numpyro.
         """
         # multiple chains of MCMC calling get_parameters()
         # should not share references, deep copy, GH issue for this created
         freeze_params = copy.deepcopy(self.config)
-        parameters = {
-            "INIT_DATE": freeze_params.INIT_DATE,
-            "CONTACT_MATRIX": freeze_params.CONTACT_MATRIX,
-            "POPULATION": freeze_params.POPULATION,
-            "NUM_STRAINS": freeze_params.NUM_STRAINS,
-            "NUM_AGE_GROUPS": freeze_params.NUM_AGE_GROUPS,
-            "NUM_WANING_COMPARTMENTS": freeze_params.NUM_WANING_COMPARTMENTS,
-            "WANING_PROTECTIONS": freeze_params.WANING_PROTECTIONS,
-            "MAX_VACCINATION_COUNT": freeze_params.MAX_VACCINATION_COUNT,
-            "STRAIN_INTERACTIONS": freeze_params.STRAIN_INTERACTIONS,
-            "VACCINE_EFF_MATRIX": freeze_params.VACCINE_EFF_MATRIX,
-            "BETA_TIMES": freeze_params.BETA_TIMES,
-            "STRAIN_R0s": freeze_params.STRAIN_R0s,
-            "INFECTIOUS_PERIOD": freeze_params.INFECTIOUS_PERIOD,
-            "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
-            "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
-            "INTRODUCTION_SCALES": freeze_params.INTRODUCTION_SCALES,
-            "INTRODUCTION_PCTS": freeze_params.INTRODUCTION_PCTS,
-            "INITIAL_INFECTIONS_SCALE": freeze_params.INITIAL_INFECTIONS_SCALE,
-            "CONSTANT_STEP_SIZE": freeze_params.CONSTANT_STEP_SIZE,
-            "SEASONALITY_AMPLITUDE": freeze_params.SEASONALITY_AMPLITUDE,
-            "SEASONALITY_SECOND_WAVE": freeze_params.SEASONALITY_SECOND_WAVE,
-            "SEASONALITY_SHIFT": freeze_params.SEASONALITY_SHIFT,
-            "MIN_HOMOLOGOUS_IMMUNITY": freeze_params.MIN_HOMOLOGOUS_IMMUNITY,
-        }
+        # go through self.UPSTREAM_PARAMETERS, add them all to a dict
+        parameters = {}
+        for parameter in self.UPSTREAM_PARAMETERS:
+            if hasattr(freeze_params, parameter):
+                parameters[parameter] = getattr(freeze_params, parameter)
+            else:
+                raise RuntimeError(
+                    """self.config does not contain a %s parameter, either include it in the
+                     configuration file used to generate this parameters object,
+                     or exclude it from self.UPSTREAM_PARAMETERS"""
+                    % parameter
+                )
+        # sample any distributions found within this dictionary
         parameters = utils.sample_if_distribution(parameters)
-        # re-create the CROSSIMMUNITY_MATRIX since we may be sampling the STRAIN_INTERACTIONS matrix now
-        parameters[
-            "CROSSIMMUNITY_MATRIX"
-        ] = utils.strain_interaction_to_cross_immunity(
-            freeze_params.NUM_STRAINS, parameters["STRAIN_INTERACTIONS"]
-        )
-        # create parameters based on other possibly sampled parameters
-        beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
-        gamma = 1 / parameters["INFECTIOUS_PERIOD"]
-        sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]
-        # last waning time is zero since last compartment does not wane
-        # catch a division by zero error here.
-        waning_rates = np.array(
-            [
-                1 / waning_time if waning_time > 0 else 0
-                for waning_time in freeze_params.WANING_TIMES
-            ]
-        )
-        # allows the ODEs to just pass time as a parameter, makes them look cleaner
-        external_i_function_prefilled = jax.tree_util.Partial(
-            self.external_i,
-            introduction_times=parameters["INTRODUCTION_TIMES"],
-            introduction_scales=parameters["INTRODUCTION_SCALES"],
-            introduction_pcts=parameters["INTRODUCTION_PCTS"],
-        )
-        # # pre-calculate the minimum value of the seasonality curves
-        seasonality_function_prefilled = jax.tree_util.Partial(
-            self.seasonality,
-            seasonality_amplitude=parameters["SEASONALITY_AMPLITUDE"],
-            seasonality_second_wave=parameters["SEASONALITY_SECOND_WAVE"],
-            seasonality_shift=parameters["SEASONALITY_SHIFT"],
-        )
+        return parameters
+
+    def generate_downstream_parameters(self, parameters: dict) -> dict:
+        """takes an existing parameters object and attempts to generate a number of
+        downstream dependent parameters, based on the values contained within `parameters`.
+
+        Raises RuntimeError if a downstream parameter
+        does not find the necessary values it needs within `parameters`
+
+        Example
+        ---------
+        if the parameter `Y = 1/X` then X must be defined within `parameters` and
+        we call `parameters["Y"] = 1 / parameters["X"]`
+
+        Parameters
+        ----------
+        parameters : dict
+            parameters dictionary generated by `self._get_upstream_parameters()`
+            containing static or sampled values on which downstream parameters may depend
+
+        Returns
+        -------
+        dict
+            an appended onto version of `parameters` with additional downstream parameters added.
+        """
+        try:
+            # re-create the CROSSIMMUNITY_MATRIX since we may be sampling the STRAIN_INTERACTIONS matrix now
+            parameters[
+                "CROSSIMMUNITY_MATRIX"
+            ] = utils.strain_interaction_to_cross_immunity(
+                parameters["NUM_STRAINS"],
+                parameters["STRAIN_INTERACTIONS"],
+            )
+            # create parameters based on other possibly sampled parameters
+            beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
+            gamma = 1 / parameters["INFECTIOUS_PERIOD"]
+            sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]
+            # allows the ODEs to just pass time as a parameter, makes them look cleaner
+            external_i_function_prefilled = jax.tree_util.Partial(
+                self.external_i,
+                introduction_times=parameters["INTRODUCTION_TIMES"],
+                introduction_scales=parameters["INTRODUCTION_SCALES"],
+                introduction_pcts=parameters["INTRODUCTION_PCTS"],
+            )
+            # # pre-calculate the minimum value of the seasonality curves
+            seasonality_function_prefilled = jax.tree_util.Partial(
+                self.seasonality,
+                seasonality_amplitude=parameters["SEASONALITY_AMPLITUDE"],
+                seasonality_second_wave=parameters["SEASONALITY_SECOND_WAVE"],
+                seasonality_shift=parameters["SEASONALITY_SHIFT"],
+            )
+        except KeyError as e:
+            err_txt = """Attempted to create a downstream parameter but was unable to find
+            the required upstream values within `parameters` this is likely because it was not included
+            within self.UPSTREAM_PARAMETERS and was therefore not collected
+            before generating the downstream params"""
+            raise RuntimeError(err_txt) from e
+
         # add final parameters, if your model expects added parameters, add them here
         parameters = dict(
             parameters,
@@ -109,7 +153,6 @@ class AbstractParameters:
                 "BETA": beta,
                 "SIGMA": sigma,
                 "GAMMA": gamma,
-                "WANING_RATES": waning_rates,
                 "EXTERNAL_I": external_i_function_prefilled,
                 "VACCINATION_RATES": self.vaccination_rate,
                 "BETA_COEF": self.beta_coef,
@@ -117,6 +160,24 @@ class AbstractParameters:
                 "SEASONALITY": seasonality_function_prefilled,
             }
         )
+
+        return parameters
+
+    def get_parameters(self) -> dict:
+        """
+        Goes through parameters listed in self.UPSTREAM_PARAMETERS, sampling them
+        if they are distributions, collecting them untouched otherwise.
+        Then attempts to generate any downstream parameters that rely on those parameters
+        in self.generate_downstream_parameters(). Returning the resulting dictionary
+        for use in the ODEs (ordinary differential equations)
+
+        Returns
+        -----------
+        dict{str:obj} where obj may either be a float value,
+        or a jax tracer, in the case of a sampled value or list containing sampled values.
+        """
+        parameters = self._get_upstream_parameters()
+        parameters = self.generate_downstream_parameters(parameters)
 
         return parameters
 
