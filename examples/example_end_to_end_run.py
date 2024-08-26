@@ -4,12 +4,12 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 
-from mechanistic_model.covid_initializer import CovidInitializer
-from mechanistic_model.mechanistic_inferer import MechanisticInferer
-from mechanistic_model.mechanistic_runner import MechanisticRunner
-from mechanistic_model.solution_iterpreter import SolutionInterpreter
-from mechanistic_model.static_value_parameters import StaticValueParameters
 from model_odes.seip_model import seip_ode
+from src.covid_initializer import CovidInitializer
+from src.mechanistic_inferer import MechanisticInferer
+from src.mechanistic_runner import MechanisticRunner
+from src.solution_iterpreter import SolutionInterpreter
+from src.static_value_parameters import StaticValueParameters
 
 if __name__ == "__main__":
     # step 1: define your paths

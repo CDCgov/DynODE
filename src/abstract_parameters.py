@@ -17,11 +17,16 @@ import pandas as pd  # type: ignore
 from jax.scipy.stats.norm import pdf
 from jax.typing import ArrayLike
 
-import mechanistic_model.utils as utils
-from mechanistic_model import SEIC_Compartments
+from src import SEIC_Compartments, utils
+from src.config.config import Config
 
 
 class AbstractParameters:
+    """An class to define a disease-agnostic parameters object for running disease models.
+    Manages parameter passing and creation, as well as definition of
+    seasonality, vaccination, external introductions, and external beta shifting functions
+    """
+
     UPSTREAM_PARAMETERS = [
         "INIT_DATE",
         "CONTACT_MATRIX",
@@ -52,8 +57,8 @@ class AbstractParameters:
     @abstractmethod
     def __init__(self, parameters_config):
         # add these for mypy type checker
-        self.config = {}
-        self.INITIAL_STATE = tuple()
+        self.config: Config = {}
+        self.INITIAL_STATE: SEIC_Compartments = tuple()
         pass
 
     def _get_upstream_parameters(self) -> dict:

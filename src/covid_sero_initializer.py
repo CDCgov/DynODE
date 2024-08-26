@@ -1,14 +1,17 @@
 import os
 
+import jax.numpy as jnp
 import numpy as np
 import pandas as pd
 
-import mechanistic_model.utils as utils
-from config.config import Config
-from mechanistic_model.covid_initializer import CovidInitializer
+import src.utils as utils
+from src.abstract_initializer import AbstractInitializer
+from src.config.config import Config
 
 
-class CovidSeroInitializer(CovidInitializer):
+class CovidSeroInitializer(AbstractInitializer):
+    """A Covid Specific initializer class using serology input data to stratify immunity and initial infections"""
+
     def __init__(self, config_initializer_path, global_variables_path):
         """
         initialize a mechanistic model for covid19 case prediction using serological data.
@@ -45,7 +48,72 @@ class CovidSeroInitializer(CovidInitializer):
             self.config.INITIAL_INFECTIONS
         )
 
-    def load_immune_history_via_serological_data(self):
+    def load_initial_state(self, initial_infections: float) -> None:
+        """
+        a function which takes a number of initial infections,
+        disperses them across infectious and exposed compartments according to the INIT_INFECTED_DIST
+        and INIT_EXPOSED_DIST distributions, then subtracts both those populations from the total population and
+        places the remaining individuals in the susceptible compartment,
+        distributed according to the INIT_IMMUNE_HISTORY distribution.
+
+        Parameters
+        ----------
+        initial_infections: the number of infections to disperse between infectious and exposed compartments.
+
+        Requires
+        ----------
+        the following variables be loaded into self:
+        CONTACT_MATRIX: loading in config or via self.load_contact_matrix()
+        INIT_INFECTED_DIST: loaded in config or via load_init_infection_infected_and_exposed_dist_via_contact_matrix()
+        INIT_EXPOSED_DIST: loaded in config or via load_init_infection_infected_and_exposed_dist_via_contact_matrix()
+        INIT_IMMUNE_HISTORY: loaded in config or via load_immune_history_via_serological_data().
+
+        Returns
+        ----------
+        INITIAL_STATE: tuple(jnp.ndarray)
+            a tuple of len 4 representing the S, E, I, and C compartment population counts after model initialization.
+        """
+        # create population distribution using INIT_INFECTED_DIST, then sum them for later use
+        initial_infectious_count = (
+            initial_infections * self.config.INIT_INFECTED_DIST
+        )
+        initial_infectious_count_ages = jnp.sum(
+            initial_infectious_count,
+            axis=(
+                self.config.I_AXIS_IDX.hist,
+                self.config.I_AXIS_IDX.vax,
+                self.config.I_AXIS_IDX.strain,
+            ),
+        )
+        # create population distribution using INIT_EXPOSED_DIST, then sum them for later use
+        initial_exposed_count = (
+            initial_infections * self.config.INIT_EXPOSED_DIST
+        )
+        initial_exposed_count_ages = jnp.sum(
+            initial_exposed_count,
+            axis=(
+                self.config.I_AXIS_IDX.hist,
+                self.config.I_AXIS_IDX.vax,
+                self.config.I_AXIS_IDX.strain,
+            ),
+        )
+        # susceptible / partial susceptible = Total population - infected_count - exposed_count
+        initial_susceptible_count = (
+            self.config.POPULATION
+            - initial_infectious_count_ages
+            - initial_exposed_count_ages
+        )[
+            :, jnp.newaxis, jnp.newaxis, jnp.newaxis
+        ] * self.config.INIT_IMMUNE_HISTORY
+        # cumulative count always starts at zero
+        return (
+            initial_susceptible_count,  # s
+            initial_exposed_count,  # e
+            initial_infectious_count,  # i
+            jnp.zeros(initial_exposed_count.shape),  # c
+        )
+
+    def load_immune_history_via_serological_data(self) -> None:
         """
         loads the sero init file for self.config.REGIONS[0] and converts it to a numpy matrix
         representing the initial immune history of the individuals in the system. Saving matrix
@@ -126,7 +194,9 @@ class CovidSeroInitializer(CovidInitializer):
         )
         self.config.INIT_IMMUNE_HISTORY = sero_matrix
 
-    def load_init_infection_infected_and_exposed_dist_via_contact_matrix(self):
+    def load_init_infection_infected_and_exposed_dist_via_contact_matrix(
+        self,
+    ) -> None:
         """
         a function which estimates the demographics of initial infections by looking at the currently susceptible population's
         level of protection as well as the contact matrix for mixing patterns.
@@ -209,7 +279,7 @@ class CovidSeroInitializer(CovidInitializer):
             1 - exposed_to_infectous_ratio
         ) * self.config.INIT_INFECTION_DIST
 
-    def load_contact_matrix(self):
+    def load_contact_matrix(self) -> None:
         """
         a wrapper function that loads a contact matrix for the USA based on mixing paterns data found here:
         https://github.com/mobs-lab/mixing-patterns
@@ -227,7 +297,7 @@ class CovidSeroInitializer(CovidInitializer):
             self.config.AGE_LIMITS,
         )[self.config.REGIONS[0]]["avg_CM"]
 
-    def load_cross_immunity_matrix(self):
+    def load_cross_immunity_matrix(self) -> None:
         """
         Loads the Crossimmunity matrix given the strain interactions matrix.
         Strain interactions matrix is a matrix of shape (num_strains, num_strains) representing the relative immune escape risk

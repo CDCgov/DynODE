@@ -17,13 +17,17 @@ import pandas as pd  # type: ignore
 from diffrax import Solution  # type: ignore
 from jax import Array
 
-import mechanistic_model.utils as utils
-from mechanistic_model.abstract_parameters import AbstractParameters
-from mechanistic_model.mechanistic_inferer import MechanisticInferer
-from mechanistic_model.static_value_parameters import StaticValueParameters
+from src import SEIC_Compartments, utils
+from src.abstract_parameters import AbstractParameters
+from src.mechanistic_inferer import MechanisticInferer
+from src.static_value_parameters import StaticValueParameters
 
 
 class AbstractAzureRunner(ABC):
+    """An Abstract class made to standardize the process of running an experiment on Azure.
+    Children of this class may use the functions within to standardize their processies across experiments
+    """
+
     def __init__(self, azure_output_dir):
         # saving for future use
         self.azure_output_dir = azure_output_dir

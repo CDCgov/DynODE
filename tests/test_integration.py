@@ -17,10 +17,18 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from mechanistic_model.covid_initializer import CovidInitializer
-from mechanistic_model.mechanistic_runner import MechanisticRunner
-from mechanistic_model.static_value_parameters import StaticValueParameters
-from model_odes.seip_model import seip_ode
+from src import (
+    CovidSeroInitializer,
+    MechanisticRunner,
+    StaticValueParameters,
+    seip_ode,
+)
+
+# from src.covid_initializer import CovidInitializer
+# from src.mechanistic_runner import MechanisticRunner
+# from src.static_value_parameters import StaticValueParameters
+# from src.model_odes.seip_model import seip_ode
+
 
 CONFIG_GLOBAL_PATH = "tests/test_config_global.json"
 INITIALIZER_CONFIG_PATH = "tests/test_config_initializer.json"
@@ -104,7 +112,7 @@ def test_invalid_vax_paths(temp_config_files):
     json.dump(runner, open(temp_runner_path, "w"))
 
     # integration test
-    initializer = CovidInitializer(temp_initializer_path, temp_global_path)
+    initializer = CovidSeroInitializer(temp_initializer_path, temp_global_path)
     with pytest.raises(FileNotFoundError):
         _ = StaticValueParameters(
             initializer.get_initial_state(), temp_runner_path, temp_global_path
@@ -143,7 +151,7 @@ def test_vaccination_rates(temp_config_files):
     json.dump(runner, open(temp_runner_path, "w"))
 
     # integration test
-    initializer = CovidInitializer(temp_initializer_path, temp_global_path)
+    initializer = CovidSeroInitializer(temp_initializer_path, temp_global_path)
     static_params = StaticValueParameters(
         initializer.get_initial_state(), temp_runner_path, temp_global_path
     )
@@ -243,7 +251,7 @@ def test_seasonal_vaccination(temp_config_files):
     json.dump(runner, open(temp_runner_path, "w"))
 
     # integration test
-    initializer = CovidInitializer(temp_initializer_path, temp_global_path)
+    initializer = CovidSeroInitializer(temp_initializer_path, temp_global_path)
     static_params = StaticValueParameters(
         initializer.get_initial_state(), temp_runner_path, temp_global_path
     )
@@ -295,7 +303,7 @@ def test_output_matches_previous_version(temp_config_files):
         _,
         temp_runner_path,
     ) = temp_config_files
-    initializer = CovidInitializer(temp_initializer_path, temp_global_path)
+    initializer = CovidSeroInitializer(temp_initializer_path, temp_global_path)
     static_params = StaticValueParameters(
         initializer.get_initial_state(),
         temp_runner_path,
@@ -329,7 +337,9 @@ def test_output_matches_previous_version(temp_config_files):
 
 
 def _override_test_output():
-    initializer = CovidInitializer(INITIALIZER_CONFIG_PATH, CONFIG_GLOBAL_PATH)
+    initializer = CovidSeroInitializer(
+        INITIALIZER_CONFIG_PATH, CONFIG_GLOBAL_PATH
+    )
     static_params = StaticValueParameters(
         initializer.get_initial_state(),
         RUNNER_CONFIG_PATH,

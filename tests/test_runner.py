@@ -3,11 +3,18 @@ import datetime
 import jax.numpy as jnp
 import pytest
 
-import mechanistic_model.utils as utils
-from config.config import Config
-from mechanistic_model.mechanistic_runner import MechanisticRunner
-from mechanistic_model.static_value_parameters import StaticValueParameters
-from model_odes.seip_model import seip_ode
+# from src import utils
+# from src.config.config import Config
+# from src.mechanistic_runner import MechanisticRunner
+# from src.static_value_parameters import StaticValueParameters
+# from src.model_odes.seip_model import seip_ode
+from src import (
+    Config,
+    MechanisticRunner,
+    StaticValueParameters,
+    seip_ode,
+    utils,
+)
 
 CONFIG_GLOBAL_PATH = "tests/test_config_global.json"
 RUNNER_CONFIG_PATH = "tests/test_config_runner.json"

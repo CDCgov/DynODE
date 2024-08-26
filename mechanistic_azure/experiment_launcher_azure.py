@@ -9,7 +9,7 @@ from mechanistic_azure.azure_utilities import AzureExperimentLauncher
 
 # specify job ID, cant already exist
 
-DOCKER_IMAGE_TAG = "scenarios-image-7-3-24"
+DOCKER_IMAGE_TAG = "scenarios-image-19-8-24"
 # number of seconds of a full experiment run before timeout
 # for `s` states to run and `n` nodes dedicated,`s/n` * runtime 1 state secs needed
 EXPERIMENTS_DIRECTORY = "exp"

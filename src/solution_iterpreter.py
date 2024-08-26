@@ -17,11 +17,13 @@ import numpy as np
 from diffrax import Solution
 from PIL.PngImagePlugin import PngInfo
 
-import mechanistic_model.utils as utils
-from config.config import Config
+from src import utils
+from src.config.config import Config
 
 
 class SolutionInterpreter:
+    """A class responsible for interpreting the solutions given by the MechanisticRunner"""
+
     def __init__(
         self,
         solution: diffrax.Solution,

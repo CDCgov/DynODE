@@ -2,7 +2,7 @@ import os
 
 from cfa_azure.clients import AzureClient
 
-from mechanistic_model.utils import find_files, sort_filenames_by_suffix
+from src.utils import find_files, sort_filenames_by_suffix
 
 
 class AzureExperimentLauncher:

@@ -18,11 +18,11 @@ from numpyro import distributions as Dist
 from numpyro.diagnostics import summary  # type: ignore
 from numpyro.infer import MCMC, NUTS  # type: ignore
 
-import mechanistic_model.utils as utils
-from config.config import Config
-from mechanistic_model import SEIC_Compartments
-from mechanistic_model.abstract_parameters import AbstractParameters
-from mechanistic_model.mechanistic_runner import MechanisticRunner
+import src.utils as utils
+from src import SEIC_Compartments
+from src.abstract_parameters import AbstractParameters
+from src.config.config import Config
+from src.mechanistic_runner import MechanisticRunner
 
 
 class MechanisticInferer(AbstractParameters):

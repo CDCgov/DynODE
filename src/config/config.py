@@ -13,6 +13,11 @@ from jax.random import PRNGKey
 
 
 class Config:
+    """
+    A Configuration class designed to take JSON config files,
+    validate them, and generate downstream parameters where applicable
+    """
+
     def __init__(self, config_json_str) -> None:
         self.add_file(config_json_str)
 

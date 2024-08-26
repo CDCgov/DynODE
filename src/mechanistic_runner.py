@@ -19,14 +19,17 @@ from diffrax import (  # type: ignore
 )
 from jaxtyping import PyTree
 
-from mechanistic_model import SEIC_Compartments
-from mechanistic_model.utils import date_to_sim_day
+from src import SEIC_Compartments
+from src.utils import date_to_sim_day
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
 
 
 class MechanisticRunner:
+    """A class responsible for solving Ordinary Differential Equations (ODEs)
+    given some initial state, parameters, and the equations themselves"""
+
     def __init__(
         self,
         model: Callable[

@@ -57,10 +57,9 @@ testing.py
 !data/spline_fits.csv
 !data/hospitalization-data/hospital_220213_220108.csv
 !output/example_output_summary_slide.png
-!config/*.json
+!src/config/*.json
 !tests/*.json
 !exp/*/*.json
-!docker_template_configs/*.json
 !data/serological-data/*.csv
 !data/hospitalization-data/*.csv
 !data/vaccination-data/state-spline-fits/*.csv

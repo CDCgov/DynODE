@@ -3,12 +3,14 @@ This class is responsible for providing parameters to the model in the case that
 no parameters are being sampled, and thus no complex inference or fitting is needed.
 """
 
-from config.config import Config
-from mechanistic_model import SEIC_Compartments
-from mechanistic_model.abstract_parameters import AbstractParameters
+from src import SEIC_Compartments
+from src.abstract_parameters import AbstractParameters
+from src.config.config import Config
 
 
 class StaticValueParameters(AbstractParameters):
+    """A Parameters class made for use on all static parameters, with no in-built sampling mechanism"""
+
     def __init__(
         self,
         INITIAL_STATE: SEIC_Compartments,

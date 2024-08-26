@@ -13,7 +13,7 @@ from cfa_azure.clients import AzureClient
 from cfa_azure.helpers import download_directory
 from plotly.subplots import make_subplots
 
-from mechanistic_model.utils import flatten_list_parameters
+from src.utils import flatten_list_parameters
 
 
 def build_azure_connection(

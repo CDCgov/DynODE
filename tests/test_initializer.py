@@ -1,20 +1,20 @@
 import pytest
 
-from mechanistic_model.covid_initializer import CovidInitializer
+from src import CovidSeroInitializer
 
 CONFIG_GLOBAL_PATH = "tests/test_config_global.json"
 INITIALIZER_CONFIG_PATH = "tests/test_config_initializer.json"
 
-initializer = CovidInitializer(INITIALIZER_CONFIG_PATH, CONFIG_GLOBAL_PATH)
+initializer = CovidSeroInitializer(INITIALIZER_CONFIG_PATH, CONFIG_GLOBAL_PATH)
 
 
 def test_invalid_paths_raise():
     with pytest.raises(FileNotFoundError):
-        CovidInitializer("random_broken_path", CONFIG_GLOBAL_PATH),
+        CovidSeroInitializer("random_broken_path", CONFIG_GLOBAL_PATH),
     with pytest.raises(FileNotFoundError):
-        CovidInitializer(INITIALIZER_CONFIG_PATH, "random_broken_path")
+        CovidSeroInitializer(INITIALIZER_CONFIG_PATH, "random_broken_path")
     with pytest.raises(FileNotFoundError):
-        CovidInitializer("random_broken_path", "random_broken_path2")
+        CovidSeroInitializer("random_broken_path", "random_broken_path2")
 
 
 def test_initial_state_returns():

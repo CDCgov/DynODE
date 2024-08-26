@@ -7,15 +7,20 @@ to produce an initial state representing some analyzed population
 
 from abc import ABC, abstractmethod
 
-import mechanistic_model.utils as utils
-from mechanistic_model import SEIC_Compartments
+from src import SEIC_Compartments, utils
 
 
-class MechanisticInitializer(ABC):
+class AbstractInitializer(ABC):
+    """
+    An Abstract class meant for use by disease-specific initializers.
+    an initializers sole responsibility is to return an INITIAL_STATE
+    parameter via self.get_initial_state().
+    """
+
     @abstractmethod
     def __init__(self, initializer_config):
         # add these for mypy
-        self.INITIAL_STATE = tuple()
+        self.INITIAL_STATE: SEIC_Compartments = tuple()
         self.config = {}
         pass
 

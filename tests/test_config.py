@@ -7,7 +7,7 @@ import json
 import numpyro.distributions as dist
 import pytest
 
-from config.config import Config, ConfigParserError
+from src.config.config import Config, ConfigParserError
 
 GLOBAL_TEST_CONFIG = "tests/test_config_global.json"
 PATH_VARIABLES = [
