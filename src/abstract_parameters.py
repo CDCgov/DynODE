@@ -14,11 +14,13 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pandas as pd  # type: ignore
+from diffrax import Solution
 from jax.scipy.stats.norm import pdf
 from jax.typing import ArrayLike
 
 from src import SEIC_Compartments, utils
 from src.config.config import Config
+from src.mechanistic_runner import MechanisticRunner
 
 
 class AbstractParameters:
@@ -60,6 +62,72 @@ class AbstractParameters:
         self.config: Config = {}
         self.INITIAL_STATE: SEIC_Compartments = tuple()
         pass
+
+    def _solve_runner(
+        self, parameters: dict, tf: int, runner: MechanisticRunner
+    ) -> Solution:
+        """runs the runner for `tf` days using parameters defined in `parameters`
+        returning a Diffrax Solution object
+
+        Parameters
+        ----------
+        parameters : dict
+            parameters object containing parameters required by the runner ODEs
+        tf : int
+            number of days to run the runner for
+        runner : MechanisticRunner
+            runner class designated with solving ODEs
+
+        Returns
+        -------
+        Solution
+            diffrax solution object returned from runner.run()
+        """
+        if "INITIAL_INFECTIONS_SCALE" in parameters.keys():
+            initial_state = self.scale_initial_infections(
+                parameters["INITIAL_INFECTIONS_SCALE"]
+            )
+        else:
+            initial_state = self.INITIAL_STATE
+        solution = runner.run(
+            initial_state,
+            args=parameters,
+            tf=tf,
+        )
+        return solution
+
+    def _solve_runner(
+        self, parameters: dict, tf: int, runner: MechanisticRunner
+    ) -> Solution:
+        """runs the runner for `tf` days using parameters defined in `parameters`
+        returning a Diffrax Solution object
+
+        Parameters
+        ----------
+        parameters : dict
+            parameters object containing parameters required by the runner ODEs
+        tf : int
+            number of days to run the runner for
+        runner : MechanisticRunner
+            runner class designated with solving ODEs
+
+        Returns
+        -------
+        Solution
+            diffrax solution object returned from runner.run()
+        """
+        if "INITIAL_INFECTIONS_SCALE" in parameters.keys():
+            initial_state = self.scale_initial_infections(
+                parameters["INITIAL_INFECTIONS_SCALE"]
+            )
+        else:
+            initial_state = self.INITIAL_STATE
+        solution = runner.run(
+            initial_state,
+            args=parameters,
+            tf=tf,
+        )
+        return solution
 
     def _get_upstream_parameters(self) -> dict:
         """

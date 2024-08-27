@@ -12,6 +12,7 @@ from plotly.graph_objects import Figure
 from shiny import App, Session, reactive, ui
 from shinywidgets import output_widget, render_plotly, render_widget
 
+import mechanistic_azure.azure_utilities as autils
 import shiny_visualizers.shiny_utils as sutils
 
 INPUT_BLOB_NAME = "scenarios-mechanistic-input"
@@ -68,11 +69,11 @@ POP_COUNTS_LOOKUP = pd.read_csv(
 )
 
 print("Connecting to Azure Storage")
-azure_client = sutils.build_azure_connection(
+azure_client = autils.build_azure_connection(
     input_blob_name=INPUT_BLOB_NAME, output_blob_name=OUTPUT_BLOB_NAME
 )
 print("Retrieving and Organizing Azure File Structure (approx 10 seconds)")
-blobs = sutils.get_blob_names(
+blobs = autils.get_blob_names(
     azure_client, name_starts_with=PRE_FILTER_EXPERIMENTS
 )
 output_blob = sutils.construct_tree(blobs)

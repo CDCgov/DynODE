@@ -1,5 +1,7 @@
 import os
 
+import cfa_azure.helpers
+from azure.core.paging import ItemPaged
 from cfa_azure.clients import AzureClient
 
 from src.utils import find_files, sort_filenames_by_suffix
@@ -322,3 +324,99 @@ class AzureExperimentLauncher:
                 postprocess_task_ids += postprocess_task_id
 
         return postprocess_task_ids
+
+
+def build_azure_connection(
+    config_path: str = "secrets/configuration_cfaazurebatchprd.toml",
+    input_blob_name: str = "scenarios-mechanistic-input",
+    output_blob_name: str = "scenarios-mechanistic-output",
+) -> AzureClient:
+    """builds an AzureClient and connects input and output blobs
+    found in INPUT_BLOB_NAME and OUTPUT_BLOB_NAME global vars.
+
+    Parameters
+    ----------
+    config_path : str, optional
+        path to your authentication toml, should not be public, by default "secrets/configuration_cfaazurebatchprd.toml"
+
+    Returns
+    -------
+    AzureClient object
+    """
+    client = AzureClient(config_path=config_path)
+    client.set_input_container(input_blob_name, "input")
+    client.set_output_container(output_blob_name, "output")
+    return client
+
+
+def get_blob_names(
+    azure_client: AzureClient, name_starts_with: str
+) -> ItemPaged[str]:
+    """returns the blobs stored in OUTPUT_BLOB_NAME on Azure Storage Account
+
+    Parameters
+    ----------
+    azure_client : AzureClient
+        the Azure client with the correct authentications to access the data, built from `build_azure_connection`
+
+    Returns
+    -------
+    Iterator[str]
+        an iterator of each blob, including directories: e.g\n
+        root \n
+        root/fol1 \n
+        root/fol1/fol2 \n
+        root/fol1/fol2/file.txt \n
+    """
+    return azure_client.out_cont_client.list_blob_names(
+        name_starts_with=name_starts_with
+    )
+
+
+def download_directory_from_azure(
+    azure_client: AzureClient,
+    azure_dirs: list[str] | str,
+    dest: str,
+    overwrite: bool = False,
+) -> list[str]:
+    """Downloads one or multiple azure directories, including all subdirectories
+    found within azure_dir. Preserves their directory structure, appending them to `dest`.
+
+    Parameters
+    ----------
+    azure_client : AzureClient
+        AzureClient authenticated and connected to storage from which this action will be preformed
+    azure_dir : list[str] | str
+        azure directory/directories to download
+    dest : str
+        location to place downloaded `azure_dirs`
+    override : bool, optional
+        whether to overwrite directories matching `azure_dirs` within `dest`, by default False
+
+    Returns
+    -------
+    list[str]
+        directories that were successfully written
+
+    Raises
+    --------
+    ValueError if a directory within `azure_dirs` does not exist on storage.
+    """
+    written_dirs = []
+    if isinstance(azure_dirs, str):
+        azure_dirs = [azure_dirs]
+    for azure_dir in azure_dirs:
+        dest_path = os.path.join(dest, azure_dir)
+        # if path does not exist on local OR we are overwriting anyways
+        if not os.path.exists(dest_path) or overwrite:
+            try:
+                cfa_azure.helpers.download_directory(
+                    azure_client.out_cont_client, azure_dir, dest
+                )
+                written_dirs.append(dest_path)
+            except ValueError as e:
+                raise ValueError(
+                    "failed to download %s, but not before successfully downloading %s"
+                    % (dest_path, str(written_dirs))
+                ) from e
+    return written_dirs

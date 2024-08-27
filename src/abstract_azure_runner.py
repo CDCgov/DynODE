@@ -1,8 +1,9 @@
 """
-The following abstract class defines a mechanistic_initializer,
-which is used by mechanistic_runner instances to initialize the state on which ODEs will be run.
-mechanistic_initializers will often be tasked with reading, parsing, and combining data sources
-to produce an initial state representing some analyzed population
+The following abstract class defines a an abstract_azure_runner,
+commonly used to accelerate runs of the model onto azure this file
+aids the user in the production of timeseries to describe a model run
+
+It also handles the saving of stderr and stdout copies as the job executes.
 """
 
 import copy
