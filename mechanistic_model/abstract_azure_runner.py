@@ -18,6 +18,7 @@ from diffrax import Solution  # type: ignore
 from jax import Array
 
 import mechanistic_model.utils as utils
+from mechanistic_model import SEIC_Compartments
 from mechanistic_model.abstract_parameters import AbstractParameters
 from mechanistic_model.mechanistic_inferer import MechanisticInferer
 from mechanistic_model.static_value_parameters import StaticValueParameters
