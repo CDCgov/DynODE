@@ -198,8 +198,16 @@ def set_downstream_age_variables(conf, _):
     conf.AGE_GROUP_IDX = IntEnum("age", conf.AGE_GROUP_STRS, start=0)
 
 
-def set_num_waning_compartments(conf, _):
+def set_num_waning_compartments_and_rates(conf, _):
     conf.NUM_WANING_COMPARTMENTS = len(conf.WANING_TIMES)
+    # odes often need waning rates not times
+    # since last waning compartment set to 0, avoid a div by zero error here
+    conf.WANING_RATES = np.array(
+        [
+            1 / waning_time if waning_time > 0 else 0
+            for waning_time in conf.WANING_TIMES
+        ]
+    )
 
 
 def set_num_introduced_strains(conf, _):
@@ -576,7 +584,7 @@ PARAMETERS = [
             lambda key, vals: test_zero(key, vals[-1]),
             lambda key, vals: [test_type(key, val, int) for val in vals],
         ],
-        "downstream": set_num_waning_compartments,
+        "downstream": set_num_waning_compartments_and_rates,
     },
     {
         "name": "NUM_WANING_COMPARTMENTS",

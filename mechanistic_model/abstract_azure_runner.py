@@ -103,6 +103,124 @@ class AbstractAzureRunner(ABC):
             return _pad_fn(series, index_len, pad)
         return series
 
+    def _get_vaccination_timeseries(
+        self, vaccination_func, num_days_predicted
+    ) -> np.ndarray:
+        """gets num individuals vaccinated by day and age bin
+
+        Parameters
+        ----------
+        vaccination_func : Callable[int]
+            function to generate vaccinations on a given day
+        num_days_predicted : int
+            number of days the simulation was run for
+
+        Returns
+        -------
+        np.ndarray
+            timeseries of shape (num_days_predicted, age) containing the
+            output of vax_function applied on that day summed across all different vaccine stratifications
+        """
+        return np.array(
+            [
+                np.sum(vaccination_func(t), axis=1)
+                for t in range(num_days_predicted)
+            ]
+        )
+
+    def _get_seasonality_timeseries(
+        self, seasonality_func, num_days_predicted: int
+    ) -> np.ndarray:
+        """gets seasonality coefficient by day
+
+        Parameters
+        ----------
+        seasonality_func : Callable[int]
+            function to generate seasonality coefficients in the model
+        num_days_predicted : int
+            number of days the simulation was run for
+
+        Returns
+        -------
+        np.ndarray
+            timeseries of shape (num_days_predicted,) containing the output of seasonality_func applied on that day
+        """
+        return np.array(
+            [seasonality_func(t) for t in range(num_days_predicted)]
+        )
+
+    def _get_external_infection_timeseries(
+        self,
+        external_i_func,
+        num_days_predicted: int,
+        model: AbstractParameters,
+    ) -> np.ndarray:
+        """generates the external_introduction counts by day and strain
+
+        Parameters
+        ----------
+        external_i_func : Callable[int]
+            function to generate externally introduced people
+        num_days_predicted : int
+            number of days the simulation was run for
+        model : AbstractParameters
+            parameters object for enum lookup
+
+        Returns
+        -------
+        np.ndarray
+            timseries of all external introductions of shape (num_days_predicted, model.config.NUM_STRAINS)
+        """
+        # sum across age groups since we do % of each age bin anyways
+        return np.array(
+            [
+                np.sum(
+                    external_i_func(t),
+                    axis=(
+                        model.config.I_AXIS_IDX.age,
+                        model.config.I_AXIS_IDX.hist,
+                        model.config.I_AXIS_IDX.vax,
+                    ),
+                )
+                for t in range(num_days_predicted)
+            ]
+        )
+
+    def _get_sero_proportion_timeseries(
+        self,
+        compartment_timeseries: SEIC_Compartments,
+        model: AbstractParameters,
+    ) -> np.ndarray:
+        """given a timeseries of infections, finds individuals who
+        have never been infected, and uses that to calculate the predicted sero-positive
+        proportion among the population by day.
+
+        Parameters
+        ----------
+        infections : SEIC_Compartments
+            tuple of jax arrays containing a timeseries of each compartment's values
+            on a given day.
+        model : AbstractParameters
+            a parameter object containing a config.S_AXIS_IDX enum for lookups and
+            a config.POPULATION array for population counts
+
+        Returns
+        -------
+        np.ndarray
+            array of two dimensions (time, age) matching the first two dimensions
+            of the Susceptible compartment's timeseries
+        """
+        # select timeline of those with infect_hist 0, sum over all vax/wane tiers
+        never_infected = np.sum(
+            compartment_timeseries[model.config.COMPARTMENT_IDX.S][
+                :, :, 0, :, :
+            ],
+            axis=(model.config.S_AXIS_IDX.vax, model.config.S_AXIS_IDX.wane),
+        )
+        # 1-never_infected is those sero-positive / POPULATION to make proportions
+        sim_sero = 1 - never_infected / model.config.POPULATION
+        return sim_sero
+
     def _generate_model_component_timelines(
         self,
         model: AbstractParameters,
@@ -143,10 +261,10 @@ class AbstractAzureRunner(ABC):
         pd.DataFrame
             a pandas dataframe with a "date" column along with a number of views of the model output
         """
-        infections = solution.ys
-        num_days_predicted = infections[model.config.COMPARTMENT_IDX.S].shape[
-            0
-        ]
+        compartment_timeseries = solution.ys
+        num_days_predicted = compartment_timeseries[
+            model.config.COMPARTMENT_IDX.S
+        ].shape[0]
         timeline = [
             utils.sim_day_to_date(day, model.config.INIT_DATE)
             for day in range(num_days_predicted)
@@ -154,44 +272,27 @@ class AbstractAzureRunner(ABC):
         df = pd.DataFrame()
         df["date"] = timeline
         parameters = model.get_parameters()
-        vaccination_func = parameters["VACCINATION_RATES"]
-        seasonality_func = parameters["SEASONALITY"]
-        external_i_func = parameters["EXTERNAL_I"]
         # save a timeline of shape (num_days_predicted, age_groups)
         # sum across vax status
-        vaccination_timeline = np.array(
-            [
-                np.sum(vaccination_func(t), axis=1)
-                for t in range(num_days_predicted)
-            ]
+        vaccination_timeline = self._get_vaccination_timeseries(
+            vaccination_func=parameters["VACCINATION_RATES"],
+            num_days_predicted=num_days_predicted,
         )
         # save a seasonality timeline of shape (num_days_predicted, )
-        seasonality_timeline = np.array(
-            [seasonality_func(t) for t in range(num_days_predicted)]
+        df["seasonality_coef"] = self._get_seasonality_timeseries(
+            seasonality_func=parameters["SEASONALITY"],
+            num_days_predicted=num_days_predicted,
         )
-        df["seasonality_coef"] = seasonality_timeline
         # save external introductions timeline of shape (num_days_predicted, num_strains)
-        # sum across age groups since we do % of each age bin anyways
-        external_i_timeline = np.array(
-            [
-                np.sum(
-                    external_i_func(t),
-                    axis=(
-                        model.config.I_AXIS_IDX.age,
-                        model.config.I_AXIS_IDX.hist,
-                        model.config.I_AXIS_IDX.vax,
-                    ),
-                )
-                for t in range(num_days_predicted)
-            ]
+        external_i_timeline = self._get_external_infection_timeseries(
+            external_i_func=parameters["EXTERNAL_I"],
+            num_days_predicted=num_days_predicted,
+            model=model,
         )
-        # select timeline of those with infect_hist 0, sum over all vax/wane tiers
-        never_infected = np.sum(
-            infections[model.config.COMPARTMENT_IDX.S][:, :, 0, :, :],
-            axis=(model.config.S_AXIS_IDX.vax, model.config.S_AXIS_IDX.wane),
+        sim_sero = self._get_sero_proportion_timeseries(
+            compartment_timeseries=compartment_timeseries, model=model
         )
-        # 1-never_infected is those sero-positive / POPULATION to make proportions
-        sim_sero = 1 - never_infected / model.config.POPULATION
+
         for age_bin_str in model.config.AGE_GROUP_STRS:
             age_bin_idx = model.config.AGE_GROUP_IDX[age_bin_str]
             age_bin_str = age_bin_str.replace("-", "_")
@@ -208,7 +309,7 @@ class AbstractAzureRunner(ABC):
             df["sero_%s" % (age_bin_str)] = sim_sero[:, age_bin_idx]
         # get total infection incidence
         infection_incidence, _ = utils.get_timeline_from_solution_with_command(
-            infections,
+            compartment_timeseries,
             model.config.COMPARTMENT_IDX,
             model.config.WANE_IDX,
             model.config.STRAIN_IDX,
@@ -222,7 +323,7 @@ class AbstractAzureRunner(ABC):
         )
         # get strain proportion by strain for each day
         strain_proportions, _ = utils.get_timeline_from_solution_with_command(
-            infections,
+            compartment_timeseries,
             model.config.COMPARTMENT_IDX,
             model.config.WANE_IDX,
             model.config.STRAIN_IDX,
@@ -247,8 +348,17 @@ class AbstractAzureRunner(ABC):
             ]
         return df
 
+    def _save_samples(self, samples, save_path):
+        # convert np arrays to lists
+        for param in samples.keys():
+            samples[param] = samples[param].tolist()
+        json.dump(samples, open(save_path, "w"))
+
     def save_inference_posteriors(
-        self, inferer: MechanisticInferer, save_filename="checkpoint.json"
+        self,
+        inferer: MechanisticInferer,
+        save_filename="checkpoint.json",
+        exclude_prefixes=["final_timestep"],
     ) -> None:
         """saves output of mcmc.get_samples(), does nothing if `inferer` has not compelted inference yet.
 
@@ -258,21 +368,69 @@ class AbstractAzureRunner(ABC):
             inferer that was run with `inferer.infer()`
         save_filename : str, optional
             output filename, by default "checkpoint.json"
-
+        exclude_prefixes: list[str], optional
+            a list of strs that, if found in a sample name, are exlcuded from the saved json.
+            This is common for large logging info that will bloat filesize like, by default ["final_timestep"]
         Returns
         ------------
         None
         """
         # if inference complete, convert jnp/np arrays to list, then json dump
         if inferer.infer_complete:
-            samples = inferer.inference_algo.get_samples(group_by_chain=True)
-            for param in samples.keys():
-                samples[param] = samples[param].tolist()
+            samples: dict = inferer.inference_algo.get_samples(
+                group_by_chain=True
+            )
+            # drop anything with a prefix found in exclude_prefixes
+            samples = {
+                name: posterior
+                for name, posterior in samples.items()
+                if not any([prefix in name for prefix in exclude_prefixes])
+            }
             save_path = os.path.join(self.azure_output_dir, save_filename)
-            json.dump(samples, open(save_path, "w"))
+            self._save_samples(samples, save_path)
         else:
             warnings.warn(
                 "attempting to call `save_inference_posteriors` before inference is complete. Something is likely wrong..."
+            )
+
+    def save_inference_final_timesteps(
+        self,
+        inferer: MechanisticInferer,
+        save_filename="final_timesteps.json",
+        final_timestep_identifier="final_timestep",
+    ):
+        """saves the `final_timestep` posterior, if it is found in mcmc.get_samples(), otherwise raises a warning
+        and saves nothing
+
+        Parameters
+        ----------
+        inferer : MechanisticInferer
+            inferer that was run with `inferer.infer()`
+        save_filename : str, optional
+            output filename, by default "final_timesteps.json"
+        final_timestep_identifier : str, optional
+            prefix attached to the final_timestep parameter, by default "final_timestep"
+        """
+        # if inference complete, convert jnp/np arrays to list, then json dump
+        if inferer.infer_complete:
+            samples = inferer.inference_algo.get_samples(group_by_chain=True)
+            final_timesteps = {
+                name: timesteps
+                for name, timesteps in samples.items()
+                if final_timestep_identifier in name
+            }
+            # if it is empty, warn the user, save nothing
+            if final_timesteps:
+                save_path = os.path.join(self.azure_output_dir, save_filename)
+                self._save_samples(final_timesteps, save_path)
+            else:
+                warnings.warn(
+                    "attempting to call `save_inference_final_timesteps` but failed to find any final_timesteps with prefix %s"
+                    % final_timestep_identifier
+                )
+        else:
+            warnings.warn(
+                "attempting to call `save_inference_final_timesteps` before inference is complete. Something is likely wrong..."
             )
 
     def save_inference_timelines(
@@ -287,7 +445,7 @@ class AbstractAzureRunner(ABC):
         """saves history of inferer sampled values for use by the azure visualizer.
         saves CSV file to `self.azure_output_dir/timeline_filename`.
         Look at `shiny_visualizers/azure_visualizer.py` for logic on parsing and visualizing the chains.
-        Will error if inferer.infer() has not been run previous to this call.
+        Will error if inferer.infer() has not been run previous to this call or an external_particle is passed.
 
         Parameters
         ----------
@@ -295,7 +453,7 @@ class AbstractAzureRunner(ABC):
             the inferer object used to sample the parameter chains that will be visualized
         timeline_filename : str, optional
             filename to be saved under.
-            DONT CHANGE WITHOUT MODIFICATION to `shiny_visualizers/azure_visualizer.py`, by default "azure_visualizer_timeline.csv"
+            DONT CHANGE WITHOUT MODIFICATION to downstream postprocessing scripts, by default "azure_visualizer_timeline.csv"
         particles_saved : int, optional
             the number of particles per chain to save timelines for, by default 1
         extra_timelines: pd.DataFrame, optional
