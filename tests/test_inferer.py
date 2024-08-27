@@ -8,15 +8,8 @@ from src import (
     MechanisticInferer,
     MechanisticRunner,
     StaticValueParameters,
-    seip_ode,
 )
-
-# from src.config.config import Config
-# from src.mechanistic_inferer import MechanisticInferer
-# from src.mechanistic_runner import MechanisticRunner
-# from src.static_value_parameters import StaticValueParameters
-# from src.model_odes.seip_model import
-
+from src.model_odes.seip_model import seip_ode
 
 runner = MechanisticRunner(seip_ode)
 GLOBAL_CONFIG_PATH = "tests/test_config_global.json"

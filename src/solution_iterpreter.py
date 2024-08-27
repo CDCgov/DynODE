@@ -18,7 +18,7 @@ from diffrax import Solution
 from PIL.PngImagePlugin import PngInfo
 
 from src import utils
-from src.config.config import Config
+from src.config import Config
 
 
 class SolutionInterpreter:

@@ -23,5 +23,5 @@ RUN poetry install --no-interaction --no-ansi
 # now copy in the mechanistic model code and config code
 # we will upload the experiment itself into the cloud and refer to from /input
 COPY ./src/ /app/src
-COPY ./src/config/config.py /app/src/config/config.py
-COPY ./src/model_odes/seip_model.py /app/src/model_odes/seip_model.py
+COPY ./mechanistic_azure/abstract_azure_runner.py /app/mechanistic_azure/abstract_azure_runner.py
+COPY ./mechanistic_azure/azure_utilities.py /app/mechanistic_azure/azure_utilities.py

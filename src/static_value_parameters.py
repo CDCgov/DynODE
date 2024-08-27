@@ -5,7 +5,7 @@ no parameters are being sampled, and thus no complex inference or fitting is nee
 
 from src import SEIC_Compartments
 from src.abstract_parameters import AbstractParameters
-from src.config.config import Config
+from src.config import Config
 
 
 class StaticValueParameters(AbstractParameters):

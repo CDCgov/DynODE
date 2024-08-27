@@ -1,7 +1,7 @@
 """
-The following abstract class defines a mechanistic_initializer,
-which is used by mechanistic_runner instances to initialize the state on which ODEs will be run.
-mechanistic_initializers will often be tasked with reading, parsing, and combining data sources
+A module that creates an abstract class for an initializer object.
+An initializer objects primary purpose is initialize the state on which ODEs will be run.
+AbstractInitializers will often be tasked with reading, parsing, and combining data sources
 to produce an initial state representing some analyzed population
 """
 

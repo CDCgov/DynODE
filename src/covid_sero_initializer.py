@@ -6,7 +6,7 @@ import pandas as pd
 
 import src.utils as utils
 from src.abstract_initializer import AbstractInitializer
-from src.config.config import Config
+from src.config import Config
 
 
 class CovidSeroInitializer(AbstractInitializer):

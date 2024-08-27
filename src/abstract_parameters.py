@@ -1,5 +1,6 @@
 """
-An Abstract Class used to set up Parameters for running in Ordinary Differential Equations.
+A module containing an abstract class used to set up parameters f
+or running in Ordinary Differential Equations (ODEs).
 
 Responsible for loading and assembling functions to describe vaccination uptake, seasonality,
 external transmission of new or existing viruses and other generic respiratory virus aspects.
@@ -19,7 +20,7 @@ from jax.scipy.stats.norm import pdf
 from jax.typing import ArrayLike
 
 from src import SEIC_Compartments, utils
-from src.config.config import Config
+from src.config import Config
 from src.mechanistic_runner import MechanisticRunner
 
 

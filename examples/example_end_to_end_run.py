@@ -38,7 +38,7 @@ if __name__ == "__main__":
     infer = args.infer
 
     # step 1: define your paths
-    config_path = "config/"
+    config_path = "src/config/"
     # global_config include definitions such as age bin bounds and strain definitions
     # Any value or data structure that needs context to be interpretted is here.
     GLOBAL_CONFIG_PATH = config_path + "config_global.json"

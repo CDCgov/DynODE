@@ -21,7 +21,7 @@ from numpyro.infer import MCMC, NUTS  # type: ignore
 import src.utils as utils
 from src import SEIC_Compartments
 from src.abstract_parameters import AbstractParameters
-from src.config.config import Config
+from src.config import Config
 from src.mechanistic_runner import MechanisticRunner
 
 
