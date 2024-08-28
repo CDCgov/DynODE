@@ -1,7 +1,7 @@
 {
     "INITALIZER_NAME": "base initializer covid",
-    "SEROLOGICAL_DATA_PATH": "/input/data/serological-data/sero-initializer-csvs",
-    "CONTACT_MATRIX_PATH": "/input/data/demographic-data/contact_matrices",
+    "SEROLOGICAL_DATA_PATH": "data/serological-data/sero-initializer-csvs",
+    "CONTACT_MATRIX_PATH": "data/demographic-data/contact_matrices",
     "POP_SIZE": 1000000,
     "INITIAL_INFECTIONS": 32000,
     "WANING_PROTECTIONS": [
