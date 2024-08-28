@@ -45,7 +45,7 @@ class MechanisticInferer(AbstractParameters):
         self.config = Config(global_json).add_file(distributions_json)
         self.runner = runner
         self.INITIAL_STATE = initial_state
-        self.infer_complete = False  # flag once inference completes
+        self.infer_complete = False
         self.set_infer_algo(prior_inferer=prior_inferer)
         self.retrieve_population_counts()
         self.load_vaccination_model()

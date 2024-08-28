@@ -1,6 +1,6 @@
 """
-A module containing an abstract class used to set up parameters f
-or running in Ordinary Differential Equations (ODEs).
+A module containing an abstract class used to set up parameters for
+running in Ordinary Differential Equations (ODEs).
 
 Responsible for loading and assembling functions to describe vaccination uptake, seasonality,
 external transmission of new or existing viruses and other generic respiratory virus aspects.
@@ -25,7 +25,7 @@ from src.mechanistic_runner import MechanisticRunner
 
 
 class AbstractParameters:
-    """An class to define a disease-agnostic parameters object for running disease models.
+    """A class to define a disease-agnostic parameters object for running disease models.
     Manages parameter passing and creation, as well as definition of
     seasonality, vaccination, external introductions, and external beta shifting functions
     """
@@ -97,39 +97,6 @@ class AbstractParameters:
         )
         return solution
 
-    def _solve_runner(
-        self, parameters: dict, tf: int, runner: MechanisticRunner
-    ) -> Solution:
-        """runs the runner for `tf` days using parameters defined in `parameters`
-        returning a Diffrax Solution object
-
-        Parameters
-        ----------
-        parameters : dict
-            parameters object containing parameters required by the runner ODEs
-        tf : int
-            number of days to run the runner for
-        runner : MechanisticRunner
-            runner class designated with solving ODEs
-
-        Returns
-        -------
-        Solution
-            diffrax solution object returned from runner.run()
-        """
-        if "INITIAL_INFECTIONS_SCALE" in parameters.keys():
-            initial_state = self.scale_initial_infections(
-                parameters["INITIAL_INFECTIONS_SCALE"]
-            )
-        else:
-            initial_state = self.INITIAL_STATE
-        solution = runner.run(
-            initial_state,
-            args=parameters,
-            tf=tf,
-        )
-        return solution
-
     def _get_upstream_parameters(self) -> dict:
         """
         returns a dictionary containing self.UPSTREAM_PARAMETERS, erroring if any of the parameters
@@ -148,7 +115,6 @@ class AbstractParameters:
         # multiple chains of MCMC calling get_parameters()
         # should not share references, deep copy, GH issue for this created
         freeze_params = copy.deepcopy(self.config)
-        # go through self.UPSTREAM_PARAMETERS, add them all to a dict
         parameters = {}
         for parameter in self.UPSTREAM_PARAMETERS:
             if hasattr(freeze_params, parameter):
@@ -188,25 +154,22 @@ class AbstractParameters:
             an appended onto version of `parameters` with additional downstream parameters added.
         """
         try:
-            # re-create the CROSSIMMUNITY_MATRIX since we may be sampling the STRAIN_INTERACTIONS matrix now
+            # create or re-recreate parameters based on other possibly sampled parameters
             parameters[
                 "CROSSIMMUNITY_MATRIX"
             ] = utils.strain_interaction_to_cross_immunity(
                 parameters["NUM_STRAINS"],
                 parameters["STRAIN_INTERACTIONS"],
             )
-            # create parameters based on other possibly sampled parameters
             beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
             gamma = 1 / parameters["INFECTIOUS_PERIOD"]
             sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]
-            # allows the ODEs to just pass time as a parameter, makes them look cleaner
             external_i_function_prefilled = jax.tree_util.Partial(
                 self.external_i,
                 introduction_times=parameters["INTRODUCTION_TIMES"],
                 introduction_scales=parameters["INTRODUCTION_SCALES"],
                 introduction_pcts=parameters["INTRODUCTION_PCTS"],
             )
-            # # pre-calculate the minimum value of the seasonality curves
             seasonality_function_prefilled = jax.tree_util.Partial(
                 self.seasonality,
                 seasonality_amplitude=parameters["SEASONALITY_AMPLITUDE"],
@@ -450,8 +413,9 @@ class AbstractParameters:
             if seasonality_shift=0, peak occurs at t=0.
         Returns
         -----------
-        Seasonality coefficient signaling an increase (>1) or decrease (<1)
-        in transmission due to the impact of seasonality.
+        <ArrayLike | Float>
+            Seasonality coefficient signaling an increase (>1) or decrease (<1)
+            in transmission due to the impact of seasonality.
 
         """
         # cosine curves are defined by a cycle of 365 days begining at jan 1st

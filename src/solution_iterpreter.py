@@ -5,7 +5,6 @@ and is responsible for ensuring reproducibility and replicability of model outpu
 
 import datetime
 import json
-import warnings
 from enum import EnumMeta
 
 import diffrax
@@ -15,7 +14,6 @@ import matplotlib.figure
 import matplotlib.pyplot as plt
 import numpy as np
 from diffrax import Solution
-from PIL.PngImagePlugin import PngInfo
 
 from src import utils
 from src.config import Config
@@ -33,8 +31,6 @@ class SolutionInterpreter:
         solution_parameters_json = open(solution_parameters_path, "r").read()
         global_json = open(global_variables_path, "r").read()
         config = Config(global_json).add_file(solution_parameters_json)
-        # grab all parameters passed from global and initializer configs
-        # TODO, move away from loading config into self
         self.__dict__.update(**config.__dict__)
         self.solution = solution
         self.pyplot_theme = None  # TODO set a consistent theme
@@ -298,16 +294,7 @@ class SolutionInterpreter:
         None
         """
         if save_path:
-            metadata = PngInfo()
-            if self.LOCAL_REPO.is_dirty():
-                warnings.warn(
-                    """\n Uncommitted Changes Warning: In order to ensure replicability of your image,
-                    please commit/push your changes so that the commit
-                    hash may be saved in the meta data of this image, along with config parameters. \n
-                    Reproducibility is pivotal to science!"""
-                )
-            metadata.add_text("model", self.to_json())
-            fig.savefig(save_path, pil_kwargs={"pnginfo": metadata})
+            fig.savefig(save_path)
 
     def to_json(self, file=None):
         """

@@ -1,3 +1,7 @@
+"""This module defines a covid initializer that uses serology data combined with
+an interaction and immunity matrix to create an
+initial state of immunity, exposed, and infectious individuals."""
+
 import os
 
 import jax.numpy as jnp

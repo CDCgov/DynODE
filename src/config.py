@@ -1,3 +1,12 @@
+"""
+A module meant for the parsing of JSON config files.
+
+All unknown parameters are parsed as they appear after the json.loads() command.
+known parameters are identified by their existence in the PARAMETERS list global variable.
+
+For more information read the comment directly above the PARAMETERS list definition.
+"""
+
 import datetime
 import json
 import os
@@ -22,6 +31,21 @@ class Config:
         self.add_file(config_json_str)
 
     def add_file(self, config_json_str):
+        """loads a JSON string into self,
+        overriding any shared names, asserting valid configuration of parameters,
+        and setting any downstream parameters.
+
+        Parameters
+        ----------
+        config_json_str : str
+            JSON string representing a dictionary you wish to add into self
+
+        Returns
+        -------
+        Config
+            self with the parameters from `config_json_str` added on, as well as
+            any downstream parameters generated.
+        """
         # adds another config to self.__dict__ and resets downstream parameters again
         config = json.loads(
             config_json_str, object_hook=distribution_converter
@@ -60,13 +84,10 @@ class Config:
         """
         for parameter in PARAMETERS:
             key = parameter["name"]
-            # if the key has no downstream functions, do nothing
             if "downstream" in parameter.keys():
                 downstream_function = parameter["downstream"]
-                # turn into list of len(1) if not already
                 if not isinstance(key, list):
                     key = [key]
-                # dont try to create downstream unless config has all necessary keys
                 if all([hasattr(self, k) for k in key]):
                     downstream_function(self, key)
 
