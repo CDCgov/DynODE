@@ -1,0 +1,23 @@
+// medium prio = mostly dedicated nodes in queue, use low-prio to fill in holes
+// In this example, the pool size is adjusted based on the number of tasks in the queue.
+// Note that both comments and line breaks are acceptable in formula strings.
+
+// Get pending tasks for the past 15 minutes.
+$samples = $ActiveTasks.GetSamplePercent(TimeInterval_Minute * 15);
+
+// If we have fewer than 70 percent data points, we use the last sample point, otherwise we use the maximum of last sample point and the history average.
+$tasks = $samples < 70 ? max(0, $ActiveTasks.GetSample(1)) :
+max( $ActiveTasks.GetSample(1), avg($ActiveTasks.GetSample(TimeInterval_Minute * 15)));
+
+// If number of pending tasks is not 0, set targetVM to pending tasks, otherwise half of current dedicated.
+$targetVMs = $tasks > 0 ? $tasks : max(0, $TargetDedicatedNodes / 2);
+
+// The pool size is capped at 120, if target VM value is more than that, set it to 120.
+cappedPoolSize = 120;
+$TargetDedicatedNodes = max(0, min($targetVMs, cappedPoolSize));
+$TargetLowPriorityNodes = min($tasks - $TargetDedicatedNodes, 220);
+
+//$TargetLowPriorityNodes = max(0, $TargetDedicatedNodes - $CurrentDedicatedNodes);
+
+// Set node deallocation mode - keep nodes active only until tasks finish
+$NodeDeallocationOption = taskcompletion;

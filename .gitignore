@@ -77,6 +77,7 @@ testing.py
 !pyproject.toml
 !azure/docker_template_configs/*.json
 !exp/example_azure_experiment/example_template_configs/*.json
+!mechanistic_azure/autoscale/*.txt
 
 #####
 # Python
