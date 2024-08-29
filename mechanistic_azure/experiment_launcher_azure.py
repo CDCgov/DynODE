@@ -10,6 +10,13 @@ from mechanistic_azure.azure_utilities import AzureExperimentLauncher
 # specify job ID, cant already exist
 
 DOCKER_IMAGE_TAG = "scenarios-image-28-8-24"
+# must be 8, 4, or 2
+CPU_COUNT = 8
+# must be "high", "medium", "low"
+# "high": Use dedicated nodes only
+# "medium": Use dedicated nodes mostly, low priority nodes to fill in gaps
+# "low": Use 80% dedicated nodes, 20% low priority nodes
+PRIORITY = "high"
 # number of seconds of a full experiment run before timeout
 # for `s` states to run and `n` nodes dedicated,`s/n` * runtime 1 state secs needed
 EXPERIMENTS_DIRECTORY = "exp"
@@ -42,9 +49,10 @@ launcher = AzureExperimentLauncher(
     docker_image_name=DOCKER_IMAGE_TAG,
 )
 launcher.set_resource_pool(
-    pool_name="scenarios_8cpu_pool_high_priority",
+    pool_name="scenarios_%scpu_pool_%s_priority" % (CPU_COUNT, PRIORITY),
     create=False,
-    autoscale_formula_path="mechanistic_azure/autoscale/high_prio_autoscale.txt",
+    autoscale_formula_path="mechanistic_azure/autoscale/%s_prio_autoscale.txt"
+    % PRIORITY,
 )
 all_tasks_run = []
 # all experiments will be placed under the same jobid,

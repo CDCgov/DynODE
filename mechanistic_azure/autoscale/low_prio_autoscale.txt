@@ -13,10 +13,10 @@ max($ActiveTasks.GetSample(1), avg($ActiveTasks.GetSample(TimeInterval_Minute * 
 cappedPoolSize = 120;
 
 // Calculate target VMs for low priority nodes (20%)
-$targetLowPriorityVMs = max(0, min(int($tasks * 0.2), cappedPoolSize));
+$targetLowPriorityVMs = max(0, min(floor($tasks * 0.2), cappedPoolSize));
 
 // Calculate target VMs for dedicated nodes (80%)
-$targetDedicatedVMs = max(0, min(int($tasks * 0.8), cappedPoolSize));
+$targetDedicatedVMs = max(0, min(ceil($tasks * 0.8), cappedPoolSize));
 
 // Calculate total target VMs by summing up low priority and dedicated VM targets
 $totalTargetVMs = $targetLowPriorityVMs + $targetDedicatedVMs;
