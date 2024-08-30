@@ -1,0 +1,110 @@
+{
+    "SCENARIO_NAME": "test covid run for testing suite",
+    "CONTACT_MATRIX_PATH": "/input/data/demographic-data/contact_matrices",
+    "SAVE_PATH": "/output/",
+    "HOSP_PATH": "/input/data/hospitalization-data",
+    "SERO_PATH": "/input/data/serological-data/fitting-2022/",
+    "VAR_PATH": "/input/data/variant-data/fitting-2022/",
+    "VACCINATION_MODEL_DATA": "/input/data/vaccination-data/2022_02_11_to_2024_04_27",
+    "SEASONAL_VACCINATION": false,
+    "STRAIN_R0s": [
+        7.0, 7.0, 7.0, 7.0, 7.0
+    ],
+    "INFECTIOUS_PERIOD": 7.0,
+    "EXPOSED_TO_INFECTIOUS": 3.6,
+    "INITIAL_INFECTIONS_SCALE": 1.0,
+    "INTRODUCTION_TIMES": [],
+    "CONSTANT_STEP_SIZE": 0,
+    "INTRODUCTION_PCTS": [],
+    "INTRODUCTION_SCALES": [],
+    "INTRODUCTION_AGE_MASK": [
+        true
+    ],
+    "MIN_HOMOLOGOUS_IMMUNITY": 0.25,
+    "WANING_PROTECTIONS": [
+        1.0,
+        1.0,
+        1.0,
+        0.0
+    ],
+    "STRAIN_INTERACTIONS": [
+        [
+            1.0,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        [
+            0.9,
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        [
+            0.7,
+            0.9,
+            1.0,
+            1.0,
+            1.0
+        ],
+        [
+            0.5,
+            0.7,
+            0.9,
+            1.0,
+            1.0
+        ],
+        [
+            0.3,
+            0.5,
+            0.7,
+            0.9,
+            1.0
+        ]
+    ],
+    "VACCINE_EFF_MATRIX": [
+        [
+            0,
+            0.35,
+            0.70
+        ],
+        [
+            0,
+            0.30,
+            0.60
+        ],
+        [
+            0,
+            0.25,
+            0.50
+        ],
+        [
+            0,
+            0.20,
+            0.40
+        ],
+        [
+            0,
+            0.095,
+            0.19
+        ]
+    ],
+    "BETA_TIMES": [
+        0.0
+    ],
+    "BETA_COEFICIENTS": [
+        1.0
+    ],
+    "SEASONALITY_AMPLITUDE": 0.0,
+    "SEASONALITY_SECOND_WAVE":  0.0,
+    "SEASONALITY_SHIFT": 0.0,
+    "INFERENCE_PRNGKEY": 8675315,
+    "INFERENCE_NUM_WARMUP": 1000,
+    "INFERENCE_NUM_SAMPLES": 1000,
+    "INFERENCE_NUM_CHAINS": 4,
+    "INFERENCE_PROGRESS_BAR": true,
+    "MAX_TREE_DEPTH": 9,
+    "MODEL_RAND_SEED": 8675316
+}

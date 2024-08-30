@@ -270,6 +270,7 @@ def seip_ode2(state: PyTree, t: ArrayLike, parameters: dict):
     de = de + jnp.sum(exposed_s, axis=-2)  # remove wane so matches e.shape
     ds = ds - jnp.sum(exposed_s, axis=-1)  # remove strain so matches s.shape
     dc = de  # at this point we only have infections in de, so we add to cumulative
+    dc = exposed_s  # C.shape = (age, hist, vax, wane, strains)
     # e and i shape remain same, just multiplying by a constant.
     de_to_i = p.SIGMA * e  # exposure -> infectious
     di_to_w0 = p.GAMMA * i  # infectious -> new_immune_state
@@ -352,5 +353,15 @@ def seip_ode2(state: PyTree, t: ArrayLike, parameters: dict):
     di = di.at[:, :, p.MAX_VACCINATION_COUNT, :].add(
         -seasonal_vaccination_outflow * i[:, :, p.MAX_VACCINATION_COUNT, :]
     )
+
+    return (ds, de, di, dc)
+
+
+def seip_ode2_immunity_extract(state: PyTree, t: ArrayLike, parameters: dict):
+    parameters["GAMMA"] = 0
+    ds, de, di, dc = seip_ode2(state, t, parameters)
+    ds = ds + jnp.sum(dc, axis=-1)
+    de = de * 0
+    di = di * 0
 
     return (ds, de, di, dc)
