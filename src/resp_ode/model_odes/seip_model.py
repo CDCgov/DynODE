@@ -2,7 +2,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import ArrayLike, PyTree
 
-from src.utils import Parameters, get_foi_suscept, new_immune_state
+from resp_ode.utils import Parameters, get_foi_suscept, new_immune_state
 
 
 def seip_ode(state: PyTree, t: ArrayLike, parameters: dict):

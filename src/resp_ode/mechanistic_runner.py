@@ -19,8 +19,8 @@ from diffrax import (  # type: ignore
 )
 from jaxtyping import PyTree
 
-from src import SEIC_Compartments
-from src.utils import date_to_sim_day
+from . import SEIC_Compartments
+from .utils import date_to_sim_day
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)

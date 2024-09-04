@@ -2121,6 +2121,37 @@ requests = ">=2.0.0"
 rsa = ["oauthlib[signedtoken] (>=3.0.0)"]
 
 [[package]]
+name = "resp-ode"
+version = "2024.9.4"
+description = "CDC CFA Predict Scenarios respODE package for modeling of respiratory diseases"
+optional = false
+python-versions = "^3.10"
+files = []
+develop = true
+
+[package.dependencies]
+cycler = ">=0.11.0"
+diffrax = "0.5.0"
+epiweeks = "^2.3.0"
+gitpython = ">=3.1.41"
+jax = "<=0.4.26"
+jaxlib = "<=0.4.26"
+matplotlib = ">=3.7.2"
+mypy = "^1.10.0"
+numpy = ">=1.25.2"
+numpyro = ">=0.13.2"
+pandas = ">=2.0.3"
+pip = "^24.0"
+pre-commit = "^3.7.1"
+pytest = ">=7.4.0"
+seaborn = ">=0.13.2"
+shiny = ">=0.6.0"
+
+[package.source]
+type = "directory"
+url = "src"
+
+[[package]]
 name = "scipy"
 version = "1.14.0"
 description = "Fundamental algorithms for scientific computing in Python"
@@ -2631,4 +2662,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "90842421bd5b896092991666760e8bd1ac9dd09af55e29edc8cc5e86c7b64905"
+content-hash = "6a56478668f63b97f775f1f3301b1f66fc6ec9085f6999c691dfe392fbabe397"

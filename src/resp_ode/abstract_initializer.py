@@ -7,7 +7,7 @@ to produce an initial state representing some analyzed population
 
 from abc import ABC, abstractmethod
 
-from src import SEIC_Compartments, utils
+from . import SEIC_Compartments, utils
 
 
 class AbstractInitializer(ABC):

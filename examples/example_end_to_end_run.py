@@ -16,14 +16,14 @@ import numpy as np
 
 # the different segments of code responsible for runing the model
 # each will be explained as they are used below
-from src import (
+from resp_ode import (
     CovidSeroInitializer,
     MechanisticInferer,
     MechanisticRunner,
     SolutionInterpreter,
     StaticValueParameters,
-    seip_ode,
 )
+from resp_ode.model_odes import seip_ode
 
 parser = argparse.ArgumentParser()
 parser.add_argument(

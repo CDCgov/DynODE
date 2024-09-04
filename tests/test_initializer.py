@@ -1,6 +1,6 @@
 import pytest
 
-from src import CovidSeroInitializer
+from resp_ode import CovidSeroInitializer
 
 CONFIG_GLOBAL_PATH = "tests/test_config_global.json"
 INITIALIZER_CONFIG_PATH = "tests/test_config_initializer.json"

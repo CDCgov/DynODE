@@ -8,9 +8,9 @@ import jax.numpy as jnp
 import numpy as np
 import pandas as pd
 
-import src.utils as utils
-from src.abstract_initializer import AbstractInitializer
-from src.config import Config
+from . import utils
+from .abstract_initializer import AbstractInitializer
+from .config import Config
 
 
 class CovidSeroInitializer(AbstractInitializer):

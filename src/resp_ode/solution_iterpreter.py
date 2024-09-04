@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from diffrax import Solution
 
-from src import utils
-from src.config import Config
+from . import utils
+from .config import Config
 
 
 class SolutionInterpreter:

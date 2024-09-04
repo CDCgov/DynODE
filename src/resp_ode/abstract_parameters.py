@@ -19,9 +19,9 @@ from diffrax import Solution
 from jax.scipy.stats.norm import pdf
 from jax.typing import ArrayLike
 
-from src import SEIC_Compartments, utils
-from src.config import Config
-from src.mechanistic_runner import MechanisticRunner
+from . import SEIC_Compartments, utils
+from .config import Config
+from .mechanistic_runner import MechanisticRunner
 
 
 class AbstractParameters:
