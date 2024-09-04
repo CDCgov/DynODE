@@ -9,7 +9,14 @@ from mechanistic_azure.azure_utilities import AzureExperimentLauncher
 
 # specify job ID, cant already exist
 
-DOCKER_IMAGE_TAG = "scenarios-image-7-3-24"
+DOCKER_IMAGE_TAG = "scenarios-image-28-8-24"
+# must be 8, 4, or 2
+CPU_COUNT = 8
+# must be "high", "medium", "low"
+# "high": Use dedicated nodes only
+# "medium": Use dedicated nodes mostly, low priority nodes to fill in gaps
+# "low": Use 80% dedicated nodes, 20% low priority nodes
+PRIORITY = "high"
 # number of seconds of a full experiment run before timeout
 # for `s` states to run and `n` nodes dedicated,`s/n` * runtime 1 state secs needed
 EXPERIMENTS_DIRECTORY = "exp"
@@ -41,7 +48,12 @@ launcher = AzureExperimentLauncher(
     experiment_directory=EXPERIMENTS_DIRECTORY,
     docker_image_name=DOCKER_IMAGE_TAG,
 )
-launcher.set_resource_pool(pool_name="scenarios_4cpu_pool")
+launcher.set_resource_pool(
+    pool_name="scenarios_%scpu_pool_%s_priority" % (CPU_COUNT, PRIORITY),
+    create=False,
+    autoscale_formula_path="mechanistic_azure/autoscale/%s_prio_autoscale.txt"
+    % PRIORITY,
+)
 all_tasks_run = []
 # all experiments will be placed under the same jobid,
 # subsequent experiments depend on prior ones to finish before starting
@@ -55,4 +67,5 @@ for experiment_name in experiment_names:
         depend_on_task_ids=state_task_ids
     )
     all_tasks_run += state_task_ids + postprocessing_tasks
+launcher.azure_client.mark_job_completed_after_tasks_run(job_id)
 launcher.azure_client.monitor_job(job_id)

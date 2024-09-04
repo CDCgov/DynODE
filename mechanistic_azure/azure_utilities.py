@@ -18,6 +18,8 @@ class AzureExperimentLauncher:
         image_repo_name: str = "scenarios",
         docker_image_name: str = "scenarios-image",
         path_to_dockerfile: str = "./Dockerfile",
+        input_blob_name: str = "scenarios-mechanistic-input",
+        output_blob_name: str = "scenarios-mechanistic-output",
     ):
         """Creates an Azure Experiment Launcher, identifying experiment, states, and runner script paths.
         Then attempts to authenticate with azure using `azure_config_toml` and upload
@@ -41,11 +43,17 @@ class AzureExperimentLauncher:
             tag given to uploaded docker image, by default "scenarios-image"
         path_to_dockerfile : str, optional
             path to the `Dockerfile` used to build docker image, by default "./Dockerfile"
+        input_blob_name : str, optional
+            name of the input azure storage blob, by default "scenarios-mechanistic-input"
+        output_blob_name : str, optional
+            name of the output azure storage blob, by default "scenarios-mechanistic-output"
         """
         self.azure_config_toml = azure_config_toml
         self._container_registry_name = container_registry_name
         self._image_repo_name = image_repo_name
         self._docker_image_name = docker_image_name
+        self._input_blob_name = input_blob_name
+        self._output_blob_name = output_blob_name
         self.job_id = job_id
         self.job_launched = False
         self.set_all_paths(experiment_directory, experiment_name)
@@ -183,12 +191,8 @@ class AzureExperimentLauncher:
             tag=self._docker_image_name,
         )
         # create the input and output blobs, for now they must be named /input and /output
-        azure_client.set_input_container(
-            "scenarios-mechanistic-input", "input"
-        )
-        azure_client.set_output_container(
-            "scenarios-mechanistic-output", "output"
-        )
+        azure_client.set_input_container(self._input_blob_name, "input")
+        azure_client.set_output_container(self._output_blob_name, "output")
 
         self.azure_client = azure_client
 
@@ -232,8 +236,8 @@ class AzureExperimentLauncher:
         """
         self.azure_client.upload_files_in_folder(
             [self.experiment_path_local],
-            "scenarios-mechanistic-input",
-            location=self.experiment_path_blob,
+            self._input_blob_name,
+            location_in_blob=self.experiment_path_blob,
         )
 
     def launch_states(self, depend_on_task_ids: list[str] = None) -> list[str]:
