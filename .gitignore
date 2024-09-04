@@ -49,11 +49,7 @@ testing.py
 !data/
 !data/dates_of_interest.csv
 !data/fips_to_name.csv
-!output/example_output_1000_days.png
-!output/example_output_1000_days.png_meta.json
-!output/base_model_initial_immune_distribution.png
-!output/base_model_initial_immune_distribution.png_meta.json
-!misc/scenarios_seip_model_diagram_3_11_24.png
+!img/scenarios_seip_model_diagram_3_11_24.png
 !data/spline_fits.csv
 !data/hospitalization-data/hospital_220213_220108.csv
 !output/example_output_summary_slide.png

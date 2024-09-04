@@ -413,10 +413,10 @@ def download_directory_from_azure(
                 cfa_azure.helpers.download_directory(
                     azure_client.out_cont_client, azure_dir, dest
                 )
-                written_dirs.append(dest_path)
             except ValueError as e:
                 raise ValueError(
                     "failed to download %s, but not before successfully downloading %s"
                     % (dest_path, str(written_dirs))
                 ) from e
+        written_dirs.append(dest_path)
     return written_dirs
