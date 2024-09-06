@@ -4,7 +4,7 @@ import cfa_azure.helpers
 from azure.core.paging import ItemPaged
 from cfa_azure.clients import AzureClient
 
-from src.utils import find_files, sort_filenames_by_suffix
+from resp_ode.utils import find_files, sort_filenames_by_suffix
 
 
 class AzureExperimentLauncher:

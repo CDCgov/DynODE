@@ -18,10 +18,13 @@ import pandas as pd  # type: ignore
 from diffrax import Solution  # type: ignore
 from jax import Array
 
-from src import SEIC_Compartments, utils
-from src.abstract_parameters import AbstractParameters
-from src.mechanistic_inferer import MechanisticInferer
-from src.static_value_parameters import StaticValueParameters
+from resp_ode import (
+    AbstractParameters,
+    MechanisticInferer,
+    SEIC_Compartments,
+    StaticValueParameters,
+    utils,
+)
 
 
 class AbstractAzureRunner(ABC):

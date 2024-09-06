@@ -13,13 +13,13 @@ import numpy as np
 sys.path.append("/app/")
 
 from mechanistic_azure.abstract_azure_runner import AbstractAzureRunner
-from src import (
+from resp_ode import (
     CovidSeroInitializer,
     MechanisticInferer,
     MechanisticRunner,
     StaticValueParameters,
 )
-from src.model_odes.seip_model import seip_ode
+from resp_ode.model_odes import seip_ode
 
 
 class ExampleRunner(AbstractAzureRunner):

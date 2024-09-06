@@ -18,10 +18,10 @@ RUN pip install 'poetry==1.8.3'
 ENV PATH="/root/.local/bin:/app/:${PATH}"
 # set workdir to /app for installing packages
 WORKDIR /app
+# now copy in the mechanistic model code and config code
+COPY ./src/ /app/src
 # turn off interaction since we cant type `yes` on the prompts in docker build
 RUN poetry install --no-interaction --no-ansi
-# now copy in the mechanistic model code and config code
 # we will upload the experiment itself into the cloud and refer to from /input
-COPY ./src/ /app/src
 COPY ./mechanistic_azure/abstract_azure_runner.py /app/mechanistic_azure/abstract_azure_runner.py
 COPY ./mechanistic_azure/azure_utilities.py /app/mechanistic_azure/azure_utilities.py
