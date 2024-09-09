@@ -12,7 +12,7 @@ from cfa_azure.clients import AzureClient
 from plotly.subplots import make_subplots
 
 from mechanistic_azure.azure_utilities import download_directory_from_azure
-from src.utils import flatten_list_parameters
+from resp_ode.utils import flatten_list_parameters
 
 
 class Node:
