@@ -5,7 +5,7 @@ and another to specify the location of the state-specific runner script, which w
 
 import argparse
 
-from azure_utilities import AzureExperimentLauncher
+from .azure_utilities import AzureExperimentLauncher
 
 # specify job ID, cant already exist
 
