@@ -1,6 +1,5 @@
 import datetime
 import glob
-import json
 import os
 import sys
 
@@ -1297,36 +1296,6 @@ def get_timeline_from_solution_with_command(
     dimensions_to_sum_over = tuple(range(1, compartment.ndim))
     # compartment = np.nan_to_num(compartment, copy=True, nan=0.0)
     return is_close_v(np.sum(compartment, axis=dimensions_to_sum_over)), label
-
-
-def from_json(j_str):
-    """
-    Given a JSON string returned from BasicMechanisticModel.to_json()
-    """
-    j = json.loads(j_str)
-    model_dict = {}
-    for key, param in j.items():
-        # if we specify a special type as a dict, lets cast it to that type
-        if isinstance(param, dict) and "type" in param.keys():
-            param_type = param["type"]
-            param_val = param["val"]
-            if param_type == "date":
-                param_val = datetime.datetime.strptime(
-                    param_val, "%d-%m-%y"
-                ).date()
-            elif param_type == "jax":
-                param_val = jnp.array(param_val)
-            elif param_type == "enum":
-                enum_vals = [x.split(".")[-1] for x in param_val.keys()]
-                enum_name = [x.split(".")[0] for x in param_val.keys()][0]
-                param_val = IntEnum(enum_name, enum_vals, start=0)
-            elif param_type == "state":
-                param_val = tuple(
-                    jnp.array(compartment["val"]) for compartment in param_val
-                )
-            param = param_val
-        model_dict[key] = param
-    return model_dict
 
 
 def get_var_proportions(inferer, solution):
