@@ -12,12 +12,11 @@ import pandas as pd
 import seaborn as sn
 from shiny import App, render, ui
 
-import mechanistic_model.utils as utils
-from mechanistic_model.covid_initializer import CovidInitializer
+from resp_ode import CovidSeroInitializer, utils
 
-CONFIG_GLOBAL_PATH = "config/config_global.json"
-CONFIG_INITIALIZER_PATH = "config/config_initializer_covid.json"
-model = CovidInitializer(CONFIG_INITIALIZER_PATH, CONFIG_GLOBAL_PATH)
+CONFIG_GLOBAL_PATH = "src/config/config_global.json"
+CONFIG_INITIALIZER_PATH = "src/config/config_initializer_covid.json"
+model = CovidSeroInitializer(CONFIG_INITIALIZER_PATH, CONFIG_GLOBAL_PATH)
 
 # Get initial date from global config
 with open(CONFIG_GLOBAL_PATH, "r") as json_file:

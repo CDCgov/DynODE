@@ -1,0 +1,29 @@
+[tool.poetry]
+name = "resp_ode"
+version = "2024.9.4"
+description = "CDC CFA Predict Scenarios respODE package for modeling of respiratory diseases"
+authors = ["CDC CFA"]
+license = "Apache License, Version 2.0, January 2004"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+cycler = ">=0.11.0"
+diffrax = "0.5.0"
+gitpython = ">=3.1.41"
+jax = "<=0.4.26"
+jaxlib = "<=0.4.26"
+matplotlib = ">=3.7.2"
+numpy = ">=1.25.2"
+numpyro = ">=0.13.2"
+pandas = ">=2.0.3"
+seaborn = ">=0.13.2"
+pytest = ">=7.4.0"
+pip = "^24.0"
+epiweeks = "^2.3.0"
+pre-commit = "^3.7.1"
+mypy = "^1.10.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
