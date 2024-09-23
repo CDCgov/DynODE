@@ -3,11 +3,13 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from config.config import Config
-from mechanistic_model.mechanistic_inferer import MechanisticInferer
-from mechanistic_model.mechanistic_runner import MechanisticRunner
-from mechanistic_model.static_value_parameters import StaticValueParameters
-from model_odes.seip_model import seip_ode
+from resp_ode import (
+    Config,
+    MechanisticInferer,
+    MechanisticRunner,
+    StaticValueParameters,
+)
+from resp_ode.model_odes import seip_ode
 
 runner = MechanisticRunner(seip_ode)
 GLOBAL_CONFIG_PATH = "tests/test_config_global.json"

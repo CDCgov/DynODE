@@ -5,8 +5,10 @@ description = "CDC CFA Predict Scenarios model development"
 authors = ["Your Name <you@example.com>"]
 license = "Apache License, Version 2.0, January 2004"
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
+resp_ode = {path="src/", develop = true}
 python = "^3.10"
 cycler = ">=0.11.0"
 diffrax = "0.5.0"
