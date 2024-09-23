@@ -269,7 +269,7 @@ def seip_ode2(state: PyTree, t: ArrayLike, parameters: dict):
     # so lets sum over them to get the expected shape for each
     de = de + jnp.sum(exposed_s, axis=-2)  # remove wane so matches e.shape
     ds = ds - jnp.sum(exposed_s, axis=-1)  # remove strain so matches s.shape
-    dc = de  # at this point we only have infections in de, so we add to cumulative
+    dc = exposed_s  # at this point we only have infections in de, so we add to cumulative
     # e and i shape remain same, just multiplying by a constant.
     de_to_i = p.SIGMA * e  # exposure -> infectious
     di_to_w0 = p.GAMMA * i  # infectious -> new_immune_state
