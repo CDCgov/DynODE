@@ -1,0 +1,269 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+## Objectives
+- To merge "historical" pull of NSSP with "present" pull of NSSP, adjusting for discrepancy between them.
+- To find the best model that best model NHSN hospitalization using NSSP data.
+- To produce modelled hospitalization beyound last date of NHSN dataset (2024-04-20)
+
+## Part 1
+
+### Packages and stuff
+```{r}
+pacman::p_load(dplyr, ggplot2, lubridate, tidyr, glue)
+pacman::p_load(grates)
+pacman::p_load(caret)
+theme_set(theme_bw(base_size = 13))
+theme_update(
+  strip.background = element_blank(),
+  strip.text = element_text(face = "bold"),
+  panel.grid = element_line(linewidth = rel(0.3), colour = "#D1D3D4"),
+  panel.grid.minor = element_blank(),
+  panel.border = element_rect(linewidth = rel(0.5)),
+  axis.ticks = element_line(linewidth = rel(0.3))
+)
+```
+
+### Process historical pull down to weekly data
+```{r}
+history_range <- ymd(c("2022-11-19", "2024-03-30")) # last epiweek incomplete
+
+history_nssp_raw <- readRDS("/input/data/hospitalization-data/CFA_resp_data_13112022_03042024.RDS")
+history_nssp <- history_nssp_raw |>
+  group_by(timeResolution) |>
+  filter(pull_date == max(pull_date))
+
+history_nssp_week <- history_nssp |>
+  # filter(ccddCategory == "CDC COVID-Specific DD v1") |>
+  select(date = timeResolution, ccddCategory, site, count, ed_count) |>
+  mutate(week_end_date = as_epiweek(date) |> date_end()) |>
+  group_by(site, ccddCategory, week_end_date) |>
+  summarise(n = n(),
+            count = sum(count),
+            ed_count = sum(ed_count)) |>
+  filter(week_end_date >= history_range[1],
+         week_end_date <= history_range[2])
+
+history_covid_week <- history_nssp_week |>
+  filter(site %in% state.name) |>
+  group_by(site, week_end_date) |>
+  mutate(share = count / sum(count)) |>
+  filter(ccddCategory == "CDC COVID-Specific DD v1") |>
+  ungroup()
+```
+
+### Process present pull down to weekly data
+```{r}
+present_cutoff <- ymd("2024-08-24")  # first and last 2 epiweeks presumed incomplete
+
+present_nssp_raw1 <- arrow::read_parquet("/input/data/hospitalization-data/2024-07-20.parquet")
+present_nssp_raw2 <- arrow::read_parquet("/input/data/hospitalization-data/2024-09-05.parquet")
+present_covid2 <- present_nssp_raw2 |>
+  filter(disease == "COVID-19/Omicron") |>
+  filter(metric == "count_ed_visits") |>
+  group_by(site = geo_value, date = reference_date) |>
+  summarise(count = sum(value)) |>
+  filter(site %in% state.abb)
+present_covid1 <- present_nssp_raw1 |>
+  filter(disease == "COVID-19/Omicron") |>
+  filter(metric == "count_ed_visits") |>
+  group_by(site = geo_value, date = reference_date) |>
+  summarise(count = sum(value)) |>
+  filter(site %in% state.abb, date < min(present_covid2$date))
+present_covid <- bind_rows(present_covid1, present_covid2)
+
+ind <- match(present_covid$site, state.abb)
+present_covid$site <- state.name[ind]
+
+present_covid_week <- present_covid |>
+  mutate(week_end_date = as_epiweek(date) |> date_end()) |>
+  group_by(site, week_end_date) |>
+  summarise(n = n(),
+            count = sum(count)) |>
+  filter(n == 7) |>
+  filter(week_end_date <= present_cutoff)
+```
+
+### Compare historical and present
+
+They are kind of scalar multiple difference during the overlapped period.
+```{r}
+ggplot() +
+  geom_line(aes(x = week_end_date, y = count), data = history_covid_week) +
+  geom_line(aes(x = week_end_date, y = count), data = present_covid_week, colour = "red") +
+  facet_wrap(~ site, scales = "free_y") +
+  scale_y_log10()
+```
+
+### Determine scalar multiple adjustment between historical vs present pull
+```{r}
+overlap_week <- history_covid_week |>
+  left_join(present_covid_week, by = c("site", "week_end_date")) |>
+  rename(history_count = count.x, present_count = count.y) |>
+  filter(!is.na(present_count))
+
+adjust_df <- overlap_week |>
+  group_by(site) |>
+  summarise(multiplier = mean(history_count/present_count))
+
+present_covid_week_adj <- present_covid_week |>
+  left_join(adjust_df, by = "site") |>
+  mutate(count = count * multiplier)
+```
+
+### Reassess match during overlapped weeks
+
+Now the two sets of NSSP are mostly aligned.
+```{r}
+ggplot() +
+  geom_line(aes(x = week_end_date, y = count), data = history_covid_week) +
+  geom_line(aes(x = week_end_date, y = count), data = present_covid_week_adj, colour = "red") +
+  facet_wrap(~ site, scales = "free_y") +
+  scale_y_log10()
+```
+
+### Combine history and present
+```{r}
+combined_nssp <- bind_rows(history_covid_week,
+                           present_covid_week_adj |> 
+                             filter(week_end_date > history_range[2])) |>
+  select(site, week_end_date, count) |>
+  arrange(site, week_end_date)
+```
+
+## Part 2
+
+### Model comparison and predict
+Cycle through age groups and states, do 5-fold cross-validation for each, and choose the best model with lowest RMSE to do the actual prediction.
+```{r}
+pdf("./output/nssp_mod_v6.pdf",
+    width = 12, height = 24,
+    onefile = TRUE
+)
+
+obs_pred_df_all_age <- list()
+for (age in c("0-17", "18-49", "50-64", "65+")) {
+  Rsquares <- RMSEs <- obs_pred_dfs <- list()
+  for (i in 1:length(state.name)) {
+    st <- state.name[i]
+    print(st)
+    st1 <- stringr::str_replace(st, " ", "_")
+    hosp_state <- data.table::fread(glue::glue("/input/data/hospitalization-data/{st1}_hospitalization.csv")) |>
+      mutate(hosp = hosp * 7, date = as.Date(date)) |>
+      select(-any_of("site")) |>
+      filter(date <= ymd("2024-04-20")) # Last date of NHSN hospitalization data
+    history_covid_state <- combined_nssp |> 
+      filter(site == st)
+    history_covid_st_age <- history_covid_state |>
+      left_join(hosp_state |> filter(agegroup == age),
+                by = c("week_end_date" = "date")) |>
+      mutate(agegroup = age)
+    
+    history_covid_st_age <- history_covid_st_age |>
+      mutate(lcount = dplyr::lag(count))
+    history_covid_st_age <- history_covid_st_age[-1,]
+    
+    # Model comparisons
+    ctrl <- trainControl(method = "cv", number = 5)
+    set.seed(2468)
+    mod_lm0 <- train(hosp ~ count, data = history_covid_st_age, 
+                     method = "lm", trControl = ctrl, na.action = na.exclude)
+    set.seed(2468)
+    mod_lm1 <- train(hosp ~ lcount, data = history_covid_st_age, 
+                     method = "lm", trControl = ctrl, na.action = na.exclude)
+    set.seed(2468)
+    mod_gam0 <- train(hosp ~ count, data = history_covid_st_age, 
+                      method = "gam", trControl = ctrl, na.action = na.exclude)
+    set.seed(2468)
+    mod_gam1 <- train(hosp ~ lcount, data = history_covid_st_age, 
+                      method = "gam", trControl = ctrl, na.action = na.exclude)
+    
+    models <- list(lm0 = mod_lm0, lm1 = mod_lm1, gam0 = mod_gam0,
+                   gam1 = mod_gam1)
+    x <- resamples(models) |> 
+      summary()
+    ind <- which.min(x$statistics$RMSE[,"Mean"])
+    Rsquares[[i]] <- x$statistics$Rsquared[,"Mean"]
+    RMSEs[[i]] <- x$statistics$RMSE[,"Mean"]
+    
+    # Using model with best out-of-sample RMSE to do prediction
+    history_covid_st_age$pred <- predict(models[[ind]], history_covid_st_age)
+    obs_pred_dfs[[i]] <- history_covid_st_age
+  }
+  Rsquares_df <- bind_rows(Rsquares)
+  Rsquares_df$state <- state.name
+  RMSEs_df <- bind_rows(RMSEs)
+  RMSEs_df$state <- state.name
+  
+  tmp1 <- Rsquares_df |>
+    pivot_longer(-state, names_to = "model", values_to = "Rsquare")
+  tmp2 <- RMSEs_df |>
+    pivot_longer(-state, names_to = "model", values_to = "RMSE")
+  score_df <- tmp1 |> left_join(tmp2, by = c("state", "model"))
+  best_df <- score_df |>
+    group_by(state) |>
+    filter(RMSE == min(RMSE))
+  # table(best_df$model)
+  
+  obs_pred_df <- bind_rows(obs_pred_dfs)
+  p <- ggplot(obs_pred_df) +
+    geom_line(aes(x = week_end_date, y = hosp)) +
+    geom_line(aes(x = week_end_date, y = pred), colour = "blue") +
+    facet_wrap(~ site, scales = "free_y", ncol = 5) +
+    scale_x_date(date_labels = "%b\n%y") +
+    labs(x = "", y = "Weekly Hospitalization",
+         title = glue::glue("{age} (black actual, blue modelled)"))
+  print(p)
+  obs_pred_df_all_age[[age]] <- obs_pred_df
+}
+dev.off()
+
+obs_pred_df_all <- bind_rows(obs_pred_df_all_age)
+```
+
+### Plotting and exporting the combined hospitalization of NHSN + NSSP
+```{r}
+hosp_pred_all <- obs_pred_df_all |>
+  filter(week_end_date > ymd("2024-04-20")) |>
+  select(site, date = week_end_date, agegroup, hosp = pred)
+pdf("./output/combined_hospitalization_v5.pdf",
+    width = 8, height = 4,
+    onefile = TRUE
+)
+hosp_all_dfs <- list()
+for (i in 1:length(state.name)) {
+    st <- state.name[i]
+    st1 <- stringr::str_replace(st, " ", "_")
+    hosp_nhsn <- data.table::fread(glue::glue("/input/data/hospitalization-data/{st1}_hospitalization.csv")) |>
+      mutate(hosp = hosp * 7, date = as.Date(date)) |>
+      filter(date <= ymd("2024-04-20"))
+    hosp_pred <- hosp_pred_all |>
+      filter(site == st)
+    hosp_all <- bind_rows(hosp_nhsn, hosp_pred) |>
+      mutate(hosp = hosp / 7)
+    p <- ggplot(hosp_all) +
+      geom_line(aes(x = date, y = hosp, colour = agegroup)) +
+      labs(title = st)
+    print(p)
+    
+    data.table::fwrite(hosp_all, glue::glue("/input/data/hospitalization-data/{st1}_hospitalization.csv"))
+    hosp_all_dfs[[i]] <- hosp_all
+}
+dev.off()
+```
+
+### Hospitalization for the entire US
+```{r}
+hosp_all_df <- hosp_all_dfs |>
+  bind_rows() |>
+  group_by(date) |>
+  summarise(hosp = sum(hosp) * 7)
+hosp_all_df |>
+  ggplot() +
+  geom_line(aes(x = date, y = hosp))
+```
+

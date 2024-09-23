@@ -1,0 +1,91 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+```{r}
+pacman::p_load(dplyr, ggplot2, lubridate, tidyr, glue, stringr, grates)
+pacman::p_load(cowplot)
+pacman::p_load(extrafont)
+pacman::p_load(geofacet)
+theme_set(theme_bw(base_size = 15))
+theme_update(
+  strip.background = element_blank(),
+  # strip.text = element_text(face = "bold"),
+  panel.grid = element_line(linewidth = rel(0.25), colour = "#D1D3D4"),
+  panel.grid.minor = element_line(linewidth = rel(0.125)),
+  panel.grid.minor.y = element_blank(),
+  panel.border = element_rect(linewidth = rel(0.5)),
+  axis.ticks = element_line(linewidth = rel(0.25))
+)
+```
+
+```{r}
+retrieve_history_hosp <- function(state) {
+  if (state == "US") {
+    state_name <- "United States"
+  } else {
+    state_name <- state.name[state.abb == state]
+  }
+  state_name <- stringr::str_replace(state_name, " ", "_")
+  f <- file.path(
+    "/input/data", "hospitalization-data",
+    glue("{state_name}_hospitalization.csv")
+  )
+  return(data.table::fread(f))
+}
+
+states_history <- purrr::map_dfr(state.abb, retrieve_history_hosp, .id = "state")
+states_history$state <- state.abb[as.numeric(states_history$state)]
+states_history <- states_history |>
+  group_by(date, state) |>
+  summarise(hosp = sum(hosp) * 7)
+history_us <- states_history |>
+  group_by(date) |>
+  summarise(hosp = sum(hosp))
+
+covidnet <- data.table::fread("/input/data/hospitalization-data/Weekly_Rates_of_Laboratory-Confirmed_COVID-19_Hospitalizations_from_the_COVID-NET_Surveillance_System_20240905.csv")
+```
+
+```{r}
+covidnet <- covidnet |>
+  select(date = `_WeekendDate`, rate = WeeklyRate) |>
+  filter(date <= ymd("2024-08-17")) |>
+  mutate(date = as.Date(date))
+history_us_nhsn <- history_us |>
+  mutate(date = as.Date(date)) |>
+  filter(date <= ymd("2024-04-27"))
+```
+
+```{r}
+combined_df <- history_us_nhsn |>
+  left_join(covidnet, by = "date")
+
+mod <- lm(hosp ~ rate, data = combined_df)
+combined_df$pred <- predict(mod)
+
+ggplot(combined_df) +
+  geom_line(aes(x=date, y=hosp, colour = "blue")) +
+  geom_line(aes(x=date, y=pred, colour = "red")) +
+  scale_colour_manual(values = c("blue", "red"),
+                      labels = c("NHSN", "COVID-NET")) +
+  theme(legend.title = element_blank(),
+        legend.position = "inside",
+        legend.position.inside = c(0.99, 0.99),
+        legend.justification = c(1.0, 1.0))
+```
+
+```{r}
+covidnet$pred <- predict(mod, covidnet)
+
+ggplot() +
+  geom_line(aes(x=date, y=hosp), data = history_us |> filter(date >= ymd("2023-07-01")), colour = "blue") +
+  geom_line(aes(x=date, y=pred), data = covidnet |> filter(date >= ymd("2023-07-01")), colour = "red")
+  
+```
+
+```{r}
+data.table::fwrite(covidnet, "output/us_covidnet.csv")
+```
+
