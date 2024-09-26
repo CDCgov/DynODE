@@ -1367,6 +1367,10 @@ def get_foi_suscept(p, force_of_infection):
     Calculate the force of infections experienced by the susceptibles, _after_
     factoring their immunity.
 
+    Calculates the minimum homologous immunity of individuals based on a
+    p.MIN_HOMOLOGOUS_IMMUNITY * the homologous immunity. Meaning if an individual has 70%
+    homologous immunity, their minimum floor after waning can be p.MIN_HOMOLOGOUS_IMMUNITY * 0.7
+
     Parameters
     ----------
     `p` : Parameters
@@ -1396,11 +1400,13 @@ def get_foi_suscept(p, force_of_infection):
             1 - vax_efficacy_strain,
         )
         # renormalize the waning curve to have minimum of `final_immunity` after full waning
-        # and maximum of `initial_immunity` right after recovery
-        final_immunity = jnp.zeros(shape=initial_immunity.shape)
-        final_immunity = final_immunity.at[
-            all_immune_states_with(strain, p.NUM_STRAINS), :
-        ].set(p.MIN_HOMOLOGOUS_IMMUNITY)
+        # and maximum of `initial_immunity` right after rec
+        final_immunity = (
+            jnp.ones(shape=initial_immunity.shape)
+            * crossimmunity_matrix[:, jnp.newaxis]
+            * p.MIN_HOMOLOGOUS_IMMUNITY
+        )
+
         waned_immunity_baseline = jnp.einsum(
             "jk,l",
             initial_immunity,
