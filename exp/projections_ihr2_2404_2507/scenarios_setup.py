@@ -76,7 +76,7 @@ def create_multiple_scenarios_configs(state_config, state_abb, subdir_path):
         "sample": [1],
     }
     df = pd.read_csv(SCEN_CSV)
-    df = df[["e" in x for x in df["id"]]]
+    df = df[["f" in x for x in df["id"]]]
     dicts = []
     paths = []
     for index, row in df.iterrows():

@@ -80,7 +80,7 @@ client.upload_files_in_folder(
 # )
 # client.create_pool(pool_name="scenarios_4cpu_pool_new")
 # TO USE EXISTING POOL USE THIS LINE
-client.set_pool("scenarios_2cpu_pool_medium_priority")
+client.set_pool("scenarios_2cpu_pool")
 # command to run the job
 client.add_job(job_id=job_id)
 task_ids = []

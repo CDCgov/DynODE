@@ -50,7 +50,10 @@ def rework_initial_state(initial_state):
     concatenate_shp[3] = 2
     e_new = jnp.concatenate((e_new, jnp.zeros(tuple(concatenate_shp))), axis=3)
     i_new = jnp.concatenate((i_new, jnp.zeros(tuple(concatenate_shp))), axis=3)
-    c_new = jnp.concatenate((c_new, jnp.zeros(tuple(concatenate_shp))), axis=3)
+    c_new_shape = list(s_new.shape)
+    c_new_shape.append(i_new.shape[3])
+    c_new = jnp.zeros(tuple(c_new_shape))
+    # c_new = jnp.concatenate((c_new, jnp.zeros(tuple(concatenate_shp))), axis=3)
     initial_state = (
         s_new[:, 0:6, ...],
         e_new[:, 0:6, ...],
@@ -69,7 +72,8 @@ class EpochOneRunner(AbstractAzureRunner):
         model_day = 800
         # step 1: define your paths, now in the input
         state_config_path = os.path.join(
-            "/input/exp/fifty_state_season2_5strain_2202_2404/states", state
+            "/input/exp/fifty_state_season2_5strain_2202_2404/states",
+            state,
         )
         if jobid_in_path:
             state_config_path = os.path.join(
@@ -104,18 +108,18 @@ class EpochOneRunner(AbstractAzureRunner):
             state_config_path, "config_inferer.json"
         )
         # save copies of the used config files to output for reproducibility purposes
-        shutil.copy(
-            GLOBAL_CONFIG_PATH,
-            self.azure_output_dir + "config_global_used.json",
-        )
-        shutil.copy(
-            INFERER_CONFIG_PATH,
-            self.azure_output_dir + "config_inferer_used.json",
-        )
-        shutil.copy(
-            INITIALIZER_CONFIG_PATH,
-            self.azure_output_dir + "config_initializer_used.json",
-        )
+        cg_path = self.azure_output_dir + "config_global_used.json"
+        cinf_path = self.azure_output_dir + "config_inferer_used.json"
+        cini_path = self.azure_output_dir + "config_initializer_used.json"
+        if os.path.exists(cg_path):
+            os.remove(cg_path)
+        if os.path.exists(cinf_path):
+            os.remove(cinf_path)
+        if os.path.exists(cini_path):
+            os.remove(cini_path)
+        shutil.copy(GLOBAL_CONFIG_PATH, cg_path)
+        shutil.copy(INFERER_CONFIG_PATH, cinf_path)
+        shutil.copy(INITIALIZER_CONFIG_PATH, cini_path)
         # sets up the initial conditions, initializer.get_initial_state() passed to runner
         initializer = CovidSeroInitializer(
             INITIALIZER_CONFIG_PATH, TEMP_GLOBAL_CONFIG_PATH
@@ -246,17 +250,18 @@ parser.add_argument(
 parser.add_argument(
     "-j", "--jobid", type=str, help="job-id of the state being run on Azure"
 )
+parser.add_argument(
+    "-l", "--local", action="store_false", help="scenario being run on Azure"
+)
 
 if __name__ == "__main__":
     args = parser.parse_args()
     jobid = args.jobid
     state = args.state
-    # we are going to be rerouting stdout and stderror to files in our output blob
-    # stdout = sys.stdout
-    # stderror = sys.stderr
+    local = args.local
     save_path = "/output/fifty_state_season2_5strain_2202_2404/%s/%s/" % (
         jobid,
         state,
     )
     runner = EpochOneRunner(save_path)
-    runner.process_state(state, jobid, jobid_in_path=True)
+    runner.process_state(state, jobid, jobid_in_path=local)
