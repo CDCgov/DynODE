@@ -336,14 +336,11 @@ class MechanisticInferer(AbstractParameters):
         self.infer_complete = True
         return self.inference_algo
 
-    def _debug_likelihood(self, obs_metrics) -> bx.Model:
+    def _debug_likelihood(self, **kwargs) -> bx.Model:
         """uses Bayeux to recreate the self.likelihood function for purposes of basic sanity checking
 
-        Parameters
-        ----------
-        obs_metrics: jnp.array
-            observed metrics on which likelihood will be calculated on to tune parameters.
-            See `likelihood()` method for implemented definition of `obs_metrics`
+        passes all parameters given to it to `self.likelihood`, initializes with `self.INITIAL_STATE`
+        and passes `self.config.INFERENCE_PRNGKEY` as seed for randomness.
 
         Returns
         -------
@@ -351,11 +348,7 @@ class MechanisticInferer(AbstractParameters):
             model object used to debug
         """
         bx_model = bx.Model.from_numpyro(
-            jax.tree_util.Partial(
-                self.likelihood,
-                tf=len(obs_metrics),
-                obs_metrics=obs_metrics,
-            ),
+            jax.tree_util.Partial(self.likelihood, **kwargs),
             # this does not work for non-one/sampled self.INITIAL_INFECTIONS_SCALE
             initial_state=self.INITIAL_STATE,
         )
