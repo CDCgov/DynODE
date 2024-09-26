@@ -5,11 +5,7 @@ from enum import IntEnum
 import jax.numpy as jnp
 import numpyro.distributions as dist
 
-import mechanistic_model.utils as utils
-from mechanistic_model.utils import (
-    get_strains_exposed_to,
-    get_timeline_from_solution_with_command,
-)
+from resp_ode import utils
 
 # strain indexes {"a": 0, "b": 1, "c": 2}
 example_strain_idxs = IntEnum("test", ["a", "b", "c"], start=0)
@@ -314,7 +310,7 @@ def test_get_strains_exposed_to():
     for num_strains in num_strains_tested:
         possible_immune_states = list(range(0, 2**num_strains))
         for state in possible_immune_states:
-            exposed_strains = get_strains_exposed_to(state, num_strains)
+            exposed_strains = utils.get_strains_exposed_to(state, num_strains)
             # Calculate the expected strains exposed by converting the state to binary
             expected_exposed_strains = [
                 i for i in range(num_strains) if (state & (1 << i)) != 0
@@ -350,7 +346,7 @@ def test_get_timeline_from_solution_with_command_compartment_name():
     # Test case 1: Command is a compartment name
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = get_timeline_from_solution_with_command(
+    timeline, label = utils.get_timeline_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "S"
     )
     assert timeline.shape == (100,)
@@ -364,7 +360,7 @@ def test_get_timeline_from_solution_with_command_strain_name():
     # Test case 2: Command is a strain name
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = get_timeline_from_solution_with_command(
+    timeline, label = utils.get_timeline_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "S2"
     )
     assert timeline.shape == (100,)
@@ -378,7 +374,7 @@ def test_get_timeline_from_solution_with_command_wane_name():
     # Test case 3: Command is a waning compartment name
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = get_timeline_from_solution_with_command(
+    timeline, label = utils.get_timeline_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "W0"
     )
     assert timeline.shape == (100,)
@@ -392,7 +388,7 @@ def test_get_timeline_from_solution_with_command_incidence():
     # Test case 4: Command is 'incidence'
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = get_timeline_from_solution_with_command(
+    timeline, label = utils.get_timeline_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "incidence"
     )
     assert timeline.shape == (99,)
@@ -406,7 +402,7 @@ def test_get_timeline_from_solution_with_command_strain_prevalence():
     # Test case 5: Command is 'strain_prevalence'
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timelines, labels = get_timeline_from_solution_with_command(
+    timelines, labels = utils.get_timeline_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "strain_prevalence"
     )
     assert len(timelines) == 4
@@ -421,7 +417,7 @@ def test_get_timeline_from_solution_with_command_compartment_slice():
     # Test case 6: Command is a slice of a compartment
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = get_timeline_from_solution_with_command(
+    timeline, label = utils.get_timeline_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "S[:, 0, 0, :]"
     )
     assert timeline.shape == (100,)

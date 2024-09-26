@@ -8,12 +8,12 @@ import os
 # ruff: noqa: E402
 import numpy as np
 import pandas as pd
+import shiny_utils as sutils
 from plotly.graph_objects import Figure
 from shiny import App, Session, reactive, ui
 from shinywidgets import output_widget, render_plotly, render_widget
 
 import mechanistic_azure.azure_utilities as autils
-import shiny_visualizers.shiny_utils as sutils
 
 INPUT_BLOB_NAME = "scenarios-mechanistic-input"
 OUTPUT_BLOB_NAME = "scenarios-mechanistic-output"

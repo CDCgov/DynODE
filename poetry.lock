@@ -3007,6 +3007,36 @@ requests = ">=2.0.0"
 rsa = ["oauthlib[signedtoken] (>=3.0.0)"]
 
 [[package]]
+name = "resp-ode"
+version = "2024.9.4"
+description = "CDC CFA Predict Scenarios respODE package for modeling of respiratory diseases"
+optional = false
+python-versions = "^3.10"
+files = []
+develop = true
+
+[package.dependencies]
+cycler = ">=0.11.0"
+diffrax = "0.5.0"
+epiweeks = "^2.3.0"
+gitpython = ">=3.1.41"
+jax = "<=0.4.26"
+jaxlib = "<=0.4.26"
+matplotlib = ">=3.7.2"
+mypy = "^1.10.0"
+numpy = ">=1.25.2"
+numpyro = ">=0.13.2"
+pandas = ">=2.0.3"
+pip = "^24.0"
+pre-commit = "^3.7.1"
+pytest = ">=7.4.0"
+seaborn = ">=0.13.2"
+
+[package.source]
+type = "directory"
+url = "src"
+
+[[package]]
 name = "rich"
 version = "13.8.0"
 description = "Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal"
@@ -3671,4 +3701,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "fb1bcac78684d833ced5a924aca0e97194bbc4a54aaa93d4e49b68f2032808b8"
+content-hash = "fcc0f82d49fec7ce5eec9213904a147e84e775c9616532e007b8787f581d81d1"
