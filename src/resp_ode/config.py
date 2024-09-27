@@ -822,7 +822,17 @@ PARAMETERS = [
         "type": lambda lst: IntEnum("enum", lst, start=0),
     },
     {
+        "name": "E_AXIS_IDX",
+        # "validate": do_nothing,
+        "type": lambda lst: IntEnum("enum", lst, start=0),
+    },
+    {
         "name": "I_AXIS_IDX",
+        # "validate": do_nothing,
+        "type": lambda lst: IntEnum("enum", lst, start=0),
+    },
+    {
+        "name": "C_AXIS_IDX",
         # "validate": do_nothing,
         "type": lambda lst: IntEnum("enum", lst, start=0),
     },
