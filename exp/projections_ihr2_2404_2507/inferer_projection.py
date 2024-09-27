@@ -11,12 +11,7 @@ from jax.random import PRNGKey
 from jax.scipy.stats.norm import pdf
 from numpyro.infer import MCMC
 
-from resp_ode import (
-    MechanisticInferer,
-    MechanisticRunner,
-    SEIC_Compartments,
-    utils,
-)
+from resp_ode import MechanisticInferer, MechanisticRunner, SEIC_Compartments
 from resp_ode.config import Config
 
 
@@ -33,10 +28,12 @@ class ProjectionParameters(MechanisticInferer):
         "VACCINE_EFF_MATRIX",
         "BETA_TIMES",
         "STRAIN_R0s",
-        "INFECTIOUS_PERIOD" "EXPOSED_TO_INFECTIOUS",
+        "INFECTIOUS_PERIOD",
+        "EXPOSED_TO_INFECTIOUS",
         "INTRODUCTION_TIMES",
         "INTRODUCTION_SCALES",
-        "INTRODUCTION_PCTS" "INITIAL_INFECTIONS_SCALE",
+        "INTRODUCTION_PCTS",
+        "INITIAL_INFECTIONS_SCALE",
         "CONSTANT_STEP_SIZE",
         "SEASONALITY_AMPLITUDE",
         "SEASONALITY_SECOND_WAVE",
@@ -574,7 +571,7 @@ class ProjectionParameters(MechanisticInferer):
             # re-create the CROSSIMMUNITY_MATRIX since we modified the STRAIN_INTERACTIONS matrix
             parameters[
                 "CROSSIMMUNITY_MATRIX"
-            ] = utils.strain_interaction_to_cross_immunity2(
+            ] = self.strain_interaction_to_cross_immunity(
                 parameters["NUM_STRAINS"],
                 parameters["STRAIN_INTERACTIONS"],
             )
@@ -586,6 +583,33 @@ class ProjectionParameters(MechanisticInferer):
             raise RuntimeError(err_txt) from e
 
         return parameters
+
+    def strain_interaction_to_cross_immunity(
+        self, num_strains: int, strain_interactions: np.ndarray
+    ) -> jax.Array:
+        """Because we are overriding the definitions of immune history, the model must
+        contain its own method for generating the cross immunity matrix, not relying on
+        utils.strain_interaction_to_cross_immunity() which has complex logic
+        to convert the strain interactions matrix to a cross immunity matrix
+
+        Parameters
+        ----------
+        num_strains : int
+            number of strains in the model
+        strain_interactions : jax.Array
+            the strain interactions matrix
+
+        Returns
+        -------
+        jax.Array
+            the cross immunity matrix which is similar to the strain
+            matrix but with an added 0 layer for no previous exposure
+        """
+        cim = jnp.hstack(
+            (jnp.array([[0.0]] * num_strains), strain_interactions),
+        )
+
+        return cim
 
     def get_parameters(self):
         """

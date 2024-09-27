@@ -12,13 +12,13 @@ import numpy as np
 sys.path.append("/app/")
 sys.path.append("/input/exp/fifty_state_5strain_2202_2404/")
 print(os.getcwd())
+# sys.path.append(".")
+# sys.path.append(os.getcwd())
+from inferer_projection import ProjectionParameters
+
 from resp_ode import MechanisticRunner
 from resp_ode.model_odes.seip_model_flatten_immune_hist import seip_ode
 from src.mechanistic_azure.abstract_azure_runner import AbstractAzureRunner
-
-# sys.path.append(".")
-# sys.path.append(os.getcwd())
-from .inferer_projection import ProjectionParameters
 
 jax.config.update("jax_enable_x64", True)
 
