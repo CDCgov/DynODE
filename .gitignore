@@ -72,6 +72,7 @@ testing.py
 !pyproject.toml
 !azure/docker_template_configs/*.json
 !exp/example_azure_experiment/example_template_configs/*.json
+!exp/*/template_configs/*.json
 
 #####
 # Python
