@@ -233,7 +233,7 @@ class AzureExperimentLauncher:
         self.azure_client.upload_files_in_folder(
             [self.experiment_path_local],
             "scenarios-mechanistic-input",
-            location=self.experiment_path_blob,
+            location_in_blob=self.experiment_path_blob,
         )
 
     def launch_states(self, depend_on_task_ids: list[str] = None) -> list[str]:
