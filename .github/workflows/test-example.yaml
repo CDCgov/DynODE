@@ -1,0 +1,28 @@
+name: Run example
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  example:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install global dependencies
+      run: |
+        pip install poetry
+
+    - name: Run Example
+      run: |
+        poetry install
+        poetry run examples/example_end_to_end_run.py
