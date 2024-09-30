@@ -5,10 +5,8 @@
     "HOSP_PATH": "/input/data/hospitalization-data",
     "SERO_PATH": "/input/data/serological-data/fitting-2022/",
     "VAR_PATH": "/input/data/variant-data/fitting-2022/",
-    "VACCINATION_MODEL_DATA": "/input/data/vaccination-data/2024_06_30_to_2025_06_28_vax88/",
+    "VACCINATION_MODEL_DATA": "/input/data/vaccination-data/2022_02_11_to_2024_04_27",
     "SEASONAL_VACCINATION": false,
-    "ZERO_VACCINE_DAY": 70,
-    "SAMPLE_STRAIN_X_INTRO_TIME": true,
     "STRAIN_R0s": [
         {
             "distribution": "TransformedDistribution",
@@ -70,7 +68,7 @@
                     "transform": "AffineTransform",
                     "params": {
                         "loc": 2.0,
-                        "scale": 2.0,
+                        "scale": 3.0,
                         "domain": {
                             "constraint": "unit_interval",
                             "params": {}
@@ -93,7 +91,7 @@
                     "transform": "AffineTransform",
                     "params": {
                         "loc": 2.0,
-                        "scale": 2.0,
+                        "scale": 3.0,
                         "domain": {
                             "constraint": "unit_interval",
                             "params": {}
@@ -102,9 +100,7 @@
                 }
             }
         },
-        1.0,
-        1.0,
-        1.0
+        1
     ],
     "INFECTIOUS_PERIOD": 7.0,
     "EXPOSED_TO_INFECTIOUS": 3.6,
@@ -118,17 +114,51 @@
         }
     },
     "INTRODUCTION_TIMES": [
-        88,
-        88
+        {
+            "distribution": "TruncatedNormal",
+            "params": {
+                "loc": 20,
+                "scale": 5,
+                "low": 10
+            }
+        },
+        {
+            "distribution": "TruncatedNormal",
+            "params": {
+                "loc": 230,
+                "scale": 5,
+                "low": 190
+            }
+        },
+        {
+            "distribution": "TruncatedNormal",
+            "params": {
+                "loc": 500,
+                "scale": 5,
+                "low": 450
+            }
+        },
+        {
+            "distribution": "TruncatedNormal",
+            "params": {
+                "loc": 640,
+                "scale": 5,
+                "low": 600
+            }
+        }
     ],
     "CONSTANT_STEP_SIZE": 0,
     "INTRODUCTION_PCTS": [
-        0.03,
-        0.03
+        0.015,
+        0.015,
+        0.015,
+        0.015
     ],
     "INTRODUCTION_SCALES": [
-        13,
-        13
+        18,
+        18,
+        18,
+        18
     ],
     "INTRODUCTION_AGE_MASK": [
         false,
@@ -136,13 +166,7 @@
         false,
         false
     ],
-    "MIN_HOMOLOGOUS_IMMUNITY": {
-        "distribution": "Beta",
-        "params": {
-            "concentration1": 500,
-            "concentration0": 1500
-        }
-    },
+    "MIN_HOMOLOGOUS_IMMUNITY": 0.40,
     "WANING_PROTECTIONS": [
         1.0,
         1.0,
@@ -157,8 +181,8 @@
                     "base_distribution": {
                         "distribution": "Beta",
                         "params": {
-                            "concentration1": 40,
-                            "concentration0": 60
+                            "concentration1": 44.27,
+                            "concentration0": 66.4
                         }
                     },
                     "transforms": {
@@ -174,8 +198,6 @@
                     }
                 }
             },
-            1.0,
-            1.0,
             1.0,
             1.0,
             1.0,
@@ -188,8 +210,8 @@
                     "base_distribution": {
                         "distribution": "Beta",
                         "params": {
-                            "concentration1": 60,
-                            "concentration0": 40
+                            "concentration1": 44.27,
+                            "concentration0": 66.4
                         }
                     },
                     "transforms": {
@@ -205,8 +227,6 @@
                     }
                 }
             },
-            1.0,
-            1.0,
             1.0,
             1.0,
             1.0,
@@ -219,8 +239,8 @@
                     "base_distribution": {
                         "distribution": "Beta",
                         "params": {
-                            "concentration1": 50,
-                            "concentration0": 50
+                            "concentration1": 55.34,
+                            "concentration0": 55.34
                         }
                     },
                     "transforms": {
@@ -242,8 +262,8 @@
                     "base_distribution": {
                         "distribution": "Beta",
                         "params": {
-                            "concentration1": 80,
-                            "concentration0": 20
+                            "concentration1": 88.54,
+                            "concentration0": 22.34
                         }
                     },
                     "transforms": {
@@ -259,8 +279,6 @@
                     }
                 }
             },
-            1.0,
-            1.0,
             1.0,
             1.0,
             1.0
@@ -273,8 +291,8 @@
                     "base_distribution": {
                         "distribution": "Beta",
                         "params": {
-                            "concentration1": 50,
-                            "concentration0": 50
+                            "concentration1": 55.34,
+                            "concentration0": 55.34
                         }
                     },
                     "transforms": {
@@ -296,8 +314,8 @@
                     "base_distribution": {
                         "distribution": "Beta",
                         "params": {
-                            "concentration1": 80,
-                            "concentration0": 20
+                            "concentration1": 88.54,
+                            "concentration0": 22.34
                         }
                     },
                     "transforms": {
@@ -313,8 +331,6 @@
                     }
                 }
             },
-            1.0,
-            1.0,
             1.0,
             1.0
         ],
@@ -327,8 +343,8 @@
                     "base_distribution": {
                         "distribution": "Beta",
                         "params": {
-                            "concentration1": 50,
-                            "concentration0": 50
+                            "concentration1": 55.34,
+                            "concentration0": 55.34
                         }
                     },
                     "transforms": {
@@ -350,8 +366,8 @@
                     "base_distribution": {
                         "distribution": "Beta",
                         "params": {
-                            "concentration1": 70,
-                            "concentration0": 30
+                            "concentration1": 88.54,
+                            "concentration0": 22.34
                         }
                     },
                     "transforms": {
@@ -367,26 +383,6 @@
                     }
                 }
             },
-            1.0,
-            1.0,
-            1.0
-        ],
-        [
-            0.05,
-            0.15,
-            0.25,
-            0.70,
-            0.95,
-            1.0,
-            1.0
-        ],
-        [
-            0.0,
-            0.05,
-            0.15,
-            0.25,
-            0.888,
-            0.888,
             1.0
         ]
     ],
@@ -394,52 +390,33 @@
         [
             0,
             0.35,
-            0.70,
-            0.88
+            0.70
         ],
         [
             0,
             0.30,
-            0.60,
-            0.88
+            0.60
         ],
         [
             0,
             0.25,
-            0.50,
-            0.88
+            0.50
         ],
         [
             0,
             0.20,
-            0.40,
-            0.88
+            0.40
         ],
         [
             0,
             0.095,
-            0.19,
-            0.88
-        ],
-        [
-            0,
-            0.095,
-            0.19,
-            0.88
-        ],
-        [
-            0,
-            0.095,
-            0.19,
-            0.88
+            0.19
         ]
     ],
     "BETA_TIMES": [
-        0.0,
-        70.0
+        0.0
     ],
     "BETA_COEFICIENTS": [
-        1.0,
         1.0
     ],
     "SEASONALITY_AMPLITUDE": {
@@ -448,15 +425,15 @@
             "base_distribution": {
                 "distribution": "Beta",
                 "params": {
-                    "concentration1": 60,
-                    "concentration0": 40
+                    "concentration1": 72,
+                    "concentration0": 28
                 }
             },
             "transforms": {
                 "transform": "AffineTransform",
                 "params": {
-                    "loc": 0.0,
-                    "scale": 0.1,
+                    "loc": 0.02,
+                    "scale": 0.20,
                     "domain": {
                         "constraint": "unit_interval",
                         "params": {}
@@ -468,24 +445,33 @@
     "SEASONALITY_SECOND_WAVE": {
         "distribution": "Beta",
         "params": {
-            "concentration1": 100,
-            "concentration0": 100
+            "concentration1": 50,
+            "concentration0": 50
         }
     },
-    "SEASONALITY_SHIFT": {
+    "SEASONALITY_DOMINANT_WAVE_DAY": {
         "distribution": "TruncatedNormal",
         "params": {
-            "loc": -10,
-            "scale": 1,
-            "low": -25,
-            "high": 5
+            "loc": 345,
+            "scale": 5,
+            "low": 325,
+            "high": 365
         }
     },
-    "INFERENCE_PRNGKEY": 8675311,
+    "SEASONALITY_SECOND_WAVE_DAY": {
+        "distribution": "TruncatedNormal",
+        "params": {
+            "loc": 230,
+            "scale": 5,
+            "low": 210,
+            "high": 270
+        }
+    },
+    "INFERENCE_PRNGKEY": 8675314,
     "INFERENCE_NUM_WARMUP": 1000,
     "INFERENCE_NUM_SAMPLES": 1000,
     "INFERENCE_NUM_CHAINS": 4,
     "INFERENCE_PROGRESS_BAR": true,
-    "MAX_TREE_DEPTH": 9,
-    "MODEL_RAND_SEED": 8675318
+    "MAX_TREE_DEPTH": 10,
+    "MODEL_RAND_SEED": 8675316
 }
