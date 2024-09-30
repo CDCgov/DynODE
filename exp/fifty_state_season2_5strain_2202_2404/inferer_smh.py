@@ -451,11 +451,12 @@ class SMHInferer(MechanisticInferer):
 
             ## Variant proportion
             strain_incidence = jnp.sum(
-                solution.ys[self.config.COMPARTMENT_IDX.E],
+                solution.ys[self.config.COMPARTMENT_IDX.C],
                 axis=(
                     self.config.I_AXIS_IDX.age + 1,
                     self.config.I_AXIS_IDX.hist + 1,
                     self.config.I_AXIS_IDX.vax + 1,
+                    4,  # no current ENUM to fill this out lol
                 ),
             )
             strain_incidence = jnp.diff(strain_incidence, axis=0)[
