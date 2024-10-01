@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 A basic local covid example meant to show off the flow of running the mechanistic model
 
@@ -10,6 +11,7 @@ estimates of what epidemiological variables produced it.
 """
 
 import argparse
+import os
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -36,6 +38,10 @@ parser.add_argument(
 if __name__ == "__main__":
     args = parser.parse_args()
     infer = args.infer
+
+    # Make the output directory.
+    if not os.path.exists("output"):
+        os.mkdir("output")
 
     # step 1: define your paths
     config_path = "config/"
