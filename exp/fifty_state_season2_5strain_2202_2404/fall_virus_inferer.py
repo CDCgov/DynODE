@@ -1,5 +1,6 @@
 import os
 
+import jax
 import jax.numpy as jnp
 import numpyro
 import numpyro.distributions as Dist
@@ -34,8 +35,8 @@ class FallVirusInferer(MechanisticInferer):
         "SEASONALITY_SECOND_WAVE",
         "SEASONALITY_DOMINANT_WAVE_DAY",
         "SEASONALITY_SECOND_WAVE_DAY",
-        "SEASONALITY_SHIFT",
         "MIN_HOMOLOGOUS_IMMUNITY",
+        "WANING_RATES",
     ]
 
     def load_vaccination_model(self):
@@ -94,11 +95,39 @@ class FallVirusInferer(MechanisticInferer):
             obs_var_prop=obs_var_prop,
             obs_var_days=obs_var_days,
             obs_var_sd=obs_var_sd,
+            tf=max(obs_hosps_days) + 1,
         )
         self.inference_algo.print_summary()
         self.infer_complete = True
         self.inference_timesteps = max(obs_hosps_days) + 1
         return self.inference_algo
+
+    def strain_interaction_to_cross_immunity(
+        self, num_strains: int, strain_interactions: jax.Array
+    ) -> jax.Array:
+        """Because we are overriding the definitions of immune history, the model must
+        contain its own method for generating the cross immunity matrix, not relying on
+        utils.strain_interaction_to_cross_immunity() which has complex logic
+        to convert the strain interactions matrix to a cross immunity matrix
+
+        Parameters
+        ----------
+        num_strains : int
+            number of strains in the model
+        strain_interactions : jax.Array
+            the strain interactions matrix
+
+        Returns
+        -------
+        jax.Array
+            the cross immunity matrix which is similar to the strain
+            matrix but with an added 0 layer for no previous exposure
+        """
+        cim = jnp.hstack(
+            (jnp.array([[0.0]] * num_strains), strain_interactions),
+        )
+
+        return cim
 
     def generate_downstream_parameters(self, parameters: dict) -> dict:
         """An Override for the generate downstream parameters in order
@@ -129,7 +158,42 @@ class FallVirusInferer(MechanisticInferer):
             an appended onto version of `parameters` with additional downstream parameters added.
 
         """
-        parameters = super().generate_downstream_parameters(parameters)
+        parameters[
+            "CROSSIMMUNITY_MATRIX"
+        ] = self.strain_interaction_to_cross_immunity(
+            parameters["NUM_STRAINS"],
+            parameters["STRAIN_INTERACTIONS"],
+        )
+        beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
+        gamma = 1 / parameters["INFECTIOUS_PERIOD"]
+        sigma = 1 / parameters["EXPOSED_TO_INFECTIOUS"]
+        external_i_function_prefilled = jax.tree_util.Partial(
+            self.external_i,
+            introduction_times=parameters["INTRODUCTION_TIMES"],
+            introduction_scales=parameters["INTRODUCTION_SCALES"],
+            introduction_pcts=parameters["INTRODUCTION_PCTS"],
+        )
+        # override the seasonality prefill since we are using alternative definition of seasonality
+        seasonality_function_prefilled = jax.tree_util.Partial(
+            self.seasonality,
+            seasonality_amplitude=parameters["SEASONALITY_AMPLITUDE"],
+            seasonality_second_wave=parameters["SEASONALITY_SECOND_WAVE"],
+            dominant_wave_day=parameters["SEASONALITY_DOMINANT_WAVE_DAY"],
+            second_wave_day=parameters["SEASONALITY_SECOND_WAVE_DAY"],
+        )
+        parameters = dict(
+            parameters,
+            **{
+                "BETA": beta,
+                "SIGMA": sigma,
+                "GAMMA": gamma,
+                "EXTERNAL_I": external_i_function_prefilled,
+                "VACCINATION_RATES": self.vaccination_rate,
+                "BETA_COEF": self.beta_coef,
+                "SEASONAL_VACCINATION_RESET": self.seasonal_vaccination_reset,
+                "SEASONALITY": seasonality_function_prefilled,
+            }
+        )
         parameters["STRAIN_R0s"] = jnp.array(
             [
                 parameters["STRAIN_R0s"][0],
@@ -389,16 +453,15 @@ class FallVirusInferer(MechanisticInferer):
 
     def likelihood(
         self,
-        obs_hosps=None,
-        obs_hosps_days=None,
-        obs_sero_lmean=None,
-        obs_sero_lsd=None,
-        obs_sero_days=None,
-        obs_var_prop=None,
-        obs_var_days=None,
-        obs_var_sd=None,
-        tf=None,
-        infer_mode=True,
+        obs_hosps,
+        obs_hosps_days,
+        obs_sero_lmean,
+        obs_sero_lsd,
+        obs_sero_days,
+        obs_var_prop,
+        obs_var_days,
+        obs_var_sd,
+        tf,
     ):
         """
         overridden likelihood that takes as input weekly hosp data starting from self.config.INIT_DATE
