@@ -12,7 +12,7 @@ from cfa_azure.clients import AzureClient
 from plotly.subplots import make_subplots
 
 from mechanistic_azure.azure_utilities import download_directory_from_azure
-from resp_ode.utils import flatten_list_parameters
+from resp_ode.utils import drop_keys_with_substring, flatten_list_parameters
 
 
 class Node:
@@ -258,6 +258,8 @@ def load_checkpoint_inference_chains(
     # any sampled parameters created via numpyro.plate will mess up the data
     # flatten plated parameters into separate keys
     posteriors: dict[str, list] = flatten_list_parameters(posteriors)
+    # drop any final_timestep variables if they exist within the posteriors
+    posteriors = drop_keys_with_substring(posteriors, "final_timestep")
     num_sampled_parameters = len(posteriors.keys())
     # we want a mostly square subplot, so lets sqrt and take floor/ceil to deal with odd numbers
     num_rows = math.isqrt(num_sampled_parameters)
@@ -331,6 +333,8 @@ def load_checkpoint_inference_correlations(
     posteriors = {
         key: np.array(matrix).flatten() for key, matrix in posteriors.items()
     }
+    # drop any final_timestep parameters in case they snuck in
+    posteriors = drop_keys_with_substring(posteriors, "final_timestep")
     # Compute the correlation matrix, reverse it so diagonal starts @ top left
     correlation_matrix = pd.DataFrame(posteriors).corr()[::-1]
 
