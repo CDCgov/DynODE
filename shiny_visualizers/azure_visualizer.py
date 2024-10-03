@@ -22,7 +22,7 @@ SHINY_CACHE_PATH = "shiny_visualizers/shiny_cache"
 # this will reduce the time it takes to load the azure connection, but only shows
 # one experiment worth of data, which may be what you want...
 #  leave empty ("") to explore all experiments
-PRE_FILTER_EXPERIMENTS = ""
+PRE_FILTER_EXPERIMENTS = "fifty_state_season2_5strain_2202_2404"
 # when loading the overview timelines csv for each run, columns
 # are expected to have names corresponding to the type of plot they create
 # vaccination_0_17 specifies the vaccination_ plot type, multiple columns may share
