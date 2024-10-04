@@ -3,13 +3,19 @@ import math
 import os
 from typing import Iterable, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly
 import plotly.express as px
 import plotly.graph_objects
+
+# import plotly.graph_objs as go
+import seaborn as sns
 from cfa_azure.clients import AzureClient
 from plotly.subplots import make_subplots
+from scipy.stats import pearsonr
+from tqdm import tqdm
 
 from mechanistic_azure.azure_utilities import download_directory_from_azure
 from resp_ode.utils import drop_keys_with_substring, flatten_list_parameters
@@ -41,7 +47,7 @@ def construct_tree(file_paths: Iterable[str], root=None) -> Node:
     """
     if not isinstance(root, Node):
         root = Node("/")
-    for path in file_paths:
+    for path in tqdm(file_paths, desc="Building Azure Tree Structure"):
         # indicates this is an actual file like .txt or .json or .out
         if "." in path:
             directories, filename = path.rsplit("/", 1)
@@ -427,6 +433,137 @@ def load_checkpoint_inference_violin_plots(
     # turn off legends since the subplot title tells you what parameter is being shown
     fig.update_traces(showlegend=False)
     return fig
+
+
+def load_checkpoint_inference_correlation_pairs(
+    cache_path,
+    overview_subplot_size: int,
+):
+    """Given a path a folder containing downloaded azure files, checks for the existence
+    of the checkpoint.json file, if it exists, returns a figure plotting
+    the correlation of each sampled parameter with all other sampled parameters
+    on the upper half of the plot the correlation values, on the diagonal a
+    historgram of the posterior values, and on the bottom half a scatter
+    plot of the parameters against eachother.
+
+
+    Parameters
+    ----------
+    cache_path : str
+        path to the local path on machine with files within.
+    overview_subplot_size: int
+        the side of the width/height of the correlation matrix in pixels
+
+    Returns
+    -------
+    Figure
+        plotly Figure with `n` rows and `n` columns where `n` is the number of sampled parameters
+    """
+    checkpoint_path = os.path.join(cache_path, "checkpoint.json")
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(
+            "attempted to visualize an inference correlation without an `checkpoint.json` file"
+        )
+    posteriors = json.load(open(checkpoint_path, "r"))
+    posteriors: dict[str, list] = flatten_list_parameters(posteriors)
+    # drop any final_timestep parameters in case they snuck in
+    posteriors = drop_keys_with_substring(posteriors, "final_timestep")
+    # Flatten matrices including chains and create Correlation DataFrame
+    posteriors = {
+        key: np.array(matrix).flatten() for key, matrix in posteriors.items()
+    }
+    # pick first key, get the samples for that key, get the shape of that np.ndarray
+    number_of_samples = posteriors[list(posteriors.keys())[0]].shape[0]
+    print(number_of_samples)
+    if number_of_samples > 1000:
+        selected_indices = np.random.choice(
+            number_of_samples, size=500, replace=False
+        )
+        posteriors = {
+            key: posteriors[key][selected_indices] for key in posteriors.keys()
+        }
+    columns = posteriors.keys()
+    # Compute the correlation matrix, reverse it so diagonal starts @ top left
+    correlation_matrix = pd.DataFrame(posteriors)  # .corr()[::-1]
+
+    def reg_coef(x, y, label=None, color=None, **kwargs):
+        ax = plt.gca()
+        r, p = pearsonr(x, y)
+        ax.annotate(
+            "r = {:.2f}".format(r),
+            xy=(0.5, 0.5),
+            xycoords="axes fraction",
+            ha="center",
+        )
+        ax.texts[0].set_size(16)
+        ax.set_axis_off()
+
+    # Create the plot
+    g = sns.PairGrid(data=correlation_matrix, vars=columns, hue=None)
+    g.map_upper(reg_coef)
+    g = g.map_lower(sns.regplot, scatter_kws={"edgecolor": "white"})
+    g = g.map_diag(sns.histplot, kde=True)
+    return g.figure
+
+    # # Create subplots: Each subplot is one pair of 'columns'
+    # fig = make_subplots(
+    #     rows=len(columns),
+    #     cols=len(columns),
+    #     shared_xaxes=True,
+    #     shared_yaxes=True,
+    #     vertical_spacing=0.03,
+    #     horizontal_spacing=0.03,
+    # )
+    # print(correlation_matrix)
+
+    # for i, col1 in enumerate(columns):
+    #     for j, col2 in enumerate(columns):
+    #         if i == j:
+    #             # Diagonal - we place histogram or kde here
+    #             fig.add_trace(
+    #                 go.Histogram(x=posteriors[col1], nbinsx=20),
+    #                 row=i + 1,
+    #                 col=j + 1,
+    #             )
+    #         elif i < j:
+    #             # Upper triangle - show Pearson correlation coefficient
+    #             corr_value = correlation_matrix[col1][col2]
+    #             fig.add_annotation(
+    #                 xref="x domain",
+    #                 yref="y domain",
+    #                 x=0.5,
+    #                 y=0.5,
+    #                 xanchor="center",
+    #                 yanchor="middle",
+    #                 text=f"ρ = {corr_value:.2f}",
+    #                 showarrow=False,
+    #                 font=dict(size=10),
+    #                 row=i + 1,
+    #                 col=j + 1,
+    #             )
+    #         else:
+    #             # Lower triangle - scatter plots here
+    #             fig.add_trace(
+    #                 go.Scatter(
+    #                     x=posteriors[col2],
+    #                     y=posteriors[col1],
+    #                     mode="markers",
+    #                     marker=dict(size=3),
+    #                 ),
+    #                 row=i + 1,
+    #                 col=j + 1,
+    #             )
+
+    # # Update layout and axes properties if needed
+    # fig.update_layout(
+    #     height=overview_subplot_size,
+    #     width=overview_subplot_size,
+    #     title_text="Pairplot with Plotly",
+    # )
+    # # fig.update_traces(
+    # #     diagonal_visible=False
+    # # )  # Hide diagonal subplots for clarity
+    # return fig
 
 
 def _generate_row_wise_legends(fig, num_cols):

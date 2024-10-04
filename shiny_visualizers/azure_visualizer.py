@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import shiny_utils as sutils
 from plotly.graph_objects import Figure
-from shiny import App, Session, reactive, ui
+from shiny import App, Session, reactive, render, ui
 from shinywidgets import output_widget, render_plotly, render_widget
 
 import mechanistic_azure.azure_utilities as autils
@@ -22,7 +22,7 @@ SHINY_CACHE_PATH = "shiny_visualizers/shiny_cache"
 # this will reduce the time it takes to load the azure connection, but only shows
 # one experiment worth of data, which may be what you want...
 #  leave empty ("") to explore all experiments
-PRE_FILTER_EXPERIMENTS = ""
+PRE_FILTER_EXPERIMENTS = "fifty_state_season2_5strain_2202_2404"
 # when loading the overview timelines csv for each run, columns
 # are expected to have names corresponding to the type of plot they create
 # vaccination_0_17 specifies the vaccination_ plot type, multiple columns may share
@@ -326,6 +326,7 @@ def server(input, output, session: Session):
             exp, job_id, states, scenario, azure_client, SHINY_CACHE_PATH
         )
         # only load first state for chains
+        print("building inference chains plot")
         fig = sutils.load_checkpoint_inference_chains(
             cache_paths[0],
             overview_subplot_height=OVERVIEW_SUBPLOT_HEIGHT,
@@ -337,7 +338,8 @@ def server(input, output, session: Session):
         return fig
 
     @output(id="plot_sample_correlations")
-    @render_widget
+    # @render_widget
+    @render.plot()
     @reactive.event(input.action_button)
     def plot_sample_correlations():
         """
@@ -351,14 +353,16 @@ def server(input, output, session: Session):
         cache_paths = sutils.get_azure_files(
             exp, job_id, states, scenario, azure_client, SHINY_CACHE_PATH
         )
+        print("building sample correlations plot")
         # we have the figure, now update the light/dark mode depending on the switch
-        fig = sutils.load_checkpoint_inference_correlations(
+        fig = sutils.load_checkpoint_inference_correlation_pairs(
             cache_paths[0],
             overview_subplot_size=1500,
         )
         # we have the figure, now update the light/dark mode depending on the switch
-        theme = sutils.shiny_to_plotly_theme(input.dark_mode())
-        fig.update_layout(template=theme)
+        # theme = sutils.shiny_to_plotly_theme(input.dark_mode())
+        # fig.update_layout(template=theme)
+        print("displaying correlations plot")
         return fig
 
     @output(id="plot_sample_violins")
