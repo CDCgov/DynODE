@@ -8,6 +8,7 @@ import json
 import warnings
 from typing import Union
 
+import bayeux as bx
 import jax.numpy as jnp
 import jax.typing
 import numpy as np
@@ -334,6 +335,27 @@ class MechanisticInferer(AbstractParameters):
         self.inference_timesteps = len(obs_metrics)
         self.infer_complete = True
         return self.inference_algo
+
+    def _debug_likelihood(self, **kwargs) -> bx.Model:
+        """uses Bayeux to recreate the self.likelihood function for purposes of basic sanity checking
+
+        passes all parameters given to it to `self.likelihood`, initializes with `self.INITIAL_STATE`
+        and passes `self.config.INFERENCE_PRNGKEY` as seed for randomness.
+
+        Returns
+        -------
+        Bayeux.Model
+            model object used to debug
+        """
+        bx_model = bx.Model.from_numpyro(
+            jax.tree_util.Partial(self.likelihood, **kwargs),
+            # this does not work for non-one/sampled self.INITIAL_INFECTIONS_SCALE
+            initial_state=self.INITIAL_STATE,
+        )
+        bx_model.mcmc.numpyro_nuts.debug(
+            seed=PRNGKey(self.config.INFERENCE_PRNGKEY)
+        )
+        return bx_model
 
     def checkpoint(
         self, checkpoint_path: str, group_by_chain: bool = True
