@@ -1,10 +1,16 @@
 # CFA Scenarios Model
+
+> [!IMPORTANT]
+> This repository is under active development and will be substantially refactored in the near future.
+> Please look around, but we advise against working with this code until it has stabilized.
+
 [Overview](#overview) |
 [Model Structure](#model-structure) |
 [Quick Start](#quick-start) |
 [Data Sources](#data-sources) |
 [Project Admins](#project-admins) |
 [Fine Text and Disclaimers](#general-disclaimer)
+
 ## Overview
 
 This repository is for the design and implementation of a Scenarios forecasting model, built by the Scenarios team within CFA-Predict.
