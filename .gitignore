@@ -49,18 +49,13 @@ testing.py
 !data/
 !data/dates_of_interest.csv
 !data/fips_to_name.csv
-!output/example_output_1000_days.png
-!output/example_output_1000_days.png_meta.json
-!output/base_model_initial_immune_distribution.png
-!output/base_model_initial_immune_distribution.png_meta.json
-!misc/scenarios_seip_model_diagram_3_11_24.png
+!img/scenarios_seip_model_diagram_3_11_24.png
 !data/spline_fits.csv
 !data/hospitalization-data/hospital_220213_220108.csv
 !output/example_output_summary_slide.png
 !config/*.json
 !tests/*.json
 !exp/*/*.json
-!docker_template_configs/*.json
 !data/serological-data/*.csv
 !data/hospitalization-data/*.csv
 !data/vaccination-data/state-spline-fits/*.csv
@@ -75,6 +70,9 @@ testing.py
 !data/vaccination-data/2022_02_11_to_2024_04_27/*.csv
 !poetry*
 !pyproject.toml
+!azure/docker_template_configs/*.json
+!exp/example_azure_experiment/example_template_configs/*.json
+!exp/*/template_configs/*.json
 
 #####
 # Python

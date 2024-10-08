@@ -7,7 +7,7 @@ import json
 import numpyro.distributions as dist
 import pytest
 
-from config.config import Config, ConfigParserError
+from resp_ode.config import Config, ConfigParserError
 
 GLOBAL_TEST_CONFIG = "tests/test_config_global.json"
 PATH_VARIABLES = [
@@ -15,7 +15,7 @@ PATH_VARIABLES = [
     "DEMOGRAPHIC_DATA_PATH",
     "SEROLOGICAL_DATA_PATH",
     "SIM_DATA_PATH",
-    "VAX_MODEL_DATA",
+    "VACCINATION_MODEL_DATA",
 ]
 
 
@@ -93,7 +93,7 @@ def test_invalid_vax_age_coefs_type():
 
 
 def test_invalid_vax_path():
-    input_json = """{"VAX_MODEL_DATA": "blah"}"""
+    input_json = """{"VACCINATION_MODEL_DATA": "blah"}"""
     with pytest.raises(AssertionError):
         Config(input_json)
 
@@ -103,7 +103,7 @@ def test_invalid_vax_age_coefs_vals():
     input_json = """{"AGE_DOSE_SPECIFIC_VAX_COEF":
                         [[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]],
                     "NUM_AGE_GROUPS":3,
-                    "MAX_VAX_COUNT": 2
+                    "MAX_VACCINATION_COUNT": 2
                         }"""
     with pytest.raises(AssertionError):
         Config(input_json)
@@ -113,7 +113,7 @@ def test_valid_vax_age_coefs():
     input_json = """{"AGE_DOSE_SPECIFIC_VAX_COEF":
                         [[1, 1, 1], [1, 1, 1]],
                     "NUM_AGE_GROUPS":2,
-                    "MAX_VAX_COUNT": 2
+                    "MAX_VACCINATION_COUNT": 2
                         }"""
     assert Config(input_json).AGE_DOSE_SPECIFIC_VAX_COEF.tolist() == [
         [1, 1, 1],
@@ -253,20 +253,20 @@ def test_valid_seasonality_shift_dist():
 
 
 def test_invalid_introduction_perc_type():
-    input_json = """{"INTRODUCTION_PERCS": 0.1}"""
+    input_json = """{"INTRODUCTION_PCTS": 0.1}"""
     with pytest.raises(AssertionError):
         Config(input_json)
 
 
 def test_invalid_introduction_perc_val():
-    input_json = """{"INTRODUCTION_PERCS":[-1]}"""
+    input_json = """{"INTRODUCTION_PCTS":[-1]}"""
     with pytest.raises(AssertionError):
         Config(input_json)
 
 
 def test_valid_introduction_perc():
-    input_json = """{"INTRODUCTION_PERCS": [0.1]}"""
-    assert Config(input_json).INTRODUCTION_PERCS == [0.1]
+    input_json = """{"INTRODUCTION_PCTS": [0.1]}"""
+    assert Config(input_json).INTRODUCTION_PCTS == [0.1]
 
 
 def test_invalid_introduction_times_type():

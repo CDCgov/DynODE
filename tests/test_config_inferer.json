@@ -1,9 +1,8 @@
 {
     "SCENARIO_NAME": "test covid run for testing suite",
     "CONTACT_MATRIX_PATH": "data/demographic-data/contact_matrices",
-    "SAVE_PATH": "output/",
-    "HOSP_PATH": "data/hospital_220213_220108.csv",
-    "VAX_MODEL_DATA": "data/spline_fits.csv",
+    "HOSPITALIZATION_DATA_PATH": "data/hospital_220213_220108.csv",
+    "VACCINATION_MODEL_DATA": "data/spline_fits.csv",
     "STRAIN_R0s": [
         1.2,
         1.8,
@@ -37,7 +36,7 @@
             }
         }
     ],
-    "INTRODUCTION_PERCS": [
+    "INTRODUCTION_PCTS": [
         0.01
     ],
     "INTRODUCTION_SCALES": [
@@ -74,7 +73,7 @@
             1.0
         ]
     ],
-    "VAX_EFF_MATRIX": [
+    "VACCINE_EFF_MATRIX": [
         [
             0,
             0.34,

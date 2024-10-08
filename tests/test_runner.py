@@ -3,11 +3,8 @@ import datetime
 import jax.numpy as jnp
 import pytest
 
-import utils
-from config.config import Config
-from mechanistic_model.mechanistic_runner import MechanisticRunner
-from mechanistic_model.static_value_parameters import StaticValueParameters
-from model_odes.seip_model import seip_ode
+from resp_ode import Config, MechanisticRunner, StaticValueParameters, utils
+from resp_ode.model_odes import seip_ode
 
 CONFIG_GLOBAL_PATH = "tests/test_config_global.json"
 RUNNER_CONFIG_PATH = "tests/test_config_runner.json"
@@ -16,13 +13,13 @@ global_config = Config(GLOBAL_JSON)
 S_SHAPE = (
     global_config.NUM_AGE_GROUPS,
     2**global_config.NUM_STRAINS,
-    global_config.MAX_VAX_COUNT + 1,
+    global_config.MAX_VACCINATION_COUNT + 1,
     global_config.NUM_WANING_COMPARTMENTS,
 )
 EIC_SHAPE = (
     global_config.NUM_AGE_GROUPS,
     2**global_config.NUM_STRAINS,
-    global_config.MAX_VAX_COUNT + 1,
+    global_config.MAX_VACCINATION_COUNT + 1,
     global_config.NUM_STRAINS,
 )
 fake_initial_state = (
@@ -137,14 +134,14 @@ def test_seasonal_vaccination_reset():
         season_change = static_params.config.INIT_DATE + datetime.timedelta(
             days=30 * month
         )
-        static_params.config.VAX_SEASON_CHANGE = season_change
+        static_params.config.VACCINATION_SEASON_CHANGE = season_change
         outflow_val = static_params.seasonal_vaccination_reset(
             utils.date_to_sim_day(
                 season_change, static_params.config.INIT_DATE
             )
         )
         assert outflow_val == 1, (
-            "seasonal outflow function does not peak on static_params.config.VAX_SEASON_CHANGE like it should %s"
+            "seasonal outflow function does not peak on static_params.config.VACCINATION_SEASON_CHANGE like it should %s"
             % str(outflow_val)
         )
 
