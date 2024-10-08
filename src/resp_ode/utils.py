@@ -1025,6 +1025,27 @@ def flatten_list_parameters(
     return return_dict
 
 
+def drop_keys_with_substring(dct: dict[str], drop_s: str):
+    """A simple helper function designed to drop keys from a dictionary if they contain some substring
+
+    Parameters
+    ----------
+    dct : dict[str, Any]
+        a dictionary with string keys
+    drop_s : str
+        keys containing `drop_s` as a substring will be dropped
+
+    Returns
+    -------
+    dict[str, any]
+        dct with keys containing drop_s removed, otherwise untouched.
+    """
+    keys_to_drop = [key for key in dct.keys() if drop_s in key]
+    for key in keys_to_drop:
+        del dct[key]
+    return dct
+
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # DEATH CALCULATION CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
