@@ -219,7 +219,7 @@ And:
 | $\sigma(t)$        | Time-dependent seasonality coefficient                                                     |
 | $P_a$              | Population of age group a                                                              |
 | $C_{ab}$           | Contact matrix between age groups a and b                                          |
-| $\mathcal{N}(\mu__{i}, \sigma_{i})$ | Normal distribution for external infection centered at $\mu_{i}$ with scale $\sigma_{i}$ |
+| $\mathcal{N}(\mu_{i}, \sigma_{i})$ | Normal distribution for external infection centered at $\mu_{i}$ with scale $\sigma_{i}$ |
 | $\phi_{i}$           | Percentage of age group b for externally introduced strain i                        |
 | $\text{WI}_{a,k}$  | Waned immunity for age group a and strain k                                         |
 | $\text{WIB}_{a,k}$ | Waned immunity baseline for age group a and strain k                                |
