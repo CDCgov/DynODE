@@ -18,7 +18,7 @@ EXP_ID = "projections_ihr2_2404_2507"
 EXP_FOLDER = f"exp/{EXP_ID}"
 CONFIG_MOLDS = [
     f"exp/{EXP_ID}/template_configs/config_global.json",
-    f"exp/{EXP_ID}/template_configs/scenario_template.json",
+    f"exp/{EXP_ID}/template_configs/scenario_sampler0_template.json",
 ]
 
 SCEN_CSV = f"exp/{EXP_ID}/scenarios.csv"
@@ -76,7 +76,7 @@ def create_multiple_scenarios_configs(state_config, state_abb, subdir_path):
         "sample": [1],
     }
     df = pd.read_csv(SCEN_CSV)
-    df = df[["f" in x for x in df["id"]]]
+    df = df[["g" in x for x in df["id"]]]
     dicts = []
     paths = []
     for index, row in df.iterrows():
@@ -103,6 +103,7 @@ def create_multiple_scenarios_configs(state_config, state_abb, subdir_path):
         st_config["INTRODUCTION_TIMES"][0] = kpit
         st_config["INTRODUCTION_TIMES"][1] = 1
         st_config["SAMPLE_STRAIN_X_INTRO_TIME"] = "sample"
+        st_config["SAMPLE_KP_R0_MULTIPLIER"] = True
         st_config["BOOSTER_IHR_REDUCTION"] = ir / 100
         # inject multiplier that get used in inferer_projection
         st_config["STRAIN_INTERACTIONS"][6][4] = ie / 100
@@ -114,7 +115,9 @@ def create_multiple_scenarios_configs(state_config, state_abb, subdir_path):
         #     1 - ve / 100
         # )
         st_config["VACCINE_EFF_MATRIX"] = vaccine_efficacy.tolist()
-        st_config["R0_MULTIPLIER"] = mult / 100.0
+        if mult != "sample":
+            st_config["SAMPLE_KP_R0_MULTIPLIER"] = False
+            st_config["R0_MULTIPLIER"] = mult / 100.0
         dicts.append(st_config)
         new_config_file_path = os.path.join(
             subdir_path,

@@ -181,6 +181,7 @@ class ProjectionParameters(MechanisticInferer):
             "VACCINE_EFF_MATRIX": freeze_params.VACCINE_EFF_MATRIX,
             "BETA_TIMES": freeze_params.BETA_TIMES,
             "STRAIN_R0s": freeze_params.STRAIN_R0s,
+            "R0_MULTIPLIER": freeze_params.R0_MULTIPLIER,
             "INFECTIOUS_PERIOD": freeze_params.INFECTIOUS_PERIOD,
             "EXPOSED_TO_INFECTIOUS": freeze_params.EXPOSED_TO_INFECTIOUS,
             "INTRODUCTION_TIMES": freeze_params.INTRODUCTION_TIMES,
@@ -232,6 +233,13 @@ class ProjectionParameters(MechanisticInferer):
         freeze_params.POPULATION = self.retrieve_population_counts(
             parameters["INITIAL_STATE"]
         )
+        # if we are sampling the KP's R0 multiplier
+        if self.config.SAMPLE_KP_R0_MULTIPLIER:
+            r0_multiplier_dist = Dist.Uniform(0.88, 0.97)
+            r0_multiplier = numpyro.sample(
+                "KP_R0_MULTIPLIER", r0_multiplier_dist
+            )
+            parameters["R0_MULTIPLIER"] = r0_multiplier
         # if we are introducing a strain, the INTRODUCTION_TIMES array will be non-empty
         # and if we specifically want to sample strain_x intro time, we set that flag to True
         if (
@@ -285,7 +293,7 @@ class ProjectionParameters(MechanisticInferer):
                 numpyro.deterministic(
                     "STRAIN_R0s_4", parameters["STRAIN_R0s"][2]
                 ),
-                freeze_params.R0_MULTIPLIER
+                parameters["R0_MULTIPLIER"]
                 * numpyro.deterministic(
                     "STRAIN_R0s_5", parameters["STRAIN_R0s"][3]
                 ),
@@ -565,6 +573,7 @@ class ProjectionParameters(MechanisticInferer):
                        e.g., [9, 23, ...] meaning that we have data on day 9, 23, ...
         """
         parameters = self.get_parameters()
+        print(parameters["STRAIN_R0s"][5])
         initial_state = self.rework_initial_state(parameters["INITIAL_STATE"])
 
         solution = self.runner.run(

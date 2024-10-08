@@ -50,3 +50,6 @@ vaccination,ihr_reduction,immune_escape,vaccine_efficacy,r0_percentage,kp_intro_
 0,75,100,0,95,12,f1
 0,75,100,0,96,12,f1
 0,75,100,0,97,12,f1
+0,75,100,0,sample,12,g1
+85,75,100,0,sample,12,g1
+200,75,100,0,sample,12,g1
