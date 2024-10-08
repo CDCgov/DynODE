@@ -12,45 +12,45 @@ The SEIP (Susceptible-Exposed-Infectious-Partially Immune) model presented here 
 
 The model also includes seasonal vaccination effects, where individuals in the highest vaccination tier are periodically reset to the next highest tier, simulating annual vaccination campaigns. The mathematical representation of the model follows:
 
-$$
+```math
 \frac{dS_{i,j,k,m}}{dt} =
 -\left(\sum_{\ell}\lambda_{i,\ell}(t)\right) S_{i,j,k,m}
 - (1-\delta_{m=0}\delta_{k=K}) \min\left(\frac{\nu_{i,k}(t)\mathcal{N}_{i}}{\sum_{j,m'} S_{i,j,k,m'}}, 1\right) S_{i,j,k,m}
-$$
+```
 
-$$
+```math
 + \delta_{m=0}(1-\delta_{k=0})\min \left(\frac{\nu_{i,k-1}(t)\mathcal{N}_{i}}{\sum_{j,m'} S_{i,j,k-1,m'}}, 1\right)\sum_{m'} S_{i,j,k-1,m'}
-$$
+```
 
-$$
+```math
 + \delta_{m=0}\delta_{k=K} \min \left(\frac{\nu_{i,K}(t)\mathcal{N}_{i}}{\sum_{j,m'} S_{i,j,K,m'}}, 1\right)\sum_{m'} S_{i,j,K,m'}
-$$
+```
 
-$$
+```math
 + \delta_{m=0}\sum_{{(j',\ell ') \ | \ \eta(j',\ell ')=(j,\ell)}} \gamma_{\ell} I_{i,\eta(j',\ell'),k,\ell '}
 +\phi(t)(\delta_{k=K-1} S_{i,j,K,m}-\delta_{k=K} S_{i,j,K,m})
-$$
+```
 
-$$
+```math
 + (1-\delta_{m=0})\omega_{m-1} S_{i,j,k,m-1} - (1-\delta_{m=M})\omega_{m} S_{i,j,k,m}
-$$
+```
 
-$$
+```math
 \frac{dE_{i,j,k,\ell}}{dt} =
 \lambda_{i,\ell}(t) \sum_{m} S_{i,j,k,m} - \sigma_{\ell} E_{i,j,k,\ell}
 + \phi(t)(\delta_{k=K-1} E_{i,j,K,m}-\delta_{k=K} E_{i,j,K,m})
-$$
+```
 
-$$
+```math
 \frac{dI_{i,j,k,\ell}}{dt} =
 \sigma_{\ell} E_{i,j,k,\ell} - \gamma_{\ell} I_{i,j,k,\ell}
 + \phi(t)(\delta_{k=K-1} I_{i,j,K,m}-\delta_{k=K} I_{i,j,K,m})
-$$
+```
 
-$$
+```math
 \frac{dC_{i,j,k,\ell}}{dt} =
 \lambda_{i,\ell}(t) \sum_{m} S_{i,j,k,m}
-$$
+```
 
 
 
@@ -83,19 +83,19 @@ $$
 
 ### Relevant Parameters Representations
 
-$$
+```math
 \phi(t) =
 \begin{cases}
 \left(\sin\left(\frac{2\pi (t + \tau)}{730}\right)\right)^{1000} & \text{during seasonal vaccination periods} \\
 0 & \text{otherwise}
 \end{cases}
-$$
+```
 
 for
 
-$$
+```math
 \tau = 182.5 - \Delta_{t}.
-$$
+```
 
 The function \(\eta\) determines a new immune state given the current state and the exposed strain using bitwise OR operations.
 
@@ -113,9 +113,9 @@ The function performs the following steps:
 
 Formally, we define the new immune state function as:
 
-$$
+```math
 \eta(x, y) = x \, | \, 2^{y}
-$$
+```
 
 ## Example Calculations
 
@@ -175,40 +175,40 @@ If $N = 2$, possible states are:
 
 Lastly, we define a mathematical representation of the Force of infection for susceptible individuals in age group a and strain k is calculated as follows:
 
-$$
+```math
 \Lambda_{a,k}(t) = \tilde{\lambda}_{a,k}(t) \cdot (1 - \text{WI}_{a,k})
-$$
+```
 
 Where:
 
-$$
+```math
 \tilde{\lambda}_{a,k}(t) = \frac{\beta \cdot \beta_{\text{coef}}(t) \cdot \sigma(t)}{P_a} \sum_{b,i,j} C_{ab} \cdot \left( I_{b,i,j,k}(t) + \mathcal{N}(\mu_i, \sigma_i) \cdot \phi_i \cdot P_b \right)
-$$
+```
 
 And:
 
-$$
+```math
 \text{WI}_{a,k} = \text{WIB}_{a,k} + \text{WIM}_{a,k}
-$$
+```
 
-$$
+```math
 \text{WIB}_{a,k} = \sum_{j} \text{II}_{a,j} \cdot \gamma_{jk}
-$$
+```
 
-$$
+```math
 \text{WIM}_{a,k} = (1 - \text{WIB}_{a,k}) \cdot \text{FI}_{a,k}
-$$
+```
 
-$$
+```math
 \text{FI}_{a,k} = \begin{cases}
 \mathcal{M}_{\text{HI}} & \text{if previously exposed to strain } k \\
 0 & \text{otherwise}
 \end{cases}
-$$
+```
 
-$$
+```math
 \text{II}_{a,k} = 1 - \sum_{j} \left( 1 - \chi_{k,j} \right) \left( 1 - \nu_{k,j} \right)
-$$
+```
 
 | Symbol               | Description                                                                                |
 |----------------------|--------------------------------------------------------------------------------------------|
