@@ -9,10 +9,13 @@ import pandas as pd
 import plotly
 import plotly.express as px
 import plotly.graph_objects
+
+# import plotly.graph_objs as go
 import seaborn as sns
 from cfa_azure.clients import AzureClient
 from plotly.subplots import make_subplots
 from scipy.stats import pearsonr
+from tqdm import tqdm
 
 from mechanistic_azure.azure_utilities import download_directory_from_azure
 from resp_ode.utils import drop_keys_with_substring, flatten_list_parameters
@@ -44,7 +47,7 @@ def construct_tree(file_paths: Iterable[str], root=None) -> Node:
     """
     if not isinstance(root, Node):
         root = Node("/")
-    for path in file_paths:
+    for path in tqdm(file_paths, desc="Building Azure Tree Structure"):
         # indicates this is an actual file like .txt or .json or .out
         if "." in path:
             directories, filename = path.rsplit("/", 1)
@@ -442,12 +445,15 @@ def load_checkpoint_inference_correlation_pairs(
     on the upper half of the plot the correlation values, on the diagonal a
     historgram of the posterior values, and on the bottom half a scatter
     plot of the parameters against eachother.
+
+
     Parameters
     ----------
     cache_path : str
         path to the local path on machine with files within.
     overview_subplot_size: int
         the side of the width/height of the correlation matrix in pixels
+
     Returns
     -------
     Figure
