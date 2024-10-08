@@ -149,16 +149,16 @@
     ],
     "CONSTANT_STEP_SIZE": 0,
     "INTRODUCTION_PCTS": [
-        0.015,
-        0.015,
-        0.015,
-        0.015
+        0.025,
+        0.025,
+        0.025,
+        0.025
     ],
     "INTRODUCTION_SCALES": [
-        18,
-        18,
-        18,
-        18
+        13,
+        13,
+        13,
+        13
     ],
     "INTRODUCTION_AGE_MASK": [
         false,
@@ -166,7 +166,13 @@
         false,
         false
     ],
-    "MIN_HOMOLOGOUS_IMMUNITY": 0.40,
+    "MIN_HOMOLOGOUS_IMMUNITY": {
+        "distribution": "Beta",
+        "params": {
+            "concentration1": 1200,
+            "concentration0": 1800
+        }
+    },
     "WANING_PROTECTIONS": [
         1.0,
         1.0,

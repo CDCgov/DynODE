@@ -19,9 +19,9 @@ from model_odes.seip_model import seip_ode2
 
 plt.switch_backend("agg")
 model_day = 800
-suffix = "_v21_5strain"
+suffix = "_v25_5strain"
 az_output_path = (
-    "/output/fifty_state_season2_5strain_2202_2404/SMH_5strains_240826_v21/"
+    "/output/fifty_state_season2_5strain_2202_2404/SMH_5strains_241001_v25/"
 )
 pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
 
@@ -197,7 +197,7 @@ def process_plot_state(state):
     axs[1].set_ylabel("Seroprevalence")
     axs[1].set_ylim([0, 1.1])
 
-    axs[2].set_prop_cycle(cycler(color=colors_strain[:6]))
+    axs[2].set_prop_cycle(cycler(color=colors_strain[:5]))
     axs[2].xaxis.set_major_formatter(date_format)
     axs[2].set_ylabel("Variant proportion")
     # Simulated

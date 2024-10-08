@@ -430,24 +430,24 @@ class SMHInferer(MechanisticInferer):
                 )
 
             ## Seroprevalence
-            never_infected = jnp.sum(
-                solution.ys[self.config.COMPARTMENT_IDX.S][
-                    obs_sero_days, :, 0, :, :
-                ],
-                axis=(2, 3),
-            )
-            sim_seroprevalence = 1 - never_infected / self.config.POPULATION
-            sim_lseroprevalence = jnp.log(
-                sim_seroprevalence / (1 - sim_seroprevalence)
-            )  # logit seroprevalence
+            # never_infected = jnp.sum(
+            #     solution.ys[self.config.COMPARTMENT_IDX.S][
+            #         obs_sero_days, :, 0, :, :
+            #     ],
+            #     axis=(2, 3),
+            # )
+            # sim_seroprevalence = 1 - never_infected / self.config.POPULATION
+            # sim_lseroprevalence = jnp.log(
+            #     sim_seroprevalence / (1 - sim_seroprevalence)
+            # )  # logit seroprevalence
 
-            mask_sero = ~jnp.isnan(obs_sero_lmean)
-            with numpyro.handlers.mask(mask=mask_sero):
-                numpyro.sample(
-                    "lseroprevalence",
-                    Dist.Normal(sim_lseroprevalence, obs_sero_lsd),
-                    obs=obs_sero_lmean,
-                )
+            # mask_sero = ~jnp.isnan(obs_sero_lmean)
+            # with numpyro.handlers.mask(mask=mask_sero):
+            #     numpyro.sample(
+            #         "lseroprevalence",
+            #         Dist.Normal(sim_lseroprevalence, obs_sero_lsd),
+            #         obs=obs_sero_lmean,
+            #     )
 
             ## Variant proportion
             strain_incidence = jnp.sum(

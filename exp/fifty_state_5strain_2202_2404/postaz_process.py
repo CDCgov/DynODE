@@ -19,9 +19,9 @@ from model_odes.seip_model import seip_ode2
 
 plt.switch_backend("agg")
 model_day = 800
-suffix = "_v16_5strain"
+suffix = "_v17_5strain"
 az_output_path = (
-    "/output/fifty_state_5strain_2202_2404/SMH_5strains_240807_v16/"
+    "/output/fifty_state_5strain_2202_2404/SMH_5strains_240814_v17/"
 )
 pdf_filename = f"output/obs_vs_fitted{suffix}.pdf"
 

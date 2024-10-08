@@ -216,6 +216,7 @@ class SMHInferer(MechanisticInferer):
             solution.ys[self.config.COMPARTMENT_IDX.C],
             axis=0,
         )
+        model_incidence = jnp.sum(model_incidence, axis=4)
 
         model_incidence_no_exposures_non_jn1 = jnp.sum(
             model_incidence[:, :, 0, 0, :4], axis=-1
@@ -308,6 +309,7 @@ class SMHInferer(MechanisticInferer):
                     self.config.I_AXIS_IDX.age + 1,
                     self.config.I_AXIS_IDX.hist + 1,
                     self.config.I_AXIS_IDX.vax + 1,
+                    4,  # no current ENUM to fill this out lol
                 ),
             )
             strain_incidence = jnp.diff(strain_incidence, axis=0)[

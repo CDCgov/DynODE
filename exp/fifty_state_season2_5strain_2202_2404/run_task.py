@@ -5,8 +5,10 @@ import os
 import shutil
 import sys
 
+import arviz
 import jax
 import numpy as np
+import numpyro
 
 # adding things to path since in a docker container pathing gets changed
 sys.path.append("/app/")
@@ -61,6 +63,61 @@ def rework_initial_state(initial_state):
         c_new[:, 0:6, ...],
     )
     return initial_state
+
+
+def get_loo_elpd(
+    inferer,
+    obs_hosps,
+    obs_hosps_days,
+    obs_sero_lmean,
+    obs_sero_lsd,
+    obs_sero_days,
+    obs_var_prop,
+    obs_var_days,
+    obs_var_sd,
+):
+    samples = inferer.inference_algo.get_samples(group_by_chain=True)
+
+    posteriors_selected = {
+        key: np.array(values)[:, np.arange(0, 1000, 4)]
+        for key, values in samples.items()
+    }
+
+    ll = numpyro.infer.util.log_likelihood(
+        inferer.likelihood,
+        posterior_samples=posteriors_selected,
+        obs_hosps=obs_hosps,
+        obs_hosps_days=obs_hosps_days,
+        obs_sero_lmean=obs_sero_lmean,
+        obs_sero_lsd=obs_sero_lsd,
+        obs_sero_days=obs_sero_days,
+        obs_var_prop=obs_var_prop,
+        obs_var_days=obs_var_days,
+        obs_var_sd=obs_var_sd,
+        parallel=True,
+        batch_ndims=2,
+    )
+
+    ll_incd = arviz.from_dict(
+        posterior=posteriors_selected,
+        log_likelihood={"log_likelihood": ll["incidence"]},
+    )
+    ll_incd_loo = arviz.loo(ll_incd)
+    ll_varprop = arviz.from_dict(
+        posterior=posteriors_selected,
+        log_likelihood={"log_likelihood": ll["variant_proportion"]},
+    )
+    ll_varprop_loo = arviz.loo(ll_varprop)
+    loo_results = {
+        "incidence_elpd_est": ll_incd_loo["elpd_loo"],
+        "incidence_elpd_se": ll_incd_loo["se"],
+        "incidence_warning": ll_incd_loo["warning"],
+        "varprop_elpd_est": ll_varprop_loo["elpd_loo"],
+        "varprop_elpd_se": ll_varprop_loo["se"],
+        "varprop_warning": ll_varprop_loo["warning"],
+    }
+
+    return loo_results
 
 
 class EpochOneRunner(AbstractAzureRunner):
@@ -215,7 +272,7 @@ class EpochOneRunner(AbstractAzureRunner):
         obs_var_prop = jnp.array(obs_var_prop.to_list())
         # renormalizing the var prop
         obs_var_prop = obs_var_prop / jnp.sum(obs_var_prop, axis=1)[:, None]
-        obs_var_sd = 80 / jnp.sqrt(jnp.sum(inferer.config.POPULATION))
+        obs_var_sd = 120 / jnp.sqrt(jnp.sum(inferer.config.POPULATION))
 
         inferer.infer(
             obs_hosps,
@@ -237,6 +294,20 @@ class EpochOneRunner(AbstractAzureRunner):
         #     save_path + "checkpoint.json", group_by_chain=True
         # )
         self.save_inference_timelines(inferer)
+        # get likelihood
+        loo_results = get_loo_elpd(
+            inferer,
+            obs_hosps,
+            obs_hosps_days,
+            obs_sero_lmean,
+            obs_sero_lsd,
+            obs_sero_days,
+            obs_var_prop,
+            obs_var_days,
+            obs_var_sd,
+        )
+        save_path = os.path.join(self.azure_output_dir, "loo_results.json")
+        json.dump(loo_results, open(save_path, "w"))
 
 
 parser = argparse.ArgumentParser()
