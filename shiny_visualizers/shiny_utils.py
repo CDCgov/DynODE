@@ -13,6 +13,7 @@ import plotly.graph_objects
 # import plotly.graph_objs as go
 import seaborn as sns
 from cfa_azure.clients import AzureClient
+from matplotlib.colors import LinearSegmentedColormap
 from plotly.subplots import make_subplots
 from scipy.stats import pearsonr
 from tqdm import tqdm
@@ -465,6 +466,11 @@ def load_checkpoint_inference_correlation_pairs(
             "attempted to visualize an inference correlation without an `checkpoint.json` file"
         )
     posteriors = json.load(open(checkpoint_path, "r"))
+    # convert lists to np.arrays
+    posteriors = {
+        key: np.array(val) if isinstance(val, list) else val
+        for key, val in posteriors.items()
+    }
     posteriors: dict[str, list] = flatten_list_parameters(posteriors)
     # drop any final_timestep parameters in case they snuck in
     posteriors = drop_keys_with_substring(posteriors, "final_timestep")
@@ -475,34 +481,60 @@ def load_checkpoint_inference_correlation_pairs(
     # pick first key, get the samples for that key, get the shape of that np.ndarray
     number_of_samples = posteriors[list(posteriors.keys())[0]].shape[0]
     print(number_of_samples)
-    if number_of_samples > 1000:
-        selected_indices = np.random.choice(
-            number_of_samples, size=500, replace=False
-        )
-        posteriors = {
-            key: posteriors[key][selected_indices] for key in posteriors.keys()
-        }
+    # if number_of_samples > 1000:
+    #     selected_indices = np.random.choice(
+    #         number_of_samples, size=100, replace=False
+    #     )
+    #     posteriors = {
+    #         key: posteriors[key][selected_indices] for key in posteriors.keys()
+    #     }
     columns = posteriors.keys()
+    num_cols = len(list(columns))
     # Compute the correlation matrix, reverse it so diagonal starts @ top left
     correlation_matrix = pd.DataFrame(posteriors)  # .corr()[::-1]
+    cmap = LinearSegmentedColormap.from_list("", ["red", "grey", "blue"])
 
     def reg_coef(x, y, label=None, color=None, **kwargs):
         ax = plt.gca()
         r, p = pearsonr(x, y)
         ax.annotate(
-            "r = {:.2f}".format(r),
+            "{:.2f}".format(r),
             xy=(0.5, 0.5),
             xycoords="axes fraction",
             ha="center",
+            color=cmap(r),
         )
-        ax.texts[0].set_size(16)
-        ax.set_axis_off()
+        # ax.texts[0].set_size(16)
+        # ax.set_axis_off()
 
     # Create the plot
-    g = sns.PairGrid(data=correlation_matrix, vars=columns, hue=None)
+    # fig, ax = plt.subplots(figsize=(num_cols + 1, num_cols + 1))
+    g = sns.PairGrid(
+        data=correlation_matrix, vars=columns, height=5, diag_sharey=False
+    )
+    # g.figure.set_size_inches((num_cols + 1, num_cols + 1))
+    # g.figure.tight_layout()
     g.map_upper(reg_coef)
-    g = g.map_lower(sns.regplot, scatter_kws={"edgecolor": "white"})
+    g = g.map_lower(
+        sns.regplot, fit_reg=False  # ,scatter_kws={"edgecolor": "white"}
+    )
     g = g.map_diag(sns.histplot, kde=True)
+    label_size = max(2, min(10, 75 / num_cols))
+    print(label_size)
+    for ax in g.axes.flatten():
+        plt.setp(ax.get_xticklabels(), rotation=45)
+        # extract the existing xaxis label
+        xlabel = ax.get_xlabel()
+        # set the xaxis label with rotation
+        ax.set_xlabel(xlabel, size=label_size)
+
+        ylabel = ax.get_ylabel()
+        ax.set_ylabel(ylabel, size=label_size)
+    # Adjust layout to make sure everything fits
+    g.figure.tight_layout()
+
+    # Adjust spacing if necessary (values are fractions of figure size)
+    g.figure.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05)
     return g.figure
 
     # # Create subplots: Each subplot is one pair of 'columns'

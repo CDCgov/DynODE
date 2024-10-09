@@ -22,7 +22,9 @@ SHINY_CACHE_PATH = "shiny_visualizers/shiny_cache"
 # this will reduce the time it takes to load the azure connection, but only shows
 # one experiment worth of data, which may be what you want...
 #  leave empty ("") to explore all experiments
-PRE_FILTER_EXPERIMENTS = "fifty_state_season2_5strain_2202_2404"
+PRE_FILTER_EXPERIMENTS = (
+    "example_azure_experiment"  # fifty_state_season2_5strain_2202_2404
+)
 # when loading the overview timelines csv for each run, columns
 # are expected to have names corresponding to the type of plot they create
 # vaccination_0_17 specifies the vaccination_ plot type, multiple columns may share
@@ -160,7 +162,9 @@ app_ui = ui.page_fluid(
             ),
             ui.nav_panel(
                 "Sample Correlations",
-                output_widget("plot_sample_correlations"),
+                ui.output_plot(
+                    "plot_sample_correlations", width=1600, height=1600
+                ),
             ),
             ui.nav_panel(
                 "Sample Violin Plots",
@@ -339,7 +343,7 @@ def server(input, output, session: Session):
 
     @output(id="plot_sample_correlations")
     # @render_widget
-    @render.plot()
+    @render.plot
     @reactive.event(input.action_button)
     def plot_sample_correlations():
         """
