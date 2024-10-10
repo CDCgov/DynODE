@@ -29,6 +29,9 @@ pre-commit = "^3.7.1"
 mypy = "^1.10.0"
 requests = "^2.32.3"
 docker = "^7.1.0"
+tensorflow = {extras = ["and-cuda"], version = "^2.17.0"}
+tensorboard-plugin-profile = "^2.17.0"
+perfetto = "^0.10.0"
 
 
 [build-system]

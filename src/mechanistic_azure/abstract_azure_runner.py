@@ -197,6 +197,7 @@ class AbstractAzureRunner(ABC):
     def _get_sero_proportion_timeseries(
         self,
         compartment_timeseries: SEIC_Compartments,
+        population: Array,
         model: AbstractParameters,
     ) -> np.ndarray:
         """given a timeseries of infections, finds individuals who
@@ -208,6 +209,9 @@ class AbstractAzureRunner(ABC):
         infections : SEIC_Compartments
             tuple of jax arrays containing a timeseries of each compartment's values
             on a given day.
+        population : jax.Array
+            an array of len(model.config.NUM_AGE_GROUPS) containing the
+            population sizes of each age bin
         model : AbstractParameters
             a parameter object containing a config.S_AXIS_IDX enum for lookups and
             a config.POPULATION array for population counts
@@ -226,7 +230,7 @@ class AbstractAzureRunner(ABC):
             axis=(model.config.S_AXIS_IDX.vax, model.config.S_AXIS_IDX.wane),
         )
         # 1-never_infected is those sero-positive / POPULATION to make proportions
-        sim_sero = 1 - never_infected / model.config.POPULATION
+        sim_sero = 1 - never_infected / population
         return sim_sero
 
     def _generate_model_component_timelines(
@@ -298,7 +302,9 @@ class AbstractAzureRunner(ABC):
             model=model,
         )
         sim_sero = self._get_sero_proportion_timeseries(
-            compartment_timeseries=compartment_timeseries, model=model
+            compartment_timeseries=compartment_timeseries,
+            population=parameters["POPULATION"],
+            model=model,
         )
 
         for age_bin_str in model.config.AGE_GROUP_STRS:

@@ -411,7 +411,10 @@ def download_directory_from_azure(
         if not os.path.exists(dest_path) or overwrite:
             try:
                 cfa_azure.helpers.download_directory(
-                    azure_client.out_cont_client, azure_dir, dest
+                    container_name=azure_client.output_container_name,
+                    blob_service_client=azure_client.blob_service_client,
+                    dest_path=dest,
+                    src_path=azure_dir,
                 )
             except ValueError as e:
                 raise ValueError(
