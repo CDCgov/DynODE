@@ -394,7 +394,7 @@ class AbstractAzureRunner(ABC):
         """
         fig = vis_utils.plot_mcmc_chains(samples, **plot_kwargs)
         save_path = os.path.join(self.azure_output_dir, save_filename)
-        fig.savefig(save_path)
+        fig.savefig(save_path, bbox_inches="tight")
 
     def save_correlation_pairs_plot(
         self,
@@ -424,7 +424,7 @@ class AbstractAzureRunner(ABC):
             samples, **plot_kwargs
         )
         save_path = os.path.join(self.azure_output_dir, save_filename)
-        fig.savefig(save_path)
+        fig.savefig(save_path, bbox_inches="tight")
 
     def save_inference_posteriors(
         self,
