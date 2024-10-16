@@ -24,6 +24,7 @@ from resp_ode import (
     SEIC_Compartments,
     StaticValueParameters,
     utils,
+    vis_utils,
 )
 
 
@@ -368,13 +369,74 @@ class AbstractAzureRunner(ABC):
             samples[param] = samples[param].tolist()
         json.dump(samples, open(save_path, "w"))
 
+    def save_mcmc_chains_plot(
+        self,
+        samples: dict[str : list : np.ndarray],
+        save_filename: str = "mcmc_chains.png",
+        plot_kwargs: dict = {},
+    ):
+        """Saves a plot mapping the MCMC chains of the inference job
+
+        Parameters
+        ----------
+        samples : dict[str: list | np.ndarray]
+            a dictionary (usually loaded from the checkpoint.json file) containing
+            the sampled posteriors for each chain in the shape
+            (num_chains, num_samples). All parameters generated with numpyro.plate
+            and thus have a third dimension (num_chains, num_samples, num_plates)
+            are flattened to the desired and displayed as
+            separate parameters with _i suffix for each i in num_plates.
+        save_filename : str, optional
+            filename saved under, by default "mcmc_chains.png"
+        plot_kwargs : dict, optional
+            additional keyword arguments to pass to
+            vis_utils.plot_mcmc_chains()
+        """
+        fig = vis_utils.plot_mcmc_chains(samples, **plot_kwargs)
+        save_path = os.path.join(self.azure_output_dir, save_filename)
+        fig.savefig(save_path)
+
+    def save_correlation_pairs_plot(
+        self,
+        samples: dict[str : list : np.ndarray],
+        save_filename: str = "mcmc_correlations.png",
+        plot_kwargs: dict = {},
+    ):
+        """_summary_
+
+        Parameters
+        ----------
+        samples : dict[str: list | np.ndarray]
+            a dictionary (usually loaded from the checkpoint.json file) containing
+            the sampled posteriors for each chain in the shape
+            (num_chains, num_samples). All parameters generated with numpyro.plate
+            and thus have a third dimension (num_chains, num_samples, num_plates)
+            are flattened to the desired and displayed as
+            separate parameters with _i suffix for each i in num_plates.
+        save_filename : str, optional
+            filename saved under, by default "mcmc_correlations.png"
+        plot_kwargs : dict, optional
+            additional keyword arguments to pass to
+            vis_utils.plot_checkpoint_inference_correlation_pairs(),
+            by default {}
+        """
+        fig = vis_utils.plot_checkpoint_inference_correlation_pairs(
+            samples, **plot_kwargs
+        )
+        save_path = os.path.join(self.azure_output_dir, save_filename)
+        fig.savefig(save_path)
+
     def save_inference_posteriors(
         self,
         inferer: MechanisticInferer,
         save_filename="checkpoint.json",
         exclude_prefixes=["final_timestep"],
+        save_chains_plot=True,
+        save_pairs_correlation_plot=True,
     ) -> None:
-        """saves output of mcmc.get_samples(), does nothing if `inferer` has not compelted inference yet.
+        """saves output of mcmc.get_samples(), does nothing if `inferer`
+        has not compelted inference yet. By default saves accompanying
+        visualizations for interpretability.
 
         Parameters
         ----------
@@ -383,8 +445,14 @@ class AbstractAzureRunner(ABC):
         save_filename : str, optional
             output filename, by default "checkpoint.json"
         exclude_prefixes: list[str], optional
-            a list of strs that, if found in a sample name, are exlcuded from the saved json.
-            This is common for large logging info that will bloat filesize like, by default ["final_timestep"]
+            a list of strs that, if found in a sample name,
+            are exlcuded from the saved json. This is common for large logging
+            info that will bloat filesize like, by default ["final_timestep"]
+        save_chains_plot: bool, optional
+            whether to save accompanying mcmc chains plot, by default True
+        save_pairs_correlation_plot: bool, optional
+            whether to save accompanying pairs correlation plot,
+            by default True
         Returns
         ------------
         None
@@ -402,6 +470,11 @@ class AbstractAzureRunner(ABC):
             }
             save_path = os.path.join(self.azure_output_dir, save_filename)
             self._save_samples(samples, save_path)
+            # by default save an accompanying mcmc chains plot for readability
+            if save_chains_plot:
+                self.save_mcmc_chains_plot(samples)
+            if save_pairs_correlation_plot:
+                self.save_correlation_pairs_plot(samples)
         else:
             warnings.warn(
                 "attempting to call `save_inference_posteriors` before inference is complete. Something is likely wrong..."
