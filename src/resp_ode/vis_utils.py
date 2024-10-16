@@ -157,7 +157,7 @@ def plot_model_overview_subplot_matplotlib(
             sharex=True,
             sharey="row",
             squeeze=False,
-            figsize=(15, 15),
+            figsize=(6 * num_states, 3 * num_unique_plots_in_timelines),
         )
     # melt this df down to have an ID column "column" and a value column "val"
     id_vars = ["date", "state", "chain_particle"]
@@ -242,7 +242,8 @@ def plot_model_overview_subplot_matplotlib(
                     )
     # add column titles on the top of each col for the states
     for ax, state in zip(ax[0], timeseries_df["state"].unique()):
-        ax.set_title(state)
+        plot_title = ax.get_title()
+        ax.set_title(plot_title + "\n" + state)
     fig.tight_layout()
 
     return fig
@@ -365,6 +366,7 @@ def plot_checkpoint_inference_correlation_pairs(
             vars=columns,
             diag_sharey=False,
             layout_pad=0.01,
+            figsize=(3 * num_cols, 3 * num_cols),
         )
     g.map_upper(reg_coef)
     g = g.map_lower(
@@ -383,8 +385,8 @@ def plot_checkpoint_inference_correlation_pairs(
         ax.set_ylabel(ylabel, size=label_size, rotation=0, labelpad=15.0)
         ax.label_outer(remove_inner_ticks=True)
     # Adjust layout to make sure everything fits
-    px = 1 / plt.rcParams["figure.dpi"]
-    g.figure.set_size_inches((1600 * px, 1600 * px))
+    # px = 1 / plt.rcParams["figure.dpi"]
+    # g.figure.set_size_inches((1600 * px, 1600 * px))
     # g.figure.tight_layout(pad=0.01, h_pad=0.01, w_pad=0.01)
     return g.figure
 
