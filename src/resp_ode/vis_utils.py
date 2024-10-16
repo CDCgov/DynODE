@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap
 
 from .utils import drop_keys_with_substring, flatten_list_parameters
@@ -33,7 +34,7 @@ def _cleanup_and_normalize_timelines(
             cols = [
                 col for col in all_state_timelines.columns if plot_type in col
             ]
-            # update that states columns by the normalization factor chosen for that column
+            # update that states columns by the normalization factor
             all_state_timelines.loc[
                 all_state_timelines["state"] == state_name,
                 cols,
@@ -41,7 +42,7 @@ def _cleanup_and_normalize_timelines(
     return all_state_timelines
 
 
-def generate_model_overview_subplot_matplotlib(
+def plot_model_overview_subplot_matplotlib(
     timeseries_df: pd.DataFrame,
     pop_sizes: dict[str, int],
     plot_types: np.ndarray[str] = np.array(
@@ -72,43 +73,53 @@ def generate_model_overview_subplot_matplotlib(
     matplotlib_style: list[str]
     | str = [
         "seaborn-v0_8-colorblind",
-        "dark_background",
     ],
 ) -> plt.Figure:
-    """Given a dataframe resembling the azure_visualizer_timeline csv, if it exists, returns an overview figure.
-    the figure will contain 1 column per state in `timeseries_df["state"]` if the column exists. The
-    figure will contain one row per
+    """Given a dataframe resembling the azure_visualizer_timeline csv,
+    if it exists, returns an overview figure. The figure will contain 1 column
+    per state in `timeseries_df["state"]` if the column exists. The
+    figure will contain one row per plot_type
 
     Parameters
     ----------
     timeseries_df : pandas.DataFrame
-        a dataframe containing at least the following columns: ["date", "chain_particle", "state"]
-        followed by columns identifying different timeseries of interest to be plotted.
+        a dataframe containing at least the following columns:
+        ["date", "chain_particle", "state"] followed by columns identifying
+        different timeseries of interest to be plotted.
         E.g. vaccination_0_17, vaccination_18_49, total_infection_incidence.
-        columns that share the same plot_type will be plotted on the same plot, with their differences in the legend.
-        All chain_particle replicates are plotted as low opacity lines for each plot_type
+        columns that share the same plot_type will be plotted on the same plot,
+        with their differences in the legend.
+        All chain_particle replicates are plotted as low
+        opacity lines for each plot_type
     pop_sizes : dict[str, int]
-        population sizes of each state as a dictionary. Keys must match the "state" column within timeseries_df
+        population sizes of each state as a dictionary.
+        Keys must match the "state" column within timeseries_df
     plot_types : np.ndarray[str], optional
-        each of the plot types to be plotted. plot_types not found in `timeseries_df` are skipped.
-        columns are identified using the "in" operation, so plot_type must be found in each of its identified columns
-        by default ["seasonality_coef", "vaccination_", "_external_introductions",
-        "_strain_proportion", "_average_immunity", "total_infection_incidence", "pred_hosp_"]
+        each of the plot types to be plotted.
+        plot_types not found in `timeseries_df` are skipped.
+        columns are identified using the "in" operation,
+        so plot_type must be found in each of its identified columns
+        by default ["seasonality_coef", "vaccination_",
+        "_external_introductions", "_strain_proportion", "_average_immunity",
+        "total_infection_incidence", "pred_hosp_"]
     plot_titles : np.ndarray[str], optional
         titles for each plot_type as displayed on each subplot,
         by default [ "Seasonality Coefficient", "Vaccination Rate By Age",
-        "External Introductions by Strain (per 100k)", "Strain Proportion of New Infections",
-        "Average Population Immunity Against Strains", "Total Infection Incidence (per 100k)",
+        "External Introductions by Strain (per 100k)",
+        "Strain Proportion of New Infections",
+        "Average Population Immunity Against Strains",
+        "Total Infection Incidence (per 100k)",
         "Predicted Hospitalizations (per 100k)"]
     plot_normalizations : np.ndarray[int]
         normalization factor for each plot type
     matplotlib_style: list[str] | str
-        matplotlib style to plot in, by default ["seaborn-v0_8-colorblind", 'dark_background']
+        matplotlib style to plot in, by default ["seaborn-v0_8-colorblind"]
 
     Returns
     -------
     matplotlib.pyplot.Figure
-        matplotlib Figure containing subplots with a column for each state and a row for each plot_type
+        matplotlib Figure containing subplots with a column for each state
+        and a row for each plot_type
     """
     necessary_cols = ["date", "chain_particle", "state"]
     assert all(
@@ -148,7 +159,7 @@ def generate_model_overview_subplot_matplotlib(
             squeeze=False,
             figsize=(15, 15),
         )
-    # melt this df down to have an identifier column "column" and a value column "val"
+    # melt this df down to have an ID column "column" and a value column "val"
     id_vars = ["date", "state", "chain_particle"]
     rest = [x for x in timeseries_df.columns if x not in id_vars]
     timelines_melt = pd.melt(
@@ -161,8 +172,8 @@ def generate_model_overview_subplot_matplotlib(
     # convert to datetime if not already
     timelines_melt["date"] = pd.to_datetime(timelines_melt["date"])
 
-    # go through each plot type, look for matching columns within `timelines` and plot
-    # that plot_type for each chain_particle pair. plotly rows/cols are index at 1 not 0
+    # go through each plot type, look for matching columns and plot
+    # that plot_type for each chain_particle pair.
     for state_num, state in enumerate(timeseries_df["state"].unique()):
         state_df = timelines_melt[timelines_melt["state"] == state]
         print("Plotting State : " + state)
@@ -175,14 +186,14 @@ def generate_model_overview_subplot_matplotlib(
             plot_df = state_df[[plot_type in x for x in state_df["column"]]]
             columns_to_plot = plot_df["column"].unique()
             # if we are plotting multiple lines, lets modify the legend to
-            # only display the differences between each line, cuts down on clutter
+            # only display the differences between each line
             if len(columns_to_plot) > 1:
                 plot_df.loc[:, "column"] = plot_df.loc[:, "column"].apply(
                     lambda x: x.replace(plot_type, "")
                 )
             unique_columns = plot_df["column"].unique()
             # plot all chain_particles as thin transparent lines
-            # turn off legends since there will be chain_particle number of lines
+            # turn off legends since there will many lines
             sns.lineplot(
                 plot_df,
                 x="date",
@@ -237,13 +248,12 @@ def generate_model_overview_subplot_matplotlib(
     return fig
 
 
-def generate_checkpoint_inference_correlation_pairs(
-    posteriors: dict[str : np.ndarray],
+def plot_checkpoint_inference_correlation_pairs(
+    posteriors: dict[str : np.ndarray | list],
     max_samples_calculated: int = 100,
     matplotlib_style: list[str]
     | str = [
         "seaborn-v0_8-colorblind",
-        "dark_background",
     ],
 ):
     """Given a dictionary mapping a sampled parameter's name to its
@@ -256,31 +266,35 @@ def generate_checkpoint_inference_correlation_pairs(
 
     Parameters
     ----------
-    posteriors: dict[str : np.ndarray]
+    posteriors: dict[str : np.ndarray | list]
         a dictionary (usually loaded from the checkpoint.json file) containing
-        the sampled posteriors for each chain in the shape (num_chains, num_samples).
-        all parameters generated with numpyro.plate and thus have a third dimension (num_chains, num_samples, num_plates)
-        are flattened to the desired and displayed as separate parameters with _i suffix for each i in num_plates.
+        the sampled posteriors for each chain in the shape
+        (num_chains, num_samples). All parameters generated with numpyro.plate
+        and thus have a third dimension (num_chains, num_samples, num_plates)
+        are flattened to the desired shape and displayed as
+        separate parameters with _i suffix for each i in num_plates.
     max_samples_calculated: int
-        a max cap of posterior samples per chain on which calculations such as correlations and plotting will be performed
-        set for efficiency of plot generation, set to -1 to disable cap, by default 250
+        a max cap of posterior samples per chain on which
+        calculations such as correlations and plotting will be performed
+        set for efficiency of plot generation,
+        set to -1 to disable cap, by default 100
     matplotlib_style: list[str] | str
-        matplotlib style to plot in, by default ["seaborn-v0_8-colorblind", 'dark_background']
+        matplotlib style to plot in, by default ["seaborn-v0_8-colorblind"]
 
     Returns
     -------
     matplotlib.pyplot.Figure
-        Figure with `n` rows and `n` columns where `n` is the number of sampled parameters
+        Figure with `n` rows and `n` columns where
+        `n` is the number of sampled parameters
     """
     # convert lists to np.arrays
     posteriors = {
         key: np.array(val) if isinstance(val, list) else val
         for key, val in posteriors.items()
     }
-    posteriors: dict[str, list] = flatten_list_parameters(posteriors)
+    posteriors: dict[str, np.ndarray] = flatten_list_parameters(posteriors)
     # drop any final_timestep parameters in case they snuck in
     posteriors = drop_keys_with_substring(posteriors, "final_timestep")
-    # pick first key, get the samples for that key, get the shape of that np.ndarray
     number_of_samples = posteriors[list(posteriors.keys())[0]].shape[1]
     # if we are dealing with many samples per chain,
     # narrow down to max_samples_calculated samples per chain
@@ -373,3 +387,75 @@ def generate_checkpoint_inference_correlation_pairs(
     g.figure.set_size_inches((1600 * px, 1600 * px))
     # g.figure.tight_layout(pad=0.01, h_pad=0.01, w_pad=0.01)
     return g.figure
+
+
+def plot_mcmc_chains(
+    samples: dict[str : np.ndarray | list],
+    matplotlib_style: list[str]
+    | str = [
+        "seaborn-v0_8-colorblind",
+    ],
+) -> plt.Figure:
+    """given a `samples` dictionary containing posterior samples
+    often returned from numpyro.get_samples(group_by_chain=True)
+    or from the checkpoint.json saved file, plots each MCMC chain
+    for each sampled parameter in a roughly square subplot.
+
+    Parameters
+    ----------
+    posteriors: dict[str : np.ndarray | list]
+        a dictionary (usually loaded from the checkpoint.json file) containing
+        the sampled posteriors for each chain in the shape
+        (num_chains, num_samples). All parameters generated with numpyro.plate
+        and thus have a third dimension (num_chains, num_samples, num_plates)
+        are flattened to the desired and displayed as
+        separate parameters with _i suffix for each i in num_plates.
+    matplotlib_style : list[str] | str, optional
+        matplotlib style to plot in by default ["seaborn-v0_8-colorblind"]
+
+    Returns
+    -------
+    matplotlib.pyplot.Figure
+        matplotlib figure containing the plots
+    """
+    # Determine the number of parameters and chains
+    samples = {
+        key: np.array(val) if isinstance(val, list) else val
+        for key, val in samples.items()
+    }
+    samples: dict[str, np.ndarray] = flatten_list_parameters(samples)
+    # drop any final_timestep parameters in case they snuck in
+    samples = drop_keys_with_substring(samples, "final_timestep")
+    param_names = list(samples.keys())
+    num_params = len(param_names)
+    num_chains = samples[param_names[0]].shape[0]
+    # Calculate the number of rows and columns for a square-ish layout
+    num_cols = int(np.ceil(np.sqrt(num_params)))
+    num_rows = int(np.ceil(num_params / num_cols))
+    # Create a figure with subplots
+    with plt.style.context(matplotlib_style):
+        fig, axs = plt.subplots(
+            num_rows,
+            num_cols,
+            figsize=(3 * num_cols, 3 * num_rows),
+            squeeze=False,
+        )
+    # Flatten the axis array for easy indexing
+    axs_flat = axs.flatten()
+    # Loop over each parameter and plot its chains
+    for i, param_name in enumerate(param_names):
+        ax: Axes = axs_flat[i]
+        for chain in range(num_chains):
+            ax.plot(samples[param_name][chain], label=f"chain {chain}")
+        ax.set_title(param_name)
+        # Hide x-axis labels except for bottom plots to reduce clutter
+        if i < (num_params - num_cols):
+            ax.set_xticklabels([])
+
+    # Turn off any unused subplots
+    for j in range(i + 1, len(axs_flat)):
+        axs_flat[j].axis("off")
+    plt.tight_layout()
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc="outside upper center")
+    return fig
