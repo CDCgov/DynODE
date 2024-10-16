@@ -366,7 +366,6 @@ def plot_checkpoint_inference_correlation_pairs(
             vars=columns,
             diag_sharey=False,
             layout_pad=0.01,
-            figsize=(3 * num_cols, 3 * num_cols),
         )
     g.map_upper(reg_coef)
     g = g.map_lower(
@@ -385,8 +384,8 @@ def plot_checkpoint_inference_correlation_pairs(
         ax.set_ylabel(ylabel, size=label_size, rotation=0, labelpad=15.0)
         ax.label_outer(remove_inner_ticks=True)
     # Adjust layout to make sure everything fits
-    # px = 1 / plt.rcParams["figure.dpi"]
-    # g.figure.set_size_inches((1600 * px, 1600 * px))
+    px = 1 / plt.rcParams["figure.dpi"]
+    g.figure.set_size_inches((2000 * px, 2000 * px))
     # g.figure.tight_layout(pad=0.01, h_pad=0.01, w_pad=0.01)
     return g.figure
 
