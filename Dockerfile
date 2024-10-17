@@ -23,5 +23,8 @@ COPY ./src/ /app/src
 # turn off interaction since we cant type `yes` on the prompts in docker build
 RUN poetry install --no-interaction --no-ansi
 # we will upload the experiment itself into the cloud and refer to from /input
+<<<<<<< HEAD
 # COPY ./src/mechanistic_azure/abstract_azure_runner.py /app/src/mechanistic_azure/abstract_azure_runner.py
 # COPY ./src/mechanistic_azure/azure_utilities.py /app/src/mechanistic_azure/azure_utilities.py
+=======
+>>>>>>> a58c2d123b29113b0b8d443fdfb0f93fb8e3ce71

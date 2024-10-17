@@ -3,16 +3,23 @@ import math
 import os
 from typing import Iterable, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import plotly
 import plotly.express as px
 import plotly.graph_objects
+
+# import plotly.graph_objs as go
+import seaborn as sns
 from cfa_azure.clients import AzureClient
+from matplotlib.colors import LinearSegmentedColormap
 from plotly.subplots import make_subplots
+from scipy.stats import pearsonr
+from tqdm import tqdm
 
 from mechanistic_azure.azure_utilities import download_directory_from_azure
-from resp_ode.utils import flatten_list_parameters
+from resp_ode.utils import drop_keys_with_substring, flatten_list_parameters
 
 
 class Node:
@@ -41,7 +48,7 @@ def construct_tree(file_paths: Iterable[str], root=None) -> Node:
     """
     if not isinstance(root, Node):
         root = Node("/")
-    for path in file_paths:
+    for path in tqdm(file_paths, desc="Building Azure Tree Structure"):
         # indicates this is an actual file like .txt or .json or .out
         if "." in path:
             directories, filename = path.rsplit("/", 1)
@@ -258,6 +265,8 @@ def load_checkpoint_inference_chains(
     # any sampled parameters created via numpyro.plate will mess up the data
     # flatten plated parameters into separate keys
     posteriors: dict[str, list] = flatten_list_parameters(posteriors)
+    # drop any final_timestep variables if they exist within the posteriors
+    posteriors = drop_keys_with_substring(posteriors, "final_timestep")
     num_sampled_parameters = len(posteriors.keys())
     # we want a mostly square subplot, so lets sqrt and take floor/ceil to deal with odd numbers
     num_rows = math.isqrt(num_sampled_parameters)
@@ -331,6 +340,8 @@ def load_checkpoint_inference_correlations(
     posteriors = {
         key: np.array(matrix).flatten() for key, matrix in posteriors.items()
     }
+    # drop any final_timestep parameters in case they snuck in
+    posteriors = drop_keys_with_substring(posteriors, "final_timestep")
     # Compute the correlation matrix, reverse it so diagonal starts @ top left
     correlation_matrix = pd.DataFrame(posteriors).corr()[::-1]
 
@@ -423,6 +434,135 @@ def load_checkpoint_inference_violin_plots(
     # turn off legends since the subplot title tells you what parameter is being shown
     fig.update_traces(showlegend=False)
     return fig
+
+
+def load_checkpoint_inference_correlation_pairs(
+    cache_path,
+    overview_subplot_size: int,
+):
+    """Given a path a folder containing downloaded azure files, checks for the existence
+    of the checkpoint.json file, if it exists, returns a figure plotting
+    the correlation of each sampled parameter with all other sampled parameters
+    on the upper half of the plot the correlation values, on the diagonal a
+    historgram of the posterior values, and on the bottom half a scatter
+    plot of the parameters against eachother.
+
+
+    Parameters
+    ----------
+    cache_path : str
+        path to the local path on machine with files within.
+    overview_subplot_size: int
+        the side of the width/height of the correlation matrix in pixels
+
+    Returns
+    -------
+    Figure
+        plotly Figure with `n` rows and `n` columns where `n` is the number of sampled parameters
+    """
+    checkpoint_path = os.path.join(cache_path, "checkpoint.json")
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(
+            "attempted to visualize an inference correlation without an `checkpoint.json` file"
+        )
+    posteriors = json.load(open(checkpoint_path, "r"))
+    # convert lists to np.arrays
+    posteriors = {
+        key: np.array(val) if isinstance(val, list) else val
+        for key, val in posteriors.items()
+    }
+    posteriors: dict[str, list] = flatten_list_parameters(posteriors)
+    # drop any final_timestep parameters in case they snuck in
+    posteriors = drop_keys_with_substring(posteriors, "final_timestep")
+    # pick first key, get the samples for that key, get the shape of that np.ndarray
+    number_of_samples = posteriors[list(posteriors.keys())[0]].shape[1]
+    # if we are dealing with many samples per chain, narrow down to 100 samples per chain
+    if number_of_samples > 250:
+        selected_indices = np.random.choice(
+            number_of_samples, size=100, replace=False
+        )
+        posteriors = {
+            key: matrix[:, selected_indices]
+            for key, matrix in posteriors.items()
+        }
+    number_of_samples = posteriors[list(posteriors.keys())[0]].shape[1]
+    # Flatten matrices including chains and create Correlation DataFrame
+    posteriors = {
+        key: np.array(matrix).flatten() for key, matrix in posteriors.items()
+    }
+    columns = posteriors.keys()
+    num_cols = len(list(columns))
+    label_size = max(2, min(10, 200 / num_cols))
+    # Compute the correlation matrix, reverse it so diagonal starts @ top left
+    samples_df = pd.DataFrame(posteriors)
+    # correlation_matrix = samples_df.corr()
+    cmap = LinearSegmentedColormap.from_list("", ["red", "grey", "blue"])
+
+    def reg_coef(x, y, label=None, color=None, **kwargs):
+        ax = plt.gca()
+        r, p = pearsonr(x, y)
+        ax.annotate(
+            "{:.2f}".format(r),
+            xy=(0.5, 0.5),
+            xycoords="axes fraction",
+            ha="center",
+            # vary size and color by the magnitude of correlation
+            color=cmap(r),
+            size=label_size * abs(r) + label_size,
+        )
+        # ax.texts[0].set_size(16)
+        ax.set_axis_off()
+
+    def reg_plot_custom(x, y, label=None, color=None, **kwargs):
+        ax = plt.gca()
+        r, p = pearsonr(x, y)
+        ax = sns.regplot(
+            x=x,
+            y=y,
+            ax=ax,
+            fit_reg=True,
+            scatter_kws={"alpha": 0.2, "s": 0.5},
+            line_kws={"color": cmap(r), "linewidth": 1},
+        )
+
+    # Create the plot
+    g = sns.PairGrid(
+        data=samples_df,
+        vars=columns,
+        height=5,
+        diag_sharey=False,
+        layout_pad=0.01,
+    )
+    # g.figure.set_size_inches((num_cols + 1, num_cols + 1))
+    # g.figure.tight_layout()
+    g.map_upper(reg_coef)
+    g = g.map_lower(
+        reg_plot_custom,  # fit_reg=True  # scatter_kws={"edgecolor": "white"}
+    )
+    g = g.map_diag(sns.histplot, kde=True)
+    for ax in g.axes.flatten():
+        plt.setp(ax.get_xticklabels(), rotation=45, size=label_size)
+        plt.setp(ax.get_yticklabels(), rotation=45, size=label_size)
+        # extract the existing xaxis label
+        xlabel = ax.get_xlabel()
+        # set the xaxis label with rotation
+        ax.set_xlabel(xlabel, size=label_size, rotation=90, labelpad=4.0)
+
+        ylabel = ax.get_ylabel()
+        ax.set_ylabel(ylabel, size=label_size, rotation=0, labelpad=15.0)
+        ax.label_outer(remove_inner_ticks=True)
+    # Adjust layout to make sure everything fits
+    px = 1 / plt.rcParams["figure.dpi"]
+    g.figure.set_size_inches((1600 * px, 1600 * px))
+    g.figure.tight_layout(pad=0.01, h_pad=0.01, w_pad=0.01)
+
+    # Adjust spacing if necessary (values are fractions of figure size)
+    # g.figure.subplots_adjust(
+    #     left=0.08, right=0.92, top=0.92, bottom=0.08, wspace=0.1, hspace=0.1
+    # )
+    g.figure.subplots_adjust(wspace=0.1, hspace=0.1)
+    g.figure.savefig("testing_corr2.png")
+    return g.figure
 
 
 def _generate_row_wise_legends(fig, num_cols):
