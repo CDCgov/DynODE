@@ -1,5 +1,6 @@
 """A series of utility functions for generating visualizations for the model"""
 
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -13,6 +14,10 @@ from .utils import (
     flatten_list_parameters,
     identify_distribution_indexes,
 )
+
+
+class VisualizationError(Exception):
+    pass
 
 
 def _cleanup_and_normalize_timelines(
@@ -474,6 +479,7 @@ def plot_prior_distributions(
         "seaborn-v0_8-colorblind",
     ],
     num_samples=50000,
+    hist_kwargs={"bins": 50, "density": True},
 ) -> plt.Figure:
     """Given a dictionary of parameter keys and possibly values of
     numpyro.distribution objects, samples them a number of times
@@ -488,6 +494,11 @@ def plot_prior_distributions(
         key will be included in the plot
     matplotlib_style : list[str] | str, optional
         matplotlib style to plot in by default ["seaborn-v0_8-colorblind"]
+    num_samples: int, optional
+        the number of times to sample each distribution, mild impact on
+        figure performance. By default 50000
+    hist_kwargs: dict[str: Any]
+        additional kwargs passed to plt.hist(), by default {"bins": 50}
 
     Returns
     -------
@@ -497,7 +508,6 @@ def plot_prior_distributions(
     """
     dist_only = {}
     d = identify_distribution_indexes(priors)
-    print(d)
     # filter down to just the distribution objects
     for dist_name, locator_dct in d.items():
         parameter_name = locator_dct["sample_name"]
@@ -512,9 +522,12 @@ def plot_prior_distributions(
             for i in parameter_idx:
                 temp = temp[i]
             dist_only[dist_name] = temp
-    print(dist_only)
     param_names = list(dist_only.keys())
     num_params = len(param_names)
+    if num_params == 0:
+        raise VisualizationError(
+            "Attempted to visualize a config without any distributions"
+        )
     # Calculate the number of rows and columns for a square-ish layout
     num_cols = int(np.ceil(np.sqrt(num_params)))
     num_rows = int(np.ceil(num_params / num_cols))
@@ -533,10 +546,24 @@ def plot_prior_distributions(
         ax.set_title(param_name)
         dist = dist_only[param_name]
         samples = dist.sample(PRNGKey(0), sample_shape=(num_samples,))
-        ax.hist(samples, bins=50)
-        # Hide x-axis labels except for bottom plots to reduce clutter
-        # if i < (num_params - num_cols):
-        #     ax.set_xticklabels([])
+        ax.hist(samples, **hist_kwargs)
+        ax.axvline(
+            samples.mean(),
+            linestyle="dashed",
+            linewidth=1,
+            label="mean",
+        )
+        ax.axvline(
+            jnp.median(samples),
+            linestyle="dotted",
+            linewidth=3,
+            label="median",
+        )
+    # Turn off any unused subplots
+    for j in range(i + 1, len(axs_flat)):
+        axs_flat[j].axis("off")
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc="outside upper right")
     fig.suptitle("Prior Distributions Visualized, n=%s" % num_samples)
     plt.tight_layout()
     return fig
