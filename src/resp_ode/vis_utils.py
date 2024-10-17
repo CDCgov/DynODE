@@ -4,10 +4,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from jax.random import PRNGKey
 from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap
 
-from .utils import drop_keys_with_substring, flatten_list_parameters
+from .utils import (
+    drop_keys_with_substring,
+    flatten_list_parameters,
+    identify_distribution_indexes,
+)
 
 
 def _cleanup_and_normalize_timelines(
@@ -459,4 +464,79 @@ def plot_mcmc_chains(
     plt.tight_layout()
     handles, labels = ax.get_legend_handles_labels()
     fig.legend(handles, labels, loc="outside upper center")
+    return fig
+
+
+def plot_prior_distributions(
+    priors: dict[str],
+    matplotlib_style: list[str]
+    | str = [
+        "seaborn-v0_8-colorblind",
+    ],
+    num_samples=50000,
+) -> plt.Figure:
+    """Given a dictionary of parameter keys and possibly values of
+    numpyro.distribution objects, samples them a number of times
+    and returns a plot of those samples to help
+    visualize the range of values taken by that prior distribution.
+
+    Parameters
+    ----------
+    priors : dict[str: Any]
+        a dictionary with str keys possibly containing distribution
+        objects as values. Each key with a distribution object type
+        key will be included in the plot
+    matplotlib_style : list[str] | str, optional
+        matplotlib style to plot in by default ["seaborn-v0_8-colorblind"]
+
+    Returns
+    -------
+    plt.Figure
+        matplotlib figure that is roughly square containing all distribution
+        keys found within priors.
+    """
+    dist_only = {}
+    d = identify_distribution_indexes(priors)
+    print(d)
+    # filter down to just the distribution objects
+    for dist_name, locator_dct in d.items():
+        parameter_name = locator_dct["sample_name"]
+        parameter_idx = locator_dct["sample_idx"]
+        # if the sample is on its own, not nested in a list, sample_idx is none
+        if parameter_idx is None:
+            dist_only[parameter_name] = priors[parameter_name]
+        # otherwise this sample is nested in a list and should be retrieved
+        else:
+            # go in index by index to access multi-dimensional lists
+            temp = priors[parameter_name]
+            for i in parameter_idx:
+                temp = temp[i]
+            dist_only[dist_name] = temp
+    print(dist_only)
+    param_names = list(dist_only.keys())
+    num_params = len(param_names)
+    # Calculate the number of rows and columns for a square-ish layout
+    num_cols = int(np.ceil(np.sqrt(num_params)))
+    num_rows = int(np.ceil(num_params / num_cols))
+    with plt.style.context(matplotlib_style):
+        fig, axs = plt.subplots(
+            num_rows,
+            num_cols,
+            figsize=(3 * num_cols, 3 * num_rows),
+            squeeze=False,
+        )
+    # Flatten the axis array for easy indexing
+    axs_flat = axs.flatten()
+    # Loop over each parameter and sample
+    for i, param_name in enumerate(param_names):
+        ax: Axes = axs_flat[i]
+        ax.set_title(param_name)
+        dist = dist_only[param_name]
+        samples = dist.sample(PRNGKey(0), sample_shape=(num_samples,))
+        ax.hist(samples, bins=50)
+        # Hide x-axis labels except for bottom plots to reduce clutter
+        # if i < (num_params - num_cols):
+        #     ax.set_xticklabels([])
+    fig.suptitle("Prior Distributions Visualized, n=%s" % num_samples)
+    plt.tight_layout()
     return fig
