@@ -22,9 +22,7 @@ SHINY_CACHE_PATH = "shiny_visualizers/shiny_cache"
 # this will reduce the time it takes to load the azure connection, but only shows
 # one experiment worth of data, which may be what you want...
 #  leave empty ("") to explore all experiments
-PRE_FILTER_EXPERIMENTS = (
-    "example_azure_experiment"  # fifty_state_season2_5strain_2202_2404
-)
+PRE_FILTER_EXPERIMENTS = ""
 # when loading the overview timelines csv for each run, columns
 # are expected to have names corresponding to the type of plot they create
 # vaccination_0_17 specifies the vaccination_ plot type, multiple columns may share
@@ -169,6 +167,12 @@ app_ui = ui.page_fluid(
             ui.nav_panel(
                 "Sample Violin Plots",
                 output_widget("plot_sample_violins"),
+            ),
+            ui.nav_panel(
+                "Config Visualizer",
+                ui.output_plot(
+                    "plot_prior_distributions", width=1600, height=1600
+                ),
             ),
         ),
     ),
@@ -367,6 +371,25 @@ def server(input, output, session: Session):
         # theme = sutils.shiny_to_plotly_theme(input.dark_mode())
         # fig.update_layout(template=theme)
         print("displaying correlations plot")
+        return fig
+
+    @output(id="plot_prior_distributions")
+    @render.plot
+    @reactive.event(input.action_button)
+    def plot_prior_distributions():
+        exp = input.experiment()
+        job_id = input.job_id()
+        states = input.states()
+        scenario = input.scenario()
+        theme = input.dark_mode()
+        theme = sutils.shiny_to_matplotlib_theme(theme)
+        cache_paths = sutils.get_azure_files(
+            exp, job_id, states, scenario, azure_client, SHINY_CACHE_PATH
+        )
+        # we have the figure, now update the light/dark mode depending on the switch
+        fig = sutils.load_prior_distributions_plot(cache_paths[0], theme)
+        # we have the figure, now update the light/dark mode depending on the switch
+        print("displaying prior distributions")
         return fig
 
     @output(id="plot_sample_violins")

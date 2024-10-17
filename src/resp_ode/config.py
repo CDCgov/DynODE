@@ -56,6 +56,9 @@ class Config:
         self.set_downstream_parameters()
         return self
 
+    def asdict(self):
+        return self.__dict__
+
     def convert_types(self, config):
         """
         takes a dictionary of config parameters, consults the PARAMETERS global list and attempts to convert the type
