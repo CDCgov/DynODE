@@ -9,8 +9,8 @@ from azure_utilities import AzureExperimentLauncher
 
 # specify job ID, cant already exist
 
-DOCKER_IMAGE_TAG = "scenarios-image-7-3-24"
-# number of seconds of a full experiment run before timeout
+DOCKER_IMAGE_TAG = "ben-scenario-241017"
+TIMEOUT_MIN = 360 # number of minutes to monitor before timeout
 # for `s` states to run and `n` nodes dedicated,`s/n` * runtime 1 state secs needed
 EXPERIMENTS_DIRECTORY = "exp"
 SECRETS_PATH = "secrets/configuration_cfaazurebatchprd.toml"
@@ -41,7 +41,8 @@ launcher = AzureExperimentLauncher(
     experiment_directory=EXPERIMENTS_DIRECTORY,
     docker_image_name=DOCKER_IMAGE_TAG,
 )
-launcher.set_resource_pool(pool_name="scenarios_4cpu_pool")
+launcher.set_resource_pool(pool_name="scenarios_8cpu_pool")
+launcher.azure_client.timeout = TIMEOUT_MIN
 all_tasks_run = []
 # all experiments will be placed under the same jobid,
 # subsequent experiments depend on prior ones to finish before starting
