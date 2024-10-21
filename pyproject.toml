@@ -29,7 +29,8 @@ pre-commit = "^3.7.1"
 mypy = "^1.10.0"
 requests = "^2.32.3"
 docker = "^7.1.0"
-
+arviz = "^0.20.0"
+statsmodels = "^0.14.4"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
