@@ -107,14 +107,29 @@ class Config:
                 validator_funcs = make_list_if_not(validator_funcs)
                 vals = [getattr(self, k) for k in key]
                 # val_func() throws assert errors if incongruence arrises
-                [
-                    (
-                        val_func(key[0], vals[0])
-                        if len(key) == 1  # convert back to floats if needed
-                        else val_func(key, vals)
-                    )
-                    for val_func in validator_funcs
-                ]
+                try:
+                    [
+                        (
+                            val_func(key[0], vals[0])
+                            if len(key)
+                            == 1  # convert back to floats if needed
+                            else val_func(key, vals)
+                        )
+                        for val_func in validator_funcs
+                    ]
+                except Exception as e:
+                    if len(key) > 1:
+                        err_text = (
+                            "There was an issue validating your Config object."
+                            "The error was caused by the intersection of the following parameters: %s. %s"
+                        ) % (key, e)
+                    else:
+                        err_text = """The following error occured while validating the %s
+                        parameter in your configuration file: %s""" % (
+                            key[0],
+                            str(e),
+                        )
+                    raise ConfigValidationError(err_text) from e
 
 
 def make_list_if_not(obj):
@@ -289,6 +304,16 @@ def test_positive(key, value):
             key,
             str(value),
         )
+
+
+def test_enum_len(key, enum, expected_len):
+    assert (
+        len(enum) == expected_len
+    ), "Expected %s to have %s entries, got %s" % (
+        key,
+        expected_len,
+        len(enum),
+    )
 
 
 def test_not_negative(key, value):
@@ -655,6 +680,13 @@ PARAMETERS = [
         ),
     },
     {
+        "name": ["NUM_STRAINS", "STRAIN_IDX"],
+        # check that len(STRAIN_IDX)==NUM_STRAINS
+        "validate": lambda keys, vals: test_enum_len(
+            keys[1], vals[1], vals[0]
+        ),
+    },
+    {
         "name": "MAX_VACCINATION_COUNT",
         "validate": test_not_negative,
     },
@@ -852,4 +884,14 @@ PARAMETERS = [
 
 
 class ConfigParserError(Exception):
+    """A basic class meant to denote when the Config
+    class is having an issue parsing a configuration file"""
+
+    pass
+
+
+class ConfigValidationError(Exception):
+    """A basic class meant to denote when the Config
+    class is having an issue validating a configuration file"""
+
     pass
