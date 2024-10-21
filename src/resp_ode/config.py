@@ -119,17 +119,19 @@ class Config:
                     ]
                 except Exception as e:
                     if len(key) > 1:
-                        err_text = (
-                            "There was an issue validating your Config object."
-                            "The error was caused by the intersection of the following parameters: %s. %s"
-                        ) % (key, e)
+                        err_text = """There was an issue validating your Config object.
+                        The error was caused by the intersection of the following parameters: %s.
+                        %s""" % (
+                            key,
+                            e,
+                        )
                     else:
                         err_text = """The following error occured while validating the %s
                         parameter in your configuration file: %s""" % (
                             key[0],
-                            str(e),
+                            e,
                         )
-                    raise ConfigValidationError(err_text) from e
+                    raise ConfigValidationError(err_text)
 
 
 def make_list_if_not(obj):
