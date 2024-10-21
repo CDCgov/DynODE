@@ -362,9 +362,10 @@ class FallVirusInferer(MechanisticInferer):
         )
 
         # sample ihr multiplier due to previous infection or vaccinations
-        ihr_immune_mult = numpyro.sample(
-            "ihr_immune_mult", Dist.Beta(100 * 6, 300 * 6)
-        )
+        # ihr_immune_mult = numpyro.sample(
+        #     "ihr_immune_mult", Dist.Beta(100 * 6, 300 * 6)
+        # )
+        ihr_immune_mult = numpyro.deterministic("ihr_immune_mult", 0.16)
 
         # sample ihr multiplier due to JN1 (assuming JN1 has less severity)
         # ihr_jn1_mult = numpyro.sample("ihr_jn1_mult", Dist.Beta(100, 1))

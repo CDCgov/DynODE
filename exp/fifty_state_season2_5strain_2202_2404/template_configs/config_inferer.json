@@ -149,10 +149,10 @@
     ],
     "CONSTANT_STEP_SIZE": 0,
     "INTRODUCTION_PCTS": [
-        0.015,
-        0.015,
-        0.015,
-        0.015
+        0.025,
+        0.025,
+        0.018,
+        0.025
     ],
     "INTRODUCTION_SCALES": [
         18,
