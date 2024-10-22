@@ -369,7 +369,7 @@ files = [
 
 [[package]]
 name = "cfa-azure"
-version = "0.3.7"
+version = "1.0.8"
 description = "module for use with Azure and Azure Batch"
 optional = false
 python-versions = "^3.8"
@@ -383,6 +383,7 @@ azure-identity = "1.16.1"
 azure-keyvault = "4.2.0"
 azure-mgmt-batch = "17.1.0"
 azure-storage-blob = "12.17.0"
+cryptography = "43.0.1"
 docker = "*"
 pandas = "*"
 pathlib = "*"
@@ -393,7 +394,7 @@ toml = "0.10.2"
 type = "git"
 url = "https://github.com/CDCgov/cfa_azure.git"
 reference = "HEAD"
-resolved_reference = "fede4c8a36036007516ebc82188733f389e8e849"
+resolved_reference = "5443bde21b3eeb99d6e5447ae6cb270dd1efdd91"
 
 [[package]]
 name = "cffi"
@@ -3714,4 +3715,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "fcc0f82d49fec7ce5eec9213904a147e84e775c9616532e007b8787f581d81d1"
+content-hash = "ed91b1492ebe61f4e5ba0c87c97bcd6404e4f8bbd9255383055a97991f2f4ae5"
