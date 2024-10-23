@@ -22,7 +22,7 @@ pandas = ">=2.0.3"
 seaborn = ">=0.13.2"
 shiny = ">=0.6.0"
 pytest = ">=7.4.0"
-cfa-azure = {git = "https://github.com/CDCgov/cfa_azure.git"}
+cfa-azure = {git = "https://github.com/CDCgov/cfa_azure.git", rev="5443bde"}
 pip = "^24.0"
 epiweeks = "^2.3.0"
 pre-commit = "^3.7.1"
