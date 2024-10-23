@@ -272,6 +272,7 @@ class AzureExperimentLauncher:
                     docker_cmd="python %s -s %s -j %s"
                     % (self.runner_path_docker, statedir, self.job_id),
                     depends_on=depend_on_task_ids,
+                    name_suffix=statedir,
                 )
                 # append this list onto our running list of tasks
                 task_ids += task_id
