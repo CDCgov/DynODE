@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 A basic local covid example meant to show off the flow of running the mechanistic model
 
@@ -16,7 +16,12 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-# the different segments of code responsible for runing the model
+SCRIPT_PATH = os.path.abspath(os.path.dirname(__file__))
+ROOT_PATH = os.path.join(SCRIPT_PATH, "..")
+
+os.chdir(ROOT_PATH)
+
+# the different segments of code responsible for running the model
 # each will be explained as they are used below
 from resp_ode import (
     CovidSeroInitializer,
@@ -44,18 +49,18 @@ if __name__ == "__main__":
         os.mkdir("output")
 
     # step 1: define your paths
-    config_path = "config/"
+    config_path = os.path.join(ROOT_PATH, "config")
     # global_config include definitions such as age bin bounds and strain definitions
     # Any value or data structure that needs context to be interpretted is here.
-    GLOBAL_CONFIG_PATH = config_path + "config_global.json"
+    GLOBAL_CONFIG_PATH = os.path.join(config_path, "config_global.json")
     # defines the init conditions of the scenario: pop size, initial infections etc.
-    INITIALIZER_CONFIG_PATH = config_path + "config_initializer_covid.json"
+    INITIALIZER_CONFIG_PATH = os.path.join(config_path, "config_initializer_covid.json")
     # defines the running variables, strain R0s, external strain introductions etc.
-    RUNNER_CONFIG_PATH = config_path + "config_runner_covid.json"
+    RUNNER_CONFIG_PATH = os.path.join(config_path, "config_runner_covid.json")
     # defines prior distributions for inferring variables.
-    INFERER_CONFIG_PATH = config_path + "config_inferer_covid.json"
+    INFERER_CONFIG_PATH = os.path.join(config_path, "config_inferer_covid.json")
     # defines how the solution should be viewed, what slices examined, how to save.
-    INTERPRETER_CONFIG_PATH = config_path + "config_interpreter_covid.json"
+    INTERPRETER_CONFIG_PATH = os.path.join(config_path, "config_interpreter_covid.json")
 
     # step 2: Set up your initializer
     # sets up the initial conditions, initializer.get_initial_state() passed to runner
