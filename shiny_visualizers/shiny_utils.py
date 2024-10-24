@@ -19,6 +19,7 @@ from scipy.stats import pearsonr
 from tqdm import tqdm
 
 from mechanistic_azure.azure_utilities import download_directory_from_azure
+from resp_ode import Config, vis_utils
 from resp_ode.utils import drop_keys_with_substring, flatten_list_parameters
 
 
@@ -306,6 +307,22 @@ def load_checkpoint_inference_chains(
     # only keep one copy of the legend since they all the same
     fig.update_traces(showlegend=False)
     fig.update_traces(showlegend=True, row=1, col=1)
+    return fig
+
+
+def load_prior_distributions_plot(cache_path, matplotlib_theme):
+    path = os.path.join(cache_path, "config_inferer_used.json")
+    if os.path.exists(path):
+        config = Config(open(path).read())
+        styles = ["seaborn-v0_8-colorblind", matplotlib_theme]
+        fig = vis_utils.plot_prior_distributions(
+            config.asdict(), matplotlib_style=styles
+        )
+    else:
+        raise FileNotFoundError(
+            "%s does not exist, either the experiment did "
+            "not save a config used or loading files failed" % path
+        )
     return fig
 
 
@@ -855,3 +872,20 @@ def shiny_to_plotly_theme(shiny_theme: str):
         plotly theme as str, used in `fig.update_layout(template=theme)`
     """
     return "plotly_%s" % (shiny_theme if shiny_theme == "dark" else "white")
+
+
+def shiny_to_matplotlib_theme(shiny_theme: str):
+    """shiny themes are "dark" and "light", plotly themes are
+    "plotly_dark" and "plotly_white", this function converts from shiny to plotly theme names
+
+    Parameters
+    ----------
+    shiny_theme : str
+        shiny theme as str
+
+    Returns
+    -------
+    str
+        plotly theme as str, used in `fig.update_layout(template=theme)`
+    """
+    return "dark_background" if shiny_theme == "dark" else "ggplot"
