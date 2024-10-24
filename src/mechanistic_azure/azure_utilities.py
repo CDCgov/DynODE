@@ -347,10 +347,10 @@ class AzureExperimentLauncher:
         ```
         main_tasks = self.launch_states()
         #launch 3 postprocess tasks to execute simultaneously
-        ex_order = [("1.py", "2.py", "3.py")]
+        ex_order = [["1.py", "2.py", "3.py"]]
         #launch 3 postprocess tasks to execute sequentially (note no list nesting)
         ex_order = ["1.py", "2.py", "3.py"]
-        ex_order = [("1.py"), ("2.py"), ("3.py")]
+        ex_order = [["1.py",] ["2.py"], ["3.py"]]
         #launch 3 postprocess tasks, 1 and 2 to execute together, 3 last
         ex_order = [("1.py", "2.py"), "3.py"]
         postprocess = self.launch_postprocess(execution_order = ex_order, depend_on_task_ids = main_tasks)
