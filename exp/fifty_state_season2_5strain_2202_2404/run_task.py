@@ -120,6 +120,14 @@ def get_loo_elpd(
 
     return loo_results
 
+
+def save_mass_matrix(inferer, save_path):
+    last_adapt_state = getattr(inferer.inference_algo.last_state, "adapt_state")
+    inverse_mass_matrix = getattr(last_adapt_state, "inverse_mass_matrix")
+    reform_inverse_mass_matrix = {str(k): v.tolist() for k, v in inverse_mass_matrix.items()}
+    json.dump(reform_inverse_mass_matrix, open(save_path, "w"))
+
+
 def preprocess_observed_data(initializer, inferer, model_day):
     """A function responsible for reading in observed data, preprocessing it, and returning
     a tuple of timeseries
@@ -317,6 +325,7 @@ class EpochOneRunner(AbstractAzureRunner):
         self.save_inference_posteriors(inferer)
         self.save_inference_final_timesteps(inferer)
         self.save_inference_timelines(inferer)
+        save_mass_matrix(inferer, os.path.join(self.azure_output_dir, "inverse_mass_matrix.json"))
 
         loo_results = get_loo_elpd(
             inferer,
