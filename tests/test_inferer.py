@@ -176,3 +176,10 @@ def test_random_sampling_across_chains_and_particles():
             "Unable to run all tests within test_random_sampling_across_chains_and_particles "
             "since you have only one chain! check test_config_inferer.json"
         )
+
+
+def test_debug_inferer():
+    """A simple test to make sure the _debug_likelihood function does not explode and correctly passes kwargs"""
+    inferer._debug_likelihood(
+        tf=len(synthetic_hosp_obs), obs_metrics=synthetic_hosp_obs
+    )

@@ -31,6 +31,7 @@ requests = "^2.32.3"
 docker = "^7.1.0"
 arviz = "^0.20.0"
 statsmodels = "^0.14.4"
+bayeux-ml = "^0.1.14"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
