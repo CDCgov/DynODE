@@ -6,6 +6,7 @@ import numpyro
 import numpyro.distributions as Dist
 from jax.random import PRNGKey
 from jax.typing import ArrayLike
+from numpyro.infer import MCMC, NUTS
 
 from resp_ode import MechanisticInferer
 
@@ -370,7 +371,7 @@ class FallVirusInferer(MechanisticInferer):
         # sample ihr multiplier due to JN1 (assuming JN1 has less severity)
         # ihr_jn1_mult = numpyro.sample("ihr_jn1_mult", Dist.Beta(100, 1))
         ihr_jn1_mult = numpyro.sample(
-            "ihr_jn1_mult", Dist.Beta(190, 10)
+            "ihr_jn1_mult", Dist.Beta(190*2, 10*2)
         )
 
         # calculate modelled hospitalizations based on the ihrs

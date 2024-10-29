@@ -9,10 +9,11 @@ import arviz
 import jax
 import numpy as np
 import numpyro
+from numpyro.infer import MCMC, NUTS
 
 # adding things to path since in a docker container pathing gets changed
 sys.path.append("/app/")
-sys.path.append("/input/exp/fifty_state_season2_5strain_2202_2404/")
+sys.path.append("/input/exp/fit_season2nb_5strain_2202_2404/")
 print(os.getcwd())
 # sys.path.append(".")
 # sys.path.append(os.getcwd())
@@ -26,7 +27,7 @@ from resp_ode.utils import combine_strains, combined_strains_mapping
 from src.mechanistic_azure.abstract_azure_runner import AbstractAzureRunner
 
 jax.config.update("jax_enable_x64", True)
-
+CACHE_MATRIX_JOB_ID = None
 
 def rework_initial_state(initial_state):
     """
@@ -62,6 +63,23 @@ def rework_initial_state(initial_state):
         c_new[:, 0:6, ...],
     )
     return initial_state
+
+
+def override_mcmc(inferer, inverse_mass_matrix):
+    # default to max tree depth of 5 if not specified
+    inferer.inference_algo = MCMC(
+        NUTS(
+            inferer.likelihood,
+            dense_mass=True,
+            max_tree_depth=10,
+            inverse_mass_matrix=inverse_mass_matrix,
+            init_strategy=numpyro.infer.init_to_median,
+        ),
+        num_warmup=inferer.config.INFERENCE_NUM_WARMUP,
+        num_samples=inferer.config.INFERENCE_NUM_SAMPLES,
+        num_chains=inferer.config.INFERENCE_NUM_CHAINS,
+        progress_bar=inferer.config.INFERENCE_PROGRESS_BAR,
+    )
 
 
 def get_loo_elpd(
@@ -300,6 +318,17 @@ class EpochOneRunner(AbstractAzureRunner):
         inferer = FallVirusInferer(
             GLOBAL_CONFIG_PATH, INFERER_CONFIG_PATH, runner, initial_state
         )
+        # Check if there's cache matrix
+        if CACHE_MATRIX_JOB_ID:
+            matrix_path = os.path.join("/output/fifty_state_season2_5strain_2202_2404", CACHE_MATRIX_JOB_ID, state, "inverse_mass_matrix.json")
+            if os.path.exists(matrix_path):
+                inverse_mass_matrix_json = json.load(open(matrix_path))
+                inverse_mass_matrix = {eval(k): jnp.mean(jnp.array(v), axis=0) for k, v in inverse_mass_matrix_json.items()}
+                print([v.shape for k, v in inverse_mass_matrix.items()])
+                override_mcmc(inferer, inverse_mass_matrix)
+            else:
+                print("Couldn't find corresponding inverse_mass_matrix, initializing at default.")
+
         (
             obs_hosps,
             obs_hosps_days,
