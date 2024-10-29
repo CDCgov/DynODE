@@ -26,7 +26,7 @@ SEIC_Timeseries = tuple[
     jax.Array,
 ]
 
-from . import utils
+from . import utils, vis_utils
 
 # keep imports relative to avoid circular importing
 from .abstract_initializer import AbstractInitializer
@@ -49,4 +49,5 @@ __all__ = [
     StaticValueParameters,
     utils,
     Config,
+    vis_utils,
 ]

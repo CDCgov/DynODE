@@ -10,9 +10,7 @@ package-mode = false
 [tool.poetry.dependencies]
 resp_ode = {path="src/", develop = true}
 python = "^3.10"
-cycler = ">=0.11.0"
 diffrax = "0.5.0"
-gitpython = ">=3.1.41"
 jax = "<=0.4.26"
 jaxlib = "<=0.4.26"
 matplotlib = ">=3.7.2"
@@ -22,7 +20,7 @@ pandas = ">=2.0.3"
 seaborn = ">=0.13.2"
 shiny = ">=0.6.0"
 pytest = ">=7.4.0"
-cfa-azure = {git = "https://github.com/CDCgov/cfa_azure.git"}
+cfa-azure = {git = "https://github.com/CDCgov/cfa_azure.git", rev="5443bde"}
 pip = "^24.0"
 epiweeks = "^2.3.0"
 pre-commit = "^3.7.1"
@@ -32,6 +30,8 @@ docker = "^7.1.0"
 arviz = "^0.20.0"
 statsmodels = "^0.14.4"
 bayeux-ml = "^0.1.14"
+plotly = "^5.24.1"
+shinywidgets = "^0.3.3"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
