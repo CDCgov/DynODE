@@ -1904,38 +1904,3 @@ def find_files(
     postprocess_files = glob.glob(pattern, recursive=recursive)
 
     return [os.path.basename(file) for file in postprocess_files]
-
-
-def sort_filenames_by_suffix(filenames) -> list[str]:
-    """Given a list of filenames, sorts them by the _1/2/3 suffix
-    handles a no suffix case as first element.
-    An example ordering would be:
-    `[file.py, file_0.py, file_5.py, file_11.py, file_new_15.py]`
-
-    Parameters
-    ----------
-    filenames : list[str]
-        list of filenames, ending with _int suffixes.
-
-    Returns
-    ----------
-    same filenames list but sorted by suffix order.
-    """
-
-    def extract_number(filename):
-        # Find the last occurrence of '_'
-        last_underscore_index = filename.rfind("_")
-
-        # Check if '_' exists in the filename
-        if last_underscore_index != -1:
-            start = last_underscore_index + 1
-            end = filename.rfind(".")
-            number_str = filename[start:end]
-
-            # Check if the extracted substring is a valid integer
-            if number_str.isdigit():
-                return int(number_str)
-
-        return 0
-
-    return sorted(filenames, key=extract_number)
