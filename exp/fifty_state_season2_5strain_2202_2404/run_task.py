@@ -13,7 +13,7 @@ from numpyro.infer import MCMC, NUTS
 
 # adding things to path since in a docker container pathing gets changed
 sys.path.append("/app/")
-sys.path.append("/input/exp/fit_season2nb_5strain_2202_2404/")
+sys.path.append("/input/exp/fit_season2_5strain_2202_2404/")
 print(os.getcwd())
 # sys.path.append(".")
 # sys.path.append(os.getcwd())

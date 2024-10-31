@@ -371,7 +371,7 @@ class FallVirusInferer(MechanisticInferer):
         # sample ihr multiplier due to JN1 (assuming JN1 has less severity)
         # ihr_jn1_mult = numpyro.sample("ihr_jn1_mult", Dist.Beta(100, 1))
         ihr_jn1_mult = numpyro.sample(
-            "ihr_jn1_mult", Dist.Beta(190*2, 10*2)
+            "ihr_jn1_mult", Dist.Beta(180*2, 20*2)
         )
 
         # calculate modelled hospitalizations based on the ihrs
