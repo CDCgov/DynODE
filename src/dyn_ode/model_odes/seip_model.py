@@ -1,7 +1,6 @@
 import jax
 import jax.numpy as jnp
 from jaxtyping import ArrayLike, PyTree
-
 from resp_ode.utils import Parameters, get_foi_suscept, new_immune_state
 
 

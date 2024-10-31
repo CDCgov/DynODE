@@ -17,7 +17,6 @@ import numpy as np
 import pandas as pd  # type: ignore
 from diffrax import Solution  # type: ignore
 from jax import Array
-
 from resp_ode import (
     AbstractParameters,
     MechanisticInferer,

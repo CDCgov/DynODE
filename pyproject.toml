@@ -1,14 +1,13 @@
 [tool.poetry]
-name = "mechanistic-model"
+name = "dyn_ode"
 version = "0.1.0"
 description = "CDC CFA Predict Scenarios model development"
 authors = ["Your Name <you@example.com>"]
 license = "Apache License, Version 2.0, January 2004"
 readme = "README.md"
-package-mode = false
+package-mode = true
 
 [tool.poetry.dependencies]
-resp_ode = {path="src/", develop = true}
 python = "^3.10"
 diffrax = "0.5.0"
 jax = "<=0.4.26"
@@ -20,7 +19,6 @@ pandas = ">=2.0.3"
 seaborn = ">=0.13.2"
 shiny = ">=0.6.0"
 pytest = ">=7.4.0"
-cfa-azure = {git = "https://github.com/CDCgov/cfa_azure.git", rev="5443bde"}
 pip = "^24.0"
 epiweeks = "^2.3.0"
 pre-commit = "^3.7.1"
