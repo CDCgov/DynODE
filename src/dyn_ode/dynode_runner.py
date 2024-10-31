@@ -17,17 +17,14 @@ import numpy as np
 import pandas as pd  # type: ignore
 from diffrax import Solution  # type: ignore
 from jax import Array
-from resp_ode import (
-    AbstractParameters,
-    MechanisticInferer,
-    SEIC_Compartments,
-    StaticValueParameters,
-    utils,
-    vis_utils,
-)
+
+from . import SEIC_Compartments, utils, vis_utils
+from .abstract_parameters import AbstractParameters
+from .mechanistic_inferer import MechanisticInferer
+from .static_value_parameters import StaticValueParameters
 
 
-class AbstractAzureRunner(ABC):
+class AbstractDynodeRunner(ABC):
     """An Abstract class made to standardize the process of running an experiment on Azure.
     Children of this class may use the functions within to standardize their processies across experiments
     """
