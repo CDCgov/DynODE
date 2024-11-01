@@ -3,8 +3,8 @@ import datetime
 import jax.numpy as jnp
 import pytest
 
-from resp_ode import Config, MechanisticRunner, StaticValueParameters, utils
-from resp_ode.model_odes import seip_ode
+from dyn_ode import Config, MechanisticRunner, StaticValueParameters, utils
+from dyn_ode.model_odes import seip_ode
 
 CONFIG_GLOBAL_PATH = "tests/test_config_global.json"
 RUNNER_CONFIG_PATH = "tests/test_config_runner.json"

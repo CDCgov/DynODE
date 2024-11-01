@@ -18,14 +18,14 @@ import numpy as np
 
 # the different segments of code responsible for runing the model
 # each will be explained as they are used below
-from resp_ode import (
+from dyn_ode import (
     CovidSeroInitializer,
     MechanisticInferer,
     MechanisticRunner,
     SolutionInterpreter,
     StaticValueParameters,
 )
-from resp_ode.model_odes import seip_ode
+from dyn_ode.model_odes import seip_ode
 
 parser = argparse.ArgumentParser()
 parser.add_argument(

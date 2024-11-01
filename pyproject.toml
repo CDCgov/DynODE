@@ -28,4 +28,5 @@ bayeux-ml = "^0.1.14"
 
 
 [build-system]
+requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
