@@ -12,17 +12,17 @@ import numpy as np
 
 sys.path.append("/app/")
 
-from mechanistic_azure.abstract_azure_runner import AbstractAzureRunner
-from resp_ode import (
+from dyn_ode import (
     CovidSeroInitializer,
     MechanisticInferer,
     MechanisticRunner,
     StaticValueParameters,
 )
-from resp_ode.model_odes import seip_ode
+from dyn_ode.dynode_runner import AbstractDynodeRunner
+from dyn_ode.model_odes import seip_ode
 
 
-class ExampleRunner(AbstractAzureRunner):
+class ExampleRunner(AbstractDynodeRunner):
     # __init__ already implemented by the abstract case
     def __init__(self, azure_output_dir):
         super().__init__(azure_output_dir)
