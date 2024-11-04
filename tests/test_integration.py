@@ -17,12 +17,12 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from dyn_ode import (
+from dynode import (
     CovidSeroInitializer,
     MechanisticRunner,
     StaticValueParameters,
 )
-from dyn_ode.model_odes import seip_ode
+from dynode.model_odes import seip_ode
 
 CONFIG_GLOBAL_PATH = "tests/test_config_global.json"
 INITIALIZER_CONFIG_PATH = "tests/test_config_initializer.json"

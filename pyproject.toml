@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "dyn_ode"
+name = "dynode"
 version = "0.1.0"
 description = "CDC CFA Predict Scenarios model development"
 authors = ["Your Name <you@example.com>"]
