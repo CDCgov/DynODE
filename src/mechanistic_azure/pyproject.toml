@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "resp_ode"
-version = "2024.9.4"
-description = "CDC CFA Predict Scenarios respODE package for modeling of respiratory diseases"
-authors = ["CDC CFA"]
+name = "scenarios-azure-acceleration"
+version = "0.1.0"
+description = "CFA Azure Acceleration library for creating, launching, and visualizing Azure experiments"
+authors = ["Your Name <you@example.com>"]
 license = "Apache License, Version 2.0, January 2004"
 
 [tool.poetry.dependencies]
@@ -15,11 +15,15 @@ numpy = ">=1.25.2"
 numpyro = ">=0.13.2"
 pandas = ">=2.0.3"
 seaborn = ">=0.13.2"
+shiny = ">=0.6.0"
 pytest = ">=7.4.0"
 pip = "^24.0"
 epiweeks = "^2.3.0"
 pre-commit = "^3.7.1"
 mypy = "^1.10.0"
+requests = "^2.32.3"
+docker = "^7.1.0"
+cfa-azure = {git = "https://github.com/CDCgov/cfa_azure.git", rev="5443bde"}
 
 
 [build-system]
