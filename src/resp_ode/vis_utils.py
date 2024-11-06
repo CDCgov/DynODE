@@ -478,7 +478,7 @@ def plot_prior_distributions(
     | str = [
         "seaborn-v0_8-colorblind",
     ],
-    num_samples=50000,
+    num_samples=5000,
     hist_kwargs={"bins": 50, "density": True},
 ) -> plt.Figure:
     """Given a dictionary of parameter keys and possibly values of
