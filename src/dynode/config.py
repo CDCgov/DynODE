@@ -113,9 +113,9 @@ class Config:
                 try:
                     [
                         (
+                            # some validators only take single values not lists
                             val_func(key[0], vals[0])
-                            if len(key)
-                            == 1  # convert back to floats if needed
+                            if len(key) == 1
                             else val_func(key, vals)
                         )
                         for val_func in validator_funcs

@@ -33,6 +33,7 @@ from .abstract_initializer import AbstractInitializer
 from .abstract_parameters import AbstractParameters
 from .config import Config
 from .covid_sero_initializer import CovidSeroInitializer
+from .dynode_runner import AbstractDynodeRunner
 from .mechanistic_inferer import MechanisticInferer
 from .mechanistic_runner import MechanisticRunner
 from .solution_iterpreter import SolutionInterpreter
@@ -50,4 +51,5 @@ __all__ = [
     utils,
     Config,
     vis_utils,
+    AbstractDynodeRunner,
 ]

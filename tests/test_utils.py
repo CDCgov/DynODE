@@ -5,7 +5,7 @@ from enum import IntEnum
 import jax.numpy as jnp
 import numpyro.distributions as dist
 
-from resp_ode import utils
+from dynode import utils
 
 # strain indexes {"a": 0, "b": 1, "c": 2}
 example_strain_idxs = IntEnum("test", ["a", "b", "c"], start=0)
