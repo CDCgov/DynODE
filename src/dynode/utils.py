@@ -8,6 +8,7 @@ import sys
 # importing under a different name because mypy static type hinter
 # strongly dislikes the IntEnum class.
 from enum import EnumMeta as IntEnum
+from . import SEIC_Compartments
 
 import epiweeks
 import jax.numpy as jnp
@@ -17,6 +18,7 @@ import numpyro  # type: ignore
 import numpyro.distributions as Dist  # type: ignore
 import pandas as pd  # type: ignore
 from jax import Array
+from jax.typing import ArrayLike
 from scipy.stats import gamma
 
 pd.options.mode.chained_assignment = None
@@ -194,9 +196,6 @@ def conditional_knots(t, knots, coefficients):
     indicators = jnp.where(t > knots, t - knots, 0)
     # multiply coefficients by 3 since we taking derivative of cubic spline.
     return jnp.sum(indicators**3 * coefficients, axis=-1)
-
-
-# days of separation between each knot
 
 
 def evaluate_cubic_spline(
@@ -1206,6 +1205,114 @@ def load_age_demographics(
                 f"Something went wrong with {region} and produced the following error:\n\t{e}"
             )
     return demographic_data
+
+
+def retrieve_population_counts(
+    state: SEIC_Compartments, age_bin_idx: int = 0
+) -> np.ndarray:
+    """A function which takes calculates the age stratified population counts across all compartments
+    (minus the book-keeping C compartment.)
+
+    usually provided alongside initial state unless initial_state is linked to
+    some posterior sample (as is often the case in projections).
+
+    Parameters
+    ----------
+    state : tuple(np.ndarray)
+        tuple of each compartment including the book keeping C compartment
+
+    age_bin_idx: int
+        the index of the age bin in each compartment, by default 0
+
+    Returns
+    -------
+    np.ndarray
+        array of len(NUM_AGE_GROUPS) with the population of each age bin
+        as a float within.
+    """
+    # get age stratified population counts for each compartment
+    # assumes age bin is first index
+    sum_over_idxs = tuple(
+        [i for i in range(state[0].ndim) if i != age_bin_idx]
+    )
+    age_stratified_pop_counts_per_compartment = (
+        np.array(
+            [
+                np.sum(
+                    compartment,
+                    axis=sum_over_idxs,
+                )
+                for compartment in state[:-1]
+            ]
+        ),
+    )
+    # sum together compartments
+    return np.sum(
+        age_stratified_pop_counts_per_compartment,
+        axis=(0),
+    )
+
+
+def scale_initial_infections(
+    state: SEIC_Compartments, scale_factor: ArrayLike, COMPARTMENT_IDX: IntEnum
+) -> SEIC_Compartments:
+    """
+    a function which modifies returns a modified version of
+    `state` scaling the number of initial infections by `scale_factor`.
+
+    Preserves the ratio of the Exposed/Infectious compartment population sizes.
+    returns a copy of `state` with different numbers of exposed/infections
+    individuals within.
+
+    Parameters
+    ----------
+    state: SEIC_Compartments
+        the state you are scaling, usually a self.INITIAL_STATE tuple
+
+    scale_factor: float/ArrayLike
+        a multiplier value >=0.0.
+        `scale_factor` < 1 reduces number of initial infections,
+        `scale_factor` == 1.0 leaves initial infections unchanged,
+        `scale_factor` > 1 increases number of initial infections.
+
+    COMPARTMENT_IDX: IntEnum
+        Enum object identifying the indexes of the S/E/I/C compartments
+
+    Returns
+    ---------
+    A copy of `state` with each compartment being scaled according to
+    `scale_factor`
+    """
+    pop_counts_by_compartment = jnp.array(
+        [jnp.sum(compartment) for compartment in state[: COMPARTMENT_IDX.C]]
+    )
+    initial_infections = (
+        pop_counts_by_compartment[COMPARTMENT_IDX.E]
+        + pop_counts_by_compartment[COMPARTMENT_IDX.I]
+    )
+    initial_susceptibles = pop_counts_by_compartment[COMPARTMENT_IDX.S]
+    # total_pop_size = initial_susceptibles + initial_infections
+    new_infections_size = scale_factor * initial_infections
+    # negative if scale_factor < 1.0
+    gained_infections = new_infections_size - initial_infections
+    scale_factor_susceptible_compartment = 1 - (
+        gained_infections / initial_susceptibles
+    )
+    # multiplying E and I by the same scale_factor preserves their relative ratio
+    scale_factors = [
+        scale_factor_susceptible_compartment,
+        scale_factor,
+        scale_factor,
+        1.0,  # for the C compartment, unchanged.
+    ]
+    # scale each compartment and return
+    initial_state = tuple(
+        [
+            compartment * factor
+            for compartment, factor in zip(state, scale_factors)
+        ]
+    )
+    return initial_state
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

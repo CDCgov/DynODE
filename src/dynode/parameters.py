@@ -24,7 +24,7 @@ from .config import Config
 from .mechanistic_runner import MechanisticRunner
 
 
-class AbstractParameters:
+class Parameters:
     """A class to define a disease-agnostic parameters object for running disease models.
     Manages parameter passing and creation, as well as definition of
     seasonality, vaccination, external introductions, and external beta shifting functions
@@ -57,45 +57,26 @@ class AbstractParameters:
         "WANING_RATES",
     ]
 
-    @abstractmethod
-    def __init__(self, parameters_config):
-        # add these for mypy type checker
-        self.config: Config = {}
-        self.INITIAL_STATE: SEIC_Compartments = tuple()
-        pass
+    def __init__(self, parameters_config, global_variables_path):
+        """initalize a parameters object with a configuration file containing
+        the parameters going to the solver as well as a set of global
+        parameters meant to describe the state of the system
 
-    def _solve_runner(
-        self, parameters: dict, tf: int, runner: MechanisticRunner
-    ) -> Solution:
-        """runs the runner for `tf` days using parameters defined in `parameters`
-        returning a Diffrax Solution object
 
         Parameters
         ----------
-        parameters : dict
-            parameters object containing parameters required by the runner ODEs
-        tf : int
-            number of days to run the runner for
-        runner : MechanisticRunner
-            runner class designated with solving ODEs
-
-        Returns
-        -------
-        Solution
-            diffrax solution object returned from runner.run()
+        parameters_config : str
+            path to a json file containing parameters
+            and their values/distributions
+        global_variables_path : str
+            path to a json file containing global scope parameters
+            and their values
         """
-        if "INITIAL_INFECTIONS_SCALE" in parameters.keys():
-            initial_state = self.scale_initial_infections(
-                parameters["INITIAL_INFECTIONS_SCALE"]
-            )
-        else:
-            initial_state = self.INITIAL_STATE
-        solution = runner.run(
-            initial_state,
-            args=parameters,
-            tf=tf,
-        )
-        return solution
+        distributions_json = open(parameters_config, "r").read()
+        global_json = open(global_variables_path, "r").read()
+        self.config = Config(global_json).add_file(distributions_json)
+        self.load_vaccination_model()
+        self.load_contact_matrix()
 
     def _get_upstream_parameters(self) -> dict:
         """
@@ -155,11 +136,11 @@ class AbstractParameters:
         """
         try:
             # create or re-recreate parameters based on other possibly sampled parameters
-            parameters[
-                "CROSSIMMUNITY_MATRIX"
-            ] = utils.strain_interaction_to_cross_immunity(
-                parameters["NUM_STRAINS"],
-                parameters["STRAIN_INTERACTIONS"],
+            parameters["CROSSIMMUNITY_MATRIX"] = (
+                utils.strain_interaction_to_cross_immunity(
+                    parameters["NUM_STRAINS"],
+                    parameters["STRAIN_INTERACTIONS"],
+                )
             )
             beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
             gamma = 1 / parameters["INFECTIOUS_PERIOD"]
@@ -457,32 +438,6 @@ class AbstractParameters:
             )
         )
 
-    def retrieve_population_counts(self) -> None:
-        """
-        A wrapper function which takes calculates the age stratified population counts across all the INITIAL_STATE compartments
-        (minus the book-keeping C compartment.) and stores it in the self.config.POPULATION parameter.
-
-        We do not recieve this data exactly from the initializer, but it is trivial to recalculate.
-        """
-        self.config.POPULATION = np.sum(  # sum together S+E+I compartments
-            np.array(
-                [
-                    np.sum(
-                        compartment,
-                        axis=(
-                            self.config.S_AXIS_IDX.hist,
-                            self.config.S_AXIS_IDX.vax,
-                            self.config.S_AXIS_IDX.wane,
-                        ),
-                    )  # sum over all but age bin axis
-                    for compartment in self.INITIAL_STATE[
-                        : self.config.COMPARTMENT_IDX.C
-                    ]  # avoid summing the book-keeping C compartment
-                ]
-            ),
-            axis=(0),  # sum across compartments, keep age bins
-        )
-
     def load_cross_immunity_matrix(self) -> None:
         """
         Loads the Crossimmunity matrix given the strain interactions matrix.
@@ -657,65 +612,3 @@ class AbstractParameters:
             self.config.AGE_LIMITS[0],
             self.config.AGE_LIMITS,
         )[self.config.REGIONS[0]]["avg_CM"]
-
-    def scale_initial_infections(
-        self, scale_factor: ArrayLike
-    ) -> SEIC_Compartments:
-        """
-        a function which modifies returns a modified version of
-        self.INITIAL_STATE scaling the number of initial infections by `scale_factor`.
-
-        Preserves the ratio of the Exposed/Infectious compartment population sizes.
-        Does not modified self.INITIAL_STATE, returns a copy.
-
-        Parameters
-        ----------
-        scale_factor: float
-            a multiplier value >=0.0.
-            `scale_factor` < 1 reduces number of initial infections,
-            `scale_factor` == 1.0 leaves initial infections unchanged,
-            `scale_factor` > 1 increases number of initial infections.
-
-        Returns
-        ---------
-        A copy of INITIAL_INFECTIONS with each compartment being scaled according to `scale_factor`
-        """
-        pop_counts_by_compartment = jnp.array(
-            [
-                jnp.sum(compartment)
-                for compartment in self.INITIAL_STATE[
-                    : self.config.COMPARTMENT_IDX.C
-                ]
-            ]
-        )
-        initial_infections = (
-            pop_counts_by_compartment[self.config.COMPARTMENT_IDX.E]
-            + pop_counts_by_compartment[self.config.COMPARTMENT_IDX.I]
-        )
-        initial_susceptibles = pop_counts_by_compartment[
-            self.config.COMPARTMENT_IDX.S
-        ]
-        # total_pop_size = initial_susceptibles + initial_infections
-        new_infections_size = scale_factor * initial_infections
-        # negative if scale_factor < 1.0
-        gained_infections = new_infections_size - initial_infections
-        scale_factor_susceptible_compartment = 1 - (
-            gained_infections / initial_susceptibles
-        )
-        # multiplying E and I by the same scale_factor preserves their relative ratio
-        scale_factors = [
-            scale_factor_susceptible_compartment,
-            scale_factor,
-            scale_factor,
-            1.0,  # for the C compartment, unchanged.
-        ]
-        # scale each compartment and return
-        initial_state = tuple(
-            [
-                compartment * factor
-                for compartment, factor in zip(
-                    self.INITIAL_STATE, scale_factors
-                )
-            ]
-        )
-        return initial_state

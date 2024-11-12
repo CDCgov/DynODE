@@ -4,16 +4,18 @@ no parameters are being sampled, and thus no complex inference or fitting is nee
 """
 
 from . import SEIC_Compartments
-from .abstract_parameters import AbstractParameters
+from .parameters import Parameters
 from .config import Config
+from . import utils
 
 
-class StaticValueParameters(AbstractParameters):
+class StaticValueParameters:
     """A Parameters class made for use on all static parameters, with no in-built sampling mechanism"""
 
     def __init__(
         self,
         INITIAL_STATE: SEIC_Compartments,
+        parameters: Parameters,
         runner_config_path: str,
         global_variables_path: str,
     ) -> None:
@@ -21,8 +23,10 @@ class StaticValueParameters(AbstractParameters):
         global_json = open(global_variables_path, "r").read()
         self.config = Config(global_json).add_file(runner_json)
         self.INITIAL_STATE = INITIAL_STATE
-        # load self.config.POPULATION
-        self.retrieve_population_counts()
+        self.config.POPULATION = utils.retrieve_population_counts(
+            self.INITIAL_STATE
+        )
+        self.parameters = parameters
         # load self.config.VACCINATION_MODEL_KNOTS/
         # VACCINATION_MODEL_KNOT_LOCATIONS/VACCINATION_MODEL_BASE_EQUATIONS
         self.load_vaccination_model()

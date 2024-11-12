@@ -30,7 +30,7 @@ from . import utils, vis_utils
 
 # keep imports relative to avoid circular importing
 from .abstract_initializer import AbstractInitializer
-from .abstract_parameters import AbstractParameters
+from .parameters import Parameters
 from .config import Config
 from .covid_sero_initializer import CovidSeroInitializer
 from .dynode_runner import AbstractDynodeRunner
@@ -41,7 +41,7 @@ from .static_value_parameters import StaticValueParameters
 
 # Defines all the different modules able to be imported from src
 __all__ = [
-    AbstractParameters,
+    Parameters,
     AbstractInitializer,
     CovidSeroInitializer,
     MechanisticInferer,

@@ -20,12 +20,13 @@ from numpyro.diagnostics import summary  # type: ignore
 from numpyro.infer import MCMC, NUTS  # type: ignore
 
 from . import SEIC_Compartments, utils
-from .abstract_parameters import AbstractParameters
+
 from .config import Config
 from .mechanistic_runner import MechanisticRunner
+from .parameters import Parameters
 
 
-class MechanisticInferer(AbstractParameters):
+class MechanisticInferer:
     """
     A class responsible for managing the fitting process of a mechanistic runner.
     Taking in priors, sampling from their distributions, managing MCMC or the sampling/fitting proceedure of choice,
@@ -38,6 +39,7 @@ class MechanisticInferer(AbstractParameters):
         distributions_path: str,
         runner: MechanisticRunner,
         initial_state: SEIC_Compartments,
+        parameters: Parameters,
         prior_inferer: MCMC = None,
     ):
         distributions_json = open(distributions_path, "r").read()
@@ -47,9 +49,10 @@ class MechanisticInferer(AbstractParameters):
         self.INITIAL_STATE = initial_state
         self.infer_complete = False
         self.set_infer_algo(prior_inferer=prior_inferer)
-        self.retrieve_population_counts()
-        self.load_vaccination_model()
-        self.load_contact_matrix()
+        self.config.POPULATION = utils.retrieve_population_counts(
+            self.INITIAL_STATE
+        )
+        self.parameters = parameters
 
     def set_infer_algo(
         self, prior_inferer: MCMC = None, inferer_type: str = "mcmc"
@@ -95,6 +98,41 @@ class MechanisticInferer(AbstractParameters):
                 ), "the previous inferer is not of the same type."
                 self.set_posteriors_if_exist(prior_inferer)
 
+    def _solve_runner(
+        self, parameters: dict, tf: int, runner: MechanisticRunner
+    ) -> Solution:
+        """runs the runner for `tf` days using parameters defined in `parameters`
+        returning a Diffrax Solution object
+
+        Parameters
+        ----------
+        parameters : dict
+            parameters object containing parameters required by the runner ODEs
+        tf : int
+            number of days to run the runner for
+        runner : MechanisticRunner
+            runner class designated with solving ODEs
+
+        Returns
+        -------
+        Solution
+            diffrax solution object returned from runner.run()
+        """
+        if "INITIAL_INFECTIONS_SCALE" in parameters.keys():
+            initial_state = utils.scale_initial_infections(
+                self.INITIAL_STATE,
+                parameters["INITIAL_INFECTIONS_SCALE"],
+                self.config.COMPARTMENT_IDX,
+            )
+        else:
+            initial_state = self.INITIAL_STATE
+        solution = runner.run(
+            initial_state,
+            args=parameters,
+            tf=tf,
+        )
+        return solution
+
     def _get_predictions(
         self, parameters: dict, solution: Solution
     ) -> jax.Array:
@@ -135,10 +173,11 @@ class MechanisticInferer(AbstractParameters):
         hospitalizations = model_incidence * ihr
         return hospitalizations
 
-    def run_simulation(
-        self, tf: int
-    ) -> dict[str, Union[Solution, jax.Array],]:
-        parameters = self.get_parameters()
+    def run_simulation(self, tf: int) -> dict[
+        str,
+        Union[Solution, jax.Array],
+    ]:
+        parameters = self.parameters.get_parameters()
         solution = self._solve_runner(parameters, tf, self.runner)
         hospitalizations = self._get_predictions(parameters, solution)
         return {
