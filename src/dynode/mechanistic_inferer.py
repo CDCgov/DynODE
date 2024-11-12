@@ -20,7 +20,6 @@ from numpyro.diagnostics import summary  # type: ignore
 from numpyro.infer import MCMC, NUTS  # type: ignore
 
 from . import SEIC_Compartments, utils
-
 from .config import Config
 from .mechanistic_runner import MechanisticRunner
 from .parameters import Parameters
@@ -173,10 +172,9 @@ class MechanisticInferer:
         hospitalizations = model_incidence * ihr
         return hospitalizations
 
-    def run_simulation(self, tf: int) -> dict[
-        str,
-        Union[Solution, jax.Array],
-    ]:
+    def run_simulation(
+        self, tf: int
+    ) -> dict[str, Union[Solution, jax.Array],]:
         parameters = self.parameters.get_parameters()
         solution = self._solve_runner(parameters, tf, self.runner)
         hospitalizations = self._get_predictions(parameters, solution)

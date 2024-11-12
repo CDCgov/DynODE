@@ -8,7 +8,6 @@ import sys
 # importing under a different name because mypy static type hinter
 # strongly dislikes the IntEnum class.
 from enum import EnumMeta as IntEnum
-from . import SEIC_Compartments
 
 import epiweeks
 import jax.numpy as jnp
@@ -20,6 +19,8 @@ import pandas as pd  # type: ignore
 from jax import Array
 from jax.typing import ArrayLike
 from scipy.stats import gamma
+
+from . import SEIC_Compartments
 
 pd.options.mode.chained_assignment = None
 

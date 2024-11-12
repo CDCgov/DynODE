@@ -19,8 +19,8 @@ from diffrax import Solution  # type: ignore
 from jax import Array
 
 from . import SEIC_Compartments, utils, vis_utils
-from .parameters import AbstractParameters
 from .mechanistic_inferer import MechanisticInferer
+from .parameters import AbstractParameters
 from .static_value_parameters import StaticValueParameters
 
 
@@ -351,9 +351,9 @@ class AbstractDynodeRunner(ABC):
             df["%s_strain_proportion" % strain_name] = strain_proportions[
                 s_idx
             ]
-            df["%s_external_introductions" % strain_name] = (
-                external_i_timeline[:, s_idx]
-            )
+            df[
+                "%s_external_introductions" % strain_name
+            ] = external_i_timeline[:, s_idx]
             df["%s_average_immunity" % strain_name] = population_immunity[
                 s_idx, :
             ]

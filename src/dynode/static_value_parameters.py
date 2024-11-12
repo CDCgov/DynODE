@@ -3,10 +3,9 @@ This class is responsible for providing parameters to the model in the case that
 no parameters are being sampled, and thus no complex inference or fitting is needed.
 """
 
-from . import SEIC_Compartments
-from .parameters import Parameters
+from . import SEIC_Compartments, utils
 from .config import Config
-from . import utils
+from .parameters import Parameters
 
 
 class StaticValueParameters:

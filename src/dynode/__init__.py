@@ -30,12 +30,12 @@ from . import utils, vis_utils
 
 # keep imports relative to avoid circular importing
 from .abstract_initializer import AbstractInitializer
-from .parameters import Parameters
 from .config import Config
 from .covid_sero_initializer import CovidSeroInitializer
 from .dynode_runner import AbstractDynodeRunner
 from .mechanistic_inferer import MechanisticInferer
 from .mechanistic_runner import MechanisticRunner
+from .parameters import Parameters
 from .solution_iterpreter import SolutionInterpreter
 from .static_value_parameters import StaticValueParameters
 

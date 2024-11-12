@@ -8,20 +8,17 @@ external transmission of new or existing viruses and other generic respiratory v
 
 import copy
 import os
-from abc import abstractmethod
 from functools import partial
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 import pandas as pd  # type: ignore
-from diffrax import Solution
 from jax.scipy.stats.norm import pdf
 from jax.typing import ArrayLike
 
-from . import SEIC_Compartments, utils
+from . import utils
 from .config import Config
-from .mechanistic_runner import MechanisticRunner
 
 
 class Parameters:
@@ -136,11 +133,11 @@ class Parameters:
         """
         try:
             # create or re-recreate parameters based on other possibly sampled parameters
-            parameters["CROSSIMMUNITY_MATRIX"] = (
-                utils.strain_interaction_to_cross_immunity(
-                    parameters["NUM_STRAINS"],
-                    parameters["STRAIN_INTERACTIONS"],
-                )
+            parameters[
+                "CROSSIMMUNITY_MATRIX"
+            ] = utils.strain_interaction_to_cross_immunity(
+                parameters["NUM_STRAINS"],
+                parameters["STRAIN_INTERACTIONS"],
             )
             beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
             gamma = 1 / parameters["INFECTIOUS_PERIOD"]
