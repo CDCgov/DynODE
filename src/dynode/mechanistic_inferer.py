@@ -49,16 +49,18 @@ class MechanisticInferer(AbstractParameters):
         self.load_contact_matrix()
 
     def set_infer_algo(self, inferer_type: str = "mcmc") -> None:
-        """
-        Sets the inferer's inference algorithm and sampler.
-        If passed a previous inferer of the same inferer_type, uses posteriors to aid in the definition of new priors.
-        This does require special configuration parameters to aid in transition between sequential inferers.
+        """Sets the inferer's inference algorithm and sampler.
 
         Parameters
         ----------
-        prior_inferer: None, numpyro.infer.MCMC
-            the inferer algorithm of the previous sequential call to inferer.infer
-            use posteriors in this previous call to help define the priors in the current call.
+        inferer_type : str, optional
+            infer algo you wish to use, by default "mcmc"
+
+        Raises
+        ------
+        NotImplementedError
+            if passed `inferer_type` that is not yet supported, raises
+            NotImplementedError
         """
         supported_infer_algos = ["mcmc"]
         if inferer_type.lower().strip() not in supported_infer_algos:
