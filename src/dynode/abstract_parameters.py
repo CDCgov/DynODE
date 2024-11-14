@@ -114,11 +114,13 @@ class AbstractParameters:
         """
         # multiple chains of MCMC calling get_parameters()
         # should not share references, deep copy, GH issue for this created
-        freeze_params = copy.deepcopy(self.config)
+        # freeze_params = copy.deepcopy(self.config)
         parameters = {}
         for parameter in self.UPSTREAM_PARAMETERS:
-            if hasattr(freeze_params, parameter):
-                parameters[parameter] = getattr(freeze_params, parameter)
+            if hasattr(self.config, parameter):
+                parameters[parameter] = copy.deepcopy(
+                    getattr(self.config, parameter)
+                )
             else:
                 raise RuntimeError(
                     """self.config does not contain a %s parameter, either include it in the
