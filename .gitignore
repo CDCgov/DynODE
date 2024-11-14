@@ -5,6 +5,7 @@
 /output/*
 testing.ipynb
 testing.py
+/data/*
 
 # Data
 *.csv
