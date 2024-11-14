@@ -2,38 +2,17 @@
     "SCENARIO_NAME": "test covid run for testing suite",
     "CONTACT_MATRIX_PATH": "examples/data/demographic-data/contact_matrices",
     "VACCINATION_MODEL_DATA": "examples/data/vaccination-data/example_spline_fits.csv",
+    "SEASONAL_VACCINATION": false,
     "STRAIN_R0s": [
         1.2,
         1.8,
-        {
-            "distribution": "TruncatedNormal",
-            "params": {
-                "loc": 2.5,
-                "scale": 1,
-                "low": 1,
-                "high": 3.3
-            }
-        }
+        3.0
     ],
-    "INFECTIOUS_PERIOD": {
-        "distribution": "TruncatedNormal",
-        "params": {
-            "loc": 10,
-            "scale": 2,
-            "low": 1.0
-        }
-    },
+    "INFECTIOUS_PERIOD": 7.0,
     "EXPOSED_TO_INFECTIOUS": 3.6,
     "INITIAL_INFECTIONS_SCALE": 1.0,
     "INTRODUCTION_TIMES": [
-        {
-            "distribution": "TruncatedNormal",
-            "params": {
-                "loc": 60,
-                "scale": 20,
-                "low": 10
-            }
-        }
+        60
     ],
     "INTRODUCTION_PCTS": [
         0.01
@@ -47,6 +26,7 @@
         false,
         false
     ],
+    "MIN_HOMOLOGOUS_IMMUNITY": 0.1,
     "WANING_PROTECTIONS": [
         1.0,
         0.942,
@@ -54,7 +34,6 @@
         0.942,
         0.0
     ],
-    "MIN_HOMOLOGOUS_IMMUNITY": 0.0,
     "STRAIN_INTERACTIONS": [
         [
             1.0,
@@ -100,13 +79,13 @@
         1.0,
         1.0
     ],
-    "SEASONALITY_AMPLITUDE": 0.0,
-    "SEASONALITY_SECOND_WAVE": 0.5,
-    "SEASONALITY_SHIFT": 0,
-    "INFERENCE_PRNGKEY": 8675309,
-    "INFERENCE_NUM_WARMUP": 5,
-    "INFERENCE_NUM_SAMPLES": 5,
-    "INFERENCE_NUM_CHAINS": 4,
-    "INFERENCE_PROGRESS_BAR": false,
+    "SEASONALITY_AMPLITUDE": 0.15,
+    "SEASONALITY_SECOND_WAVE": 0.0,
+    "SEASONALITY_SHIFT": 20,
+    "MCMC_PRNGKEY": 8675309,
+    "MCMC_NUM_WARMUP": 100,
+    "MCMC_NUM_SAMPLES": 1000,
+    "MCMC_NUM_CHAINS": 4,
+    "MCMC_PROGRESS_BAR": true,
     "MODEL_RAND_SEED": 8675309
 }
