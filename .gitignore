@@ -5,6 +5,7 @@
 /output/*
 testing.ipynb
 testing.py
+/data/*
 
 # Data
 *.csv
@@ -46,33 +47,12 @@ testing.py
 # Allowlist
 # !your_data_file.csv
 # !your_data_directory/
-!data/
-!data/dates_of_interest.csv
-!data/fips_to_name.csv
 !img/scenarios_seip_model_diagram_3_11_24.png
-!data/spline_fits.csv
-!data/hospitalization-data/hospital_220213_220108.csv
-!output/example_output_summary_slide.png
-!config/*.json
+!examples/config/*.json
+!examples/data/**/*.csv
 !tests/*.json
-!exp/*/*.json
-!data/serological-data/*.csv
-!data/hospitalization-data/*.csv
-!data/vaccination-data/state-spline-fits/*.csv
-!data/vaccination-data/seasonal-spline-fits/*.csv
-!data/vaccination-data/seasonal-spline-scenario-a/*.csv
-!data/vaccination-data/seasonal-spline-scenario-c/*.csv
-!data/vaccination-data/seasonal-spline-fits-4transitions/*.csv
-!data/serological-data/fitting-2022/*.csv
-!data/serological-data/sero-initializer-csvs/*.csv
-!data/variant-data/*.csv
-!data/variant-data/fitting-2022/*.csv
-!data/vaccination-data/2022_02_11_to_2024_04_27/*.csv
 !poetry*
 !pyproject.toml
-!azure/docker_template_configs/*.json
-!exp/example_azure_experiment/example_template_configs/*.json
-!exp/*/template_configs/*.json
 
 #####
 # Python

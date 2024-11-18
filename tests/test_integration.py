@@ -101,7 +101,7 @@ def test_invalid_vax_paths(temp_config_files):
     # creating the scenario
     runner = json.load(open(temp_runner_path, "r"))
     # this is an invalid directory because it does not have state-specific splines inside it
-    runner["VACCINATION_MODEL_DATA"] = "data/"
+    runner["VACCINATION_MODEL_DATA"] = "examples/data/"
     # saving runner changes
     json.dump(runner, open(temp_runner_path, "w"))
 
