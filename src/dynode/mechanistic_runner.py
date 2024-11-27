@@ -89,7 +89,7 @@ class MechanisticRunner:
                 else None
             )
             stepsize_controller = PIDController(
-                rtol=1e-6,
+                rtol=1e-7,
                 atol=1e-8,
                 jump_ts=jump_ts,
             )
