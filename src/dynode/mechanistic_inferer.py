@@ -295,6 +295,7 @@ class MechanisticInferer(AbstractParameters):
         particles: Union[tuple[int, int], list[tuple[int, int]]],
         tf: Union[int, None] = None,
         external_particle: dict[str, jax.Array] = {},
+        verbose: bool = False,
     ) -> dict[
         tuple[int, int],
         dict[str, Union[Solution, jax.Array, dict[str, jax.Array]]],
@@ -306,6 +307,7 @@ class MechanisticInferer(AbstractParameters):
 
         if `external_posteriors` are specified, uses them instead of self.inference_algo.get_samples()
         to load static particle values.
+
         Parameters
         ------------
         particles: Union[tuple[int, int], list[tuple[int, int]]]
@@ -319,6 +321,9 @@ class MechanisticInferer(AbstractParameters):
             For example, loading a checkpoint.json containing saved posteriors from a different run.
             expects keys that match those given to `numpyro.sample` often from
             inference_algo.get_samples(group_by_chain=True).
+        verbose: bool, optional
+            whether or not to pring out the current chain_particle value being executed
+
 
         Returns
         ---------------
@@ -329,18 +334,20 @@ class MechanisticInferer(AbstractParameters):
         Example
         --------------
         <insert 2 chain inference above>
-        load_posterior_particle([(0, 100), [1, 120],...]) = {(0, 100): {solution: diffrax.Solution, "posteriors": {...}},
-                                                     (1, 120): {solution: diffrax.Solution, "posteriors": {...}} ...}
+        `load_posterior_particle([(0, 100), [1, 120],...]) = {(0, 100): {solution: diffrax.Solution, "posteriors": {...}},
+                                                     (1, 120): {solution: diffrax.Solution, "posteriors": {...}} ...}`
 
         Note
         ------------
         Very important note if you choose to use `external_posteriors`. In the scenario
         this instance of `MechanisticInferer.likelihood` samples parameters not named in `external_posteriors`
-        they will be RESAMPLED AT RANDOM. This method will not error and will instead fill in those
-        missing samples according to the PRNGKey seeded with self.config.INFERENCE_PRNGKEY as well as
-        unique salting of each chain_particle combination.
+        they will be RESAMPLED according to the distribution passed in the config.
+        This method will also salt the RNG key used on the prior according to the
+        chain & particule numbers currently being run.
 
-        This may be useful to you if you wish to obtain confidence intervals by varying a particular value.
+
+        This may be useful to you if you wish to fit upon some data, then introduce
+        a new varying parameter over the posteriors (often during projection).
         """
         # if its a single particle, convert to len(1) list for simplicity
         if isinstance(particles, tuple):
@@ -374,6 +381,11 @@ class MechanisticInferer(AbstractParameters):
         for particle in particles:
             # get the particle chain and number
             chain_num, particle_num = particle
+            if verbose:
+                print(
+                    "Executing (chain, particle): (%s, %s)"
+                    % (str(chain_num), str(particle_num))
+                )
             single_particle_samples = {}
             # go through each posterior and select that specific chain and particle
             for param in posterior_samples.keys():

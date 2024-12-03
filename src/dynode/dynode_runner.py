@@ -524,6 +524,7 @@ class AbstractDynodeRunner(ABC):
         extra_timelines: pd.DataFrame = None,
         tf: Union[int, None] = None,
         external_particle: dict[str, Array] = {},
+        verbose: bool = False,
     ) -> str:
         """saves history of inferer sampled values for use by the azure visualizer.
         saves CSV file to `self.azure_output_dir/timeline_filename`.
@@ -551,6 +552,8 @@ class AbstractDynodeRunner(ABC):
             For example, loading a checkpoint.json containing saved posteriors from an Azure Batch job.
             expects keys that match those given to `numpyro.sample` often from
             inference_algo.get_samples(group_by_chain=True).
+        verbose: bool, optional
+            whether or not to pring out the current chain_particle value being executed
 
         Returns
         -------
@@ -596,6 +599,7 @@ class AbstractDynodeRunner(ABC):
                 chain_particle_pairs,
                 tf=tf,
                 external_particle=external_particle,
+                verbose=verbose,
             )
             for (chain, particle), sol_dct in posteriors.items():
                 # content of `sol_dct` depends on return value of inferer.likelihood func
