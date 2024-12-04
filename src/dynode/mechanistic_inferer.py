@@ -270,7 +270,7 @@ class MechanisticInferer(AbstractParameters):
                 for compartment in self.config.COMPARTMENT_IDX:
                     numpyro.deterministic(
                         "%s_timestep_%s" % (date_str, compartment.name),
-                        solution.ys[compartment][-1],
+                        solution.ys[compartment][sim_day],
                     )
 
     def checkpoint(
