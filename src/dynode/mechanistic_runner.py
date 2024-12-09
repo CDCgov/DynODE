@@ -89,8 +89,8 @@ class MechanisticRunner:
                 else None
             )
             stepsize_controller = PIDController(
-                rtol=1e-5,
-                atol=1e-6,
+                rtol=args.get("SOLVER_RELATIVE_TOLERANCE", 1e-5),
+                atol=args.get("SOLVER_ABSOLUTE_TOLERANCE", 1e-6),
                 jump_ts=jump_ts,
             )
 

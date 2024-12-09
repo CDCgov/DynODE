@@ -55,6 +55,8 @@ class AbstractParameters:
         "SEASONALITY_SHIFT",
         "MIN_HOMOLOGOUS_IMMUNITY",
         "WANING_RATES",
+        "SOLVER_RELATIVE_TOLERANCE",
+        "SOLVER_ABSOLUTE_TOLERANCE",
     ]
 
     @abstractmethod
