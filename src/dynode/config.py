@@ -762,6 +762,15 @@ PARAMETERS = [
         "type": float,
     },
     {
+        "name": "SOLVER_MAX_STEPS",
+        "validate": [
+            partial(test_type, tested_type=(int)),
+            # STEPS >= 1
+            lambda key, val: compare_geq([key, "1"], [val, 1]),
+        ],
+        "type": int,
+    },
+    {
         "name": "STRAIN_R0s",
         "validate": [
             partial(test_type, tested_type=np.ndarray),

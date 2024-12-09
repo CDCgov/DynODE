@@ -57,6 +57,7 @@ class AbstractParameters:
         "WANING_RATES",
         "SOLVER_RELATIVE_TOLERANCE",
         "SOLVER_ABSOLUTE_TOLERANCE",
+        "SOLVER_MAX_STEPS",
     ]
 
     @abstractmethod

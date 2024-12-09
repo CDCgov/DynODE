@@ -105,6 +105,6 @@ class MechanisticRunner:
             stepsize_controller=stepsize_controller,
             saveat=saveat,
             # higher for large time scales / rapid changes
-            max_steps=int(1e6),
+            max_steps=args.get("SOLVER_MAX_STEPS", int(1e6)),
         )
         return solution
