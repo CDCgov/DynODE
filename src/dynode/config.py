@@ -742,6 +742,35 @@ PARAMETERS = [
         "type": float,
     },
     {
+        "name": "SOLVER_RELATIVE_TOLERANCE",
+        "validate": [
+            test_not_negative,
+            partial(test_type, tested_type=float),
+            # RTOL <= 1
+            lambda key, val: compare_geq(["1.0", key], [1.0, val]),
+        ],
+        "type": float,
+    },
+    {
+        "name": "SOLVER_ABSOLUTE_TOLERANCE",
+        "validate": [
+            test_not_negative,
+            partial(test_type, tested_type=float),
+            # ATOL <= 1
+            lambda key, val: compare_geq(["1.0", key], [1.0, val]),
+        ],
+        "type": float,
+    },
+    {
+        "name": "SOLVER_MAX_STEPS",
+        "validate": [
+            partial(test_type, tested_type=(int)),
+            # STEPS >= 1
+            lambda key, val: compare_geq([key, "1"], [val, 1]),
+        ],
+        "type": int,
+    },
+    {
         "name": "STRAIN_R0s",
         "validate": [
             partial(test_type, tested_type=np.ndarray),

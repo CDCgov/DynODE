@@ -44,7 +44,7 @@ if __name__ == "__main__":
         os.mkdir("output")
 
     # step 1: define your paths
-    config_path = "config/"
+    config_path = "examples/config/"
     # global_config include definitions such as age bin bounds and strain definitions
     # Any value or data structure that needs context to be interpretted is here.
     GLOBAL_CONFIG_PATH = config_path + "config_global.json"
