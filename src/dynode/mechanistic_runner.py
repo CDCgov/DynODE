@@ -89,8 +89,8 @@ class MechanisticRunner:
                 else None
             )
             stepsize_controller = PIDController(
-                rtol=1e-5,
-                atol=1e-6,
+                rtol=args.get("SOLVER_RELATIVE_TOLERANCE", 1e-5),
+                atol=args.get("SOLVER_ABSOLUTE_TOLERANCE", 1e-6),
                 jump_ts=jump_ts,
             )
 
@@ -105,6 +105,6 @@ class MechanisticRunner:
             stepsize_controller=stepsize_controller,
             saveat=saveat,
             # higher for large time scales / rapid changes
-            max_steps=int(1e6),
+            max_steps=args.get("SOLVER_MAX_STEPS", int(1e6)),
         )
         return solution
