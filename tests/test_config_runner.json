@@ -1,8 +1,7 @@
 {
     "SCENARIO_NAME": "test covid run for testing suite",
-    "CONTACT_MATRIX_PATH": "data/demographic-data/contact_matrices",
-    "HOSPITALIZATION_DATA_PATH": "data/hospital_220213_220108.csv",
-    "VACCINATION_MODEL_DATA": "data/spline_fits.csv",
+    "CONTACT_MATRIX_PATH": "examples/data/demographic-data/contact_matrices",
+    "VACCINATION_MODEL_DATA": "examples/data/vaccination-data/example_spline_fits.csv",
     "SEASONAL_VACCINATION": false,
     "STRAIN_R0s": [
         1.2,
@@ -90,6 +89,6 @@
     "MCMC_NUM_WARMUP": 100,
     "MCMC_NUM_SAMPLES": 1000,
     "MCMC_NUM_CHAINS": 4,
-    "MCMC_PROGRESS_BAR": true,
+    "MCMC_PROGRESS_BAR": false,
     "MODEL_RAND_SEED": 8675309
 }

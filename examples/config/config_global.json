@@ -5,7 +5,6 @@
     ],
     "INIT_DATE": "2022-02-11",
     "VACCINATION_SEASON_CHANGE": "2022-07-01",
-    "MINIMUM_AGE": 0,
     "AGE_LIMITS": [
         0,
         18,
