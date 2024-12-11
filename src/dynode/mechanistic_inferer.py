@@ -261,7 +261,7 @@ class MechanisticInferer(AbstractParameters):
             )
         for date in getattr(self.config, "COMPARTMENT_SAVE_DATES", []):
             date: datetime.date
-            date_str = date.strftime("%Y-%m-%d")
+            date_str = date.strftime("%Y_%m_%d")
             sim_day = date_to_sim_day(date, self.config.INIT_DATE)
             # ensure user requests a day we actually have in `solution`
             if sim_day >= 0 or sim_day < len(
