@@ -264,7 +264,7 @@ class MechanisticInferer(AbstractParameters):
             date_str = date.strftime("%Y_%m_%d")
             sim_day = date_to_sim_day(date, self.config.INIT_DATE)
             # ensure user requests a day we actually have in `solution`
-            if sim_day >= 0 or sim_day < len(
+            if sim_day >= 0 and sim_day < len(
                 solution.ys[self.config.COMPARTMENT_IDX.S]
             ):
                 for compartment in self.config.COMPARTMENT_IDX:
