@@ -426,7 +426,7 @@ class AbstractDynodeRunner(ABC):
         self,
         inferer: MechanisticInferer,
         save_filename="checkpoint.json",
-        exclude_prefixes=["final_timestep"],
+        exclude_prefixes=["timestep"],
         save_chains_plot=True,
         save_pairs_correlation_plot=True,
     ) -> None:
@@ -443,7 +443,8 @@ class AbstractDynodeRunner(ABC):
         exclude_prefixes: list[str], optional
             a list of strs that, if found in a sample name,
             are exlcuded from the saved json. This is common for large logging
-            info that will bloat filesize like, by default ["final_timestep"]
+            info that will bloat filesize like, by default ["timestep"]
+            to exclude all timestep deterministic variables.
         save_chains_plot: bool, optional
             whether to save accompanying mcmc chains plot, by default True
         save_pairs_correlation_plot: bool, optional
@@ -480,40 +481,61 @@ class AbstractDynodeRunner(ABC):
         self,
         inferer: MechanisticInferer,
         save_filename="final_timesteps.json",
-        final_timestep_identifier="final_timestep",
     ):
-        """saves the `final_timestep` posterior, if it is found in mcmc.get_samples(), otherwise raises a warning
-        and saves nothing
+        """saves the `final_timestep` posterior, if it is found in
+        mcmc.get_samples(), otherwise raises a warning and saves nothing
 
         Parameters
         ----------
         inferer : MechanisticInferer
             inferer that was run with `inferer.infer()`
         save_filename : str, optional
-            output filename, by default "final_timesteps.json"
+            output filename, by default "timesteps.json"
         final_timestep_identifier : str, optional
-            prefix attached to the final_timestep parameter, by default "final_timestep"
+            prefix attached to the final_timestep parameter, by default "timestep"
+        """
+        self.save_inference_timesteps(
+            inferer, save_filename, timestep_identifier="final_timestep"
+        )
+
+    def save_inference_timesteps(
+        self,
+        inferer: MechanisticInferer,
+        save_filename="timesteps.json",
+        timestep_identifier="timestep",
+    ):
+        """saves all `timestep` posteriors, if they are found in
+        mcmc.get_samples(), otherwise raises a warning and saves nothing
+
+        Parameters
+        ----------
+        inferer : MechanisticInferer
+            inferer that was run with `inferer.infer()`
+        save_filename : str, optional
+            output filename, by default "timesteps.json"
+        step_identifier : str, optional
+            identifying token attached to any timestep parameter, by default "timestep"
         """
         # if inference complete, convert jnp/np arrays to list, then json dump
         if inferer.infer_complete:
             samples = inferer.inference_algo.get_samples(group_by_chain=True)
-            final_timesteps = {
+            timesteps = {
                 name: timesteps
                 for name, timesteps in samples.items()
-                if final_timestep_identifier in name
+                if timestep_identifier in name
             }
             # if it is empty, warn the user, save nothing
-            if final_timesteps:
+            if timesteps:
                 save_path = os.path.join(self.azure_output_dir, save_filename)
-                self._save_samples(final_timesteps, save_path)
+                self._save_samples(timesteps, save_path)
             else:
                 warnings.warn(
-                    "attempting to call `save_inference_final_timesteps` but failed to find any final_timesteps with prefix %s"
-                    % final_timestep_identifier
+                    "attempting to call `save_inference_timesteps` but failed to find any timesteps with prefix %s"
+                    % timestep_identifier
                 )
         else:
             warnings.warn(
-                "attempting to call `save_inference_final_timesteps` before inference is complete. Something is likely wrong..."
+                "attempting to call `save_inference_timesteps` before inference is complete. Something is likely wrong..."
             )
 
     def save_inference_timelines(
