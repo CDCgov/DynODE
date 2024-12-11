@@ -426,7 +426,7 @@ class AbstractDynodeRunner(ABC):
         self,
         inferer: MechanisticInferer,
         save_filename="checkpoint.json",
-        exclude_prefixes=["final_timestep"],
+        exclude_prefixes=["timestep"],
         save_chains_plot=True,
         save_pairs_correlation_plot=True,
     ) -> None:

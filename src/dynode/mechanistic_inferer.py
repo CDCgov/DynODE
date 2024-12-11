@@ -22,7 +22,7 @@ from . import SEIC_Compartments
 from .abstract_parameters import AbstractParameters
 from .config import Config
 from .mechanistic_runner import MechanisticRunner
-from .utils import date_to_sim_day, sim_day_to_date
+from .utils import date_to_sim_day
 
 
 class MechanisticInferer(AbstractParameters):
@@ -258,13 +258,6 @@ class MechanisticInferer(AbstractParameters):
             numpyro.deterministic(
                 "final_timestep_%s" % compartment.name,
                 solution.ys[compartment][-1],
-            )
-            date_str = sim_day_to_date(50, self.config.INIT_DATE).strftime(
-                "%Y-%m-%d"
-            )
-            numpyro.deterministic(
-                "%s_timestep_%s" % (date_str, compartment.name),
-                solution.ys[compartment][50],
             )
         for date in getattr(self.config, "COMPARTMENT_SAVE_DATES", []):
             date: datetime.date
