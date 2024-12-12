@@ -8,6 +8,7 @@ import seaborn as sns
 from jax.random import PRNGKey
 from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap
+from typing import Any
 
 from .utils import (
     drop_keys_with_substring,
@@ -473,7 +474,7 @@ def plot_mcmc_chains(
 
 
 def plot_prior_distributions(
-    priors: dict[str],
+    priors: dict[str, Any],
     matplotlib_style: list[str]
     | str = [
         "seaborn-v0_8-colorblind",
@@ -554,7 +555,7 @@ def plot_prior_distributions(
             label="mean",
         )
         ax.axvline(
-            jnp.median(samples),
+            jnp.median(samples).item(0), # This was an Array
             linestyle="dotted",
             linewidth=3,
             label="median",
