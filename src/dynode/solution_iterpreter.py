@@ -44,8 +44,8 @@ class SolutionInterpreter:
     def summarize_solution(
         self,
         plot_commands: list[str] = ["S", "E", "I", "C"],
-        plot_labels: list[str] = None,
-        save_path: str = None,
+        plot_labels: list[str] | None = None,
+        save_path: str | None = None
     ):
         fig, axs = plt.subplots(2, 2, figsize=(8, 9))
         # plot commands with unlogged y axis
@@ -85,12 +85,12 @@ class SolutionInterpreter:
     def plot_solution(
         self,
         plot_commands: list[str] = ["S", "E", "I", "C"],
-        plot_labels: list[str] = None,
-        save_path: str = None,
-        log_scale: bool = None,
-        start_date: datetime.date = None,
-        fig: plt.figure = None,
-        ax: plt.axis = None,
+        plot_labels: list[str] | None = None,
+        save_path: str | None = None,
+        log_scale: bool | None = None,
+        start_date: datetime.date | None = None,
+        fig: plt.figure | None = None,
+        ax: plt.axis | None = None,
     ) -> tuple[
         matplotlib.figure.Figure, np.ndarray[matplotlib.axes._axes.Axes]
     ]:
