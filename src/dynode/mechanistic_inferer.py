@@ -182,6 +182,7 @@ class MechanisticInferer(AbstractParameters):
         dct = self.run_simulation(tf)
         solution = dct["solution"]
         predicted_metrics = dct["hospitalizations"]
+        assert isinstance(solution, Solution)
         numpyro.deterministic(
             "final_timestep_s", solution.ys[self.config.COMPARTMENT_IDX.S][-1]
         )
