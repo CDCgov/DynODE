@@ -4,6 +4,7 @@ import datetime
 import glob
 import os
 import sys
+from typing import Any
 
 # importing under a different name because mypy static type hinter
 # strongly dislikes the IntEnum class.
@@ -1025,7 +1026,7 @@ def flatten_list_parameters(
     return return_dict
 
 
-def drop_keys_with_substring(dct: dict[str], drop_s: str):
+def drop_keys_with_substring(dct: dict[str, Any], drop_s: str):
     """A simple helper function designed to drop keys from a dictionary if they contain some substring
 
     Parameters
