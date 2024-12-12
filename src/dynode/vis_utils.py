@@ -260,7 +260,7 @@ def plot_model_overview_subplot_matplotlib(
 
 
 def plot_checkpoint_inference_correlation_pairs(
-    posteriors: dict[str : np.ndarray | list],
+    posteriors: dict[str, np.ndarray | list],
     max_samples_calculated: int = 100,
     matplotlib_style: list[str]
     | str = [
@@ -401,7 +401,7 @@ def plot_checkpoint_inference_correlation_pairs(
 
 
 def plot_mcmc_chains(
-    samples: dict[str : np.ndarray | list],
+    samples: dict[str, np.ndarray | list],
     matplotlib_style: list[str]
     | str = [
         "seaborn-v0_8-colorblind",
