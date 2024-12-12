@@ -585,7 +585,7 @@ def plot_violin_plots(
         raise VisualizationError(
             "must provide either a dictionary of priors or posteriors"
         )
-    num_params = len(posteriors)
+    num_params = len(posteriors.keys())
     # Calculate the number of rows and columns for a square-ish layout
     num_cols = int(np.ceil(np.sqrt(num_params)))
     num_rows = int(np.ceil(num_params / num_cols))
@@ -603,14 +603,16 @@ def plot_violin_plots(
     if priors is not None:
         for param, values in priors.items():
             df_param = pd.DataFrame()
-            df_param["values"] = values
+            # flatten any chains if they leaked in
+            df_param["values"] = np.array(values).flatten()
             df_param["type"] = "prior"
             df_param["param"] = param
             df = pd.concat([df, df_param], ignore_index=True, axis=0)
     if posteriors is not None:
         for param, values in posteriors.items():
             df_param = pd.DataFrame()
-            df_param["values"] = values
+            # flatten any chains if they leaked in
+            df_param["values"] = np.array(values).flatten()
             df_param["type"] = "posterior"
             df_param["param"] = param
             # this is necessary to make sure there are always two columns
