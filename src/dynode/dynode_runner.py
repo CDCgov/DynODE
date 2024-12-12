@@ -106,7 +106,7 @@ class AbstractDynodeRunner(ABC):
 
         if len(series) < index_len:
             return _pad_fn(series, index_len, pad)
-        return series
+        return np.array(series)
 
     def _get_vaccination_timeseries(
         self, vaccination_func, num_days_predicted
@@ -367,7 +367,7 @@ class AbstractDynodeRunner(ABC):
 
     def save_mcmc_chains_plot(
         self,
-        samples: dict[str : list : np.ndarray],
+        samples: dict[str , list | np.ndarray],
         save_filename: str = "mcmc_chains.png",
         plot_kwargs: dict = {},
     ):
@@ -394,7 +394,7 @@ class AbstractDynodeRunner(ABC):
 
     def save_correlation_pairs_plot(
         self,
-        samples: dict[str : list : np.ndarray],
+        samples: dict[str , list | np.ndarray],
         save_filename: str = "mcmc_correlations.png",
         plot_kwargs: dict = {},
     ):
@@ -521,8 +521,8 @@ class AbstractDynodeRunner(ABC):
         inferer: MechanisticInferer,
         timeline_filename: str = "azure_visualizer_timeline.csv",
         particles_saved=1,
-        extra_timelines: pd.DataFrame = None,
-        tf: Union[int, None] = None,
+        extra_timelines: None | pd.DataFrame = None,
+        tf: int | None = None,
         external_particle: dict[str, Array] = {},
         verbose: bool = False,
     ) -> str:
@@ -604,12 +604,16 @@ class AbstractDynodeRunner(ABC):
             for (chain, particle), sol_dct in posteriors.items():
                 # content of `sol_dct` depends on return value of inferer.likelihood func
                 infection_timeline: Solution = sol_dct["solution"]
-                hospitalizations: Array = sol_dct["hospitalizations"]
-                static_parameters: dict[str, Array] = sol_dct["parameters"]
+                hospitalizations_tmp = sol_dct["hospitalizations"]
+                assert(isinstance(hospitalizations_tmp, Array))
+                hospitalizations: Array = hospitalizations_tmp
+                parameters_tmp = sol_dct["parameters"]
+                assert(isinstance(parameters_tmp, dict))
+                static_parameters: dict[str, Array] = parameters_tmp
                 # spoof the inferer to return our static parameters when calling `get_parameters()`
                 # instead of trying to sample like it normally does
                 spoof_static_inferer = copy.copy(inferer)
-                spoof_static_inferer.get_parameters = lambda: static_parameters
+                spoof_static_inferer.get_parameters = lambda: static_parameters  # type: ignore # You shouldn't be setting a member function like this
                 df = self._generate_model_component_timelines(
                     spoof_static_inferer,
                     infection_timeline,
