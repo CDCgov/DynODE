@@ -8,7 +8,7 @@ to produce an initial state representing some analyzed population
 from abc import ABC, abstractmethod
 
 from . import SEIC_Compartments, utils
-
+from typing import Any
 
 class AbstractInitializer(ABC):
     """
@@ -18,10 +18,10 @@ class AbstractInitializer(ABC):
     """
 
     @abstractmethod
-    def __init__(self, initializer_config):
+    def __init__(self, initializer_config) -> None:
         # add these for mypy
-        self.INITIAL_STATE: SEIC_Compartments = tuple()
-        self.config = {}
+        self.INITIAL_STATE: SEIC_Compartments | None = None
+        self.config : Any = {}
         pass
 
     def get_initial_state(
@@ -30,6 +30,7 @@ class AbstractInitializer(ABC):
         """
         Returns the initial state of the model as defined by the child class in __init__
         """
+        assert(self.INITIAL_STATE is not None)
         return self.INITIAL_STATE
 
     def load_initial_population_fractions(self) -> None:
