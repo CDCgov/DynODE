@@ -87,7 +87,7 @@ infection_history_by_infected = pd.merge(
     how="left",
 ).drop("p_id", axis=1)
 
-infection_history_by_infected.columns = [
+infection_history_by_infected.columns = pd.Index([
     "pid",
     "age",
     "strains",
@@ -96,7 +96,7 @@ infection_history_by_infected.columns = [
     "last_infectious_end_date",
     "num_doses",
     "last_vax_date",
-]
+])
 
 ### FILL NA VALUES WITH GOOD DEFAULTS AND SET TO INT FROM FLOAT.
 infection_history_by_infected["strains"] = (
