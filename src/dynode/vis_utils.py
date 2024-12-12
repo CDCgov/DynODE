@@ -585,7 +585,11 @@ def plot_violin_plots(
         raise VisualizationError(
             "must provide either a dictionary of priors or posteriors"
         )
-    num_params = len(posteriors.keys())
+    num_params = (
+        len(posteriors.keys())
+        if posteriors is not None
+        else len(priors.keys())
+    )
     # Calculate the number of rows and columns for a square-ish layout
     num_cols = int(np.ceil(np.sqrt(num_params)))
     num_rows = int(np.ceil(num_params / num_cols))
@@ -635,7 +639,7 @@ def plot_violin_plots(
     color_dict = dict(zip(unique_first_words, color_palette))
 
     # Iterate over the parameters and create violin plots
-    for i, (param, values) in enumerate(posteriors.items()):
+    for i, param in enumerate(df["param"].unique()):
         ax: Axes = axs[i]
         # if priors is not None and param in priors.keys():
         # sns.violinplot(y=priors[param], ax=ax, alpha=0.5, label="prior")
