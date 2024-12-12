@@ -41,15 +41,15 @@ from .static_value_parameters import StaticValueParameters
 
 # Defines all the different modules able to be imported from src
 __all__ = [
-    AbstractParameters,
-    AbstractInitializer,
-    CovidSeroInitializer,
-    MechanisticInferer,
-    MechanisticRunner,
-    SolutionInterpreter,
-    StaticValueParameters,
-    utils,
-    Config,
-    vis_utils,
-    AbstractDynodeRunner,
+    "AbstractParameters",
+    "AbstractInitializer",
+    "CovidSeroInitializer",
+    "MechanisticInferer",
+    "MechanisticRunner",
+    "SolutionInterpreter",
+    "StaticValueParameters",
+    "utils",
+    "Config",
+    "vis_utils",
+    "AbstractDynodeRunner",
 ]
