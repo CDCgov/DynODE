@@ -23,8 +23,8 @@ class VisualizationError(Exception):
 
 def _cleanup_and_normalize_timelines(
     all_state_timelines: pd.DataFrame,
-    plot_types: np.ndarray[str],
-    plot_normalizations: np.ndarray[int],
+    plot_types: np.ndarray,
+    plot_normalizations: np.ndarray,
     state_pop_sizes: dict[str, int],
 ):
     # Select columns with 'float64' dtype
@@ -56,7 +56,7 @@ def _cleanup_and_normalize_timelines(
 def plot_model_overview_subplot_matplotlib(
     timeseries_df: pd.DataFrame,
     pop_sizes: dict[str, int],
-    plot_types: np.ndarray[str] = np.array(
+    plot_types: np.ndarray = np.array(
         [
             "seasonality_coef",
             "vaccination_",
@@ -67,7 +67,7 @@ def plot_model_overview_subplot_matplotlib(
             "pred_hosp_",
         ]
     ),
-    plot_titles: np.ndarray[str] = np.array(
+    plot_titles: np.ndarray = np.array(
         [
             "Seasonality Coefficient",
             "Vaccination Rate By Age",
@@ -78,7 +78,7 @@ def plot_model_overview_subplot_matplotlib(
             "Predicted Hospitalizations (per 100k)",
         ]
     ),
-    plot_normalizations: np.ndarray[int] = np.array(
+    plot_normalizations: np.ndarray = np.array(
         [1, 1, 100000, 1, 1, 100000, 100000]
     ),
     matplotlib_style: list[str]
@@ -431,11 +431,10 @@ def plot_mcmc_chains(
         matplotlib figure containing the plots
     """
     # Determine the number of parameters and chains
-    samples = {
+    samples: dict[str, np.ndarray] = flatten_list_parameters({
         key: np.array(val) if isinstance(val, list) else val
         for key, val in samples.items()
-    }
-    samples: dict[str, np.ndarray] = flatten_list_parameters(samples)
+    })
     # drop any final_timestep parameters in case they snuck in
     samples = drop_keys_with_substring(samples, "final_timestep")
     param_names = list(samples.keys())
