@@ -261,7 +261,7 @@ def plot_model_overview_subplot_matplotlib(
 
 
 def plot_checkpoint_inference_correlation_pairs(
-    posteriors: dict[str, np.ndarray | list],
+    posteriors_in: dict[str, np.ndarray | list],
     max_samples_calculated: int = 100,
     matplotlib_style: list[str]
     | str = [
@@ -278,7 +278,7 @@ def plot_checkpoint_inference_correlation_pairs(
 
     Parameters
     ----------
-    posteriors: dict[str : np.ndarray | list]
+    posteriors_in: dict[str : np.ndarray | list]
         a dictionary (usually loaded from the checkpoint.json file) containing
         the sampled posteriors for each chain in the shape
         (num_chains, num_samples). All parameters generated with numpyro.plate
@@ -300,11 +300,10 @@ def plot_checkpoint_inference_correlation_pairs(
         `n` is the number of sampled parameters
     """
     # convert lists to np.arrays
-    posteriors = {
+    posteriors: dict[str, np.ndarray] = flatten_list_parameters({
         key: np.array(val) if isinstance(val, list) else val
-        for key, val in posteriors.items()
-    }
-    posteriors: dict[str, np.ndarray] = flatten_list_parameters(posteriors)
+        for key, val in posteriors_in.items()
+    })
     # drop any final_timestep parameters in case they snuck in
     posteriors = drop_keys_with_substring(posteriors, "final_timestep")
     number_of_samples = posteriors[list(posteriors.keys())[0]].shape[1]
@@ -402,7 +401,7 @@ def plot_checkpoint_inference_correlation_pairs(
 
 
 def plot_mcmc_chains(
-    samples: dict[str, np.ndarray | list],
+    samples_in: dict[str, np.ndarray | list],
     matplotlib_style: list[str]
     | str = [
         "seaborn-v0_8-colorblind",
@@ -433,7 +432,7 @@ def plot_mcmc_chains(
     # Determine the number of parameters and chains
     samples: dict[str, np.ndarray] = flatten_list_parameters({
         key: np.array(val) if isinstance(val, list) else val
-        for key, val in samples.items()
+        for key, val in samples_in.items()
     })
     # drop any final_timestep parameters in case they snuck in
     samples = drop_keys_with_substring(samples, "final_timestep")
