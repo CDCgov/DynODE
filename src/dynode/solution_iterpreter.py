@@ -11,12 +11,15 @@ import diffrax
 import jax.numpy as jnp
 import matplotlib
 import matplotlib.figure
+import matplotlib.axes
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing
 from diffrax import Solution
 
 from . import utils
 from .config import Config
+from typing import Any
 
 
 class SolutionInterpreter:
@@ -77,7 +80,7 @@ class SolutionInterpreter:
             ax=axs[1][1],
         )
 
-        fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+        fig.tight_layout(rect = (0.0, 0.03, 1.0, 0.95))
         # save if user passes str save_path
         self.save_plot(save_path, fig)
         return fig, axs
@@ -89,10 +92,12 @@ class SolutionInterpreter:
         save_path: str | None = None,
         log_scale: bool | None = None,
         start_date: datetime.date | None = None,
-        fig: plt.figure | None = None,
-        ax: plt.axis | None = None,
+        fig: matplotlib.figure.Figure | None = None,
+        ax: Any = None # TODO(cym4@cdc.gov): Giving this a concrete type causes
+            # Typechecking failures below, I think perhaps due to
+            # some confusion about whether `ax` is a value or a list
     ) -> tuple[
-        matplotlib.figure.Figure, np.ndarray[matplotlib.axes._axes.Axes]
+        matplotlib.figure.Figure, Any  # See comment above about confusion around `ax`
     ]:
         """
         plots a run from diffeqsolve() with `plot_commands` returning figure and axis.
@@ -155,6 +160,7 @@ class SolutionInterpreter:
                 plot_commands = []
         # sol = sol.ys
         for idx, command in enumerate(plot_commands):
+            assert ax is not None
             timeline, label = utils.get_timeline_from_solution_with_command(
                 sol,
                 self.COMPARTMENT_IDX,
@@ -194,10 +200,10 @@ class SolutionInterpreter:
 
     def plot_strain_prevalence(
         self,
-        plot_labels=None,
-        save_path: str = None,
-        fig: plt.figure = None,
-        ax: plt.axis = None,
+        plot_labels : list[str] | None =None,
+        save_path: str | None = None,
+        fig: matplotlib.figure.Figure | None = None,
+        ax: matplotlib.axes.Axes | None = None,
     ):
         """
         Function that plots only strain prevalence by day. Follows similar schema to `plot_diffrax_solution()` but takes no plot commands.
@@ -252,7 +258,10 @@ class SolutionInterpreter:
         return fig, ax
 
     def plot_initial_serology(
-        self, save_path: str = None, show: bool = True, fig=None, ax=None
+        self, save_path: str | None = None,
+            show: bool = True,
+            fig : matplotlib.pyplot.Figure | None = None,
+            ax: matplotlib.axis.Axis | None = None
     ):
         """
         plots a stacked bar chart representation of the initial immune compartments of the model.
