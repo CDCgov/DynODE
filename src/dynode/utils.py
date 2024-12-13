@@ -4,11 +4,11 @@ import datetime
 import glob
 import os
 import sys
-from typing import Any
 
 # importing under a different name because mypy static type hinter
 # strongly dislikes the IntEnum class.
 from enum import EnumMeta as IntEnum
+from typing import Any
 
 import epiweeks
 import jax.numpy as jnp

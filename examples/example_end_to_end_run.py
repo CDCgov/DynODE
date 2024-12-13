@@ -13,9 +13,9 @@ estimates of what epidemiological variables produced it.
 import argparse
 import os
 
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
-import jax.numpy as jnp
 
 # the different segments of code responsible for runing the model
 # each will be explained as they are used below

@@ -138,15 +138,18 @@ def seip_ode(state: PyTree, t: ArrayLike, parameters: dict):
         ),
         axis=-1,
     ).reshape(-1, 2)
-    assert(len(combinations.T) == 2)
+    assert len(combinations.T) == 2
     # compute vectorized function on all possible immune_hist x exposing strain
     ds_recovered = jnp.sum(
         jax.vmap(compute_ds, in_axes=(0, 0, None, None))(
             # Destructuring to tell mypy
-            combinations.T[0], combinations.T[1], ds, di_to_w0 
+            combinations.T[0],
+            combinations.T[1],
+            ds,
+            di_to_w0,
         ),
         axis=0,
-    ) # type: ignore # TODO(cym4@cdc.gov): I'm not sure what the problem is here.
+    )  # type: ignore # TODO(cym4@cdc.gov): I'm not sure what the problem is here.
     ds = ds + ds_recovered
     # lets measure our waned + vax rates
     # last w group doesn't wane but WANING_RATES enforces a 0 at the end

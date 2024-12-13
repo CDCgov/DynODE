@@ -11,7 +11,7 @@ import json
 import os
 import warnings
 from abc import ABC, abstractmethod
-from typing import Optional, Union
+from typing import Optional
 
 import numpy as np
 import pandas as pd  # type: ignore
@@ -367,7 +367,7 @@ class AbstractDynodeRunner(ABC):
 
     def save_mcmc_chains_plot(
         self,
-        samples: dict[str , list | np.ndarray],
+        samples: dict[str, list | np.ndarray],
         save_filename: str = "mcmc_chains.png",
         plot_kwargs: dict = {},
     ):
@@ -394,7 +394,7 @@ class AbstractDynodeRunner(ABC):
 
     def save_correlation_pairs_plot(
         self,
-        samples: dict[str , list | np.ndarray],
+        samples: dict[str, list | np.ndarray],
         save_filename: str = "mcmc_correlations.png",
         plot_kwargs: dict = {},
     ):
@@ -605,10 +605,10 @@ class AbstractDynodeRunner(ABC):
                 # content of `sol_dct` depends on return value of inferer.likelihood func
                 infection_timeline: Solution = sol_dct["solution"]
                 hospitalizations_tmp = sol_dct["hospitalizations"]
-                assert(isinstance(hospitalizations_tmp, Array))
+                assert isinstance(hospitalizations_tmp, Array)
                 hospitalizations: Array = hospitalizations_tmp
                 parameters_tmp = sol_dct["parameters"]
-                assert(isinstance(parameters_tmp, dict))
+                assert isinstance(parameters_tmp, dict)
                 static_parameters: dict[str, Array] = parameters_tmp
                 # spoof the inferer to return our static parameters when calling `get_parameters()`
                 # instead of trying to sample like it normally does

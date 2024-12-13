@@ -1,5 +1,7 @@
 """A series of utility functions for generating visualizations for the model"""
 
+from typing import Any
+
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,7 +10,6 @@ import seaborn as sns
 from jax.random import PRNGKey
 from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap
-from typing import Any
 
 from .utils import (
     drop_keys_with_substring,
@@ -300,10 +301,12 @@ def plot_checkpoint_inference_correlation_pairs(
         `n` is the number of sampled parameters
     """
     # convert lists to np.arrays
-    posteriors: dict[str, np.ndarray] = flatten_list_parameters({
-        key: np.array(val) if isinstance(val, list) else val
-        for key, val in posteriors_in.items()
-    })
+    posteriors: dict[str, np.ndarray] = flatten_list_parameters(
+        {
+            key: np.array(val) if isinstance(val, list) else val
+            for key, val in posteriors_in.items()
+        }
+    )
     # drop any final_timestep parameters in case they snuck in
     posteriors = drop_keys_with_substring(posteriors, "final_timestep")
     number_of_samples = posteriors[list(posteriors.keys())[0]].shape[1]
@@ -430,10 +433,12 @@ def plot_mcmc_chains(
         matplotlib figure containing the plots
     """
     # Determine the number of parameters and chains
-    samples: dict[str, np.ndarray] = flatten_list_parameters({
-        key: np.array(val) if isinstance(val, list) else val
-        for key, val in samples_in.items()
-    })
+    samples: dict[str, np.ndarray] = flatten_list_parameters(
+        {
+            key: np.array(val) if isinstance(val, list) else val
+            for key, val in samples_in.items()
+        }
+    )
     # drop any final_timestep parameters in case they snuck in
     samples = drop_keys_with_substring(samples, "final_timestep")
     param_names = list(samples.keys())
@@ -517,7 +522,7 @@ def plot_prior_distributions(
         # otherwise this sample is nested in a list and should be retrieved
         else:
             # go in index by index to access multi-dimensional lists
-            temp = priors[parameter_name]   # type: ignore  # TODO(cym4@cdc.gov): parameter_name is not a string, so there is something wrong here.
+            temp = priors[parameter_name]  # type: ignore  # TODO(cym4@cdc.gov): parameter_name is not a string, so there is something wrong here.
             for i in parameter_idx:
                 temp = temp[i]
             dist_only[dist_name] = temp
@@ -553,7 +558,7 @@ def plot_prior_distributions(
             label="mean",
         )
         ax.axvline(
-            jnp.median(samples).item(0), # This was an Array
+            jnp.median(samples).item(0),  # This was an Array
             linestyle="dotted",
             linewidth=3,
             label="median",
