@@ -29,4 +29,3 @@ jobs:
     - name: Run myPy
       run: |
         poetry run mypy .
-
