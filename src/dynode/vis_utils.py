@@ -517,8 +517,7 @@ def plot_prior_distributions(
         # otherwise this sample is nested in a list and should be retrieved
         else:
             # go in index by index to access multi-dimensional lists
-            reveal_type(priors)
-            temp = priors[parameter_name]
+            temp = priors[parameter_name]   # type: ignore  # TODO(cym4@cdc.gov): parameter_name is not a string, so there is something wrong here.
             for i in parameter_idx:
                 temp = temp[i]
             dist_only[dist_name] = temp
