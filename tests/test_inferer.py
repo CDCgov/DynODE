@@ -48,8 +48,7 @@ synthetic_solution = runner.run(
 ihr = [0.002, 0.004, 0.008, 0.06]
 model_incidence = jnp.sum(synthetic_solution.ys[3], axis=(2, 3, 4))
 model_incidence = jnp.diff(model_incidence, axis=0)
-synthetic_hosp_obs = np.asarray(model_incidence) * ihr
-synthetic_hosp_obs = jnp.rint(synthetic_hosp_obs).astype(int)
+synthetic_hosp_obs = jnp.rint(np.asarray(model_incidence) * ihr).astype(int)
 
 inferer = MechanisticInferer(
     GLOBAL_CONFIG_PATH, INFERER_CONFIG_PATH, runner, fake_initial_state

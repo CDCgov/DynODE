@@ -61,11 +61,14 @@ class AbstractParameters:
     ]
 
     @abstractmethod
-    def __init__(self, parameters_config):
+    def __init__(self) -> None:
         # add these for mypy type checker
-        self.config: Config = {}
-        self.INITIAL_STATE: SEIC_Compartments = tuple()
-        pass
+        self.config = Config("{}")
+        initial_state = tuple(
+            [jnp.arange(0), jnp.arange(0), jnp.arange(0), jnp.arange(0)]
+        )
+        assert len(initial_state) == 4
+        self.INITIAL_STATE: SEIC_Compartments = initial_state
 
     def _solve_runner(
         self, parameters: dict, tf: int, runner: MechanisticRunner
@@ -429,6 +432,7 @@ class AbstractParameters:
         k = 2 * jnp.pi / 365.0
         # for a closed form solution to the combination of both cosine curves
         # we must split along a boundary of second (summer) wave values
+        assert not isinstance(seasonality_second_wave, complex)
         cos_val = jnp.where(
             seasonality_second_wave > 0.2,
             (seasonality_second_wave - 1)
@@ -721,4 +725,5 @@ class AbstractParameters:
                 )
             ]
         )
+        assert len(initial_state) == 4
         return initial_state

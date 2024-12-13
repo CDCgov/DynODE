@@ -8,7 +8,8 @@ import numpyro.distributions as dist
 from dynode import utils
 
 # strain indexes {"a": 0, "b": 1, "c": 2}
-example_strain_idxs = IntEnum("test", ["a", "b", "c"], start=0)
+
+example_strain_idxs = IntEnum("example_strain_idxs", ["a", "b", "c"], start=0)
 num_strains = 3
 
 

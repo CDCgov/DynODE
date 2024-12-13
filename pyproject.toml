@@ -27,6 +27,9 @@ docker = "^7.1.0"
 bayeux-ml = "^0.1.14"
 
 
+[tool.poetry.group.dev.dependencies]
+pandas-stubs = "^2.2.3.241126"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

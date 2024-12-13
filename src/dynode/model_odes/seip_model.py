@@ -138,10 +138,15 @@ def seip_ode(state: PyTree, t: ArrayLike, parameters: dict):
         ),
         axis=-1,
     ).reshape(-1, 2)
+    assert len(combinations.T) == 2
     # compute vectorized function on all possible immune_hist x exposing strain
     ds_recovered = jnp.sum(
         jax.vmap(compute_ds, in_axes=(0, 0, None, None))(
-            *combinations.T, ds, di_to_w0
+            # Destructuring to tell mypy
+            combinations.T[0],
+            combinations.T[1],
+            ds,
+            di_to_w0,
         ),
         axis=0,
     )

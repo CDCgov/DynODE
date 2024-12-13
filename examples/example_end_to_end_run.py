@@ -13,6 +13,7 @@ estimates of what epidemiological variables produced it.
 import argparse
 import os
 
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -108,7 +109,7 @@ if __name__ == "__main__":
         print("Fitting to synthetic hospitalization data: ")
         # this will print a summary of the inferred variables
         # those distributions in the Config are now posteriors
-        inferer.infer(synthetic_observed_hospitalizations)
+        inferer.infer(jnp.array(synthetic_observed_hospitalizations))
         print(
             "Toy inference finished, see the distributions of posteriors above, "
             "in only 60 samples how well do they match with the actual parameters "
