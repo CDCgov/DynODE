@@ -25,7 +25,6 @@ jobs:
     - name: Set up
       run: |
         poetry install
-        poetry run mypy --non-interactive --install-types
 
     - name: Run myPy
       run: |
