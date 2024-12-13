@@ -517,6 +517,7 @@ def plot_prior_distributions(
         # otherwise this sample is nested in a list and should be retrieved
         else:
             # go in index by index to access multi-dimensional lists
+            reveal_type(priors)
             temp = priors[parameter_name]
             for i in parameter_idx:
                 temp = temp[i]

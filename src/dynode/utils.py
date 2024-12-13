@@ -1709,7 +1709,7 @@ def create_age_grouped_CM(
         for j, grp_in in enumerate(age_groups):
             cm_slice = setting_CM[np.ix_(grp_out, grp_in)]
             pop_prop_slice = pop_proportions[pd.Index(grp_out)] / np.sum(
-                pop_proportions[pd.Index(grp_out)               ]
+                pop_proportions[pd.Index(grp_out)]
             )
             pop_prop_slice = np.reshape(pop_prop_slice.to_numpy(), (-1, 1))
             grouped_CM[i, j] = np.sum(pop_prop_slice * cm_slice)
