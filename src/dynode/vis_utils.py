@@ -279,7 +279,7 @@ def plot_checkpoint_inference_correlation_pairs(
 
     Parameters
     ----------
-    posteriors_in: dict[str : np.ndarray | list]
+    posteriors_in: dict[str , np.ndarray | list]
         a dictionary (usually loaded from the checkpoint.json file) containing
         the sampled posteriors for each chain in the shape
         (num_chains, num_samples). All parameters generated with numpyro.plate
@@ -417,7 +417,7 @@ def plot_mcmc_chains(
 
     Parameters
     ----------
-    posteriors: dict[str : np.ndarray | list]
+    posteriors: dict[str , np.ndarray | list]
         a dictionary (usually loaded from the checkpoint.json file) containing
         the sampled posteriors for each chain in the shape
         (num_chains, num_samples). All parameters generated with numpyro.plate
@@ -492,7 +492,7 @@ def plot_prior_distributions(
 
     Parameters
     ----------
-    priors : dict[str: Any]
+    priors : dict[str, Any]
         a dictionary with str keys possibly containing distribution
         objects as values. Each key with a distribution object type
         key will be included in the plot
@@ -515,14 +515,17 @@ def plot_prior_distributions(
     # filter down to just the distribution objects
     for dist_name, locator_dct in d.items():
         parameter_name = locator_dct["sample_name"]
+        assert isinstance(parameter_name, str)
         parameter_idx = locator_dct["sample_idx"]
+        assert isinstance(parameter_idx, tuple) or parameter_idx is None
+
         # if the sample is on its own, not nested in a list, sample_idx is none
         if parameter_idx is None:
             dist_only[parameter_name] = priors[parameter_name]
         # otherwise this sample is nested in a list and should be retrieved
         else:
             # go in index by index to access multi-dimensional lists
-            temp = priors[parameter_name]  # type: ignore  # TODO(cym4@cdc.gov): parameter_name is not a string, so there is something wrong here.
+            temp = priors[parameter_name]
             for i in parameter_idx:
                 temp = temp[i]
             dist_only[dist_name] = temp

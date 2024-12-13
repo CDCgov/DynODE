@@ -95,8 +95,8 @@ def sample_if_distribution(parameters):
 
 
 def identify_distribution_indexes(
-    parameters: dict,
-) -> dict[str, dict[str, tuple[int]]]:
+    parameters: dict[str, Any],
+) -> dict[str, dict[str, str | tuple[int] | None]]:
     """
     A inverse of the `sample_if_distribution()` which allows users to identify the locations
     of numpyro samples. Given a dictionary of parameters, identifies which parameters

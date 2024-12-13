@@ -149,7 +149,7 @@ def seip_ode(state: PyTree, t: ArrayLike, parameters: dict):
             di_to_w0,
         ),
         axis=0,
-    )  # type: ignore # TODO(cym4@cdc.gov): I'm not sure what the problem is here.
+    )
     ds = ds + ds_recovered
     # lets measure our waned + vax rates
     # last w group doesn't wane but WANING_RATES enforces a 0 at the end

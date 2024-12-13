@@ -375,7 +375,7 @@ class AbstractDynodeRunner(ABC):
 
         Parameters
         ----------
-        samples : dict[str: list | np.ndarray]
+        samples : dict[str, list | np.ndarray]
             a dictionary (usually loaded from the checkpoint.json file) containing
             the sampled posteriors for each chain in the shape
             (num_chains, num_samples). All parameters generated with numpyro.plate
@@ -402,7 +402,7 @@ class AbstractDynodeRunner(ABC):
 
         Parameters
         ----------
-        samples : dict[str: list | np.ndarray]
+        samples : dict[str, list | np.ndarray]
             a dictionary (usually loaded from the checkpoint.json file) containing
             the sampled posteriors for each chain in the shape
             (num_chains, num_samples). All parameters generated with numpyro.plate
