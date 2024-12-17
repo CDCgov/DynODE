@@ -869,6 +869,16 @@ PARAMETERS = [
         "type": lambda s: datetime.datetime.strptime(s, "%Y-%m-%d").date(),
     },
     {
+        # list[date] on which the user wishes to save the state of each
+        # compartment, final_timesteps automatically
+        "name": "COMPARTMENT_SAVE_DATES",
+        # "validate": do_nothing,
+        # type list[date]
+        "type": lambda lst: [
+            datetime.datetime.strptime(s, "%Y-%m-%d").date() for s in lst
+        ],
+    },
+    {
         "name": "VACCINATION_SEASON_CHANGE",
         # "validate": do_nothing,
         "type": lambda s: datetime.datetime.strptime(s, "%Y-%m-%d").date(),
