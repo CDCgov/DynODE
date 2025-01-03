@@ -19,6 +19,8 @@ import pandas as pd  # type: ignore
 from jax import Array
 from scipy.stats import gamma
 
+from . import SEIC_Timeseries
+
 pd.options.mode.chained_assignment = None
 
 
@@ -1249,13 +1251,13 @@ def plot_sample_chains(samples):
     return fig, axs
 
 
-def get_timeline_from_solution_with_command(
+def get_timeseries_from_solution_with_command(
     sol: tuple[Array, Array, Array, Array],
     compartment_idx: IntEnum,
     w_idx: IntEnum,
     strain_idx: IntEnum,
     command: str,
-):
+) -> tuple[SEIC_Timeseries, str]:
     """
     A function designed to execute `command` over a `sol` object, returning a timeline after `command` is used to select a certain view of `sol`
 
@@ -1368,7 +1370,7 @@ def get_timeline_from_solution_with_command(
                 )
             )
             print(
-                "Please review `utils/get_timeline_from_solution_with_command()` documentation"
+                "Please review `utils/get_timeseries_from_solution_with_command()` documentation"
             )
             return np.zeros(sol[compartment_idx["S"]].shape[0]), "Error"
     dimensions_to_sum_over = tuple(range(1, compartment.ndim))

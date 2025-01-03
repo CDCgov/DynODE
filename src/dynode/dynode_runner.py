@@ -48,8 +48,7 @@ class AbstractDynodeRunner(ABC):
         This handles all of the logic of actually getting a solution object. Feel free to override
         or use a different function
 
-        Calls upon save_config, save_inference_posteriors/save_static_run_timelines to
-        easily save its outputs for later visualization.
+        Calls upon `save_*` methods to easily save its outputs for later visualization.
 
         Parameters
         ----------
@@ -219,7 +218,7 @@ class AbstractDynodeRunner(ABC):
             array of two dimensions (time, age) matching the first two dimensions
             of the Susceptible compartment's timeseries
         """
-        # select timeline of those with infect_hist 0, sum over all vax/wane tiers
+        # select timeseries of those with infect_hist 0, sum over all vax/wane tiers
         never_infected = np.sum(
             compartment_timeseries[model.config.COMPARTMENT_IDX.S][
                 :, :, 0, :, :
@@ -230,31 +229,21 @@ class AbstractDynodeRunner(ABC):
         sim_sero = 1 - never_infected / population
         return sim_sero
 
-    def _generate_model_component_timelines(
+    def _generate_model_component_timeseries(
         self,
         model: AbstractParameters,
         solution: Solution,
         hospitalization_preds: Optional[Array] = None,
     ) -> pd.DataFrame:
         """
-        a private function which takes two timelines of infections and hospitalizations and generates a
-        dataframe of different timelines of interest
+        a private function which generates a dataframe of different timeseries of interest, optionally including hospitalizations
 
         Parameters
         ----------
-        parameters : AbstractParameters
+        model : AbstractParameters
             a class that inherits from AbstractParameters and therefore has a get_parameters() method
         solution : Solution
             diffrax Solution object as produced by MechanisticRunner.run() command
-        vaccination_func : Optional Callable
-            function used by `parameters` to generate vaccinations of
-            each age bin x vax status strata. Takes input parameter `t` for day of sim
-        seasonality_func : Optional Callable
-            function used by `parameters` to generate seasonality coefficients.
-            Takes input parameter `t` for day of sim
-        external_i_func : Optional Callable
-            function used by `parameters` to generate external introductions of
-            each age bin x strain strata. Takes input parameter `t` for day of sim
         hospitalization_preds : Optional Array
             models hospitalization predictions, usually the infections
             matrix with some infection hospitalization ratio applied,
@@ -263,7 +252,7 @@ class AbstractDynodeRunner(ABC):
         NOTE
         -------------
         `infections` and `hospitalization_preds` are assumed to begin at
-        parameters.config.INIT_DATE.
+        model.config.INIT_DATE.
 
         Returns
         -------
@@ -274,26 +263,26 @@ class AbstractDynodeRunner(ABC):
         num_days_predicted = compartment_timeseries[
             model.config.COMPARTMENT_IDX.S
         ].shape[0]
-        timeline = [
+        sim_dates = [
             utils.sim_day_to_date(day, model.config.INIT_DATE)
             for day in range(num_days_predicted)
         ]
         df = pd.DataFrame()
-        df["date"] = timeline
+        df["date"] = sim_dates
         parameters = model.get_parameters()
-        # save a timeline of shape (num_days_predicted, age_groups)
+        # save a timeseries of shape (num_days_predicted, age_groups)
         # sum across vax status
-        vaccination_timeline = self._get_vaccination_timeseries(
+        vaccination_timeseries = self._get_vaccination_timeseries(
             vaccination_func=parameters["VACCINATION_RATES"],
             num_days_predicted=num_days_predicted,
         )
-        # save a seasonality timeline of shape (num_days_predicted, )
+        # save a seasonality timeseries of shape (num_days_predicted, )
         df["seasonality_coef"] = self._get_seasonality_timeseries(
             seasonality_func=parameters["SEASONALITY"],
             num_days_predicted=num_days_predicted,
         )
-        # save external introductions timeline of shape (num_days_predicted, num_strains)
-        external_i_timeline = self._get_external_infection_timeseries(
+        # save external introductions timeseries of shape (num_days_predicted, num_strains)
+        external_i_timeseries = self._get_external_infection_timeseries(
             external_i_func=parameters["EXTERNAL_I"],
             num_days_predicted=num_days_predicted,
             model=model,
@@ -313,13 +302,16 @@ class AbstractDynodeRunner(ABC):
                     hospitalization_preds[:, age_bin_idx], len(df.index)
                 )
             # save vaccination rate by age
-            df["vaccination_%s" % (age_bin_str)] = vaccination_timeline[
+            df["vaccination_%s" % (age_bin_str)] = vaccination_timeseries[
                 :, age_bin_idx
             ]
             # save sero-positive rate by age
             df["sero_%s" % (age_bin_str)] = sim_sero[:, age_bin_idx]
         # get total infection incidence
-        infection_incidence, _ = utils.get_timeline_from_solution_with_command(
+        (
+            infection_incidence,
+            _,
+        ) = utils.get_timeseries_from_solution_with_command(
             compartment_timeseries,
             model.config.COMPARTMENT_IDX,
             model.config.WANE_IDX,
@@ -333,7 +325,10 @@ class AbstractDynodeRunner(ABC):
             infection_incidence, len(df.index)
         )
         # get strain proportion by strain for each day
-        strain_proportions, _ = utils.get_timeline_from_solution_with_command(
+        (
+            strain_proportions,
+            _,
+        ) = utils.get_timeseries_from_solution_with_command(
             compartment_timeseries,
             model.config.COMPARTMENT_IDX,
             model.config.WANE_IDX,
@@ -353,7 +348,7 @@ class AbstractDynodeRunner(ABC):
             ]
             df[
                 "%s_external_introductions" % strain_name
-            ] = external_i_timeline[:, s_idx]
+            ] = external_i_timeseries[:, s_idx]
             df["%s_average_immunity" % strain_name] = population_immunity[
                 s_idx, :
             ]
@@ -538,18 +533,148 @@ class AbstractDynodeRunner(ABC):
                 "attempting to call `save_inference_timesteps` before inference is complete. Something is likely wrong..."
             )
 
-    def save_inference_timelines(
+    def generate_inference_timeseries(
         self,
         inferer: MechanisticInferer,
-        timeline_filename: str = "azure_visualizer_timeline.csv",
+        particles: list[tuple[int]],
+        save_filename: str = None,
+        extra_timeseries: pd.Dataframe = None,
+        tf: Union[int, None] = None,
+        external_particle: dict[str, Array] = {},
+        verbose: bool = False,
+        max_workers: int = None,
+    ) -> pd.DataFrame:
+        """saves history of inferer sampled values for use by the azure visualizer.
+        saves CSV file to `self.azure_output_dir/save_filename` if `save_filename` is not None.
+        Will error if inferer.infer() has not been run previous to this call
+        except if an external_particle is passed.
+
+        Parameters
+        ----------
+        inferer: MechanisticInferer
+            the inferer object used to sample the parameter chains that will be visualized
+        particles: list[tuple[int, int]]
+            a list of tuples, each of which specifies the (chain_num, particle_num) to load
+            will error if values are out of range of what was sampled.
+        save_filename : str, optional
+            filename to be saved under, if None does not save dataframe and only returns it.
+            DONT CHANGE WITHOUT MODIFICATION to downstream postprocessing scripts, by default None
+        extra_timeseries: pd.DataFrame, optional
+            a pandas dataframe containing a `date` column along with additional columns you wish
+            to be recorded. Dates predicted by `inferer` not included in `extra_timeseries` will
+            be filled with `None`. `extra_timeseriess` are added identically to all `particles_saved`
+        tf: Union[int, None]:
+            number of days to run posterior model for, defaults to same number of days used in fitting
+            if possible.
+        external_posteriors: dict
+            for use of particles defined somewhere outside of this instance of the MechanisticInferer.
+            For example, loading a checkpoint.json containing saved posteriors from an Azure Batch job.
+            expects keys that match those given to `numpyro.sample` often from
+            inference_algo.get_samples(group_by_chain=True).
+        verbose: bool, optional
+            whether or not to pring out the current chain_particle value being executed
+        max_workers: int, optional
+            The maximum number of processes that can be used to
+            load and generate particle timeseries. If None or not given then as many worker
+            processes will be created as the machine has processors. By default, None
+
+        Returns
+        -------
+        pd.DataFrame
+            dataframe containing all particles and their corresponding timeseries.
+        """
+        from concurrent.futures import ProcessPoolExecutor
+
+        if isinstance(extra_timeseries, pd.DataFrame):
+            assert (
+                "date" in extra_timeseries.columns
+            ), "extra_timeseries lacks a `date` column, "
+            "can not be certain of when these observations occur"
+            # attempt conversion to datetime column if it is not already
+            try:
+                extra_timeseries["date"] = pd.to_datetime(
+                    extra_timeseries["date"]
+                )
+            except Exception as e:
+                # we tried to cast `date` column to datetime and it failed, print and reraise error
+                print(
+                    "Encountered an error trying to parse extra_timeseries[date] into a datetime column"
+                )
+                raise e
+
+        class _spoof_static_inferer(MechanisticInferer):
+            """A super simple spoof class made to mimic the current state of an
+            inferer object but without resampling the parameters, instead
+            returning a pre-specified dictionary `static_params`
+            """
+
+            def __init__(self, inferer, static_params):
+                self.__dict__ = inferer.__dict__
+                self.static_params = static_params
+
+            def get_parameters(self):
+                return self.static_params
+
+        all_particles_df = pd.DataFrame()
+
+        def _load_and_generate_particle_timeseries(particle) -> pd.DataFrame:
+            # a helper function designed to load a single particle and generate
+            # its timeseries of note, meant to parallelize processes
+
+            # load particle posteriors and their solution dicts
+            posteriors = inferer.load_posterior_particle(
+                particle,
+                tf=tf,
+                external_particle=external_particle,
+                verbose=verbose,
+            )
+            for (chain, particle), sol_dct in posteriors.items():
+                # content of `sol_dct` depends on return value of inferer.run_simulation func
+                infection_timeseries: Solution = sol_dct["solution"]
+                hospitalizations: Array = sol_dct["hospitalizations"]
+                static_parameters: dict[str, Array] = sol_dct["parameters"]
+                # spoof the inferer to return our static parameters when calling `get_parameters()`
+                # instead of trying to sample like it normally does
+                spoof_static_inferer = _spoof_static_inferer(
+                    inferer, static_parameters
+                )
+                df = self._generate_model_component_timeseries(
+                    spoof_static_inferer,
+                    infection_timeseries,
+                    hospitalization_preds=hospitalizations,
+                )
+                df["chain_particle"] = "%s_%s" % (chain, particle)
+                # add user specified extra timeseries, filling in missing dates
+                if isinstance(extra_timeseries, pd.DataFrame):
+                    df = df.merge(extra_timeseries, on="date", how="left")
+            return df
+
+        # parallelize the individual particle load/generate process across cpus
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            dfs = executor.map(
+                _load_and_generate_particle_timeseries, particles
+            )
+            # add all chain/particle combo into a main df
+            all_particles_df = pd.concat(dfs, ignore_index=True)
+
+        if save_filename:
+            all_particles_df.to_csv(
+                os.path.join(self.azure_output_dir, save_filename), index=False
+            )
+        return all_particles_df
+
+    def save_inference_timeseries(
+        self,
+        inferer: MechanisticInferer,
+        timeseries_filename: str = "simulation_timeseries.csv",
         particles_saved=1,
-        extra_timelines: pd.DataFrame = None,
+        extra_timeseries: pd.DataFrame = None,
         tf: Union[int, None] = None,
         external_particle: dict[str, Array] = {},
         verbose: bool = False,
     ) -> str:
         """saves history of inferer sampled values for use by the azure visualizer.
-        saves CSV file to `self.azure_output_dir/timeline_filename`.
+        saves CSV file to `self.azure_output_dir/timeseries_filename`.
         Look at `shiny_visualizers/azure_visualizer.py` for logic on parsing and visualizing the chains.
         Will error if inferer.infer() has not been run previous to this call or an external_particle is passed.
 
@@ -557,15 +682,15 @@ class AbstractDynodeRunner(ABC):
         ----------
         inferer: MechanisticInferer
             the inferer object used to sample the parameter chains that will be visualized
-        timeline_filename : str, optional
+        timeseries_filename : str, optional
             filename to be saved under.
-            DONT CHANGE WITHOUT MODIFICATION to downstream postprocessing scripts, by default "azure_visualizer_timeline.csv"
+            DONT CHANGE WITHOUT MODIFICATION to downstream postprocessing scripts, by default "simulation_timeseries.csv"
         particles_saved : int, optional
-            the number of particles per chain to save timelines for, by default 1
-        extra_timelines: pd.DataFrame, optional
+            the number of particles per chain to save timeseries for, by default 1
+        extra_timeseries: pd.DataFrame, optional
             a pandas dataframe containing a `date` column along with additional columns you wish
-            to be recorded. Dates predicted by `inferer` not included in `extra_timelines` will
-            be filled with `None`. `extra_timelines` are added identically to all `particles_saved`
+            to be recorded. Dates predicted by `inferer` not included in `extra_timeseries` will
+            be filled with `None`. `extra_timeseries` are added identically to all `particles_saved`
         tf: Union[int, None]:
             number of days to run posterior model for, defaults to same number of days used in fitting
             if possible.
@@ -580,26 +705,26 @@ class AbstractDynodeRunner(ABC):
         Returns
         -------
         str
-            path the inference timelines were saved to
+            path the inference timeseries were saved to
         """
         inference_visuals_save_path = os.path.join(
             self.azure_output_dir,
-            timeline_filename,
+            timeseries_filename,
         )
-        if isinstance(extra_timelines, pd.DataFrame):
+        if isinstance(extra_timeseries, pd.DataFrame):
             assert (
-                "date" in extra_timelines.columns
-            ), "extra_timelines lacks a `date` column, "
+                "date" in extra_timeseries.columns
+            ), "extra_timeseries lacks a `date` column, "
             "can not be certain of when these observations occur"
             # attempt conversion to datetime column if it is not already
             try:
-                extra_timelines["date"] = pd.to_datetime(
-                    extra_timelines["date"]
+                extra_timeseries["date"] = pd.to_datetime(
+                    extra_timeseries["date"]
                 )
             except Exception as e:
                 # we tried to cast `date` column to datetime and it failed, print and reraise error
                 print(
-                    "Encountered an error trying to parse extra_timelines[date] into a datetime column"
+                    "Encountered an error trying to parse extra_timeseries[date] into a datetime column"
                 )
                 raise e
 
@@ -625,22 +750,22 @@ class AbstractDynodeRunner(ABC):
             )
             for (chain, particle), sol_dct in posteriors.items():
                 # content of `sol_dct` depends on return value of inferer.likelihood func
-                infection_timeline: Solution = sol_dct["solution"]
+                infection_timeseries: Solution = sol_dct["solution"]
                 hospitalizations: Array = sol_dct["hospitalizations"]
                 static_parameters: dict[str, Array] = sol_dct["parameters"]
                 # spoof the inferer to return our static parameters when calling `get_parameters()`
                 # instead of trying to sample like it normally does
                 spoof_static_inferer = copy.copy(inferer)
                 spoof_static_inferer.get_parameters = lambda: static_parameters
-                df = self._generate_model_component_timelines(
+                df = self._generate_model_component_timeseries(
                     spoof_static_inferer,
-                    infection_timeline,
+                    infection_timeseries,
                     hospitalization_preds=hospitalizations,
                 )
                 df["chain_particle"] = "%s_%s" % (chain, particle)
-                # add user specified extra timelines, filling in missing dates
-                if isinstance(extra_timelines, pd.DataFrame):
-                    df = df.merge(extra_timelines, on="date", how="left")
+                # add user specified extra timeseriess, filling in missing dates
+                if isinstance(extra_timeseries, pd.DataFrame):
+                    df = df.merge(extra_timeseries, on="date", how="left")
 
                 # add this chain/particle combo onto the main df
                 all_particles_df = pd.concat(
@@ -649,38 +774,38 @@ class AbstractDynodeRunner(ABC):
         all_particles_df.to_csv(inference_visuals_save_path, index=False)
         return inference_visuals_save_path
 
-    def save_static_run_timelines(
+    def save_static_run_timeseries(
         self,
         parameters: StaticValueParameters,
         sol: Solution,
-        timeline_filename: str = "azure_visualizer_timeline.csv",
+        timeseries_filename: str = "simulation_timeseries.csv",
     ):
-        """given a tuple of compartment timelines, saves a number of timelines of interest for future visualization
+        """given a tuple of compartment timeseries, saves a number of timeseries of interest for future visualization
         usually `sol` is retrieved from `diffrax.Solution.ys` which is an object returned from `MechanisticRunner.run()`
 
         Parameters
         ----------
         parameters : StaticValueParameters
             a version of AbstractParameters which is guaranteed to contain only static values.
-            Otherwise use `save_inference_timelines`
+            Otherwise use `save_inference_timeseries`
         sol : Solution
             diffrax.Solution object returned from calling parameters.run()
-        timeline_filename : str, optional
+        timeseries_filename : str, optional
             filename to be saved under.
             DONT CHANGE WITHOUT MODIFICATION to `shiny_visualizers/azure_visualizer.py`,
-            by default "azure_visualizer_timeline.csv"
+            by default "simulation_timeseries.csv"
 
         Returns
         -------
         str
-            path the inference timelines were saved to
+            path the inference timeseries were saved to
         """
         inference_visuals_save_path = os.path.join(
             self.azure_output_dir,
-            timeline_filename,
+            timeseries_filename,
         )
-        # get a number of timelines to visualize the run
-        df = self._generate_model_component_timelines(parameters, sol)
+        # get a number of timeseries to visualize the run
+        df = self._generate_model_component_timeseries(parameters, sol)
         # there is no chain nor particle in a static run, so we save as na_na
         df["chain_particle"] = "na_na"
         df.to_csv(inference_visuals_save_path, index=False)
