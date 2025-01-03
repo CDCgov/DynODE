@@ -617,7 +617,9 @@ class AbstractDynodeRunner(ABC):
 
         all_particles_df = pd.DataFrame()
 
-        def _load_and_generate_particle_timeseries(particle) -> pd.DataFrame:
+        def _load_and_generate_particle_timeseries(
+            particle: tuple[int],
+        ) -> pd.DataFrame:
             # a helper function designed to load a single particle and generate
             # its timeseries of note, meant to parallelize processes
 
@@ -628,25 +630,27 @@ class AbstractDynodeRunner(ABC):
                 external_particle=external_particle,
                 verbose=verbose,
             )
-            for (chain, particle), sol_dct in posteriors.items():
-                # content of `sol_dct` depends on return value of inferer.run_simulation func
-                infection_timeseries: Solution = sol_dct["solution"]
-                hospitalizations: Array = sol_dct["hospitalizations"]
-                static_parameters: dict[str, Array] = sol_dct["parameters"]
-                # spoof the inferer to return our static parameters when calling `get_parameters()`
-                # instead of trying to sample like it normally does
-                spoof_static_inferer = _spoof_static_inferer(
-                    inferer, static_parameters
-                )
-                df = self._generate_model_component_timeseries(
-                    spoof_static_inferer,
-                    infection_timeseries,
-                    hospitalization_preds=hospitalizations,
-                )
-                df["chain_particle"] = "%s_%s" % (chain, particle)
-                # add user specified extra timeseries, filling in missing dates
-                if isinstance(extra_timeseries, pd.DataFrame):
-                    df = df.merge(extra_timeseries, on="date", how="left")
+            chain_num, particle_num = particle
+            sol_dct = posteriors[particle]
+            # for (chain, particle), sol_dct in posteriors.items():
+            # content of `sol_dct` depends on return value of inferer.run_simulation func
+            infection_timeseries: Solution = sol_dct["solution"]
+            hospitalizations: Array = sol_dct["hospitalizations"]
+            static_parameters: dict[str, Array] = sol_dct["parameters"]
+            # spoof the inferer to return our static parameters when calling `get_parameters()`
+            # instead of trying to sample like it normally does
+            spoof_static_inferer = _spoof_static_inferer(
+                inferer, static_parameters
+            )
+            df = self._generate_model_component_timeseries(
+                spoof_static_inferer,
+                infection_timeseries,
+                hospitalization_preds=hospitalizations,
+            )
+            df["chain_particle"] = "%s_%s" % (chain_num, particle_num)
+            # add user specified extra timeseries, filling in missing dates
+            if isinstance(extra_timeseries, pd.DataFrame):
+                df = df.merge(extra_timeseries, on="date", how="left")
             return df
 
         # parallelize the individual particle load/generate process across cpus
@@ -655,7 +659,7 @@ class AbstractDynodeRunner(ABC):
                 _load_and_generate_particle_timeseries, particles
             )
             # add all chain/particle combo into a main df
-            all_particles_df = pd.concat(dfs, ignore_index=True)
+            all_particles_df = pd.concat(list(dfs), ignore_index=True)
 
         if save_filename:
             all_particles_df.to_csv(
