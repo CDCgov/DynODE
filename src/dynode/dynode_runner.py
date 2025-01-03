@@ -538,7 +538,7 @@ class AbstractDynodeRunner(ABC):
         inferer: MechanisticInferer,
         particles: list[tuple[int]],
         save_filename: str = None,
-        extra_timeseries: pd.Dataframe = None,
+        extra_timeseries: pd.DataFrame = None,
         tf: Union[int, None] = None,
         external_particle: dict[str, Array] = {},
         verbose: bool = False,
