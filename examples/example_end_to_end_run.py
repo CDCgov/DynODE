@@ -113,8 +113,11 @@ class ExampleDynodeRunner(AbstractDynodeRunner):
             # those distributions in the Config are now posteriors
             inferer.infer(synthetic_observed_hospitalizations)
             print("saving a suite of inference visualizations ")
-            self.save_inference_timelines(
-                inferer, "local_inference_timeseries.csv"
+            # save some particle 0 and 5 from chains 0 and 1 for example
+            self.save_inference_timeseries(
+                inferer,
+                particles=[(0, 0), (1, 0), (0, 5), (1, 5)],
+                timeseries_filename="local_inference_timeseries.csv",
             )
             self.save_inference_posteriors(
                 inferer, "local_example_inferer_posteriors.json"
@@ -126,17 +129,26 @@ class ExampleDynodeRunner(AbstractDynodeRunner):
                 "to increase the INFERENCE_NUM_SAMPLES and INFERENCE_NUM_WARMUP "
                 "parameters in the config_inferer_covid.json to see this improve. \n"
             )
+            print(
+                "static values used to generate synthetic hosp data: \n"
+                "INFECTIOUS_PERIOD : %s \n"
+                "INTRODUCTION_TIMES_BA2/5 : %s \n"
+                "IHRS : %s"
+                % (
+                    static_params.config.INFECTIOUS_PERIOD,
+                    static_params.config.INTRODUCTION_TIMES[0],
+                    str(ihr),
+                )
+            )
         else:
             # step 5: interpret the solution object in a variety of ways
             save_path = "output/example_end_to_end_run.png"
-            self.save_static_run_timelines(
+            df = self.save_static_run_timeseries(
                 static_params, solution, "local_run_timeseries.csv"
             )
-            df = self._generate_model_component_timelines(
-                static_params, solution
-            )
-            df["chain_particle"] = "na_na"
+            # attach a `state` column so plot cols have titles
             df["state"] = "USA"
+            # for normalization of metrics per 100k
             usa_pop = {"USA": initializer.config.POP_SIZE}
             fig = vis_utils.plot_model_overview_subplot_matplotlib(df, usa_pop)
             print("Please see %s for your plot!" % save_path)
