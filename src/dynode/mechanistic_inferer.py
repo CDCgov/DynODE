@@ -184,6 +184,7 @@ class MechanisticInferer(AbstractParameters):
         dct = self.run_simulation(tf)
         solution = dct["solution"]
         predicted_metrics = dct["hospitalizations"]
+        assert isinstance(solution, Solution)
         self._checkpoint_compartment_sizes(solution)
         predicted_metrics = jnp.maximum(predicted_metrics, 1e-6)
         numpyro.sample(
@@ -259,8 +260,8 @@ class MechanisticInferer(AbstractParameters):
                 "final_timestep_%s" % compartment.name,
                 solution.ys[compartment][-1],
             )
-        for date in getattr(self.config, "COMPARTMENT_SAVE_DATES", []):
-            date: datetime.date
+        for d in getattr(self.config, "COMPARTMENT_SAVE_DATES", []):
+            date: datetime.date = d
             date_str = date.strftime("%Y_%m_%d")
             sim_day = date_to_sim_day(date, self.config.INIT_DATE)
             # ensure user requests a day we actually have in `solution`
