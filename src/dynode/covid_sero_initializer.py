@@ -138,7 +138,9 @@ class CovidSeroInitializer(AbstractInitializer):
         # read in csv, do a bunch of data cleaning
         sero_df = pd.read_csv(sero_path)
         sero_df["type"] = sero_df["type"].fillna("None")
-        sero_df.columns = ["age", "hist", "vax", "0", "1", "2", "3", "4"]
+        sero_df.columns = pd.Index(
+            ["age", "hist", "vax", "0", "1", "2", "3", "4"]
+        )
         melted_df = pd.melt(
             sero_df,
             id_vars=["age", "hist", "vax"],

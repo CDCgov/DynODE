@@ -13,6 +13,7 @@ estimates of what epidemiological variables produced it.
 import argparse
 import os
 
+import jax.numpy as jnp
 import numpy as np
 
 # the different segments of code responsible for runing the model
@@ -38,19 +39,20 @@ parser.add_argument(
 
 
 class ExampleDynodeRunner(AbstractDynodeRunner):
-    def process_state(self, _: str, infer: bool = False):
+    def process_state(self, state: str, **kwargs):
         """An example of a method used to process a single state using DynODE
         In this case the example configs are built around US data, so we are
         running the whole US as a single entity.
 
         Parameters
         ----------
-        _ : str
+        state : str
             state USPS, ignored in this specific example
         infer : bool, optional
             whether or not the user of this example script wants to run inference,
             by default False
         """
+        infer = bool(kwargs["infer"])
         # step 1: define your paths
         config_path = "examples/config/"
         # global_config include definitions such as age bin bounds and strain definitions
@@ -111,7 +113,7 @@ class ExampleDynodeRunner(AbstractDynodeRunner):
             print("Fitting to synthetic hospitalization data: ")
             # this will print a summary of the inferred variables
             # those distributions in the Config are now posteriors
-            inferer.infer(synthetic_observed_hospitalizations)
+            inferer.infer(jnp.array(synthetic_observed_hospitalizations))
             print("saving a suite of inference visualizations ")
             # save some particle 0 and 5 from chains 0 and 1 for example
             self.save_inference_timeseries(
@@ -164,4 +166,4 @@ if __name__ == "__main__":
         os.mkdir("output")
 
     runner = ExampleDynodeRunner("output/")
-    runner.process_state("USA", infer)
+    runner.process_state("USA", infer=infer)

@@ -8,7 +8,7 @@ import sys
 # importing under a different name because mypy static type hinter
 # strongly dislikes the IntEnum class.
 from enum import EnumMeta as IntEnum
-from typing import Optional
+from typing import Any, Optional
 
 import epiweeks
 import jax.numpy as jnp
@@ -21,7 +21,7 @@ from diffrax import Solution
 from jax import Array
 from scipy.stats import gamma
 
-from . import SEIC_Compartments, SEIC_Timeseries
+from . import SEIC_Compartments
 
 pd.options.mode.chained_assignment = None
 
@@ -98,8 +98,8 @@ def sample_if_distribution(parameters):
 
 
 def identify_distribution_indexes(
-    parameters: dict,
-) -> dict[str, dict[str, tuple[int]]]:
+    parameters: dict[str, Any],
+) -> dict[str, dict[str, str | tuple | None]]:
     """
     A inverse of the `sample_if_distribution()` which allows users to identify the locations
     of numpyro samples. Given a dictionary of parameters, identifies which parameters
@@ -118,17 +118,19 @@ def identify_distribution_indexes(
 
     Returns
     ------------
-    a dictionary mapping the sample name the parameter name within `parameters`.
+    `dict[str, dict[str, str | tuple[int] | None]]`
+
+    a dictionary mapping the sample name to the parameter name within `parameters`.
     (if the sampled parameter is within a larger list, returns a tuple of indexes as well, otherwise None)
     key: str -> sampled parameter name as produced by `sample_if_distribution()`
-    value: `dict[str:str, str:tuple]` -> "sample_name" = sample name within input `parameters`
+    value: `dict[str, str | tuple | None]` -> "sample_name" = sample name within input `parameters`
                                       -> "sample_idx" = sample index if within list, else None
     """
 
     def get_index(indexes):
         return tuple(indexes)
 
-    index_locations = {}
+    index_locations: dict[str, dict[str, str | tuple | None]] = {}
     for key, param in parameters.items():
         # if distribution, it does not have an index, so None
         if issubclass(type(param), Dist.Distribution):
@@ -1026,7 +1028,7 @@ def flatten_list_parameters(
     return return_dict
 
 
-def drop_keys_with_substring(dct: dict[str], drop_s: str):
+def drop_keys_with_substring(dct: dict[str, Any], drop_s: str):
     """A simple helper function designed to drop keys from a dictionary if they contain some substring
 
     Parameters
@@ -1071,7 +1073,7 @@ def match_index_len(
 
     if len(series) < index_len:
         return _pad_fn(series, index_len, pad)
-    return series
+    return np.array(series)
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1283,7 +1285,7 @@ def get_timeseries_from_solution_with_command(
     w_idx: IntEnum,
     strain_idx: IntEnum,
     command: str,
-) -> tuple[SEIC_Timeseries, str]:
+):
     """
     A function designed to execute `command` over a `sol` object, returning a timeline after `command` is used to select a certain view of `sol`
 
@@ -1920,13 +1922,13 @@ def create_age_grouped_CM(
     for i, grp_out in enumerate(age_groups):
         for j, grp_in in enumerate(age_groups):
             cm_slice = setting_CM[np.ix_(grp_out, grp_in)]
-            pop_prop_slice = pop_proportions[grp_out] / np.sum(
-                pop_proportions[grp_out]
+            pop_prop_slice = pop_proportions[pd.Index(grp_out)] / np.sum(
+                pop_proportions[pd.Index(grp_out)]
             )
             pop_prop_slice = np.reshape(pop_prop_slice.to_numpy(), (-1, 1))
             grouped_CM[i, j] = np.sum(pop_prop_slice * cm_slice)
     # Population proportions in each age group
-    N_age = [np.sum(pop_proportions[group]) for group in age_groups]
+    N_age = [np.sum(pop_proportions[pd.Index(group)]) for group in age_groups]
     return (grouped_CM, N_age)
 
 
@@ -2132,6 +2134,5 @@ def save_samples(samples: dict[str, Array], save_path: str, indent=None):
     import json
 
     # convert np arrays to lists
-    for param in samples.keys():
-        samples[param] = samples[param].tolist()
-    json.dump(samples, open(save_path, "w"), indent=indent)
+    s = {param: samples[param].tolist() for param in samples.keys()}
+    json.dump(s, open(save_path, "w"), indent=indent)

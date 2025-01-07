@@ -10,7 +10,6 @@ import json
 import os
 import warnings
 from abc import ABC, abstractmethod
-from typing import Union
 
 import numpy as np
 import pandas as pd  # type: ignore
@@ -81,7 +80,7 @@ class AbstractDynodeRunner(ABC):
 
     def save_mcmc_chains_plot(
         self,
-        samples: dict[str : list : np.ndarray],
+        samples: dict[str, list | np.ndarray],
         save_filename: str = "mcmc_chains.png",
         plot_kwargs: dict = {},
     ):
@@ -89,7 +88,7 @@ class AbstractDynodeRunner(ABC):
 
         Parameters
         ----------
-        samples : dict[str: list | np.ndarray]
+        samples : dict[str, list | np.ndarray]
             a dictionary (usually loaded from the checkpoint.json file) containing
             the sampled posteriors for each chain in the shape
             (num_chains, num_samples). All parameters generated with numpyro.plate
@@ -108,7 +107,7 @@ class AbstractDynodeRunner(ABC):
 
     def save_correlation_pairs_plot(
         self,
-        samples: dict[str : list : np.ndarray],
+        samples: dict[str, list | np.ndarray],
         save_filename: str = "mcmc_correlations.png",
         plot_kwargs: dict = {},
     ):
@@ -116,7 +115,7 @@ class AbstractDynodeRunner(ABC):
 
         Parameters
         ----------
-        samples : dict[str: list | np.ndarray]
+        samples : dict[str, list | np.ndarray]
             a dictionary (usually loaded from the checkpoint.json file) containing
             the sampled posteriors for each chain in the shape
             (num_chains, num_samples). All parameters generated with numpyro.plate
@@ -255,10 +254,10 @@ class AbstractDynodeRunner(ABC):
     def save_inference_timeseries(
         self,
         inferer: MechanisticInferer,
-        particles: list[tuple[int]],
+        particles: list[tuple[int, int]],
         timeseries_filename: str = "simulation_timeseries.csv",
-        extra_timeseries: pd.DataFrame = None,
-        tf: Union[int, None] = None,
+        extra_timeseries: None | pd.DataFrame = None,
+        tf: int | None = None,
         external_particle: dict[str, Array] = {},
         verbose: bool = False,
     ) -> pd.DataFrame:
@@ -316,8 +315,12 @@ class AbstractDynodeRunner(ABC):
         for (chain, particle), sol_dct in posteriors.items():
             # content of `sol_dct` depends on return value of inferer.run_simulation func
             infection_timeseries: Solution = sol_dct["solution"]
-            hospitalizations: Array = sol_dct["hospitalizations"]
-            static_parameters: dict[str, Array] = sol_dct["parameters"]
+            hospitalizations_tmp = sol_dct["hospitalizations"]
+            assert isinstance(hospitalizations_tmp, Array)
+            hospitalizations: Array = hospitalizations_tmp
+            parameters_tmp = sol_dct["parameters"]
+            assert isinstance(parameters_tmp, dict)
+            static_parameters: dict[str, Array] = parameters_tmp
             # spoof the inferer to return our static parameters when calling `get_parameters()`
             # instead of trying to sample like it normally does
             spoof_static_inferer = _spoof_static_inferer(
@@ -388,8 +391,8 @@ class AbstractDynodeRunner(ABC):
         return df
 
     def _validate_extra_timeseries(
-        self, extra_timeseries: pd.DataFrame
-    ) -> pd.DataFrame:
+        self, extra_timeseries: pd.DataFrame | None
+    ) -> pd.DataFrame | None:
         """Validates the extra timeseries DataFrame."""
         if isinstance(extra_timeseries, pd.DataFrame):
             assert (
@@ -407,11 +410,11 @@ class AbstractDynodeRunner(ABC):
         return extra_timeseries
 
     def _validate_particles(
-        self, particles: list[tuple[int]], inferer: MechanisticInferer
+        self, particles: list[tuple[int, int]], inferer: MechanisticInferer
     ):
         """Validates the provided particles against configuration limits."""
         for particle in particles:
-            chain_num, particle_num = particle
+            (chain_num, particle_num) = particle
 
             assert (chain_num < inferer.config.INFERENCE_NUM_CHAINS) and (
                 particle_num < inferer.config.INFERENCE_NUM_SAMPLES
