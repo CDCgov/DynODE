@@ -4,6 +4,7 @@ through Ordinary Differential Equations (ODEs) and comparing the likelihood of t
 observed metrics.
 """
 
+import datetime
 import json
 from typing import Union
 
@@ -21,6 +22,7 @@ from . import SEIC_Compartments
 from .abstract_parameters import AbstractParameters
 from .config import Config
 from .mechanistic_runner import MechanisticRunner
+from .utils import date_to_sim_day
 
 
 class MechanisticInferer(AbstractParameters):
@@ -183,18 +185,7 @@ class MechanisticInferer(AbstractParameters):
         solution = dct["solution"]
         predicted_metrics = dct["hospitalizations"]
         assert isinstance(solution, Solution)
-        numpyro.deterministic(
-            "final_timestep_s", solution.ys[self.config.COMPARTMENT_IDX.S][-1]
-        )
-        numpyro.deterministic(
-            "final_timestep_e", solution.ys[self.config.COMPARTMENT_IDX.E][-1]
-        )
-        numpyro.deterministic(
-            "final_timestep_i", solution.ys[self.config.COMPARTMENT_IDX.I][-1]
-        )
-        numpyro.deterministic(
-            "final_timestep_c", solution.ys[self.config.COMPARTMENT_IDX.C][-1]
-        )
+        self._checkpoint_compartment_sizes(solution)
         predicted_metrics = jnp.maximum(predicted_metrics, 1e-6)
         numpyro.sample(
             "incidence",
@@ -247,6 +238,41 @@ class MechanisticInferer(AbstractParameters):
             seed=PRNGKey(self.config.INFERENCE_PRNGKEY)
         )
         return bx_model
+
+    def _checkpoint_compartment_sizes(self, solution: Solution):
+        """marks the final_timesteps parameters as well as any
+        requested dates from self.config.COMPARTMENT_SAVE_DATES if the
+        parameter exists. Skipping over any invalid dates.
+
+        This method does not actually save the compartment sizes to a file,
+        instead it stores the values within `self.inference_algo.get_samples()`
+        so that they may be later saved by self.checkpoint() or by the user.
+
+
+        Parameters
+        ----------
+        solution : diffrax.Solution
+            a diffrax Solution object returned by solving ODEs, most often
+            retrieved by `self.run_simulation()`
+        """
+        for compartment in self.config.COMPARTMENT_IDX:
+            numpyro.deterministic(
+                "final_timestep_%s" % compartment.name,
+                solution.ys[compartment][-1],
+            )
+        for date in getattr(self.config, "COMPARTMENT_SAVE_DATES", []):
+            date: datetime.date
+            date_str = date.strftime("%Y_%m_%d")
+            sim_day = date_to_sim_day(date, self.config.INIT_DATE)
+            # ensure user requests a day we actually have in `solution`
+            if sim_day >= 0 and sim_day < len(
+                solution.ys[self.config.COMPARTMENT_IDX.S]
+            ):
+                for compartment in self.config.COMPARTMENT_IDX:
+                    numpyro.deterministic(
+                        "%s_timestep_%s" % (date_str, compartment.name),
+                        solution.ys[compartment][sim_day],
+                    )
 
     def checkpoint(
         self, checkpoint_path: str, group_by_chain: bool = True

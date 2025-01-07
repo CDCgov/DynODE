@@ -307,8 +307,8 @@ def plot_checkpoint_inference_correlation_pairs(
             for key, val in posteriors_in.items()
         }
     )
-    # drop any final_timestep parameters in case they snuck in
-    posteriors = drop_keys_with_substring(posteriors, "final_timestep")
+    # drop any timestep parameters in case they snuck in
+    posteriors = drop_keys_with_substring(posteriors, "timestep")
     number_of_samples = posteriors[list(posteriors.keys())[0]].shape[1]
     # if we are dealing with many samples per chain,
     # narrow down to max_samples_calculated samples per chain
@@ -439,8 +439,8 @@ def plot_mcmc_chains(
             for key, val in samples_in.items()
         }
     )
-    # drop any final_timestep parameters in case they snuck in
-    samples = drop_keys_with_substring(samples, "final_timestep")
+    # drop any timestep parameters in case they snuck in
+    samples = drop_keys_with_substring(samples, "timestep")
     param_names = list(samples.keys())
     num_params = len(param_names)
     num_chains = samples[param_names[0]].shape[0]
