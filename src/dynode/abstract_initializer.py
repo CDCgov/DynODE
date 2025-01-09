@@ -29,20 +29,22 @@ class AbstractInitializer(ABC):
         self,
     ) -> SEIC_Compartments:
         """
-        Returns the initial state of the model as defined by the child class in __init__
+        Returns the initial state of the model as
+        defined by the child class in __init__
         """
         assert self.INITIAL_STATE is not None
         return self.INITIAL_STATE
 
     def load_initial_population_fractions(self) -> None:
         """
-        a wrapper function which loads age demographics for the US and sets the inital population fraction by age bin.
+        loads age demographics for the US and
+        sets the inital population fraction by age bin.
 
         Updates
         ----------
         `self.config.INITIAL_POPULATION_FRACTIONS` : numpy.ndarray
             proportion of the total population that falls into each age group,
-            length of this array is equal the number of age groups and will sum to 1.0.
+            length of this array is equal the number of age groups sums to 1.0.
         """
         populations_path = (
             self.config.DEMOGRAPHIC_DATA_PATH

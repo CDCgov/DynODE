@@ -31,8 +31,8 @@ class Config:
         self.add_file(config_json_str)
 
     def add_file(self, config_json_str):
-        """loads a JSON string into self,
-        overriding any shared names, asserting valid configuration of parameters,
+        """loads a JSON string into self, overriding any shared names,
+        asserting valid configuration of parameters,
         and setting any downstream parameters.
 
         Parameters
@@ -43,10 +43,10 @@ class Config:
         Returns
         -------
         Config
-            self with the parameters from `config_json_str` added on, as well as
-            any downstream parameters generated.
+            self with the parameters from `config_json_str` added on,
+            as well as any downstream parameters generated.
         """
-        # adds another config to self.__dict__ and resets downstream parameters again
+        # adds another config to self.__dict__ and reruns downstream parameters
         config = json.loads(
             config_json_str, object_hook=distribution_converter
         )
@@ -61,8 +61,9 @@ class Config:
 
     def convert_types(self, config):
         """
-        takes a dictionary of config parameters, consults the PARAMETERS global list and attempts to convert the type
-        of each parameter whos name matches.
+        takes a dictionary of config parameters,
+        consults the PARAMETERS global list and attempts to convert the type
+        of each key within `config` which matches a `name` from PARAMETERS.
         """
         for parameter in PARAMETERS:
             key = parameter["name"]
@@ -81,9 +82,19 @@ class Config:
 
     def set_downstream_parameters(self):
         """
-        A function that checks if a specific parameter exists, then sets any parameters that depend on it.
+        A function that checks if a specific parameter exists,
+        then sets any parameters that depend on it.
 
-        E.g., `NUM_AGE_GROUPS` = len(`AGE_LIMITS`) if `AGE_LIMITS` exists, set `NUM_AGE_GROUPS`
+        Example
+        -----------
+        >>> hasattr(self, "AGE_LIMITS")
+        True
+        >>> hasattr(self, "NUM_AGE_GROUPS")
+        False
+        >>> self.set_downstream_parameters()
+        >>> hasattr(self, "NUM_AGE_GROUPS")
+        True
+        >>> assert len(self.AGE_LIMITS) == self.NUM_AGE_GROUPS
         """
         for parameter in PARAMETERS:
             key = parameter["name"]
@@ -96,8 +107,8 @@ class Config:
 
     def assert_valid_configuration(self):
         """
-        checks the soundness of parameters passed into Config by referencing the name of parameters passed to the config
-        with the PARAMETERS global variable. If a distribution is passed instead of a value, blindly accepts the distribution.
+        checks the soundness of parameters passed into Config by
+        referencing the PARAMETER's `validate` functions, if listed.
 
         Raises assert errors if parameter(s) are incongruent in some way.
         """
@@ -105,7 +116,7 @@ class Config:
             key = param["name"]
             key = make_list_if_not(key)
             validator_funcs = param.get("validate", False)
-            # if there are validators to test, and the key(s) are found in our config, lets test them
+            # if validator_funcs, and the key(s) are found in self, lets test
             if validator_funcs and all([hasattr(self, k) for k in key]):
                 validator_funcs = make_list_if_not(validator_funcs)
                 vals = [getattr(self, k) for k in key]
@@ -122,15 +133,16 @@ class Config:
                     ]
                 except Exception as e:
                     if len(key) > 1:
-                        err_text = """There was an issue validating your Config object.
-                        The error was caused by the intersection of the following parameters: %s.
-                        %s""" % (
+                        err_text = """There was an issue validating your Config
+                        object. The error was caused by the intersection of
+                        the following parameters: %s.%s""" % (
                             key,
                             e,
                         )
                     else:
-                        err_text = """The following error occured while validating the %s
-                        parameter in your configuration file: %s""" % (
+                        err_text = """The following error occured while
+                        validating the %s parameter in your configuration
+                        file: %s""" % (
                             key[0],
                             e,
                         )
@@ -145,25 +157,27 @@ def distribution_converter(dct):
     """
     Converts a distribution or transform as specified in JSON config file into
     a numpyro distribution/transform object.
-    This function is called as a part of json.loads(object_hook=distribution_converter)
-    meaning it executes on EVERY JSON object within a JSON string,
+    This function is called as a part of
+    `json.loads(object_hook=distribution_converter)`
+    meaning it executes on EVERY JSON object,
     recursively from innermost nested outwards.
 
 
-    a distribution is identified by the `distribution` and `params` keys inside of a json object
-    while a transform is identified by the `transform` and `params` keys inside of a json object
-    and a constraint is identified by the `constraint` and `params` keys inside of a json object
+    A distribution is identified by the `distribution` and `params` keys inside
+    of a json object.
+    A transform is identified by the `transform` and `params` keys inside
+    of a json object.
+    A constraint is identified by the `constraint` and `params` keys inside
+    of a json object
 
-    PARAMETERS
+    Parameters
     ----------
     `dct`: dict
         A dictionary representing any JSON object that is passed into `Config`.
-        Including nested JSON objects which are executed from deepest nested outwards.
 
     Returns
     -----------
-    dict or numpyro.distributions object. If `distribution_converter` identifies that dct is a valid JSON representation of a
-    numpyro distribution or transform, it will return it. Otherwise it returns dct unmodified.
+    dict or numpyro.distributions object
     """
     try:
         if "distribution" in dct.keys() and "params" in dct.keys():
@@ -173,14 +187,16 @@ def distribution_converter(dct):
                 distribution = distribution_types[numpyro_dst](
                     **numpyro_dst_params
                 )
-                # numpyro does lazy eval of distributions, if the user passes in invalid parameter values
-                # they wont be caught until runtime, so we sample here to raise an error
+                # numpyro does lazy eval of distributions,
+                # if the user passes in invalid parameter values they wont be
+                # caught until runtime, sample here to raise any errors early
                 _ = distribution.sample(PRNGKey(1))
                 return distribution
             else:
                 raise KeyError(
-                    "The distribution name was not found in the available distributions, "
-                    "see distribution names here: https://num.pyro.ai/en/stable/distributions.html#distributions"
+                    "The distribution name was not found in the "
+                    "available distributions, see distribution names here: "
+                    "https://num.pyro.ai/en/stable/distributions.html#distributions"
                 )
         elif "transform" in dct.keys() and "params" in dct.keys():
             numpyro_transform = dct["transform"]
@@ -192,8 +208,9 @@ def distribution_converter(dct):
                 return transform
             else:
                 raise KeyError(
-                    "The transform name was not found in the available transformations, "
-                    "see transform names here: https://num.pyro.ai/en/stable/distributions.html#transforms"
+                    "The transform name was not found in the available "
+                    "transformations, see transform names here: "
+                    "https://num.pyro.ai/en/stable/distributions.html#transforms"
                 )
         elif "constraint" in dct.keys():
             numpyro_constraint = dct["constraint"]
@@ -212,15 +229,16 @@ def distribution_converter(dct):
                 return constraint
             else:
                 raise KeyError(
-                    "The constraint name was not found in the available constraints, "
-                    "see constraint names here: https://num.pyro.ai/en/stable/_modules/numpyro/distributions/constraints.html"
+                    "The constraint name was not found in the available "
+                    "constraints, see constraint names here: "
+                    "https://num.pyro.ai/en/stable/_modules/numpyro/distributions/constraints.html"
                 )
     except Exception as e:
         # reraise the error
         raise ConfigParserError(
-            "There was an error parsing the following distribution/transformation: %s \n "
-            "see docs to make sure you didnt misspell something: https://num.pyro.ai/en/stable/distributions.html#distributions \n"
-            "or you may have passed incorrect parameters types/names into the distribution"
+            "There was an error parsing the following object: %s \n "
+            "see docs to make sure you didnt misspell a parameter: "
+            "https://num.pyro.ai/en/stable/distributions.html#distributions"
             % str(dct)
         ) from e
     # do nothing if this isnt a distribution or transform
@@ -279,9 +297,8 @@ def path_checker(key, value):
 
 
 def test_positive(key, value):
-    """
-    checks if a value is positive.
-    If `value` is a distribution, checks that the lower bound of its support is positive
+    """checks if a value is positive. If `value` is a distribution,
+    checks that the lower bound of its support is positive
     """
     if issubclass(type(value), distributions.Distribution):
         if hasattr(value.support, "lower_bound"):
@@ -548,16 +565,23 @@ constraint_types = {
 #############################################################################
 """
 PARAMETERS:
-A list of possible parameters contained within any Config file that a model may be expected to read in.
-name: the parameter name as written in the JSON config or a list of parameter names.
-      if isinstance(name, list) all parameter names must be present before any other sections are executed.
-validate: a single function, or list of functions, each with a signature of f(str, obj) -> None
+A list of possible parameters contained within any Config file that a model
+may be expected to read in.
+
+name: the parameter name as written in the JSON config or a
+      list of parameter names. If `isinstance(name, list)` all parameter names
+      must be present before any other sections are executed.
+validate: a single function, or list of functions,
+          each with a signature of f(str, obj) -> None
           that raise assertion errors if their conditions are not met.
           Note: ALL validators must pass for Config to accept the parameter
-          For the case of test_type, the type of the parameter may be ANY of the tested_type dtypes.
-type: If the parameter type is a non-json primative type, specify a function that takes in the nearest JSON primative type and does
-      the type conversion. E.G: np.array recieves a JSON primative (list) and returns a numpy array.
-downstream: if receiving this parameter kicks off downstream parameters to be modified or created, a function which takes the Config()
+          For the case of test_type, the type of the parameter may be
+          ANY of the tested_type dtypes.
+type: If the parameter type is a non-json primative type, specify a function
+      that takes in the nearest JSON primative type and does the type conversion.
+      E.G: np.array recieves a JSON primative (list) and returns a numpy array.
+downstream: if receiving this parameter kicks off downstream parameters to be
+            modified or created, a function which takes the Config()
             class is accepted to modify/create the downstream parameters.
 
 Note about partial(): the partial function creates an anonymous function, taking a named function as input as well as some

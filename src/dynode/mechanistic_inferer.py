@@ -28,7 +28,8 @@ from .utils import date_to_sim_day
 class MechanisticInferer(AbstractParameters):
     """
     A class responsible for managing the fitting process of a mechanistic runner.
-    Taking in priors, sampling from their distributions, managing MCMC or the sampling/fitting proceedure of choice,
+    Taking in priors, sampling from their distributions,
+    managing MCMC or the sampling/fitting proceedure of choice,
     and coordinating the parsing and use of the posterier distributions.
     """
 
@@ -90,24 +91,25 @@ class MechanisticInferer(AbstractParameters):
     def _get_predictions(
         self, parameters: dict, solution: Solution
     ) -> jax.Array:
-        """generates post-hoc predictions from solved timeseries in `Solution` and
-        parameters used to generate them within `parameters`. This will often be hospitalizations
-        but could be more than just that.
+        """generates post-hoc predictions from solved timeseries in `Solution`
+        and parameters used to generate them within `parameters`.
+        This will often be hospitalizations but could be more than just that.
 
         Parameters
         ----------
         parameters : dict
-            parameters object returned by `get_parameters()` possibly containing information about the
-            infection hospitalization ratio
+            parameters object returned by `self.get_parameters()` if needed
+            to produce predictions for likelihood.
         solution : Solution
-            Solution object returned by `_solve_runner` or any call to `self.runner.run()`
-            containing compartment timeseries
+            Solution object returned by `self._solve_runner()` or any
+            call to `self.runner.run()` containing compartment timeseries
 
         Returns
         -------
         jax.Array or tuple[jax.Array]
-            one or more jax arrays representing the different post-hoc predictions generated from
-            `solution`. If fitting upon hospitalizations only, then a single jax.Array representing hospitalizations will be present.
+            one or more jax arrays representing the different
+            post-hoc predictions generated from `solution`. In this case
+            only hospitalizations are returned.
         """
         # add 1 to idxs because we are stratified by time in the solution object
         # sum down to just time x age bins
@@ -129,7 +131,28 @@ class MechanisticInferer(AbstractParameters):
 
     def run_simulation(
         self, tf: int
-    ) -> dict[str, Union[Solution, jax.Array],]:
+    ) -> dict[str, Solution | jax.Array | dict]:
+        """solves ODEs for a `diffrax.Solution` object,
+        generates post-hoc predictions from `Solution` object
+        output, returns both along with the parameters used by the odes
+        as a dictionary.
+
+        Parameters
+        ----------
+        tf : int
+            number of days to run simulation for
+
+        Returns
+        -------
+        dict[str, Solution | jax.Array | dict]
+            dictionary containing following key value pairs:
+
+            solution: `diffrax.Solution` object of simulation timeseries
+            hospitalizations : `jax.Array` return value from
+            `self._get_predictions()`
+            parameters : `dict` result of `self.get_parameters()` passed to the
+            runner to generate the `diffrax.Solution` object.
+        """
         parameters = self.get_parameters()
         solution = self._solve_runner(parameters, tf, self.runner)
         hospitalizations = self._get_predictions(parameters, solution)
@@ -147,43 +170,24 @@ class MechanisticInferer(AbstractParameters):
         """
         Given some observed metrics, samples the likelihood of them occuring
         under a set of parameter distributions sampled by self.inference_algo.
-        If `obs_metrics` is not defined and `infer_mode=False`, returns a dictionary
-        containing the Solution object returned by `self.runner`, the hospitalizations
-        predicted by the model, and the parameters returned by `self.get_parameters()`
-
-        if obs_metrics is None likelihood will not actually fit to values and instead return Solutions
-        based on randomly sampled values.
-
-        if obs_metrics is None, will run model for runs for `tf` days
-        otherwise runs for `len(obs_metrics)` days. If both `tf` and `obs_metrics` are None, raises RuntimeError.
-
         Currently expects hospitalization data and samples IHR.
 
         Parameters
         ----------
-        obs_metrics : jax.Array, optional
-            observed data, currently expecting hospitalization data, by default None
-        tf : int, optional
-            days to run model for, if obs_metrics is not provided, this parameter is used, by default None
-        infer_mode : bool, optional
-            whether or not to sample log likelihood of hospitalizations
-            using `obs_metrics` as observed variables, by default True
+        tf : int
+            days to run simulation for before comparing to obs_metrics
+        obs_metrics : jax.Array
+            observed data, currently expecting hospitalization data
 
         Returns
         -------
-        dict[str, Union[Solution, jax.Array, dict]]
-            dictionary containing three keys, `solution`, `hospitalizations`, and `parameters`
-            containing the `Solution` object returned by self.runner, the predicted hospitalizations, and
-            the parameters run respectively
+        None
 
-        Raises
-        ------
-        RuntimeError
-            if obs_metrics is None AND tf is none, raises runtime error. Need one or the other
         """
         dct = self.run_simulation(tf)
         solution = dct["solution"]
         predicted_metrics = dct["hospitalizations"]
+        assert isinstance(predicted_metrics, jax.Array)
         assert isinstance(solution, Solution)
         self._checkpoint_compartment_sizes(solution)
         predicted_metrics = jnp.maximum(predicted_metrics, 1e-6)
@@ -195,18 +199,22 @@ class MechanisticInferer(AbstractParameters):
 
     def infer(self, obs_metrics: jax.Array) -> MCMC:
         """
-        Infer parameters given priors inside of self.config,
-        returns an inference_algo object with posterior distributions for each sampled parameter.
+        Infer parameters given priors inside of self.config, returns an
+        inference_algo object with posterior distributions
+        for each sampled parameter.
+
         Parameters
         -----------
-        obs_metrics: jnp.array
-            observed metrics on which likelihood will be calculated on to tune parameters.
-            See `likelihood()` method for implemented definition of `obs_metrics`
+        obs_metrics: jax.Array
+            observed metrics on which likelihood will be calculated on
+            to tune parameters.
 
         Returns
         -----------
-        an inference object, often numpyro.infer.MCMC object used to infer parameters.
-        This can be used to print summaries, pass along covariance matrices, or query posterier distributions
+        MCMC
+            an inference object, currently `numpyro.infer.MCMC`,
+            used to infer parameters. This can be used to print summaries,
+            pass along covariance matrices, or query posterier distributions
         """
         self.inference_algo.run(
             rng_key=PRNGKey(self.config.INFERENCE_PRNGKEY),
@@ -219,9 +227,11 @@ class MechanisticInferer(AbstractParameters):
         return self.inference_algo
 
     def _debug_likelihood(self, **kwargs) -> bx.Model:
-        """uses Bayeux to recreate the self.likelihood function for purposes of basic sanity checking
+        """EXPERIMENTAL function uses Bayeux to recreate the
+        `self.likelihood` function for purposes of basic sanity checking
 
-        passes all parameters given to it to `self.likelihood`, initializes with `self.INITIAL_STATE`
+        passes all parameters given to it to `self.likelihood`,
+        initializes with `self.INITIAL_STATE`
         and passes `self.config.INFERENCE_PRNGKEY` as seed for randomness.
 
         Returns
@@ -241,7 +251,7 @@ class MechanisticInferer(AbstractParameters):
 
     def _checkpoint_compartment_sizes(self, solution: Solution):
         """marks the final_timesteps parameters as well as any
-        requested dates from self.config.COMPARTMENT_SAVE_DATES if the
+        requested dates from `self.config.COMPARTMENT_SAVE_DATES` if the
         parameter exists. Skipping over any invalid dates.
 
         This method does not actually save the compartment sizes to a file,
@@ -278,13 +288,21 @@ class MechanisticInferer(AbstractParameters):
         self, checkpoint_path: str, group_by_chain: bool = True
     ) -> None:
         """
-        a function which saves the posterior samples from `self.inference_algo` into `checkpoint_path` as a json file.
-        will save anything sampled or numpyro.deterministic as long as it is tracked by `self.inference_algo`.
+        a function which saves the posterior samples from
+        `self.inference_algo` into `checkpoint_path` as a json file.
+        will save anything sampled or numpyro.deterministic as
+        long as it is within the numpyro trace.
 
         Parameters
         -----------
         checkpoint_path: str
-            a path to which the json file is saved to. Throws error if folders do not exist, overwrites existing JSON files within.
+            a path to which the json file is saved to. Throws error if folder
+            does not exist, overwrites existing JSON files within.
+
+        group_by_chain: bool, Optional
+            whether or not saved JSON should retain chain/sample structure
+            or flatten all chains together into a single list of samples.
+            Default, True which retains chain structure creating 2d lists.
 
         Raises
         ----------
@@ -328,28 +346,32 @@ class MechanisticInferer(AbstractParameters):
         dict[str, Union[Solution, jax.Array, dict[str, jax.Array]]],
     ]:
         """
-        loads a list (or singular) of particles defined by a chain/particle tuple.
-        Using sampled values from self.inference_algo.get_samples() to run
-        `self.likelihood` with static values from that particle.
+        simulates a list (or singular) of particles defined by a
+        (chain, particle) indexing tuple. Using posterior samples
+        from self.inference_algo.get_samples() or optionally
+        `external_particle` to run `self.run_simulation` with
+        static posterior values.
 
-        if `external_posteriors` are specified, uses them instead of self.inference_algo.get_samples()
-        to load static particle values.
+        if `external_particle` is specified uses that dict instead of
+        self.inference_algo.get_samples() to load numpyro sites.
 
         Parameters
         ------------
         particles: Union[tuple[int, int], list[tuple[int, int]]]
-            a single tuple or list of tuples, each of which specifies the (chain_num, particle_num) to load
+            a single tuple or list of tuples, each of which specifies
+            the (chain_num, particle_num) to load
             will error if values are out of range of what was sampled.
         tf: Union[int, None]:
-            number of days to run posterior model for, defaults to same number of days used in fitting
-            if possible.
-        external_posteriors: dict
-            for use of particles defined somewhere outside of this instance of the MechanisticInferer.
-            For example, loading a checkpoint.json containing saved posteriors from a different run.
-            expects keys that match those given to `numpyro.sample` often from
-            inference_algo.get_samples(group_by_chain=True).
+            number of days to run posterior model for,
+            defaults to same number of days used in fitting, if possible.
+        external_particle: dict
+            for use of particles defined somewhere outside of this class
+            instance. For example, loading a checkpoint.json containing saved
+            posteriors from a different run. Expects keys that match sampled
+            sites within `get_parameters()`
         verbose: bool, optional
-            whether or not to pring out the current chain_particle value being executed
+            whether or not to pring out the current
+            (chain, particle) value being loaded.
 
 
         Returns
@@ -366,15 +388,16 @@ class MechanisticInferer(AbstractParameters):
 
         Note
         ------------
-        Very important note if you choose to use `external_posteriors`. In the scenario
-        this instance of `MechanisticInferer.likelihood` samples parameters not named in `external_posteriors`
-        they will be RESAMPLED according to the distribution passed in the config.
-        This method will also salt the RNG key used on the prior according to the
-        chain & particule numbers currently being run.
+        Very important note if you choose to use `external_particle`.
+        In the scenario this instance of `MechanisticInferer.run_simulation()`
+        samples parameters NOT named in `external_particle`
+        they will be RESAMPLED according to the distribution
+        passed in the config. This method will also salt the RNG key
+        used on the prior according to the chain & particle numbers being run.
 
 
-        This may be useful to you if you wish to fit upon some data, then introduce
-        a new varying parameter over the posteriors (often during projection).
+        This may be useful to you if you wish to fit upon some data, then
+        vary a new parameter over the posteriors (often during projection).
         """
         # if its a single particle, convert to len(1) list for simplicity
         if isinstance(particles, tuple):
@@ -436,8 +459,8 @@ class MechanisticInferer(AbstractParameters):
         chain_paricle_seed: int,
     ) -> dict:
         """
-        PRIVATE FUNCTION
-        used by `load_posterior_particle` to actually execute a single posterior particle on `self.likelihood`
+        used by `load_posterior_particle` to actually execute a
+        single posterior particle on `self.run_simulation()`
         Dont touch unless you know what you are doing.
 
         Parameters
@@ -446,17 +469,20 @@ class MechanisticInferer(AbstractParameters):
             a dictionary linking a parameter name to its posterior value,
             a single value or list depending on the sampled parameter
         tf : int
-            the number of days to run the posteriors for
+            the number of days to run the simulation for
         chain_paricle_seed : int
-            some salting unique to the particle being run, used to randomize any NEW parameters sampled that are
+            some salting unique to the particle being run,
+            used to randomize any NEW parameters sampled that are
             not within `single_particle`
 
         Returns
         -------
-        dict[str: [jax.Array, Solution]]
-            a solution_dict containing the return value of `self.likelihood` as well as
-            a field `posteriors` containing the values within `single_particle` as well as
-            any new sampled values created by `self.likelihood` that were not found in `single_particle`
+        dict[str, jax.Array| Solution | dict]
+            a solution_dict containing the return value of
+            `self.run_simulation()` as well as a key "posteriors".
+            "posteriors" contains the values within `single_particle` as well
+            as any newly sampled values created by `self.run_simulation()`
+            that were not found in `single_particle`
         """
         # run the model with the same seed, but this time
         # all calls to numpyro.sample() will lookup the value from single_particle_chain
