@@ -90,7 +90,10 @@ def split_range(start: int, stop: int, breaks: List[int]) -> List[List[int]]:
     Raises
     ------
     ValueError
-        When breaks are not all within the initial range
+        When breaks are not all within the initial range.
+    TypeError
+        When the types are not compliant with what is expected by range
+        or islice.
 
     Examples
     --------
@@ -134,6 +137,12 @@ model devops diagram:
 Lastly, CAPITALIZATION in Python means some specific things and I believe it is
 being misused for the config files and in much of the code. See the
 [style document](./style.md) for more on this.
+
+Lastly, there appears to be a config class which is a custom configuration
+container and delivery object. This is one more thing to maintain. There are
+several data object namespace patterns and, even better, tools (e.g.,
+Python-Box) that could handle all of this for you without needing maintain your
+own standard.
 
 ## Metadata
 
