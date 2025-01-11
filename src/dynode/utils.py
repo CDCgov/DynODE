@@ -28,31 +28,39 @@ pd.options.mode.chained_assignment = None
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 def sample_if_distribution(parameters):
     """
-    Given a dictionary, searches through all key value pairs and samples
-    any numpyro.distribution objects found replacing
-    the distribution object with a sample from that distribution.
+    Given a dictionary, searches through all key-value pairs and samples
+    any `numpyro.distribution` objects found, replacing the distribution object
+    with a sample from that distribution.
 
     Converts all lists to `jnp.ndarray`.
 
-    Numpyro sample site names will match the key of the `parameters` dict
-    unless the distribution is a part of a list. Lists containing distributions
-    will have site name suffix according to its index in the matrix.
+    Numpyro sample site names will match the key of the `parameters` dict unless
+    the distribution is part of a list. Lists containing distributions will have
+    site name suffixes according to their index in the matrix.
 
-    e.g. for some 2x2 matrix `x`, a sample site name `x_1_1` refers to a sample
-    from a distribution in `x[1][1]`.
+    For example, for some 2x2 matrix `x`, a sample site name `x_1_1` refers to a
+    sample from a distribution in `x[1][1]`.
 
     Parameters
     ----------
-    `parameters: dict{str: Any}`
-    a dictionary mapping a parameter name to any object,
-    `numpyro.distribution` objects are sampled, and
-    their sampled value replaces the distribution object within `parameters`.
+    parameters : dict[str: Any]
+        A dictionary mapping parameter names to any object.
+        `numpyro.distribution` objects are sampled, and their sampled values replace
+        the distribution objects within `parameters`.
 
     Returns
-    ----------
-    parameters dictionary with any `numpyro.distribution` objects replaced
-    by samples of those distributions from `numpyro.sample`. All lists and
-    `np.ndarray` replaced by `jnp.array`.
+    -------
+    dict
+        The parameters dictionary with any `numpyro.distribution` objects replaced by
+        samples of those distributions from `numpyro.sample`. All lists and
+        `np.ndarray` are replaced by `jnp.array`.
+
+    Examples
+    --------
+    >>> import numpyro.distributions as dist
+    >>> params = {'a': dist.Normal(0, 1), 'b': [dist.Normal(0, 1), dist.Normal(0, 1)]}
+    >>> new_params = sample_if_distribution(params)
+    # This would replace 'a' with a sample from Normal(0, 1) and each element in 'b' with samples from Normal(0, 1).
     """
     for key, param in parameters.items():
         # if distribution, sample and replace
@@ -109,29 +117,31 @@ def identify_distribution_indexes(
     names and its actual parameter name and index.
 
     Parameters
-    -------------
-    a dictionary containing keys of different parameters
-    names and values of any type
+    ----------
+    parameters : dict[str, Any]
+        A dictionary containing keys of different parameter
+        names and values of any type.
 
     Returns
-    ------------
-    `dict[str, dict[str, str | tuple[int] | None]]`
+    -------
+    dict[str, dict[str, str | tuple[int] | None]]
+        A dictionary mapping the sample name to the dict key within `parameters`.
+        If the sampled parameter is within a larger list, returns a tuple of indexes as well,
+        otherwise None.
 
-    a dictionary mapping the sample name to the dict key within `parameters`.
-    (if the sampled parameter is within a larger list,
-    returns a tuple of indexes as well, otherwise None)
-    key: `str` -> sampled parameter name as produced by `sample_if_distribution()`
-    value: `dict[str, str | tuple | None]` -> "sample_name" mapping to key
-    within `parameters` and "sample_idx" providing the indexes of the
-    distribution if it is found in a list, otherwise None
+        - key: `str`
+            Sampled parameter name as produced by `sample_if_distribution()`.
+        - value: `dict[str, str | tuple | None]`
+            "sample_name" maps to key within `parameters` and "sample_idx" provides
+            the indexes of the distribution if it is found in a list, otherwise None.
 
-    Example
-    --------------
-    >>> parameters = {"test": [0, numpyro.distributions.Normal(), 2],
-                      "example": numpyro.distributions.Normal()}
+    Examples
+    --------
+    >>> import numpyro.distributions as dist
+    >>> parameters = {"test": [0, dist.Normal(), 2], "example": dist.Normal()}
     >>> identify_distribution_indexes(parameters)
-    {"test_1": {"sample_name": "test", "sample_idx": tuple(1)},
-     "example":  {"sample_name": "example", "sample_idx": None}}
+    {'test_1': {'sample_name': 'test', 'sample_idx': (1,)},
+    'example': {'sample_name': 'example', 'sample_idx': None}}
     """
 
     def get_index(indexes):
@@ -183,25 +193,26 @@ def identify_distribution_indexes(
 # in the population stratified by age and current vax shot.
 def base_equation(t, coefficients):
     """
-    the base of a spline equation, without knots, follows a simple cubic formula
-    a + bt + ct^2 + dt^3. This is a vectorized version which takes in
-    a matrix of `a`, `b`, `c`, and `d` coefficients
-    for each age x vax combination.
+    Compute the base of a spline equation without knots,
+    following a simple cubic formula: a + bt + ct^2 + dt^3.
+    This is a vectorized version that takes in a matrix of
+    coefficients for each age x vaccination combination.
 
-    parameters
+    Parameters
     ----------
-    t: jax.ArrayLike
-        simulation day
-    coefficients: jnp.array()
-        coefficients of each cubic spline base equation for all
-        combinations of age bin and vax history
-        coefficients.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, 4)
+    t : jax.ArrayLike
+        Simulation day.
+    coefficients : jnp.ndarray
+        Coefficients of each cubic spline base equation for all
+        combinations of age bin and vaccination history.
+        Shape: (NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, 4)
 
-    returns
-    ------------
-    jnp.array(shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1))
-    the result of executing the base equation `a + bt + ct^2 + dt^3` for each
-    age group and vax count combination.
+    Returns
+    -------
+    jnp.ndarray
+        The result of executing the base equation `a + bt + ct^2 + dt^3`
+        for each age group and vaccination count combination.
+        Shape: (NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1)
     """
     return jnp.sum(
         coefficients
@@ -211,32 +222,28 @@ def base_equation(t, coefficients):
 
 
 def conditional_knots(t, knots, coefficients):
-    """A simple helper function designed to evaluate knots of a spline
-    with an indicator variable amd the coefficient associated with that knot.
+    """
+    Evaluate knots of a spline with an indicator variable and
+    the coefficient associated with that knot.
 
-    executes the following equation:
-    ```
-    sum_{i}^{len(knots)}(coefficients[i]
-               * (t-knots[i])^3
-               * I(t > knots[i]))
-    ```
+    Executes the following equation:
+    sum_{i}^{len(knots)}(coefficients[i] * (t - knots[i])^3 * I(t > knots[i]))
     where I() is an indicator variable.
 
     Parameters
     ----------
     t : jax.ArrayLike
-        simulation day
+        Simulation day.
     knots : jax.Array
-        knot locations on which to compare to `t`
+        Knot locations to compare with `t`.
     coefficients : jax.Array
-        knot coefficients to multiply each knot with, assuming it is on
-        for some timestep `t`
+        Knot coefficients to multiply each knot with,
+        assuming it is active at some timestep `t`.
 
     Returns
     -------
     jax.Array
-        equation written above summed over the last dimension of the matricies.
-
+        Resulting values summed over the last dimension of the matrices.
     """
     indicators = jnp.where(t > knots, t - knots, 0)
     # multiply coefficients by 3 since we taking derivative of cubic spline.
@@ -253,40 +260,35 @@ def evaluate_cubic_spline(
     knot_coefficients: jnp.ndarray,
 ) -> float:
     """
-    Returns the value of a cubic spline with knots and coefficients
-    evaluated on day `t` for each age_bin x vax history combination.
+    Evaluate a cubic spline with knots and coefficients on day `t`
+    for each age_bin x vaccination history combination.
+
     Cubic spline equation:
-
     ```
-    f(t) = a + bt + ct^2 + dt^3
-           + ( sum_{i}^{len(knot_locations)}(knot_coefficients[i]
-               * (t-knot_locations[i])^3
-               * I(t > knot_locations[i])))
+    f(t) = a + bt + ct^2 + dt^3 +
+        sum_{i}^{len(knot_locations)}(knot_coefficients[i]
+        * (t - knot_locations[i])^3
+        * I(t > knot_locations[i]))
     ```
-
-    Where coef/knots[i] is the i'th index of each array. and the I() function is an indicator variable 1 or 0.
 
     Parameters
     ----------
-    t: jax.ArrayLike
-        simulation day
-    knot_locations: jnp.ndarray
-        knot locations of each cubic spline for all combinations of age bin
-        and vax history
-        knots.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, # knots)
-    base_equations" jnp.ndarray
-        the base equation coefficients (a + bt + ct^2 + dt^3) of each
-        cubic spline for all combinations of age bin and vax history
-        knots.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, 4)
-    knot_coefficients: jnp.ndarray
-        knot coefficients of each cubic spline for all combinations of age bin
-        and vax history.
-        coefficients.shape=(NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, # knots)
+    t : jax.ArrayLike
+        Simulation day.
+    knot_locations : jnp.ndarray
+        Knot locations for all combinations of age bin and vaccination history.
+        Shape: (NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, #knots)
+    base_equations : jnp.ndarray
+        Base equation coefficients (a + bt + ct^2 + dt^3) for all combinations of age bin and vaccination history.
+        Shape: (NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, 4)
+    knot_coefficients : jnp.ndarray
+        Knot coefficients for all combinations of age bin and vaccination history.
+        Shape: (NUM_AGE_GROUPS, MAX_VACCINATION_COUNT + 1, #knots)
 
     Returns
-    ----------
-    jnp.array() containing the proportion of individuals in each
-    age x vax combination that will be vaccinated during this time step.
+    -------
+    jnp.ndarray
+        Proportion of individuals in each age x vaccination combination vaccinated during this time step.
     """
     base = base_equation(t, base_equations)
     knots = conditional_knots(t, knot_locations, knot_coefficients)
@@ -322,43 +324,65 @@ def season_2peak(t, seasonality_second_wave, seasonality_shift):
 
 def sim_day_to_date(sim_day: int, init_date: datetime.date):
     """
-    given the current model's simulation day as an integer,
-    and the date of the model initialization.
-    returns a date object representing the current simulation day.
+    Given current model's simulation day as integer and
+    initialization date, returns date object representing current simulation day .
 
     Parameters
     ----------
-    sim_day: int
-        current model simulation day where sim_day==0==init_date
-    init_date: datetime.date
-        the initialization date of the simulation,
-        usually found in the config.INIT_DATE parameter
+    sim_day : int
+        Current model simulation day where sim_day==0==init_date.
+
+    init_date : datetime.date
+        Initialization date usually found in config.INIT_DATE parameter.
+
 
     Returns
-    -----------
-    datetime.date object representing the current sim_day of the simulation.
+    ---------
+    datetime.date object representing current `sim_day`
+
+
+    Examples :
+    ---------
+    >>> import datetime
+
+    >>> init_date=datetime.date(2022, 10, 15)
+
+    >>> sim_day_to_date(10 ,init_date )
+    datetime.date(2022 ,10 ,25 )
     """
     return init_date + datetime.timedelta(days=sim_day)
 
 
-def sim_day_to_epiweek(sim_day: int, init_date: datetime.date):
+def sim_day_to_epiweek(
+    sim_day: int, init_date: datetime.date
+) -> epiweeks.Week:
     """
-    given the current model's simulation day as an integer,
-    and the date of the model initialization.
-    returns an integer cdc epiweek that sim_day falls in.
+    Given current model's simulation day as integer &
+    initialization date, returns integer CDC epiweek that sim_day falls in.
 
     Parameters
     ----------
-    sim_day: int
-        current model simulation day where sim_day==0==init_date
-    init_date: datetime.date
-        the initialization date of the simulation,
-        usually found in the config.INIT_DATE parameter
+    sim_day : int
+        Current model simulation day where sim_day==o==init_date.
+
+    init_date : datetime.date
+        Initialization date usually found in config.INIT_DATE parameter.
+
 
     Returns
-    -----------
-    epiweek.Week object representing the cdc epiweek of
-    the simulation on day sim_day.
+    ---------
+    epiweeks.Week
+        CDC epiweek on day sim_day
+
+
+    Examples
+    ---------
+    >>> import datetime
+
+    >>> init_date=datetime.date(2022 ,10 ,15 )
+
+    >>> sim_day_to_epiweek(10 ,init_date )
+    epiweeks .Week(year =2022 week =42 )
     """
     date = sim_day_to_date(sim_day, init_date)
     epi_week = epiweeks.Week.fromdate(date)
@@ -367,62 +391,73 @@ def sim_day_to_epiweek(sim_day: int, init_date: datetime.date):
 
 def date_to_sim_day(date: datetime.date, init_date: datetime.date):
     """
-    given a date object, converts back to simulation days
-    using init_date as reference for t=0
+    Given date object converts back to simulation days using init_date as reference point.
 
     Parameters
     ----------
-    sim_day: datetime.date
-        date to be converted to an integer simulation day
-    init_date: datetime.date
-        the initialization date of the simulation,
-        usually found in the config.INIT_DATE parameter
+    date : datetime.date
+        Date being converted into integer simulation days.
+
+    init_date : datetime.date
+        Initialization date usually found in config.INIT_DATE parameter.
+
 
     Returns
-    -----------
-    int simulation day representing how many days from `init_date` have passed.
+    ---------
+    int
+    how many days have passed since `init _date`
+
+
+    Examples
+
+    ---------
+
+    >>> import datetime
+    >>> init_date=datetime.date(2022,10,15)
+    >>> date=datetime.date(2022,11,05)
+    >>> date_to_sim_day(date, init_date)
+    21
     """
     return (date - init_date).days
 
 
 def date_to_epi_week(date: datetime.date):
     """
-    given a date object, converts to cdc epi week
-    using init_date as reference for t=0
+    Given a date object, converts it to CDC epi week.
 
     Parameters
     ----------
-    sim_day: datetime.date
-        date to be converted to a simulation day
+    sim_day : datetime.date
+        Date to be converted to a simulation day.
 
     Returns
-    -----------
-    `epiweeks.Week`
-    the epi_week that `date` falls in
+    -------
+    epiweeks.Week
+        The epi_week that `date` falls in.
     """
     epi_week = epiweeks.Week.fromdate(date)
     return epi_week
 
 
 def new_immune_state(current_state: int, exposed_strain: int) -> int:
-    """a method using BITWISE OR to determine a new immune state position given
-    current state and the exposing strain
+    """Determine a new immune state position using BITWISE OR
+    given the current state and the exposing strain.
 
     Parameters
     ----------
-    current_state: int
-        int representing the current state of the
-        individual or group being exposed to a strain
-    exposed_strain: int
-        int representing the strain exposed to the
+    current_state : int
+        Int representing the current state of the
+        individual or group being exposed to a strain.
+    exposed_strain : int
+        Int representing the strain exposed to the
         individuals in state `current_state`.
-        expects that `0 <= exposed_strain <= num_strains - 1`
+        expects that `0 <= exposed_strain <= num_strains - 1`.
 
     Returns
     -----------
     int
-    individual or population's new immune state after exposure and recovery
-    from `exposed_strain`
+        individual or population's new immune state after exposure and recovery
+        from `exposed_strain`
 
     Example
     ----------
@@ -472,27 +507,28 @@ def new_immune_state(current_state: int, exposed_strain: int) -> int:
 
 def all_immune_states_with(strain: int, num_strains: int):
     """
-    a function returning all of the immune states which contain an
-    exposure to `strain`
+    Return all immune states which contain an exposure to `strain`.
 
     Parameters
     ----------
-    strain: int
-        int representing the exposed to strain,
-        expects that `0 <= strain <= num_strains - 1`
-    num_strains: int
-        number of strains in the model
+    strain : int
+        Int representing the exposed-to strain,
+        expects that `0 <= strain <= num_strains - 1`.
+    num_strains : int
+        Number of strains in the model.
 
     Returns
     ----------
     list[int]
-    all immune states that include previous exposure to `strain`
+        all immune states that include previous exposure to `strain`
 
     Example
     ----------
-    in a simple model where num_strains = 2 the following is returned.
-    Reminder: state = 0 (no exposure),
-    state = 1/2 (exposure to strain 0/1 respectively), state=3 (exposed to both)
+    in a simple model where num_strains = 2
+    Reminder:
+    state = 0 (no exposure),
+    state = 1/2 (exposure to strain 0/1 respectively),
+    state = 3 (exposed to both)
 
     >>> all_immune_states_with(strain = 0, num_strains = 2)
     [1, 3]
@@ -516,16 +552,16 @@ def all_immune_states_with(strain: int, num_strains: int):
 
 def all_immune_states_without(strain: int, num_strains: int):
     """
-    function returning all of the immune states which
-    DO NOT contain an exposure to `strain`
+    Return all immune states which DO NOT contain an
+    exposure to `strain`.
 
     Parameters
     ----------
-    strain: int
-        int representing the NOT exposed to strain,
-        expects that `0 <= strain <= num_strains - 1`
-    num_strains: int
-        number of strains in the model
+    strain : int
+        Int representing the NOT exposed to strain,
+        expects that `0 <= strain <= num_strains - 1`.
+    num_strains : int
+        Number of strains in the model.
 
     Returns
     ----------
@@ -534,9 +570,11 @@ def all_immune_states_without(strain: int, num_strains: int):
 
     Example
     ----------
-    in a simple model where num_strains = 2 the following is returned.
-    Reminder: state = 0 (no exposure),
-    state = 1/2 (exposure to strain 0/1 respectively), state=3 (exposed to both)
+    in a simple model where num_strains = 2.
+    Reminder:
+    state = 0 (no exposure),
+    state = 1/2 (exposure to strain 0/1 respectively),
+    state = 3 (exposed to both)
 
     >>> all_immune_states_with(strain = 0, num_strains = 2)
     [0, 2]
@@ -551,24 +589,23 @@ def all_immune_states_without(strain: int, num_strains: int):
 
 def get_strains_exposed_to(state: int, num_strains: int):
     """
-    Returns a list of integers representing the strains a
-    given individual was exposed to end up in state `state`.
-    Says nothing of the order at which an individual was
-    exposed to those strains, list returned sorted increasing.
+    Returns the strains a given immune system was exposed
+    to end up in state `state`. Says nothing of the order
+    at which an individual was exposed to those strains.
 
     Parameters
     -----------
-    state: int
-        the state a given individual is in, as dicated by a single or series of
-        exposures to strains. state dynamics determined by `new_immune_state()`
-    num_strains: int
-        the total number of strains in the model,
+    state : int
+        The state a given individual is in, as dicated by a single or series of
+        exposures to strains. State dynamics determined by `new_immune_state()`.
+    num_strains : int
+        The total number of strains in the model,
         used to determin total size of state space.
 
     Returns
     -----------
-        list[int]
-        strains the individual in `state` was exposed to, sorted increasing.
+    list[int]
+        strains the individual in `state` was exposed to.
     """
     state_binary = format(state, "b")
     # prepend 0s if needed.
@@ -593,33 +630,34 @@ def combined_strains_mapping(
 
     Parameters
     ----------
-    from_strain: int
-        the strain index representing the strain being collapsed,
+    from_strain : int
+        The strain index representing the strain being collapsed,
         whos references will be rerouted.
-    to_strain: int
-        the strain index representing the strain being joined with
+    to_strain : int
+        The strain index representing the strain being joined with
         to_strain, typically the ancestral or 0 index.
-    num_strains: int
-        number of strains in the model, constrains immune state space.
+    num_strains : int
+        Number of strains in the model, constrains immune state space.
 
     Returns
     -----------
     tuple(dict[int,int], dict[int,int])
-    first dict[int,int] mapps from immune state -> immune state before and
-    after `from_strain` is combined with `to_strain` for all states.
+        First dict[int,int] maps from immune state -> immune state before and
+        after `from_strain` is combined with `to_strain` for all states.
 
-    second dict[int,int] maps from strain idx -> strain idx
-    before and after`from_strain` is combined with `to_strain` for all strains.
+        Second dict[int,int] maps from strain idx -> strain idx
+        before and after`from_strain` is combined with `to_strain` for all strains.
 
     Example
     -----------
-    in a basic 2 strain model you have the following immune states:
+    In a basic 2 strain model you have the following immune states:
     0-> no exposure, 1 -> strain 0 exposure,
     2-> strain 1 exposure, 3-> exposure to both
 
     >>> combine_strains(from_strain = 1, to_strain = 0, num_strains = 2)
-    {0:0, 1:1, 2:1, 3:1}, # immune state space becomes binary.
-    {0:0, 1:0} # both strain 0 and 1 now route to strain 0
+    ({0:0, 1:1, 2:1, 3:1}, {0:0, 1:0}),
+    # immune state space becomes binary.
+    # both strain 0 and 1 now route to strain 0
     """
     # we do nothing if from_strain is equal to to_strain, we arent collapsing anything there.
     if from_strain == to_strain:
@@ -669,40 +707,40 @@ def combine_strains(
     strain_axis=False,
 ):
     """
-    takes an individual compartment and combines the states and
-    strains within it according to `state_mapping` and `strain_mapping`.
-    Combines the state dimensions and optionally the strain dimension if
-    `strain_axis=True`
+    Takes an individual compartment and combines the states
+    and strains within it according to `state_mapping` and
+    `strain_mapping`. Combines the state dimensions and
+    optionally the strain dimension if `strain_axis=True`.
 
     Parameters
     ----------
-    compartment: np.ndarray
-        the compartment being changed, must be four dimensional
+    compartment : np.ndarray
+        The compartment being changed, must be four dimensional
         with immune state in the `state_dim` dimension and
         strain (if applicable) in the `strain_dim` dimension.
-    state_mapping: dict[int:int]
-        a mapping of pre-combine state to post-combine state,
+    state_mapping : dict[int:int]
+        A mapping of pre-combine state to post-combine state,
         as generated by `combined_strains_mapping()`,
         must cover all states found in `compartment[state_dim]`.
-    strain_mapping: dict[int:int]
-        a mapping of pre-combine strain to post-combine strain,
+    strain_mapping : dict[int:int]
+        A mapping of pre-combine strain to post-combine strain,
         as generated by `combined_strains_mapping()`,
         must cover all strains found in `compartment[strain_dim]`.
-    num_strains: int
-        number of strains in the model
-    state_dim: int
-        which dimension in `compartment` immune state is found in, default 1
-    strain_dim: int
-        which dimension in `compartment` strain num is found in, if applicable,
-        default 3
-    strain_axis: bool
-        whether or not `compartment` includes a strain axis
-        in `strain_dim`. Not all compartments track `strain`
+    num_strains : int
+        Number of strains in the model.
+    state_dim : int
+        Which dimension in `compartment` immune state is found in, default 1.
+    strain_dim : int
+        Which dimension in `compartment` strain num is found in, if applicable,
+        default 3.
+    strain_axis : bool
+        Whether or not `compartment` includes a strain axis
+        in `strain_dim`. Not all compartments track `strain`.
 
     Returns
     ----------
     np.ndarray:
-        a modified copy of `compartment` with all immune states and
+        A modified copy of `compartment` with all immune states and
         strains combined according to `state_mapping` and `strain_mapping`
     """
     # begin with a copy of the compartment in all zeros
@@ -869,21 +907,21 @@ def combine_epochs(
 
 def find_age_bin(age: int, age_limits: list[int]) -> int:
     """
-    Given an age, return the age bin it belongs to in the age limits array
+    Given an age, return the age bin it belongs to in the age limits array.
 
     Parameters
     ----------
-    age: int
-        age of the individual or population to be binned
-    age_limits: list(int)
-        age limit for each age bin in the model, beginning with minimum age,
-        values are exclusive in upper bound. so [0,18] means 0-17, 18+
+    age : int
+        Age of the individual or population to be binned.
+    age_limits : list[int]
+        Age limit for each age bin in the model, beginning with minimum age,
+        values are exclusive in upper bound. so [0,18] means 0-17, 18+.
 
     Returns
     ----------
     int
-    The index of the bin, assuming 0 is the youngest age bin
-    and len(age_limits)-1 is the oldest age bin
+        The index of the bin, assuming 0 is the youngest age bin
+        and len(age_limits)-1 is the oldest age bin.
 
     Example
     -------------
@@ -904,20 +942,21 @@ def find_age_bin(age: int, age_limits: list[int]) -> int:
 def find_vax_bin(vax_shots: int, max_doses: int) -> int:
     """
     Given a number of vaccinations, returns the bin it belongs to
-    given the maximum doses ceiling
+    given a maximum dose ceiling.
 
     Parameters
     ----------
-    vax_shots: int
-        the number of vaccinations given to the individual
-    max_doses: int
-        the number of doses maximum before all subsequent
-        doses are no longer counted
+    vax_shots : int
+        The number of vaccinations given.
+    max_doses : int
+        The number of doses maximum before all subsequent
+        doses are no longer counted.
 
     Returns
     ----------
     int
-    The index of the vax bin, min(vax_shots, max_doses)
+        Index representing which vaccination bin the population
+        or individual belong to.
     """
     return min(vax_shots, max_doses)
 
@@ -977,23 +1016,19 @@ def convert_strain(strain: str, STRAIN_IDX: IntEnum) -> int:
 
 def find_waning_compartment(TSLIE: int, waning_times: list[int]) -> int:
     """
-    Given a TSLIE (time since last immunogenetic event) in days,
-    returns the waning compartment index of the event.
+    Determine the waning compartment index based on time since last immunogenetic event (TSLIE).
 
     Parameters
     ----------
-    TSLIE: int
-        the number of days since the
-        immunogenetic event occured (this could be vaccination or infection).
-    waning_times: list(int)
-        the number of days an individual stays in each waning compartment,
-        ending in zero as the last compartment does not wane.
+    TSLIE : int
+        Days since the immunogenetic event (e.g., vaccination or infection).
+    waning_times : list[int]
+        Days an individual stays in each waning compartment, ending in zero.
 
     Returns
-    ----------
+    -------
     int
-    index of the waning bin that an event belongs to if that event
-    happened `TSLIE` days in the past.
+        Index of the waning bin for an event that occurred `TSLIE` days ago.
     """
     # possible with cumulative sum, but this solution still O(N) and more interpretable
     current_bin = 0
@@ -1011,31 +1046,28 @@ def strain_interaction_to_cross_immunity(
     num_strains: int, strain_interactions: np.ndarray
 ) -> Array:
     """
-    a function which takes a strain_interactions matrix,
-    which is of shape `(num_strains, num_strains)`
-    and returns a cross immunity matrix of shape
-    (num_strains, 2**num_strains) representing the immunity
-    of all 2**num_strains immune history permutations against some
-    challenging strain.
-
-    Does not take into account waning.
+    Convert a strain interaction matrix to a cross-immunity matrix.
 
     Parameters
     ----------
-    num_strains: int
-        the number of strains in the model.
-    strain_interactions: np.array
-        a matrix of shape (num_strains, num_strains) representing the
-        relative immunity of someone recovered from one strain to a different
-        challenging strain.
-        1's in the diagnal representing 0 reinfection (before waning).
+    num_strains : int
+        Number of strains in the model.
+    strain_interactions : np.ndarray
+        Matrix (num_strains, num_strains) representing
+        relative immunity from one strain to another.
+        `strain_interactions[i][j] = 1.0` states
+        full immunity from challenging strain `i` after
+        recovery from strain `j`.
 
     Returns
-    ----------
+    -------
     jax.Array
-        a matrix of shape (num_strains, 2**num_strains) representing the
-        relative immunity of someone with a specific immune history
-        to a challenging strain.
+        Matrix (num_strains, 2**num_strains) representing immunity
+        for all immune history permutations against a challenging strain.
+
+    Notes
+    -----
+        relative immunity does not account for waning.
     """
     infection_history = range(2**num_strains)
     crossimmunity_matrix = jnp.zeros((num_strains, len(infection_history)))
@@ -1084,29 +1116,21 @@ def strain_interaction_to_cross_immunity(
 
 def drop_sample_chains(samples: dict, dropped_chain_vals: list):
     """
-    a function, given a dictionary containing posterior samples from an
-    inference fit, that drops specified chains from the posterior samples.
-    This is usually done when a single or multiple chains do not converge with
-    the other chains. This ensures that this divergent chain does not
-    impact posterior distributions meant to summarize the posterior samples.
+    Drop specified chains from posterior samples.
 
     Parameters
-    -----------
-    `samples`: dict{str: list}
-        a dictionary where parameter names are keys and samples are a list.
-        In the case of M chains and N samples per chain,
-        the list will be of shape MxN with one row per chain,
-        each containing N samples.
-
-    `dropped_chain_vals`: list
-        a list of indexes (rows in the MxN grouped samples list) to be dropped,
-        if the list is empty no chains are dropped.
+    ----------
+    samples : dict[str, list]
+        Dictionary with parameter names as keys and sample
+        lists as values. Shapes of these values are (M,N) for
+        a model with M chains and N samples per chain.
+    dropped_chain_vals : list[int]
+        List of chain indices to be dropped. If empty, no chains are dropped.
 
     Returns
-    ----------
-    dict{str: list}
-    a copy of the samples dictionary with chains
-    in `dropped_chain_vals` dropped
+    -------
+    dict[str, list]
+        Copy of samples dictionary with specified chains removed.
     """
     # Create a new dictionary to store the filtered samples
     filtered_dict = {}
@@ -1132,36 +1156,24 @@ def flatten_list_parameters(
     samples: dict[str, np.ndarray],
 ) -> dict[str, np.ndarray]:
     """
-    given a dictionary of parameter names and samples, identifies any
-    parameters that are placed under a single name, but actually multiple
-    independent draws from the same distribution.
-
-    These parameters are often the result of a call to `numpyro.plate(P)`
-    for some number of draws `P`. After identifying plated samples,
-    this function will separate the `P` draws into their own
-    keys in the samples dictionary.
+    Flatten plated parameters into separate keys in the samples dictionary.
 
     Parameters
     ----------
-    `samples`: dict{str: np.ndarray}
-        a dictionary where parameter names are keys and samples are a list.
-        In the case of M chains and N samples per chain, the list will be of
-        shape MxN normally with one row per chain, each containing N samples.
-        In the case that the parameter is drawn P independent times,
-        the list will be of shape MxNxP.
+    samples : dict[str, np.ndarray]
+        Dictionary with parameter names as keys and sample
+        arrays as values. Arrays may have shape MxNxP for P independent draws.
 
     Returns
-    ----------
-    dict{str: np.ndarray}
-    a dictionary in which parameters with lists of shape MxNxP are split into
-    P separate parameters, each with lists of shape MxN for M chains and N samples.
-    This function scaled with any number of dimensions > 2. So for PxQ independent draws
-    will be separated into PxQ parameters each with lists of shape MxN.
+    -------
+    dict[str, np.ndarray]
+        Dictionary with plated parameters split into
+        separate keys. Each new key has arrays of shape MxN.
 
-    NOTE
-    -----------
-    If you have not plated parameters then
-    nothing will be changed and a copy of your dict will be returned
+    Notes
+    -----
+        If no plated parameters are present,
+        returns a copy of the original dictionary.
     """
     return_dict = {}
     for key, value in samples.items():
@@ -1186,20 +1198,20 @@ def flatten_list_parameters(
 
 
 def drop_keys_with_substring(dct: dict[str, Any], drop_s: str):
-    """A simple helper function designed to drop keys
-    from a dictionary if they contain some substring
+    """
+    Drop keys from a dictionary if they contain a specified substring.
 
     Parameters
     ----------
     dct : dict[str, Any]
-        a dictionary with string keys
+        Dictionary with string keys.
     drop_s : str
-        keys containing `drop_s` as a substring will be dropped
+        Substring to check for in keys.
 
     Returns
     -------
-    dict[str, any]
-        dct with keys containing drop_s removed, otherwise untouched.
+    dict[str, Any]
+        Dictionary with keys containing `drop_s` removed.
     """
     keys_to_drop = [key for key in dct.keys() if drop_s in key]
     for key in keys_to_drop:
@@ -1219,24 +1231,26 @@ def convolve_hosp_to_death(hosp, hfr, shape, scale, padding="nan"):
     (`hfr`), then delay the deaths (relative to hospitalization) based on a gamma
     distribution of parameters `shape` and `scale`. The gamma specification is _daily_,
     which then gets discretized into 5 weeks for convolution.
+
     Parameters
     ----------
     `hosp` : numpy.array
-        age-specific weekly hospitalization with shape of (num_weeks, NUM_AGE_GROUPS)
+        Age-specific weekly hospitalization with shape of (num_weeks, NUM_AGE_GROUPS)
     `hfr`: numpy.array
-        age-specific hospitalization fatality risk with shape of (NUM_AGE_GROUPS)
-    shape: float
-        shape parameter of the gamma delay distribution, is > 0
-    scale: float
-        scale parameter of the gamma delay distribution, is > 0 and 1/rate
-    padding: str "nan", "nearest" or "no"
-        boolean flag determining if the output array is of same length as `hosp` with
+        Age-specific hospitalization fatality risk with shape of (NUM_AGE_GROUPS)
+    shape : float
+        Shape parameter of the gamma delay distribution, is > 0
+    scale : float
+        Scale parameter of the gamma delay distribution, is > 0 and 1/rate
+    padding : str {"nan", "nearest", "no"}
+        Boolean flag determining if the output array is of same length as `hosp` with
         first 4 weeks padded with nan or not. Note: the "valid" modelled deaths would always
         be 4 weeks less than input hospitalization.
+
     Returns
     ----------
-    numpy.array:
-        list of `num_day` vaccination rates arrays, each by the shape of (NUM_AGE_GROUPS,
+    numpy.array
+        List of `num_day` vaccination rates arrays, each by the shape of (NUM_AGE_GROUPS,
         MAX_VAX_COUNT + 1)
     """
     expected_deaths = hosp * hfr[None, :]
@@ -1268,19 +1282,17 @@ def convolve_hosp_to_death(hosp, hfr, shape, scale, padding="nan"):
 
 def generate_yearly_age_bins_from_limits(age_limits: list) -> list[list[int]]:
     """
-    given age limits, generates age bins with each year contained
-    in that bin up to 85 years old exclusive
+    Generate age bins up to 85 years old exclusive based on age limits.
 
     Parameters
     ----------
-    age_limits: list(int):
-        beginning with minimum age inclusive, boundary of each age bin
-        exclusive. Not including last age bin. do not include implicit 85
-        in age_limits, this function appends that bin automatically.
+    age_limits : list[int]
+        Boundaries of each age bin. The last bin is implicitly up to 85.
 
-    returns
+    Returns
+    -------
     list[list[int]]
-    all whole integer years that span between each value in `age_limits`
+        List of lists containing integer years within each age bin.
 
     Example
     ----------
@@ -1301,26 +1313,23 @@ def load_age_demographics(
     regions: list[str],
     age_limits: list[int],
 ) -> dict[str, np.ndarray]:
-    """Returns normalized proportions of each agebin as defined by age_limits
-    for the regions given. Does this by searching for age demographics data.
+    """Load normalized proportions of each age bin for given regions.
 
     Parameters
     ----------
-    path: str
-        path to the demographic-data folder, either relative or absolute.
-    regions: list(str)
-        list of FIPS regions to create normalized proportions for
-    age_limits: list(int)
-        age limits for each age bin in the model, begining with minimum age
-        values are exclusive in upper bound.
-        So [0, 18, 50] means 0-17, 18-49, 50+. Max age is enforced at 84
-        inclusive. All persons older than 84 in population numbers are
-        counted as 84 years old.
+    path : str
+        Path to the demographic-data folder.
+    regions : list(str)
+        List of FIPS regions
+    age_limits : list(int)
+        Age limits for each bin; values are exclusive upper bounds.
+        Max tracked age is enforced at 84 inclusive. All
+        populations older than 84 are counted as 84 years old.
 
     Returns
     ----------
-    demographic_data : dict
-        a dictionary maping FIPS code region supplied in `regions`
+    demographic_data : dict[str, np.ndarray]
+        A dictionary maping FIPS region supplied in `regions`
         to an array of length `len(age_limits)` representing
         the __relative__ population proportion of each bin, summing to 1.
     """
@@ -1385,21 +1394,17 @@ def load_age_demographics(
 
 def plot_sample_chains(samples):
     """
-    a function that given a dictionary of parameter names and MxN samples for each parameter
-    plots the trace plot of each of the M chains through the N samples in that chain.
+    Plot trace plots of M chains through N samples for each parameter.
 
     Parameters
     ----------
-    `samples`: dict{str: list}
-        a dictionary where parameter names are keys and samples are a list.
-        In the case of M chains and N samples per chain,
-        the list will be of shape MxN
-        with one row per chain, each containing N samples.
+    samples : dict[str, list]
+        Dictionary with parameter names as keys and sample lists as values (MxN shape).
 
     Returns
-    ----------
-    (matplotlib.Figure, matplotlib.Axes)
-        plots each parameter along with each chain of that parameter,
+    -------
+    tuple[matplotlib.Figure, matplotlib.Axes]
+        Plots each parameter along with each chain of that parameter,
         also returns `plt.fig` and `plt.axs` objects for modification.
     """
     # ensure samples are all NxM before plotting
@@ -1445,27 +1450,27 @@ def get_timeline_from_solution_with_command(
     Parameters
     ----------
     `sol` : tuple(jnp.array)
-        generally .ys object containing ODE run as described by https://docs.kidger.site/diffrax/api/solution/
+        Generally .ys object containing ODE run as described by
+        https://docs.kidger.site/diffrax/api/solution/
         a tuple containing the ys of the ODE run.
     `compartment_idx`: IntEnum:
-        an enum containing the name of each compartment and its associated compartment index,
-        as initialized by the config file of the model that generated `sol`
+        An enum containing the name of each compartment and its associated compartment index,
+        as initialized by the config file of the model that generated `sol`.
     `w_idx`: IntEnum:
-        an enum containing the name of each waning compartment and its associated compartment index,
-        as initialized by the config file of the model that generated `sol`
+        An enum containing the name of each waning compartment and its associated compartment index,
+        as initialized by the config file of the model that generated `sol`.
     `strain_idx`: intEnum
-        an enum containing the name of each strain and its associated strain index,
-        as initialized by the config file of the model that generated `sol`
+        An enum containing the name of each strain and its associated strain index,
+        as initialized by the config file of the model that generated `sol`.
     `command`: str
-        a string command of the format specified in the function description.
+        A string command of the format specified in the function description.
 
     Returns
     ----------
-    tuple(jnp.array, str):
-        a slice of the `sol` object collapsed into the first dimension of the command selected.
-    eg: return.shape = sol[0].shape[0] since all first dimensions in sol are equal normally.
-        label: a string with the label of the new line,
-    this helps with interpretability as commands sometimes lack necessary context
+    tuple(jnp.array, str)
+        a slice of the `sol` object collapsed into the first dimension
+        a string with the label of the new line, helps with
+        interpretability as commands sometimes lack necessary context.
     """
 
     def is_close(x):
@@ -1552,21 +1557,20 @@ def get_timeline_from_solution_with_command(
 
 def get_var_proportions(inferer, solution):
     """
-    Calculate _daily_ variant proportions based on a simulation run.
+    Calculate daily variant proportions based on a simulation run.
 
     Parameters
     ----------
-    `inferer` : AbstractParameters
-        an AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) that
-        is used to produce `solution`.
-    `solution`: tuple(jnp.array)
-        solution object that comes out from an ODE run (specifically through
-        `diffrax.diffeqsolve`)
+    inferer : AbstractParameters
+        An AbstractParameters (e.g., MechanisticInferer or
+        StaticValueParameters) used to produce `solution`.
+    solution : diffrax.Solution
+        Solution object from an ODE run (specifically through `diffrax.diffeqsolve`).
 
     Returns
-    ----------
-    jnp.array:
-        an array of strain prevalence by the shape of (num_days, NUM_STRAINS)
+    -------
+    jnp.ndarray
+        Array of strain prevalence with shape (num_days, inferer.config.NUM_STRAINS).
     """
     strain_incidence = jnp.sum(
         solution.ys[inferer.config.COMPARTMENT_IDX.C],
@@ -1583,22 +1587,19 @@ def get_var_proportions(inferer, solution):
 
 def get_seroprevalence(inferer, solution):
     """
-    Calculate the seroprevalence (more precisely the cumulative attack rate) based on
-    a simulation run.
+    Calculate the seroprevalence (cumulative attack rate) based on a simulation run.
 
     Parameters
     ----------
-    `inferer` : AbstractParameters
-        an AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) that
-        is used to produce `solution`.
-    `solution`: tuple(jnp.array)
-        solution object that comes out from an ODE run (specifically through
-        `diffrax.diffeqsolve`)
+    inferer : AbstractParameters
+        An AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) used to produce `solution`.
+    solution : tuple[jnp.ndarray]
+        Solution object from an ODE run (specifically through `diffrax.diffeqsolve`).
 
     Returns
-    ----------
-    jnp.array:
-        an array of seroprevalence by the shape of (num_days, NUM_AGE_GROUPS)
+    -------
+    jnp.ndarray
+        Array of seroprevalence with shape (num_days, NUM_AGE_GROUPS).
     """
     never_infected = jnp.sum(
         solution.ys[inferer.config.COMPARTMENT_IDX.S][:, :, 0, :, :],
@@ -1614,23 +1615,22 @@ def get_seroprevalence(inferer, solution):
 
 def get_foi_suscept(p, force_of_infection):
     """
-    Calculate the force of infections experienced by the susceptibles, _after_
-    factoring their immunity.
+        Calculate the force of infections experienced by
+        susceptibles after factoring their immunity.
 
     Parameters
     ----------
-    `p` : Parameters
-        a Parameters object which is a spoofed dictionary for easy referencing,
-        which is an output of `.get_parameters()` from AbstractParameter.
-    `force_of_infection`: jnp.array
-        an array of (NUM_AGE_GROUPS, NUM_STRAINS) that quantifies the force of
-        infection experienced by age group by strain.
+    p : Parameters
+        A Parameters object that is a spoofed dictionary for easy referencing,
+        output of `.get_parameters()` from AbstractParameter.
+    force_of_infection : jnp.ndarray
+        Array of shape (NUM_AGE_GROUPS, NUM_STRAINS) quantifying
+        the force of infection by age group and strain.
 
     Returns
-    ----------
-    jnp.array:
-        an array of immunity protection by the shape of (NUM_STRAINS, num_days,
-        NUM_AGE_GROUPS)
+    -------
+    jnp.ndarray
+        Array of immunity protection with shape (NUM_STRAINS, num_days, NUM_AGE_GROUPS).
     """
     foi_suscept = []
     for strain in range(p.NUM_STRAINS):
