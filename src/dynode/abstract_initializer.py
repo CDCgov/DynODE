@@ -8,6 +8,8 @@ to produce an initial state representing some analyzed population
 from abc import ABC, abstractmethod
 from typing import Any
 
+from numpy import ndarray
+
 from . import SEIC_Compartments, utils
 
 
@@ -35,22 +37,23 @@ class AbstractInitializer(ABC):
         assert self.INITIAL_STATE is not None
         return self.INITIAL_STATE
 
-    def load_initial_population_fractions(self) -> None:
+    def load_initial_population_fractions(self) -> ndarray:
         """
-        loads age demographics for the US and
-        sets the inital population fraction by age bin.
+        Loads age demographics for the specified region and
+        returns the inital population fraction by age bin.
 
-        Updates
+        Returns
         ----------
-        `self.config.INITIAL_POPULATION_FRACTIONS` : numpy.ndarray
-            proportion of the total population that falls into each age group,
-            length of this array is equal the number of age groups sums to 1.0.
+        numpy.ndarray
+            Proportion of the total population that falls into each age group,
+            `len(self.load_initial_population_fractions()) == self.config.NUM_AGE_GROUPS`
+            `np.sum(self.load_initial_population_fractions()) == 1.0
         """
         populations_path = (
             self.config.DEMOGRAPHIC_DATA_PATH
             + "population_rescaled_age_distributions/"
         )
         # TODO support getting more regions than just 1
-        self.config.INITIAL_POPULATION_FRACTIONS = utils.load_age_demographics(
+        return utils.load_age_demographics(
             populations_path, self.config.REGIONS, self.config.AGE_LIMITS
         )[self.config.REGIONS[0]]

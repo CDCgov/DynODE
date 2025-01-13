@@ -482,14 +482,16 @@ class AbstractParameters:
             )
         )
 
-    def retrieve_population_counts(self) -> None:
-        """
-        A wrapper function which takes calculates the age stratified population counts across all the INITIAL_STATE compartments
-        (minus the book-keeping C compartment.) and stores it in the self.config.POPULATION parameter.
+    def retrieve_population_counts(self) -> np.ndarray:
+        """Calculates the age stratified population counts across all tracked
+        self.INITIAL_STATE compartments, excluding the book-keeping C compartment.
 
-        We do not recieve this data exactly from the initializer, but it is trivial to recalculate.
+        Returns
+        -------
+        np.ndarray
+            population counts of each age bin within `self.INITIAL_STATE`
         """
-        self.config.POPULATION = np.sum(  # sum together S+E+I compartments
+        return np.sum(  # sum together S+E+I compartments
             np.array(
                 [
                     np.sum(
@@ -526,10 +528,8 @@ class AbstractParameters:
             containing the relative immune escape values for each challenging
             strain compared to each prior immune history in the model.
         """
-        self.config.CROSSIMMUNITY_MATRIX = (
-            utils.strain_interaction_to_cross_immunity(
-                self.config.NUM_STRAINS, self.config.STRAIN_INTERACTIONS
-            )
+        return utils.strain_interaction_to_cross_immunity(
+            self.config.NUM_STRAINS, self.config.STRAIN_INTERACTIONS
         )
 
     def load_vaccination_model(self) -> None:
@@ -642,12 +642,10 @@ class AbstractParameters:
             vax_knot_locations[age_group_idx, vax_idx, :] = np.array(
                 knot_locations
             )
-        self.config.VACCINATION_MODEL_KNOTS = jnp.array(vax_knots)
-        self.config.VACCINATION_MODEL_KNOT_LOCATIONS = jnp.array(
-            vax_knot_locations
-        )
-        self.config.VACCINATION_MODEL_BASE_EQUATIONS = jnp.array(
-            vax_base_equations
+        return (
+            jnp.array(vax_knots),
+            jnp.array(vax_knot_locations),
+            jnp.array(vax_base_equations),
         )
 
     def seasonal_vaccination_reset(self, t: ArrayLike) -> ArrayLike:
@@ -699,7 +697,7 @@ class AbstractParameters:
             # if no seasonal vaccination, this function always returns zero
             return 0
 
-    def load_contact_matrix(self) -> None:
+    def load_contact_matrix(self) -> np.ndarray:
         """
         loads region specific contact matrix, usually sourced from
         https://github.com/mobs-lab/mixing-patterns
@@ -711,7 +709,7 @@ class AbstractParameters:
             where `CONTACT_MATRIX[i][j]` refers to the per capita
             interaction rate between age bin `i` and `j`
         """
-        self.config.CONTACT_MATRIX = utils.load_demographic_data(
+        return utils.load_demographic_data(
             self.config.DEMOGRAPHIC_DATA_PATH,
             self.config.REGIONS,
             self.config.NUM_AGE_GROUPS,

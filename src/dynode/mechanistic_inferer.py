@@ -46,18 +46,31 @@ class MechanisticInferer(AbstractParameters):
         self.runner = runner
         self.INITIAL_STATE = initial_state
         self.infer_complete = False
-        self.set_infer_algo()
-        self.retrieve_population_counts()
-        self.load_vaccination_model()
-        self.load_contact_matrix()
+        # set inference algo to mcmc
+        self.inference_algo = self.set_infer_algo()
+        # retrieve population age distribution via passed initial state
+        self.config.POPULATION = self.retrieve_population_counts()
+        # load all vaccination splines
+        self.config.VACCINATION_MODEL_KNOTS,
+        self.config.VACCINATION_MODEL_KNOT_LOCATIONS,
+        self.config.VACCINATION_MODEL_BASE_EQUATIONS = (
+            self.load_vaccination_model()
+        )
+        self.config.CONTACT_MATRIX = self.load_contact_matrix()
 
-    def set_infer_algo(self, inferer_type: str = "mcmc") -> None:
-        """Sets the inferer's inference algorithm and sampler.
+    def set_infer_algo(self, inferer_type: str = "mcmc") -> MCMC:
+        """returns inference algorithm with attached sampler.
 
         Parameters
         ----------
         inferer_type : str, optional
             infer algo you wish to use, by default "mcmc"
+
+        Returns
+        ----------
+        MCMC
+            returns MCMC inference algorithm as it is the only supported
+            algorithm currently
 
         Raises
         ------
@@ -75,7 +88,7 @@ class MechanisticInferer(AbstractParameters):
         if inferer_type == "mcmc":
             # default to max tree depth of 5 if not specified
             tree_depth = getattr(self.config, "MAX_TREE_DEPTH", 5)
-            self.inference_algo = MCMC(
+            return MCMC(
                 NUTS(
                     self.likelihood,
                     dense_mass=True,

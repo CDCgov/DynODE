@@ -23,10 +23,13 @@ class StaticValueParameters(AbstractParameters):
         self.config = Config(global_json).add_file(runner_json)
         self.INITIAL_STATE = INITIAL_STATE
         # load self.config.POPULATION
-        self.retrieve_population_counts()
+        self.config.POPULATION = self.retrieve_population_counts()
         # load self.config.VACCINATION_MODEL_KNOTS/
         # VACCINATION_MODEL_KNOT_LOCATIONS/VACCINATION_MODEL_BASE_EQUATIONS
-        self.load_vaccination_model()
-        # load self.config.CONTACT_MATRIX
-        self.load_contact_matrix()
-        # rest of the work is handled by the AbstractParameters
+        # load all vaccination splines
+        self.config.VACCINATION_MODEL_KNOTS,
+        self.config.VACCINATION_MODEL_KNOT_LOCATIONS,
+        self.config.VACCINATION_MODEL_BASE_EQUATIONS = (
+            self.load_vaccination_model()
+        )
+        self.config.CONTACT_MATRIX = self.load_contact_matrix()
