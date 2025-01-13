@@ -27,9 +27,9 @@ class StaticValueParameters(AbstractParameters):
         # load self.config.VACCINATION_MODEL_KNOTS/
         # VACCINATION_MODEL_KNOT_LOCATIONS/VACCINATION_MODEL_BASE_EQUATIONS
         # load all vaccination splines
-        self.config.VACCINATION_MODEL_KNOTS,
-        self.config.VACCINATION_MODEL_KNOT_LOCATIONS,
-        self.config.VACCINATION_MODEL_BASE_EQUATIONS = (
-            self.load_vaccination_model()
-        )
+        (
+            self.config.VACCINATION_MODEL_KNOTS,
+            self.config.VACCINATION_MODEL_KNOT_LOCATIONS,
+            self.config.VACCINATION_MODEL_BASE_EQUATIONS,
+        ) = self.load_vaccination_model()
         self.config.CONTACT_MATRIX = self.load_contact_matrix()

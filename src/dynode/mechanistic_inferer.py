@@ -51,11 +51,11 @@ class MechanisticInferer(AbstractParameters):
         # retrieve population age distribution via passed initial state
         self.config.POPULATION = self.retrieve_population_counts()
         # load all vaccination splines
-        self.config.VACCINATION_MODEL_KNOTS,
-        self.config.VACCINATION_MODEL_KNOT_LOCATIONS,
-        self.config.VACCINATION_MODEL_BASE_EQUATIONS = (
-            self.load_vaccination_model()
-        )
+        (
+            self.config.VACCINATION_MODEL_KNOTS,
+            self.config.VACCINATION_MODEL_KNOT_LOCATIONS,
+            self.config.VACCINATION_MODEL_BASE_EQUATIONS,
+        ) = self.load_vaccination_model()
         self.config.CONTACT_MATRIX = self.load_contact_matrix()
 
     def set_infer_algo(self, inferer_type: str = "mcmc") -> MCMC:
