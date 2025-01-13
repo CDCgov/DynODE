@@ -25,8 +25,9 @@ from .static_value_parameters import StaticValueParameters
 
 
 class AbstractDynodeRunner(ABC):
-    """An Abstract class made to standardize the process of running an experiment on Azure.
-    Children of this class may use the functions within to standardize their processies across experiments
+    """An Abstract class made to standardize the process of running
+    simulations and fitting. Children of this class may use the
+    functions within to standardize their processies across experiments
     """
 
     def __init__(self, azure_output_dir):
@@ -44,30 +45,35 @@ class AbstractDynodeRunner(ABC):
 
     @abstractmethod
     def process_state(self, state, **kwargs):
-        """Abstract function meant to be implemented by the instance of the runner.
-        This handles all of the logic of actually getting a solution object. Feel free to override
-        or use a different function
+        """Abstract function meant to be implemented by instance of the runner.
+        This handles all of the logic of actually getting a solution object.
 
-        Calls upon save_config, save_inference_posteriors/save_static_run_timelines to
+        Usually Calls upon helper functions like save_config,
+        save_inference_posteriors/save_static_run_timeseries to
         easily save its outputs for later visualization.
 
         Parameters
         ----------
         state : str
             USPS state code for an individual state or territory.
+        kwargs : any
+            any other parameters needed to identify an individual simulation.
         """
         pass
 
     def save_config(self, config_path: str, suffix: str = "_used"):
-        """saves a config json located at `config_path` appending `suffix` to the filename
-        to help distinguish it from other configs.
+        """saves a config json located at `config_path`
+        appending `suffix` to the filename to help
+        distinguish it from input configs.
 
         Parameters
         ----------
         config_path : str
-            the path, relative or absolute, to the config file wishing to be saved.
+            the path, relative or absolute,
+            to the config file wishing to be saved.
         suffix : str, optional
-            suffix to append onto filename, if "" config path remains untouched, by default "_used"
+            suffix to append onto filename,
+            if "" config filename remains untouched, by default "_used"
         """
         config_path = config_path.replace(
             "\\", "/"

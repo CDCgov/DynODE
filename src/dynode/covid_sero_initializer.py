@@ -14,11 +14,15 @@ from .config import Config
 
 
 class CovidSeroInitializer(AbstractInitializer):
-    """A Covid Specific initializer class using serology input data to stratify immunity and initial infections"""
+    """A Covid Specific initializer class using serology input
+    data to stratify immunity and initial infections"""
 
     def __init__(self, config_initializer_path, global_variables_path):
         """
-        initialize a mechanistic model for covid19 case prediction using serological data.
+        initialize a mechanistic model for covid19 case
+        prediction using serological data. Updates the `self.INITIAL_STATE`
+        jax array to contain all relevant age and immune distributions
+        of the specified population.
         """
         initializer_json = open(config_initializer_path, "r").read()
         global_json = open(global_variables_path, "r").read()
@@ -47,7 +51,8 @@ class CovidSeroInitializer(AbstractInitializer):
         ) and hasattr(self.config, "CONTACT_MATRIX_PATH"):
             self.load_init_infection_infected_and_exposed_dist_via_contact_matrix()
 
-        # load initial state using INIT_IMMUNE_HISTORY, INIT_INFECTED_DIST, and INIT_EXPOSED_DIST
+        # load initial state using
+        # INIT_IMMUNE_HISTORY, INIT_INFECTED_DIST, and INIT_EXPOSED_DIST
         self.INITIAL_STATE = self.load_initial_state(
             self.config.INITIAL_INFECTIONS
         )
@@ -57,29 +62,36 @@ class CovidSeroInitializer(AbstractInitializer):
     ) -> SEIC_Compartments:
         """
         a function which takes a number of initial infections,
-        disperses them across infectious and exposed compartments according to the INIT_INFECTED_DIST
-        and INIT_EXPOSED_DIST distributions, then subtracts both those populations from the total population and
+        disperses them across infectious and exposed compartments
+        according to `self.config.INIT_INFECTED_DIST`
+        and `self.config.INIT_EXPOSED_DIST` matricies,
+        then subtracts both those populations from the total population and
         places the remaining individuals in the susceptible compartment,
-        distributed according to the INIT_IMMUNE_HISTORY distribution.
+        distributed according to the `self.config.INIT_IMMUNE_HISTORY` matrix.
 
         Parameters
         ----------
-        initial_infections: the number of infections to disperse between infectious and exposed compartments.
+        initial_infections: the number of infections to
+        disperse between infectious and exposed compartments.
 
         Requires
         ----------
         the following variables be loaded into self:
         CONTACT_MATRIX: loading in config or via self.load_contact_matrix()
-        INIT_INFECTED_DIST: loaded in config or via load_init_infection_infected_and_exposed_dist_via_contact_matrix()
-        INIT_EXPOSED_DIST: loaded in config or via load_init_infection_infected_and_exposed_dist_via_contact_matrix()
-        INIT_IMMUNE_HISTORY: loaded in config or via load_immune_history_via_serological_data().
+        INIT_INFECTED_DIST: loaded in config or via
+        `load_init_infection_infected_and_exposed_dist_via_contact_matrix()`
+        INIT_EXPOSED_DIST: loaded in config or via
+        `load_init_infection_infected_and_exposed_dist_via_contact_matrix()`
+        INIT_IMMUNE_HISTORY: loaded in config or via
+        `load_immune_history_via_serological_data()`.
 
         Returns
         ----------
-        INITIAL_STATE: tuple(jnp.ndarray)
-            a tuple of len 4 representing the S, E, I, and C compartment population counts after model initialization.
+        INITIAL_STATE: SEIC_Compartments
+            a tuple of len 4 representing the S, E, I, and C compartment
+            population counts after model initialization.
         """
-        # create population distribution using INIT_INFECTED_DIST, then sum them for later use
+        # create population distribution with INIT_INFECTED_DIST then sum by age
         initial_infectious_count = (
             initial_infections * self.config.INIT_INFECTED_DIST
         )
@@ -91,7 +103,7 @@ class CovidSeroInitializer(AbstractInitializer):
                 self.config.I_AXIS_IDX.strain,
             ),
         )
-        # create population distribution using INIT_EXPOSED_DIST, then sum them for later use
+        # create population distribution with INIT_EXPOSED_DIST then sum by age
         initial_exposed_count = (
             initial_infections * self.config.INIT_EXPOSED_DIST
         )
@@ -103,7 +115,8 @@ class CovidSeroInitializer(AbstractInitializer):
                 self.config.I_AXIS_IDX.strain,
             ),
         )
-        # susceptible / partial susceptible = Total population - infected_count - exposed_count
+        # susceptible / partial susceptible =
+        # Total population - infected_count - exposed_count
         initial_susceptible_count = (
             self.config.POPULATION
             - initial_infectious_count_ages
@@ -121,11 +134,25 @@ class CovidSeroInitializer(AbstractInitializer):
 
     def load_immune_history_via_serological_data(self) -> None:
         """
-        loads the sero init file for self.config.REGIONS[0] and converts it to a numpy matrix
-        representing the initial immune history of the individuals in the system. Saving matrix
+        loads the sero init file for `self.config.REGIONS[0]` and
+        converts it to a numpy matrix representing the initial immune history
+        of individuals within each age bin in the system. Saving matrix
         to self.config.INIT_IMMUNE_HISTORY
 
-        assumes each age bin in INIT_IMMUNE_HISTORY sums to 1, will fail if not.
+        Updates
+        ---------
+        INIT_IMMUNE_HISTORY: np.ndarray
+            a matrix of shape (self.config.NUM_AGE_GROUPS,
+            2**self.config.NUM_STRAINS,
+            self.config.MAX_VACCINATION_COUNT + 1,
+            self.config.NUM_WANING_COMPARTMENTS)
+            describing each age bin's distribution of immune histories
+            such that `jnp.sum(INIT_IMMUNE_HISTORY, axis=0)
+            == jnp.ones((self.config.NUM_AGE_GROUPS))` and
+            `INIT_IMMUNE_HISTORY[i][j][k][l]` describes the proportion of
+            individuals in age bin `i`, who fall under
+            immune history `j`, vaccination count `k`, and waning bin `l`.
+
         """
         file_name = (
             str(self.config.REGIONS[0]).replace(" ", "_")
@@ -206,10 +233,23 @@ class CovidSeroInitializer(AbstractInitializer):
         self,
     ) -> None:
         """
-        a function which estimates the demographics of initial infections by looking at the currently susceptible population's
-        level of protection as well as the contact matrix for mixing patterns.
+        a function which estimates the demographics of initial infections
+        by looking at the currently susceptible population's proposed level of
+        protection as well as the contact matrix for mixing patterns. Tailored
+        specifically for initialization with the `omicron` strain for
+        feburary 2022.
 
-        Disperses these infections across the E and I compartments by the ratio of the waiting times in each compartment.
+        Disperses these infections across the E and I compartments by
+        the ratio of the waiting times in each compartment.
+
+        Updates
+        -------------
+        INIT_INFECTION_DIST: np.ndarray
+            matrix describing the proportion of new infections falling under
+            each stratification of the compartment. E.g
+            `INIT_INFECTION_DIST[i][j][k][l]` describes the proportion of
+            individuals in age bin `i`, who fall under
+            immune history `j`, vaccination count `k`, and waning bin `l`
         """
         # use relative wait times in each compartment to get distribution of infections across
         # infected vs exposed compartments
@@ -289,13 +329,15 @@ class CovidSeroInitializer(AbstractInitializer):
 
     def load_contact_matrix(self) -> None:
         """
-        a wrapper function that loads a contact matrix for the USA based on mixing paterns data found here:
+        loads region specific contact matrix, usually sourced from
         https://github.com/mobs-lab/mixing-patterns
 
         Updates
         ----------
         `self.config.CONTACT_MATRIX` : numpy.ndarray
-            a matrix of shape (self.config.NUM_AGE_GROUPS, self.config.NUM_AGE_GROUPS) with each value representing TODO
+            a matrix of shape (self.config.NUM_AGE_GROUPS, self.config.NUM_AGE_GROUPS)
+            where `CONTACT_MATRIX[i][j]` refers to the per capita
+            interaction rate between age bin `i` and `j`
         """
         self.config.CONTACT_MATRIX = utils.load_demographic_data(
             self.config.DEMOGRAPHIC_DATA_PATH,
@@ -308,15 +350,20 @@ class CovidSeroInitializer(AbstractInitializer):
     def load_cross_immunity_matrix(self) -> None:
         """
         Loads the Crossimmunity matrix given the strain interactions matrix.
-        Strain interactions matrix is a matrix of shape (num_strains, num_strains) representing the relative immune escape risk
-        of those who are being challenged by a strain in dim 0 but have recovered from a strain in dim 1.
-        Neither the strain interactions matrix nor the crossimmunity matrix take into account waning.
+        Strain interactions matrix is a matrix of shape
+        (self.config.NUM_STRAINS, self.config.NUM_STRAINS)
+        representing the relative immune escape risk of those who are being
+        challenged by a strain in dim 0 but have recovered
+        previously from a strain in dim 1. Neither the strain interactions matrix
+        nor the crossimmunity matrix take into account waning.
 
         Updates
         ----------
         self.config.CROSSIMMUNITY_MATRIX:
-            updates this matrix to shape (self.config.NUM_STRAINS, self.config.NUM_PREV_INF_HIST) containing the relative immune escape
-            values for each challenging strain compared to each prior immune history in the model.
+            updates this matrix to shape
+            (self.config.NUM_STRAINS, self.config.NUM_PREV_INF_HIST)
+            containing the relative immune escape values for each challenging
+            strain compared to each prior immune history in the model.
         """
         self.config.CROSSIMMUNITY_MATRIX = (
             utils.strain_interaction_to_cross_immunity(

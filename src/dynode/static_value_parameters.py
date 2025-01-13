@@ -9,7 +9,8 @@ from .config import Config
 
 
 class StaticValueParameters(AbstractParameters):
-    """A Parameters class made for use on all static parameters, with no in-built sampling mechanism"""
+    """A Parameters class made for use on all static parameters,
+    with no in-built sampling mechanism"""
 
     def __init__(
         self,

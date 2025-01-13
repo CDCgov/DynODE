@@ -14,6 +14,7 @@ from diffrax import (  # type: ignore
     ODETerm,
     PIDController,
     SaveAt,
+    Solution,
     Tsit5,
     diffeqsolve,
 )
@@ -44,19 +45,42 @@ class MechanisticRunner:
         initial_state: SEIC_Compartments,
         args: dict,
         tf: Union[int, datetime.date] = 100,
-    ):
+    ) -> Solution:
         """
-        run `self.model` using `initial_state` as y@t=0 and parameters provided by the `args` dictionary.
-        `self.model` will run for `tf` days if isinstance(tf, int)
-        or until specified datetime if isintance(tf, datetime).
+        solves ODEs for `tf` days using `initial_state` as y@t=0 and
+        parameters  provided by the `args` dictionary.
 
-        NOTE
+        uses diffrax.Tsit5() solver.
+
+
+        Parameters
+        ----------
+        initial_state : SEIC_Compartments
+            tuple of jax arrays representing the compartments modeled by
+            ODEs in their initial states at t=0.
+        args : dict[str,Any]
+            arguments to pass to ODEs containing necessary parameters to
+            solve.
+        tf : int | datetime.date, Optional
+            number of days to solve ODEs for, if date is passed, runs
+            up to that date, by default 100 days
+
+        Returns
+        -------
+        diffrax.Solution
+            Solution object, sol.ys containing compartment states for each day
+            including t=0 and t=tf. For more information on whats included
+            within diffrax.Solution see:
+            https://docs.kidger.site/diffrax/api/solution/
+
+        Note
         --------------
-        - No partial date (or time) calculations partial days are truncated down.
-        - Uses date object within `args['INIT_DATE']` to calculate time between `t=0` and `t=tf`
-        - if `args["CONSTANT_STEP_SIZE"] > 0` uses constant stepsizer of that size, else uses adaptive step sizing
-            - discontinuous timepoints can not be specified with constant step sizer
-        - implemented with `diffrax.Tsit5()` solver
+        - No partial date (or time) calculations partial days are truncated
+        - if `args["CONSTANT_STEP_SIZE"] > 0` uses constant stepsizer of
+        that size, else uses adaptive step sizing with
+        `args["SOLVER_RELATIVE_TOLERANCE"]` and
+        `args["SOLVER_ABSOLUTE_TOLERANCE"]`
+        - discontinuous timepoints can not be specified with constant step sizer
         """
         term = ODETerm(
             lambda t, state, parameters: self.model(state, t, parameters)
