@@ -87,51 +87,37 @@ def plot_model_overview_subplot_matplotlib(
         "seaborn-v0_8-colorblind",
     ],
 ) -> plt.Figure:
-    """Given a dataframe resembling the azure_visualizer_timeline csv,
-    if it exists, returns an overview figure. The figure will contain 1 column
-    per state in `timeseries_df["state"]` if the column exists. The
-    figure will contain one row per plot_type
+    """
+     Generate an overview figure containing subplots for various model metrics.
 
-    Parameters
-    ----------
-    timeseries_df : pandas.DataFrame
-        a dataframe containing at least the following columns:
-        ["date", "chain_particle", "state"] followed by columns identifying
-        different timeseries of interest to be plotted.
-        E.g. vaccination_0_17, vaccination_18_49, total_infection_incidence.
-        columns that share the same plot_type will be plotted on the same plot,
-        with their differences in the legend.
-        All chain_particle replicates are plotted as low
-        opacity lines for each plot_type
-    pop_sizes : dict[str, int]
-        population sizes of each state as a dictionary.
-        Keys must match the "state" column within timeseries_df
+     Parameters
+     ----------
+     timeseries_df : pd.DataFrame
+         DataFrame containing at least ["date", "chain_particle", "state"]
+         followed by columns for different time series to be plotted.
+
+     pop_sizes : dict[str, int]
+         Population sizes for each state as a dictionary. Keys must match
+         the values in the "state" column of `timeseries_df`.
+
     plot_types : np.ndarray[str], optional
-        each of the plot types to be plotted.
-        plot_types not found in `timeseries_df` are skipped.
-        columns are identified using the "in" operation,
-        so plot_type must be found in each of its identified columns
-        by default ["seasonality_coef", "vaccination_",
-        "_external_introductions", "_strain_proportion", "_average_immunity",
-        "total_infection_incidence", "pred_hosp_"]
+        Types of plots to be generated.
+        Elements not found in `timeseries_df` are skipped.
+
     plot_titles : np.ndarray[str], optional
-        titles for each plot_type as displayed on each subplot,
-        by default [ "Seasonality Coefficient", "Vaccination Rate By Age",
-        "External Introductions by Strain (per 100k)",
-        "Strain Proportion of New Infections",
-        "Average Population Immunity Against Strains",
-        "Total Infection Incidence (per 100k)",
-        "Predicted Hospitalizations (per 100k)"]
+        Titles for each subplot corresponding to `plot_types`.
+
     plot_normalizations : np.ndarray[int]
-        normalization factor for each plot type
+        Normalization factors for each plot type.
+
     matplotlib_style: list[str] | str
-        matplotlib style to plot in, by default ["seaborn-v0_8-colorblind"]
+        Matplotlib style to use for plotting.
 
     Returns
     -------
-    matplotlib.pyplot.Figure
-        matplotlib Figure containing subplots with a column for each state
-        and a row for each plot_type
+    plt.Figure
+        Matplotlib Figure containing subplots with one column per state
+        and one row per plot type.
     """
     necessary_cols = ["date", "chain_particle", "state"]
     assert all(
@@ -269,36 +255,28 @@ def plot_checkpoint_inference_correlation_pairs(
         "seaborn-v0_8-colorblind",
     ],
 ):
-    """Given a dictionary mapping a sampled parameter's name to its
-    posteriors samples, returns a figure plotting
-    the correlation of each sampled parameter with all other sampled parameters
-    on the upper half of the plot the correlation values, on the diagonal a
-    historgram of the posterior values, and on the bottom half a scatter
-    plot of the parameters against eachother along with a matching trend line.
-
+    """
+    Plot correlation pairs of sampled parameters with histograms and trend lines.
 
     Parameters
     ----------
-    posteriors_in: dict[str , np.ndarray | list]
-        a dictionary (usually loaded from the checkpoint.json file) containing
-        the sampled posteriors for each chain in the shape
-        (num_chains, num_samples). All parameters generated with numpyro.plate
-        and thus have a third dimension (num_chains, num_samples, num_plates)
-        are flattened to the desired shape and displayed as
-        separate parameters with _i suffix for each i in num_plates.
-    max_samples_calculated: int
-        a max cap of posterior samples per chain on which
-        calculations such as correlations and plotting will be performed
-        set for efficiency of plot generation,
-        set to -1 to disable cap, by default 100
-    matplotlib_style: list[str] | str
-        matplotlib style to plot in, by default ["seaborn-v0_8-colorblind"]
+    posteriors_in : dict[str, np.ndarray | list]
+        Dictionary mapping parameter names to their posterior samples
+        (shape: num_chains, num_samples). Parameters generated with
+        numpyro.plate are flattened and displayed as separate parameters
+        with _i suffix for each i in num_plates.
+
+    max_samples_calculated : int
+        Maximum number of posterior samples per chain for calculations
+        such as correlations and plotting. Set to -1 to disable cap; default is 100.
+
+    matplotlib_style : list[str] | str
+        Matplotlib style to use for plotting; default is ["seaborn-v0_8-colorblind"].
 
     Returns
     -------
-    matplotlib.pyplot.Figure
-        Figure with `n` rows and `n` columns where
-        `n` is the number of sampled parameters
+    plt.Figure
+        Figure with n rows and n columns where n is the number of sampled parameters.
     """
     # convert lists to np.arrays
     posteriors: dict[str, np.ndarray] = flatten_list_parameters(
@@ -410,27 +388,24 @@ def plot_mcmc_chains(
         "seaborn-v0_8-colorblind",
     ],
 ) -> plt.Figure:
-    """given a `samples` dictionary containing posterior samples
-    often returned from numpyro.get_samples(group_by_chain=True)
-    or from the checkpoint.json saved file, plots each MCMC chain
-    for each sampled parameter in a roughly square subplot.
+    """
+    Plot MCMC chains for each sampled parameter in a grid of subplots.
 
     Parameters
     ----------
-    posteriors: dict[str , np.ndarray | list]
-        a dictionary (usually loaded from the checkpoint.json file) containing
-        the sampled posteriors for each chain in the shape
-        (num_chains, num_samples). All parameters generated with numpyro.plate
-        and thus have a third dimension (num_chains, num_samples, num_plates)
-        are flattened to the desired and displayed as
+    samples_in : dict[str, np.ndarray | list]
+        Dictionary containing posterior samples (shape: num_chains, num_samples).
+        Parameters generated with numpyro.plate are flattened and displayed as
         separate parameters with _i suffix for each i in num_plates.
+
     matplotlib_style : list[str] | str, optional
-        matplotlib style to plot in by default ["seaborn-v0_8-colorblind"]
+        Matplotlib style to use for plotting;
+        default is ["seaborn-v0_8-colorblind"].
 
     Returns
     -------
-    matplotlib.pyplot.Figure
-        matplotlib figure containing the plots
+    plt.Figure
+        Matplotlib figure containing the plots.
     """
     # Determine the number of parameters and chains
     samples: dict[str, np.ndarray] = flatten_list_parameters(
@@ -485,30 +460,31 @@ def plot_prior_distributions(
     num_samples=5000,
     hist_kwargs={"bins": 50, "density": True},
 ) -> plt.Figure:
-    """Given a dictionary of parameter keys and possibly values of
-    numpyro.distribution objects, samples them a number of times
-    and returns a plot of those samples to help
-    visualize the range of values taken by that prior distribution.
+    """
+     Visualize prior distributions by sampling from them and plotting the results.
 
-    Parameters
-    ----------
+     Parameters
+     ----------
     priors : dict[str, Any]
-        a dictionary with str keys possibly containing distribution
-        objects as values. Each key with a distribution object type
-        key will be included in the plot
+        Dictionary with string keys and distribution
+        objects as values. Each key with a distribution object will be
+        included in the plot.
+
     matplotlib_style : list[str] | str, optional
-        matplotlib style to plot in by default ["seaborn-v0_8-colorblind"]
-    num_samples: int, optional
-        the number of times to sample each distribution, mild impact on
-        figure performance. By default 50000
-    hist_kwargs: dict[str: Any]
-        additional kwargs passed to plt.hist(), by default {"bins": 50}
+        Matplotlib style to use for plotting;
+        default is ["seaborn-v0_8-colorblind"].
+
+    num_samples : int, optional
+        Number of times to sample each distribution;
+        default is 5000.
+
+    hist_kwargs : dict[str: Any]
+        Additional kwargs passed to `plt.hist()`; default is {"bins": 50}.
 
     Returns
     -------
     plt.Figure
-        matplotlib figure that is roughly square containing all distribution
-        keys found within priors.
+        Matplotlib figure containing all distribution keys found within `priors`.
     """
     dist_only = {}
     d = identify_distribution_indexes(priors)
