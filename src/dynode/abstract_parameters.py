@@ -510,7 +510,7 @@ class AbstractParameters:
             axis=(0),  # sum across compartments, keep age bins
         )
 
-    def load_cross_immunity_matrix(self) -> None:
+    def load_cross_immunity_matrix(self) -> jax.Array:
         """
         Loads the Crossimmunity matrix given the strain interactions matrix.
         Strain interactions matrix is a matrix of shape
@@ -520,11 +520,10 @@ class AbstractParameters:
         previously from a strain in dim 1. Neither the strain interactions matrix
         nor the crossimmunity matrix take into account waning.
 
-        Updates
+        Returns
         ----------
-        self.config.CROSSIMMUNITY_MATRIX:
-            updates this matrix to shape
-            (self.config.NUM_STRAINS, self.config.NUM_PREV_INF_HIST)
+        jax.Array
+            matrix of shape (self.config.NUM_STRAINS, self.config.NUM_PREV_INF_HIST)
             containing the relative immune escape values for each challenging
             strain compared to each prior immune history in the model.
         """
@@ -532,7 +531,7 @@ class AbstractParameters:
             self.config.NUM_STRAINS, self.config.STRAIN_INTERACTIONS
         )
 
-    def load_vaccination_model(self) -> None:
+    def load_vaccination_model(self) -> tuple[jax.Array, jax.Array, jax.Array]:
         """
         loads parameters of a polynomial spline vaccination model
         stratified on age bin and current vaccination status. Reads spline
@@ -545,7 +544,7 @@ class AbstractParameters:
         Raises `FileNotFoundError` if directory path does not contain region
         specific file matching expected naming convention.
 
-        UPDATES
+        Returns
         -----------
         the following are 3 parallel lists, each with leading dimensions
         `(NUM_AGE_GROUPS, MAX_VAX_COUNT+1)` identifying the vaccination spline
@@ -562,7 +561,6 @@ class AbstractParameters:
             array defining the coefficients (a,b,c,d) of each
             base equation `(a + b(t) + c(t)^2 + d(t)^3)` for the spline defined
             by `VACCINATION_MODEL_KNOT_LOCATIONS[i][j]`.
-
         """
         # if the user passes a directory instead of a file path
         # check to see if the state exists in the directory and use that
