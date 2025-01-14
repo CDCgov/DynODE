@@ -1,7 +1,6 @@
-"""
-The following code is used to fit a series of prior parameter distributions via running them
-through Ordinary Differential Equations (ODEs) and comparing the likelihood of the output to some
-observed metrics.
+"""Fit a series of prior parameter distributions through Ordinary Differential Equations (ODEs).
+
+Compare the likelihood of the output to some observed metrics.
 """
 
 import datetime
@@ -26,8 +25,8 @@ from .utils import date_to_sim_day
 
 
 class MechanisticInferer(AbstractParameters):
-    """
-    A class responsible for managing the fitting process of a mechanistic runner.
+    """Manage the fitting process of epidemiological parameters on ODEs.
+
     Taking in priors, sampling from their distributions,
     managing MCMC or the sampling/fitting proceedure of choice,
     and coordinating the parsing and use of the posterier distributions.
@@ -40,6 +39,20 @@ class MechanisticInferer(AbstractParameters):
         runner: MechanisticRunner,
         initial_state: SEIC_Compartments,
     ):
+        """Initialize an inferer object with config JSONS, a set of ODEs, and an initial state.
+
+        Parameters
+        ----------
+        global_variables_path : str
+            Path to global JSON for parameters shared across all components
+            of the model.
+        distributions_path : str
+            Path to inferer specific JSON of parameters containing prior distributions.
+        runner : MechanisticRunner
+            Runner class to solve ODEs and return infection timeseries.
+        initial_state : SEIC_Compartments
+            Initial compartment state at t=0.
+        """
         distributions_json = open(distributions_path, "r").read()
         global_json = open(global_variables_path, "r").read()
         self.config = Config(global_json).add_file(distributions_json)
@@ -59,7 +72,7 @@ class MechanisticInferer(AbstractParameters):
         self.config.CONTACT_MATRIX = self.load_contact_matrix()
 
     def set_infer_algo(self, inferer_type: str = "mcmc") -> MCMC:
-        """returns inference algorithm with attached sampler.
+        """Set inference algorithm with attached sampler.
 
         Parameters
         ----------
@@ -104,14 +117,14 @@ class MechanisticInferer(AbstractParameters):
     def _get_predictions(
         self, parameters: dict, solution: Solution
     ) -> jax.Array:
-        """generates post-hoc predictions from solved timeseries in `Solution`
-        and parameters used to generate them within `parameters`.
-        This will often be hospitalizations but could be more than just that.
+        """Generate post-hoc predictions from solved timeseries in `Solution`.
+
+        Optionally use parameters if sampling variables used for generating predictions.
 
         Parameters
         ----------
         parameters : dict
-            parameters object returned by `self.get_parameters()` if needed
+            Parameters object returned by `self.get_parameters()` if needed
             to produce predictions for likelihood.
         solution : Solution
             Solution object returned by `self._solve_runner()` or any
@@ -145,10 +158,7 @@ class MechanisticInferer(AbstractParameters):
     def run_simulation(
         self, tf: int
     ) -> dict[str, Solution | jax.Array | dict]:
-        """solves ODEs for a `diffrax.Solution` object,
-        generates post-hoc predictions from `Solution` object
-        output, returns both along with the parameters used by the odes
-        as a dictionary.
+        """Solves ODEs and package result together with post-hoc predictions.
 
         Parameters
         ----------
@@ -180,7 +190,8 @@ class MechanisticInferer(AbstractParameters):
         tf: int,
         obs_metrics: jax.Array,
     ):
-        """
+        """Sample likelihood of observed metrics given suite of parameter values.
+
         Given some observed metrics, samples the likelihood of them occuring
         under a set of parameter distributions sampled by self.inference_algo.
         Currently expects hospitalization data and samples IHR.
@@ -195,7 +206,6 @@ class MechanisticInferer(AbstractParameters):
         Returns
         -------
         None
-
         """
         dct = self.run_simulation(tf)
         solution = dct["solution"]
@@ -211,10 +221,7 @@ class MechanisticInferer(AbstractParameters):
         )
 
     def infer(self, obs_metrics: jax.Array) -> MCMC:
-        """
-        Infer parameters given priors inside of self.config, returns an
-        inference_algo object with posterior distributions
-        for each sampled parameter.
+        """Infer parameters given priors inside of self.config.
 
         Parameters
         -----------
@@ -225,9 +232,8 @@ class MechanisticInferer(AbstractParameters):
         Returns
         -----------
         MCMC
-            an inference object, currently `numpyro.infer.MCMC`,
-            used to infer parameters. This can be used to print summaries,
-            pass along covariance matrices, or query posterier distributions
+            The inference object, currently `numpyro.infer.MCMC`,
+            used to infer parameters and produce posterior samples.
         """
         self.inference_algo.run(
             rng_key=PRNGKey(self.config.INFERENCE_PRNGKEY),
@@ -240,17 +246,16 @@ class MechanisticInferer(AbstractParameters):
         return self.inference_algo
 
     def _debug_likelihood(self, **kwargs) -> bx.Model:
-        """EXPERIMENTAL function uses Bayeux to recreate the
-        `self.likelihood` function for purposes of basic sanity checking
+        """EXPERIMENTAL function recreates `self.likelihood` for basic sanity checking.
 
-        passes all parameters given to it to `self.likelihood`,
+        Passes all parameters given to it to `self.likelihood`,
         initializes with `self.INITIAL_STATE`
         and passes `self.config.INFERENCE_PRNGKEY` as seed for randomness.
 
         Returns
         -------
         Bayeux.Model
-            model object used to debug
+            Model object used to debug.
         """
         bx_model = bx.Model.from_numpyro(
             jax.tree_util.Partial(self.likelihood, **kwargs),
@@ -263,14 +268,14 @@ class MechanisticInferer(AbstractParameters):
         return bx_model
 
     def _checkpoint_compartment_sizes(self, solution: Solution):
-        """marks the final_timesteps parameters as well as any
-        requested dates from `self.config.COMPARTMENT_SAVE_DATES` if the
+        """Take note of compartment sizes at end of `solution` and on key dates.
+
+        Saves requested dates from `self.config.COMPARTMENT_SAVE_DATES` if the
         parameter exists. Skipping over any invalid dates.
 
         This method does not actually save the compartment sizes to a file,
         instead it stores the values within `self.inference_algo.get_samples()`
         so that they may be later saved by self.checkpoint() or by the user.
-
 
         Parameters
         ----------
@@ -300,9 +305,9 @@ class MechanisticInferer(AbstractParameters):
     def checkpoint(
         self, checkpoint_path: str, group_by_chain: bool = True
     ) -> None:
-        """
-        a function which saves the posterior samples from
-        `self.inference_algo` into `checkpoint_path` as a json file.
+        """Save the posterior samples from `self.inference_algo`.
+
+        Saves samples into `checkpoint_path` as a json file.
         will save anything sampled or numpyro.deterministic as
         long as it is within the numpyro trace.
 
@@ -358,12 +363,9 @@ class MechanisticInferer(AbstractParameters):
         tuple[int, int],
         dict[str, Union[Solution, jax.Array, dict[str, jax.Array]]],
     ]:
-        """
-        simulates a list (or singular) of particles defined by a
-        (chain, particle) indexing tuple. Using posterior samples
-        from self.inference_algo.get_samples() or optionally
-        `external_particle` to run `self.run_simulation` with
-        static posterior values.
+        """Simulate posterior particles without full inference flow.
+
+        Particles are identified by a (chain, particle) indexing tuple.
 
         if `external_particle` is specified uses that dict instead of
         self.inference_algo.get_samples() to load numpyro sites.
@@ -390,8 +392,9 @@ class MechanisticInferer(AbstractParameters):
         Returns
         ---------------
         `dict[tuple(int, int)]` a dictionary containing
-        the returned value of `self.likelihood` evaluated with values from (chain_num, particle_num).
-        Posterior values used append to the dictionary under the "posteriors" key.
+        the returned value of `self.run_simulation()` evaluated with values
+        from (chain_num, particle_num).
+        Posterior values used appended to the dictionary under the "posteriors" key.
 
         Example
         --------------
@@ -399,15 +402,14 @@ class MechanisticInferer(AbstractParameters):
         `load_posterior_particle([(0, 100), [1, 120],...]) = {(0, 100): {solution: diffrax.Solution, "posteriors": {...}},
                                                      (1, 120): {solution: diffrax.Solution, "posteriors": {...}} ...}`
 
-        Note
+        Notes
         ------------
-        Very important note if you choose to use `external_particle`.
         In the scenario this instance of `MechanisticInferer.run_simulation()`
-        samples parameters NOT named in `external_particle`
-        they will be RESAMPLED according to the distribution
-        passed in the config. This method will also salt the RNG key
-        used on the prior according to the chain & particle numbers being run.
+        samples parameters not named in `external_particle`
+        they will be resampled according to the prior specified in self.config.
 
+        Some RNG salt is applied to each (chain, particle) pair so samples
+        missing from `external_particle` are sampled different for each particle.
 
         This may be useful to you if you wish to fit upon some data, then
         vary a new parameter over the posteriors (often during projection).
@@ -471,9 +473,9 @@ class MechanisticInferer(AbstractParameters):
         tf: int,
         chain_paricle_seed: int,
     ) -> dict:
-        """
-        used by `load_posterior_particle` to actually execute a
-        single posterior particle on `self.run_simulation()`
+        """Execute `self.run_simulation()` on a single posterior particle.
+
+        Used by `load_posterior_particle`.
         Dont touch unless you know what you are doing.
 
         Parameters
