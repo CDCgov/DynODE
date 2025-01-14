@@ -1,6 +1,4 @@
-"""
-The following is a class which runs a series of ODE equations, and returns Solution objects for analysis or fitting.
-"""
+"""Run a series of ODE equations, and return Solution object."""
 
 import datetime
 from collections.abc import Callable
@@ -28,8 +26,7 @@ jax.config.update("jax_enable_x64", True)
 
 
 class MechanisticRunner:
-    """A class responsible for solving Ordinary Differential Equations (ODEs)
-    given some initial state, parameters, and the equations themselves"""
+    """Solves ODEs using Diffrax and produces Solution objects."""
 
     def __init__(
         self,
@@ -38,6 +35,14 @@ class MechanisticRunner:
             SEIC_Compartments,
         ],
     ):
+        """Initialize MechanisticRunner for solving Ordinary Differential Equations.
+
+        Parameters
+        ----------
+        model : Callable[[jax.typing.ArrayLike, PyTree, dict], SEIC_Compartments]
+            Set of ODEs, taking time, initial state, and dictionary of
+            parameters.
+        """
         self.model = model
 
     def run(
@@ -46,11 +51,9 @@ class MechanisticRunner:
         args: dict,
         tf: Union[int, datetime.date] = 100,
     ) -> Solution:
-        """
-        solves ODEs for `tf` days using `initial_state` as y@t=0 and
-        parameters  provided by the `args` dictionary.
+        """Solve ODEs for `tf` days using `initial_state` and `args` parameters.
 
-        uses diffrax.Tsit5() solver.
+        Uses diffrax.Tsit5() solver.
 
 
         Parameters
