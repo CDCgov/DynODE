@@ -64,7 +64,7 @@ class Config:
     def _asdict(self):
         return self.__dict__
 
-    def convert_types(self, config: dict[str, Any]) -> dict[str, Any]:
+    def convert_types(self, config: dict[str, str | Any]) -> dict[str, Any]:
         """Convert parameters to correct types.
 
         Takes a dictionary of config parameters, consults the PARAMETERS
@@ -86,7 +86,9 @@ class Config:
         ConfigParserError
             if type casting of any parameter within `Config` fails.
         """
-        for parameter in PARAMETERS:
+        for p in PARAMETERS:
+            assert isinstance(p, dict), "mypy assert on %s" % p
+            parameter = p
             key = parameter["name"]
             # if this validator needs to be cast
             if "type" in parameter.keys():
@@ -174,7 +176,7 @@ class Config:
                     raise ConfigValidationError(err_text)
 
 
-def make_list_if_not(obj: Any) -> list[Any]:
+def make_list_if_not(obj: Any) -> list[Any] | np.ndarray:
     """Turn an object to a list if it is not already.
 
     Parameters
