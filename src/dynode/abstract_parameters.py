@@ -1,9 +1,8 @@
-"""
-A module containing an abstract class used to set up parameters for
-running in Ordinary Differential Equations (ODEs).
+"""A module to set up parameters for running in Ordinary Differential Equations (ODEs).
 
-Responsible for loading and assembling functions to describe vaccination uptake, seasonality,
-external transmission of new or existing viruses and other generic respiratory virus aspects.
+Responsible for loading and assembling functions to describe vaccination uptake,
+seasonality, external transmission of new or existing viruses and other generic
+respiratory virus aspects.
 """
 
 import copy
@@ -25,10 +24,10 @@ from .mechanistic_runner import MechanisticRunner
 
 
 class AbstractParameters:
-    """A class to define a disease-agnostic parameters object for running
-    disease models. Manages parameter passing, sampling and creation,
-    as well as definition of seasonality, vaccination,
-    external introductions, and external beta shifting functions
+    """A class to define a disease-agnostic parameters object for running disease models.
+
+    Manages parameter passing, sampling and creation, as well as definition of
+    seasonality, vaccination, external introductions, and external beta shifting functions.
     """
 
     UPSTREAM_PARAMETERS = [
@@ -63,6 +62,7 @@ class AbstractParameters:
 
     @abstractmethod
     def __init__(self) -> None:
+        """Initialize a parameters object for passing data to ODEs."""
         # add these for mypy type checker
         self.config = Config("{}")
         initial_state = tuple(
@@ -206,9 +206,7 @@ class AbstractParameters:
         return parameters
 
     def get_parameters(self) -> dict:
-        """
-        Retrieve parameters by sampling upstream distributions and
-        generating downstream parameters.
+        """Sample upstream distributions and generating downstream parameters.
 
         Returns
         -------
@@ -230,9 +228,7 @@ class AbstractParameters:
         introduction_scales: jax.Array,
         introduction_pcts: jax.Array,
     ) -> jax.Array:
-        """
-        Calculate the number of external infected individuals interacting
-        with the population at time t.
+        """Calculate the number of external infected individuals interacting with the population at time t.
 
         Parameters
         ----------
@@ -263,14 +259,9 @@ class AbstractParameters:
             Use `self.config.INTRODUCTION_AGE_MASK` to select which age bins are affected by external populations.
             External populations are not tracked but still interact with the contact matrix, influencing spread dynamics.
         """
-
-        # define a function that returns 0 for non-introduced strains
-        def zero_function(_):
-            return 0
-
         external_i_distributions = [
-            zero_function for _ in range(self.config.NUM_STRAINS)
-        ]
+            lambda _: 0 for _ in range(self.config.NUM_STRAINS)
+        ]  # start with zeros functions
         introduction_percentage_by_strain = [0] * self.config.NUM_STRAINS
         for introduced_strain_idx, (
             introduced_time,
@@ -288,7 +279,7 @@ class AbstractParameters:
             # use a normal PDF with std dv
             external_i_distributions[dist_idx] = partial(
                 pdf, loc=introduced_time, scale=introduction_scale
-            )
+            )  # type: ignore
             introduction_percentage_by_strain[dist_idx] = introduction_perc
         # with our external_i_distributions set up, now we can execute them on `t`
         # set up our return value
@@ -417,9 +408,10 @@ class AbstractParameters:
         seasonality_second_wave: ArrayLike,
         seasonality_shift: ArrayLike,
     ) -> ArrayLike:
-        """
-        Returns the seasonlity coefficient as determined by two cosine waves
-        multiplied by `seasonality_peak` and `seasonality_second_wave` and shifted by `seasonality_shift` days.
+        """Calculate seasonlity coefficient for time `t`.
+
+        As determined by two cosine waves multiplied by `seasonality_peak` and
+        `seasonality_second_wave` and shifted by `seasonality_shift` days.
 
         Parameters
         -----------
@@ -483,8 +475,9 @@ class AbstractParameters:
         )
 
     def retrieve_population_counts(self) -> np.ndarray:
-        """Calculates the age stratified population counts across all tracked
-        self.INITIAL_STATE compartments, excluding the book-keeping C compartment.
+        """Calculate the age stratified population counts across all tracked compartments.
+
+        Excludes the book-keeping C compartment.
 
         Returns
         -------
@@ -511,14 +504,7 @@ class AbstractParameters:
         )
 
     def load_cross_immunity_matrix(self) -> jax.Array:
-        """
-        Loads the Crossimmunity matrix given the strain interactions matrix.
-        Strain interactions matrix is a matrix of shape
-        (self.config.NUM_STRAINS, self.config.NUM_STRAINS)
-        representing the relative immune escape risk of those who are being
-        challenged by a strain in dim 0 but have recovered
-        previously from a strain in dim 1. Neither the strain interactions matrix
-        nor the crossimmunity matrix take into account waning.
+        """Load the Crossimmunity matrix given the strain interactions matrix.
 
         Returns
         ----------
@@ -526,23 +512,22 @@ class AbstractParameters:
             matrix of shape (self.config.NUM_STRAINS, self.config.NUM_PREV_INF_HIST)
             containing the relative immune escape values for each challenging
             strain compared to each prior immune history in the model.
+
+        Notes
+        ----------
+        Strain interactions matrix is a matrix of shape
+        (self.config.NUM_STRAINS, self.config.NUM_STRAINS)
+        representing the relative immune escape risk of those who are being
+        challenged by a strain in dim 0 but have recovered
+        previously from a strain in dim 1. Neither the strain interactions matrix
+        nor the crossimmunity matrix take into account waning.
         """
         return utils.strain_interaction_to_cross_immunity(
             self.config.NUM_STRAINS, self.config.STRAIN_INTERACTIONS
         )
 
     def load_vaccination_model(self) -> tuple[jax.Array, jax.Array, jax.Array]:
-        """
-        loads parameters of a polynomial spline vaccination model
-        stratified on age bin and current vaccination status. Reads spline
-        information from `self.config.VACCINATION_MODEL_DATA`, if path given
-        is a directory, attempts a region-specific lookup with
-        `self.config.REGIONS[0]`, using format
-        `self.config.VACCINATION_MODEL_DATA/spline_fits_{region_name}`
-
-        Raises `FileNotFoundError` if path is not a csv file or directory.
-        Raises `FileNotFoundError` if directory path does not contain region
-        specific file matching expected naming convention.
+        """Load parameters of a polynomial spline vaccination model.
 
         Returns
         -----------
@@ -561,6 +546,19 @@ class AbstractParameters:
             array defining the coefficients (a,b,c,d) of each
             base equation `(a + b(t) + c(t)^2 + d(t)^3)` for the spline defined
             by `VACCINATION_MODEL_KNOT_LOCATIONS[i][j]`.
+
+        Raises
+        ----------
+        FileNotFoundError
+            if path is not a csv file or directory. Or if directory path does not contain region
+            specific file matching expected naming convention.
+
+        Notes
+        ----------
+        Reads spline information from `self.config.VACCINATION_MODEL_DATA`,
+        if path given is a directory, attempts a region-specific lookup with
+        `self.config.REGIONS[0]`, using format
+        `self.config.VACCINATION_MODEL_DATA/spline_fits_{region_name}`
         """
         # if the user passes a directory instead of a file path
         # check to see if the state exists in the directory and use that
@@ -647,8 +645,9 @@ class AbstractParameters:
         )
 
     def seasonal_vaccination_reset(self, t: ArrayLike) -> ArrayLike:
-        """
-        if model implements seasonal vaccination, returns evaluation of a
+        """Calculate seasonal vaccination outflow coefficient.
+
+        If model implements seasonal vaccination, returns evaluation of a
         continuously differentiable function at time `t` to outflow individuals
         from the top most vaccination bin (functionally the seasonal tier)
         into the second highest bin.
@@ -660,14 +659,13 @@ class AbstractParameters:
 
         Example
         ----------
-        if self.config.SEASONAL_VACCINATION == True
-
-        at `t=utils.date_to_sim_day(self.config.VACCINATION_SEASON_CHANGE)` returns 1
-        else returns near 0 for t far from self.config.VACCINATION_SEASON_CHANGE.
-
-        This value of 1 is used by model ODES to outflow individuals
-        from the top vaccination bin into the one below it,
-        indicating a new vaccination season.
+        >>> assert self.config.SEASONAL_VACCINATION
+        >>> self.config.VACCINATION_SEASON_CHANGE
+        50
+        >>> np.isclose(self.seasonal_vaccination_reset(50), 1.0)
+        True
+        >>> np.isclose(self.seasonal_vaccination_reset(49, 51), [1.0, 1.0])
+        [False, False]
         """
         if (
             hasattr(self.config, "SEASONAL_VACCINATION")
@@ -696,13 +694,13 @@ class AbstractParameters:
             return 0
 
     def load_contact_matrix(self) -> np.ndarray:
-        """
-        loads region specific contact matrix, usually sourced from
-        https://github.com/mobs-lab/mixing-patterns
+        """load region specific contact matrix.
 
-        Updates
+        Usually sourced from https://github.com/mobs-lab/mixing-patterns.
+
+        Returns
         ----------
-        `self.config.CONTACT_MATRIX` : numpy.ndarray
+        numpy.ndarray
             a matrix of shape (self.config.NUM_AGE_GROUPS, self.config.NUM_AGE_GROUPS)
             where `CONTACT_MATRIX[i][j]` refers to the per capita
             interaction rate between age bin `i` and `j`

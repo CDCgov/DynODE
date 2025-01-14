@@ -1,5 +1,5 @@
-"""
-A module that creates an abstract class for an initializer object.
+"""A module that creates an abstract class for an initializer object.
+
 An initializer objects primary purpose is initialize the state on which ODEs will be run.
 AbstractInitializers will often be tasked with reading, parsing, and combining data sources
 to produce an initial state representing some analyzed population
@@ -14,14 +14,21 @@ from . import SEIC_Compartments, utils
 
 
 class AbstractInitializer(ABC):
-    """
-    An Abstract class meant for use by disease-specific initializers.
-    an initializers sole responsibility is to return an INITIAL_STATE
+    """An Abstract class meant for use by disease-specific initializers.
+
+    An initializers sole responsibility is to return an INITIAL_STATE
     parameter via self.get_initial_state().
     """
 
     @abstractmethod
     def __init__(self, initializer_config) -> None:
+        """Load parameters from `initializer_config` and generate self.INITIAL_STATE.
+
+        Parameters
+        ----------
+        initializer_config : str
+            str path to config json holding necessary initializer parameters.
+        """
         # add these for mypy
         self.INITIAL_STATE: SEIC_Compartments | None = None
         self.config: Any = {}
@@ -30,22 +37,24 @@ class AbstractInitializer(ABC):
     def get_initial_state(
         self,
     ) -> SEIC_Compartments:
-        """
-        Returns the initial state of the model as
-        defined by the child class in __init__
+        """Get the initial state of the model as defined by the child class in __init__.
+
+        Returns
+        -------
+        SEIC_Compartments
+            tuple of matricies representing initial state of each compartment
+            in the model.
         """
         assert self.INITIAL_STATE is not None
         return self.INITIAL_STATE
 
     def load_initial_population_fractions(self) -> ndarray:
-        """
-        Loads age demographics for the specified region and
-        returns the inital population fraction by age bin.
+        """Load age demographics for the specified region.
 
         Returns
         ----------
         numpy.ndarray
-            Proportion of the total population that falls into each age group,
+            Proportion of the total population that falls into each age group.
             `len(self.load_initial_population_fractions()) == self.config.NUM_AGE_GROUPS`
             `np.sum(self.load_initial_population_fractions()) == 1.0
         """
