@@ -1,4 +1,4 @@
-"""A series of utility functions for generating visualizations for the model"""
+"""A series of utility functions for generating visualizations for the model."""
 
 from typing import Any
 
@@ -19,6 +19,8 @@ from .utils import (
 
 
 class VisualizationError(Exception):
+    """An exception class for Visualization Errors."""
+
     pass
 
 
@@ -87,18 +89,17 @@ def plot_model_overview_subplot_matplotlib(
         "seaborn-v0_8-colorblind",
     ],
 ) -> plt.Figure:
-    """
-     Generate an overview figure containing subplots for various model metrics.
+    """Generate an overview figure containing subplots for various model metrics.
 
-     Parameters
-     ----------
-     timeseries_df : pd.DataFrame
-         DataFrame containing at least ["date", "chain_particle", "state"]
-         followed by columns for different time series to be plotted.
+    Parameters
+    ----------
+    timeseries_df : pd.DataFrame
+        DataFrame containing at least ["date", "chain_particle", "state"]
+        followed by columns for different time series to be plotted.
 
-     pop_sizes : dict[str, int]
-         Population sizes for each state as a dictionary. Keys must match
-         the values in the "state" column of `timeseries_df`.
+    pop_sizes : dict[str, int]
+        Population sizes for each state as a dictionary. Keys must match
+        the values in the "state" column of `timeseries_df`.
 
     plot_types : np.ndarray[str], optional
         Types of plots to be generated.
@@ -255,8 +256,7 @@ def plot_checkpoint_inference_correlation_pairs(
         "seaborn-v0_8-colorblind",
     ],
 ):
-    """
-    Plot correlation pairs of sampled parameters with histograms and trend lines.
+    """Plot correlation pairs of sampled parameters with histograms and trend lines.
 
     Parameters
     ----------
@@ -388,8 +388,7 @@ def plot_mcmc_chains(
         "seaborn-v0_8-colorblind",
     ],
 ) -> plt.Figure:
-    """
-    Plot MCMC chains for each sampled parameter in a grid of subplots.
+    """Plot MCMC chains for each sampled parameter in a grid of subplots.
 
     Parameters
     ----------
@@ -460,11 +459,10 @@ def plot_prior_distributions(
     num_samples=5000,
     hist_kwargs={"bins": 50, "density": True},
 ) -> plt.Figure:
-    """
-     Visualize prior distributions by sampling from them and plotting the results.
+    """Visualize prior distributions by sampling from them and plotting the results.
 
-     Parameters
-     ----------
+    Parameters
+    ----------
     priors : dict[str, Any]
         Dictionary with string keys and distribution
         objects as values. Each key with a distribution object will be
