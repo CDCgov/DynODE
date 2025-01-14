@@ -1,4 +1,4 @@
-"""A utils file full of different utility functions used within various components of Initialization, inference, running, and interpretation"""
+"""utility functions used within various components of initialization, inference, and interpretation."""
 
 import datetime
 import glob
@@ -27,19 +27,14 @@ pd.options.mode.chained_assignment = None
 # SAMPLING FUNCTIONS
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 def sample_if_distribution(parameters):
-    """
-    Given a dictionary, searches through all key-value pairs and samples
-    any `numpyro.distribution` objects found, replacing the distribution object
-    with a sample from that distribution.
+    """Search through a dictionary and sample any `numpyro.distribution` objects found.
 
-    Converts all lists to `jnp.ndarray`.
+    Replaces the distribution object within `parameters` with a sample from
+    that distribution and converts all lists to `jnp.ndarray`.
 
     Numpyro sample site names will match the key of the `parameters` dict unless
     the distribution is part of a list. Lists containing distributions will have
     site name suffixes according to their index in the matrix.
-
-    For example, for some 2x2 matrix `x`, a sample site name `x_1_1` refers to a
-    sample from a distribution in `x[1][1]`.
 
     Parameters
     ----------
@@ -109,10 +104,9 @@ def sample_if_distribution(parameters):
 def identify_distribution_indexes(
     parameters: dict[str, Any],
 ) -> dict[str, dict[str, str | tuple | None]]:
-    """
-    The inverse of `sample_if_distribution()` which allows users to
-    identify the locations of numpyro samples.
-    Given a dictionary of parameters, identifies which parameters
+    """Identify the locations and site names of numpyro samples.
+
+    The inverse of `sample_if_distribution()`, identifies which parameters
     are numpyro distributions and returns a mapping between the sample site
     names and its actual parameter name and index.
 
@@ -192,9 +186,9 @@ def identify_distribution_indexes(
 # Vaccination modeling, using cubic splines to model vax uptake
 # in the population stratified by age and current vax shot.
 def base_equation(t, coefficients):
-    """
-    Compute the base of a spline equation without knots,
-    following a simple cubic formula: a + bt + ct^2 + dt^3.
+    """Compute the base of a spline equation without knots.
+
+    Follows a simple cubic formula: a + bt + ct^2 + dt^3.
     This is a vectorized version that takes in a matrix of
     coefficients for each age x vaccination combination.
 
@@ -222,9 +216,10 @@ def base_equation(t, coefficients):
 
 
 def conditional_knots(t, knots, coefficients):
-    """
-    Evaluate knots of a spline with an indicator variable and
-    the coefficient associated with that knot.
+    """Evaluate knots of a spline.
+
+    Evaluates combination of an indicator variable and the
+    coefficient associated with that knot.
 
     Executes the following equation:
     sum_{i}^{len(knots)}(coefficients[i] * (t - knots[i])^3 * I(t > knots[i]))
@@ -259,11 +254,9 @@ def evaluate_cubic_spline(
     base_equations: jnp.ndarray,
     knot_coefficients: jnp.ndarray,
 ) -> float:
-    """
-    Evaluate a cubic spline with knots and coefficients on day `t`
-    for each age_bin x vaccination history combination.
+    """Evaluate a cubic spline with knots and coefficients on day `t`.
 
-    Cubic spline equation:
+    Cubic spline equation age_bin x vaccination history combination:
     ```
     f(t) = a + bt + ct^2 + dt^3 +
         sum_{i}^{len(knot_locations)}(knot_coefficients[i]
@@ -296,8 +289,9 @@ def evaluate_cubic_spline(
 
 
 def season_1peak(t, seasonality_second_wave, seasonality_shift):
-    """
-    a utils function used to calculate seasonality,
+    """Deprecate.
+
+    A utils function used to calculate seasonality,
     this one is for the winter wave occuring at t=0 if `seasonality_shift=0`
     and `seasonality_second_wave=0`
     """
@@ -307,8 +301,9 @@ def season_1peak(t, seasonality_second_wave, seasonality_shift):
 
 
 def season_2peak(t, seasonality_second_wave, seasonality_shift):
-    """
-    a utils function used to calculate seasonality,
+    """Deprecate.
+
+    A utils function used to calculate seasonality,
     this one is for the summer wave occuring at t=182.5 if `seasonality_shift=0`
     and `seasonality_second_wave=1`
     """
@@ -323,9 +318,10 @@ def season_2peak(t, seasonality_second_wave, seasonality_shift):
 
 
 def sim_day_to_date(sim_day: int, init_date: datetime.date):
-    """
+    """Compute date object for given `sim_day` and `init_date`.
+
     Given current model's simulation day as integer and
-    initialization date, returns date object representing current simulation day .
+    initialization date, returns date object representing current simulation day.
 
     Parameters
     ----------
@@ -335,20 +331,16 @@ def sim_day_to_date(sim_day: int, init_date: datetime.date):
     init_date : datetime.date
         Initialization date usually found in config.INIT_DATE parameter.
 
-
     Returns
     ---------
     datetime.date object representing current `sim_day`
 
-
     Examples :
     ---------
     >>> import datetime
-
-    >>> init_date=datetime.date(2022, 10, 15)
-
-    >>> sim_day_to_date(10 ,init_date )
-    datetime.date(2022 ,10 ,25 )
+    >>> init_date = datetime.date(2022, 10, 15)
+    >>> sim_day_to_date(10, init_date )
+    datetime.date(2022, 10, 25 )
     """
     return init_date + datetime.timedelta(days=sim_day)
 
@@ -356,9 +348,7 @@ def sim_day_to_date(sim_day: int, init_date: datetime.date):
 def sim_day_to_epiweek(
     sim_day: int, init_date: datetime.date
 ) -> epiweeks.Week:
-    """
-    Given current model's simulation day as integer &
-    initialization date, returns integer CDC epiweek that sim_day falls in.
+    """Calculate CDC epiweek that sim_day falls in.
 
     Parameters
     ----------
@@ -378,11 +368,9 @@ def sim_day_to_epiweek(
     Examples
     ---------
     >>> import datetime
-
-    >>> init_date=datetime.date(2022 ,10 ,15 )
-
-    >>> sim_day_to_epiweek(10 ,init_date )
-    epiweeks .Week(year =2022 week =42 )
+    >>> init_date=datetime.date(2022, 10, 15)
+    >>> sim_day_to_epiweek(10, init_date )
+    epiweeks.Week(year=2022, week=42)
     """
     date = sim_day_to_date(sim_day, init_date)
     epi_week = epiweeks.Week.fromdate(date)
@@ -390,8 +378,7 @@ def sim_day_to_epiweek(
 
 
 def date_to_sim_day(date: datetime.date, init_date: datetime.date):
-    """
-    Given date object converts back to simulation days using init_date as reference point.
+    """Convert date object to simulation days using init_date as reference point.
 
     Parameters
     ----------
@@ -401,20 +388,16 @@ def date_to_sim_day(date: datetime.date, init_date: datetime.date):
     init_date : datetime.date
         Initialization date usually found in config.INIT_DATE parameter.
 
-
     Returns
     ---------
     int
     how many days have passed since `init _date`
 
-
     Examples
-
     ---------
-
     >>> import datetime
-    >>> init_date=datetime.date(2022,10,15)
-    >>> date=datetime.date(2022,11,05)
+    >>> init_date=datetime.date(2022, 10, 15)
+    >>> date=datetime.date(2022, 11, 05)
     >>> date_to_sim_day(date, init_date)
     21
     """
@@ -422,8 +405,7 @@ def date_to_sim_day(date: datetime.date, init_date: datetime.date):
 
 
 def date_to_epi_week(date: datetime.date):
-    """
-    Given a date object, converts it to CDC epi week.
+    """Convert a date object to CDC epi week.
 
     Parameters
     ----------
@@ -440,8 +422,9 @@ def date_to_epi_week(date: datetime.date):
 
 
 def new_immune_state(current_state: int, exposed_strain: int) -> int:
-    """Determine a new immune state position using BITWISE OR
-    given the current state and the exposing strain.
+    """Determine a new immune state after applying an exposing strain to an immune state.
+
+    Uses bitwise OR given the current state and the exposing strain.
 
     Parameters
     ----------
@@ -456,8 +439,8 @@ def new_immune_state(current_state: int, exposed_strain: int) -> int:
     Returns
     -----------
     int
-        individual or population's new immune state after exposure and recovery
-        from `exposed_strain`
+        Individual or population's new immune state after exposure and recovery
+        from `exposed_strain`.
 
     Example
     ----------
@@ -506,8 +489,7 @@ def new_immune_state(current_state: int, exposed_strain: int) -> int:
 
 
 def all_immune_states_with(strain: int, num_strains: int):
-    """
-    Return all immune states which contain an exposure to `strain`.
+    """Determine all immune states which contain an exposure to `strain`.
 
     Parameters
     ----------
@@ -551,9 +533,7 @@ def all_immune_states_with(strain: int, num_strains: int):
 
 
 def all_immune_states_without(strain: int, num_strains: int):
-    """
-    Return all immune states which DO NOT contain an
-    exposure to `strain`.
+    """Determine all immune states which do not contain an exposure to `strain`.
 
     Parameters
     ----------
@@ -566,7 +546,7 @@ def all_immune_states_without(strain: int, num_strains: int):
     Returns
     ----------
     list[int] representing all immune states that
-    DO NOT include previous exposure to `strain`
+    do not include previous exposure to `strain`
 
     Example
     ----------
@@ -588,10 +568,9 @@ def all_immune_states_without(strain: int, num_strains: int):
 
 
 def get_strains_exposed_to(state: int, num_strains: int):
-    """
-    Returns the strains a given immune system was exposed
-    to end up in state `state`. Says nothing of the order
-    at which an individual was exposed to those strains.
+    """Unpack all strain exposures an immune state was exposed to.
+
+    Says nothing of the order at which an individual was exposed to strains.
 
     Parameters
     -----------
@@ -624,9 +603,7 @@ def get_strains_exposed_to(state: int, num_strains: int):
 def combined_strains_mapping(
     from_strain: int, to_strain: int, num_strains: int
 ):
-    """
-    given a strain `from_strain` and `to_strain` returns a mapping of all
-    immune states before and after strains are combined.
+    """Merge two strain definitions together.
 
     Parameters
     ----------
@@ -706,11 +683,10 @@ def combine_strains(
     strain_dim=3,
     strain_axis=False,
 ):
-    """
-    Takes an individual compartment and combines the states
-    and strains within it according to `state_mapping` and
-    `strain_mapping`. Combines the state dimensions and
-    optionally the strain dimension if `strain_axis=True`.
+    """Merge two or more strain definitions together within a compartment.
+
+    Combines the state dimensions and optionally the strain dimension if
+    `strain_axis=True`.
 
     Parameters
     ----------
@@ -783,9 +759,9 @@ def combine_strains(
 def combine_epochs(
     epoch_solutions, from_strains, to_strains, strain_idxs, num_tracked_strains
 ):
-    """
-    DEPRECATED due to bad design and complexity
-    given N epochs, combines their solutions by translating all immune states
+    """Deprecate due to bad design and complexity.
+
+    Given N epochs, combines their solutions by translating all immune states
     and infections of past epochs into the most recent epochs defintions.
     Solutions are expected to be 5 dimensions, with the first dimension being
     timesteps, and the remaining 4 following the standard compartment structure.
@@ -830,7 +806,6 @@ def combine_epochs(
     all N epochs with states and strain definitions matching that
     of the most recent epoch.
     """
-
     transition_tables = []
     # create transition tables for each epoch to the next
     for idx, (from_strain, to_strain) in enumerate(
@@ -940,9 +915,7 @@ def find_age_bin(age: int, age_limits: list[int]) -> int:
 
 
 def find_vax_bin(vax_shots: int, max_doses: int) -> int:
-    """
-    Given a number of vaccinations, returns the bin it belongs to
-    given a maximum dose ceiling.
+    """Calculate vaccination bin.
 
     Parameters
     ----------
@@ -962,8 +935,8 @@ def find_vax_bin(vax_shots: int, max_doses: int) -> int:
 
 
 def convert_hist(strains: str, STRAIN_IDX: IntEnum) -> int:
-    """
-    a function that transforms a comma separated list of strains and transform them into an immune history state.
+    """Parse a comma separated list of strains into an immune history state.
+
     Any unrecognized strain strings inside of `strains` do not contiribute to the returned state.
 
     Example
@@ -982,7 +955,6 @@ def convert_hist(strains: str, STRAIN_IDX: IntEnum) -> int:
         an enum containing the name of each strain and its associated strain index, as initialized by ConfigBase.
     num_strains:
         the number of _tracked_ strains in the model.
-
     """
     state = 0
     for strain in filter(None, strains.split(",")):
@@ -992,10 +964,7 @@ def convert_hist(strains: str, STRAIN_IDX: IntEnum) -> int:
 
 
 def convert_strain(strain: str, STRAIN_IDX: IntEnum) -> int:
-    """
-    given a text description of a string, return the correct strain
-    index as specified by the STRAIN_IDX enum.
-    If strain is not found in STRAIN_IDX, return 0 (the oldest strain included in the model)
+    """Lookup strain name in STRAIN_IDX, return 0 if not found.
 
     Parameters
     -----------
@@ -1006,7 +975,8 @@ def convert_strain(strain: str, STRAIN_IDX: IntEnum) -> int:
 
     Returns
     ----------
-    STRAIN_IDX[strain] if exists, else 0
+    int
+        STRAIN_IDX[strain] if exists, else 0
     """
     if strain.lower() in STRAIN_IDX._member_map_:
         return STRAIN_IDX[strain.lower()]
@@ -1225,9 +1195,10 @@ def drop_keys_with_substring(dct: dict[str, Any], drop_s: str):
 
 
 def convolve_hosp_to_death(hosp, hfr, shape, scale, padding="nan"):
-    """
-    Model deaths based on hospitalizations. The function calculates expected deaths based
-    on input weekly age-specific `hospitalization` and hospitalization fatality risk
+    """Model deaths based on hospitalizations.
+
+    The function calculates expected deaths based on input weekly age-specific
+    `hospitalization` and hospitalization fatality risk
     (`hfr`), then delay the deaths (relative to hospitalization) based on a gamma
     distribution of parameters `shape` and `scale`. The gamma specification is _daily_,
     which then gets discretized into 5 weeks for convolution.
@@ -1281,8 +1252,7 @@ def convolve_hosp_to_death(hosp, hfr, shape, scale, padding="nan"):
 
 
 def generate_yearly_age_bins_from_limits(age_limits: list) -> list[list[int]]:
-    """
-    Generate age bins up to 85 years old exclusive based on age limits.
+    """Generate age bins up to 85 years old exclusive based on age limits.
 
     Parameters
     ----------
@@ -1393,8 +1363,7 @@ def load_age_demographics(
 
 
 def plot_sample_chains(samples):
-    """
-    Plot trace plots of M chains through N samples for each parameter.
+    """Plot trace plots of M chains through N samples for each parameter.
 
     Parameters
     ----------
@@ -1433,9 +1402,7 @@ def get_timeline_from_solution_with_command(
     strain_idx: IntEnum,
     command: str,
 ):
-    """
-    A function designed to execute `command` over a `sol` object,
-    returning a timeline after `command` is used to select a certain view of `sol`
+    """Execute `command` over a Solution object to obtain a view on the timeseries.
 
     Possible values of `command` include:
 
@@ -1614,9 +1581,7 @@ def get_seroprevalence(inferer, solution):
 
 
 def get_foi_suscept(p, force_of_infection):
-    """
-        Calculate the force of infections experienced by
-        susceptibles after factoring their immunity.
+    """Calculate the force of infections experienced by susceptibles after factoring their immunity.
 
     Parameters
     ----------
@@ -1670,9 +1635,10 @@ def get_foi_suscept(p, force_of_infection):
 
 
 def get_immunity(inferer, solution):
-    """
-    Calculate the age-strain-specific population immunity. Specifically, the expected
-    immunity of a randomly selected person of certain age towards certain strain.
+    """Calculate the age-strain-specific population immunity.
+
+    Specifically, the expected immunity of a randomly selected person of
+    certain age towards certain strain.
 
     Parameters
     ----------
@@ -1708,8 +1674,7 @@ def get_immunity(inferer, solution):
 
 
 def get_vaccination_rates(inferer, num_day):
-    """
-    Calculate _daily_ vaccination rates over the course of `num_day`.
+    """Calculate _daily_ vaccination rates over the course of `num_day`.
 
     Parameters
     ----------
@@ -1733,16 +1698,13 @@ def get_vaccination_rates(inferer, num_day):
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
-def rho(M: np.ndarray) -> np.ndarray:
-    return np.max(np.real(np.linalg.eigvals(M)))
-
-
 def make_two_settings_matrices(
     path_to_population_data: str,
     path_to_settings_data: str,
     region: str = "United States",
 ) -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
-    """
+    """Load and parse settings contact matricies for a given region.
+
     For a single region, read the two column (age, population counts) population
     csv (up to age 85) then read the 85 column interaction settings csvs by
     setting (four files) and combine them into an aggregate 85 x 85 matrix
@@ -1835,7 +1797,8 @@ def create_age_grouped_CM(
     minimum_age: int,
     age_limits,
 ) -> tuple[np.ndarray, list[float]]:
-    """
+    """Load a contact matrix and group it into age bins.
+
     Parameters
     ----------
     region_data : pd.DataFrame
@@ -1843,6 +1806,13 @@ def create_age_grouped_CM(
         population sizes
     setting_CM : np.ndarray
         An 85x85 contact matrix for a given setting (either school or other)
+    num_age_groups : int
+        number of age bins.
+    minimum_age : int
+        lowest possible tracked age in years.
+    age_limits : list[int]
+        Age limit for each age bin in the model, beginning with minimum age,
+        values are exclusive in upper bound. so [0,18] means 0-17, 18+.
 
     Returns
     -------
@@ -1898,9 +1868,25 @@ def load_demographic_data(
     minimum_age,
     age_limits,
 ) -> dict[str, dict[str, np.ndarray]]:
-    """
-    Loads demography data for the specified FIPS regions, contact mixing data sourced from:
+    """Load demography data for the specified FIPS regions.
+
+    Contact mixing data sourced often from:
     https://github.com/mobs-lab/mixing-patterns
+
+    Parameters
+    ----------
+    demographics_path : str
+        path to demographic data directory, contains "contact_matrices" and
+        "population_rescaled_age_distributions" directories.
+    regions : list[str]
+        list of FIPS regions to load.
+    num_age_groups : int
+        number of age bins.
+    minimum_age : int
+        lowest possible tracked age in years.
+    age_limits : list[int]
+        Age limit for each age bin in the model, beginning with minimum age,
+        values are exclusive in upper bound. so [0,18] means 0-17, 18+.
 
     Returns
     -------
@@ -1961,8 +1947,8 @@ def load_demographic_data(
             # Save one of the two N_ages (they are the same) in a new N_age var
             N_age = N_age_sch
             # Rescale contact matrices by leading eigenvalue
-            avg_CM = avg_CM / rho(avg_CM)
-            sch_CM = sch_CM / rho(sch_CM)
+            avg_CM = avg_CM / np.max(np.real(np.linalg.eigvals(avg_CM)))
+            sch_CM = sch_CM / np.max(np.real(np.linalg.eigvals(sch_CM)))
             # Transform Other cm with the new age limits [NB: to transpose?]
             region_demographic_data_dict = {
                 "sch_CM": sch_CM.T,
@@ -1988,13 +1974,20 @@ class Parameters(object):
     """A dummy container that converts a dictionary into attributes."""
 
     def __init__(self, dict: dict):
+        """Initialize an empty spoof parameters object.
+
+        Parameters
+        ----------
+        dict : dict
+            parameters and data for spoof class to hold.
+        """
         self.__dict__ = dict
 
 
 class dual_logger_out(object):
-    """
-    a class that splits stdout, flushing its contents to a file as well as to stdout
-    this is useful for Azure Batch to save logs but also see the output live on the node
+    """Split stdout, flushing its contents to a file as well as to stdout.
+
+    Useful for experiments to save logs but also see the output live.
     """
 
     def __init__(self, name, mode):
@@ -2015,9 +2008,9 @@ class dual_logger_out(object):
 
 
 class dual_logger_err(object):
-    """
-    a class that splits stderror, flushing its contents to a file as well as to terminal if an error occurs
-    this is useful for Azure Batch to save logs but also see the output live on the node
+    """Splits stderror, flushing its contents to a file as well as to terminal.
+
+    Useful for experiments to save logs but also see the output live.
     """
 
     def __init__(self, name, mode):
@@ -2045,8 +2038,9 @@ class dual_logger_err(object):
 def find_files(
     directory: str, filename_contains: str, recursive=False
 ) -> list[str]:
-    """searched `directory` for any files with `filename_contains`,
-    optionally searched recrusively down from `directory`
+    """Search `directory` for any files with `filename_contains`.
+
+    Optionally search recrusively down from `directory`.
 
     Parameters
     ----------
