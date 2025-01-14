@@ -1,6 +1,6 @@
-"""
-The following abstract class defines a an abstract_azure_runner,
-commonly used to accelerate runs of the model onto azure this file
+"""Defines a an abstract_azure_runner, to standardize dynode experiments.
+
+Commonly used to accelerate runs of the model onto azure this file
 aids the user in the production of timeseries to describe a model run
 
 It also handles the saving of stderr and stdout copies as the job executes.
@@ -25,9 +25,9 @@ from .static_value_parameters import StaticValueParameters
 
 
 class AbstractDynodeRunner(ABC):
-    """An Abstract class made to standardize the process of running
-    simulations and fitting. Children of this class may use the
-    functions within to standardize their processies across experiments
+    """An Abstract class made to standardize the process of running simulations and fitting.
+
+    Children of this class may use functions within to standardize their processies across experiments.
     """
 
     def __init__(self, azure_output_dir):
@@ -46,9 +46,10 @@ class AbstractDynodeRunner(ABC):
     @abstractmethod
     def process_state(self, state, **kwargs):
         """Abstract function meant to be implemented by instance of the runner.
-        This handles all of the logic of actually getting a solution object.
 
-        Usually Calls upon helper functions like save_config,
+        Entry point that handles all of the logic of getting a solution object.
+
+        Should Call upon helper functions like save_config,
         save_inference_posteriors/save_static_run_timeseries to
         easily save its outputs for later visualization.
 
@@ -62,9 +63,9 @@ class AbstractDynodeRunner(ABC):
         pass
 
     def save_config(self, config_path: str, suffix: str = "_used"):
-        """saves a config json located at `config_path`
-        appending `suffix` to the filename to help
-        distinguish it from input configs.
+        """Save a copy of config json located at `config_path`.
+
+        Appends `suffix` to the filename to help distinguish it from input configs.
 
         Parameters
         ----------
