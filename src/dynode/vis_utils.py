@@ -1,5 +1,7 @@
 """A series of utility functions for generating visualizations for the model"""
 
+from typing import Any
+
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,8 +24,8 @@ class VisualizationError(Exception):
 
 def _cleanup_and_normalize_timelines(
     all_state_timelines: pd.DataFrame,
-    plot_types: np.ndarray[str],
-    plot_normalizations: np.ndarray[int],
+    plot_types: np.ndarray,
+    plot_normalizations: np.ndarray,
     state_pop_sizes: dict[str, int],
 ):
     # Select columns with 'float64' dtype
@@ -55,7 +57,7 @@ def _cleanup_and_normalize_timelines(
 def plot_model_overview_subplot_matplotlib(
     timeseries_df: pd.DataFrame,
     pop_sizes: dict[str, int],
-    plot_types: np.ndarray[str] = np.array(
+    plot_types: np.ndarray = np.array(
         [
             "seasonality_coef",
             "vaccination_",
@@ -66,7 +68,7 @@ def plot_model_overview_subplot_matplotlib(
             "pred_hosp_",
         ]
     ),
-    plot_titles: np.ndarray[str] = np.array(
+    plot_titles: np.ndarray = np.array(
         [
             "Seasonality Coefficient",
             "Vaccination Rate By Age",
@@ -77,7 +79,7 @@ def plot_model_overview_subplot_matplotlib(
             "Predicted Hospitalizations (per 100k)",
         ]
     ),
-    plot_normalizations: np.ndarray[int] = np.array(
+    plot_normalizations: np.ndarray = np.array(
         [1, 1, 100000, 1, 1, 100000, 100000]
     ),
     matplotlib_style: list[str]
@@ -260,7 +262,7 @@ def plot_model_overview_subplot_matplotlib(
 
 
 def plot_checkpoint_inference_correlation_pairs(
-    posteriors: dict[str : np.ndarray | list],
+    posteriors_in: dict[str, np.ndarray | list],
     max_samples_calculated: int = 100,
     matplotlib_style: list[str]
     | str = [
@@ -277,7 +279,7 @@ def plot_checkpoint_inference_correlation_pairs(
 
     Parameters
     ----------
-    posteriors: dict[str : np.ndarray | list]
+    posteriors_in: dict[str , np.ndarray | list]
         a dictionary (usually loaded from the checkpoint.json file) containing
         the sampled posteriors for each chain in the shape
         (num_chains, num_samples). All parameters generated with numpyro.plate
@@ -299,13 +301,14 @@ def plot_checkpoint_inference_correlation_pairs(
         `n` is the number of sampled parameters
     """
     # convert lists to np.arrays
-    posteriors = {
-        key: np.array(val) if isinstance(val, list) else val
-        for key, val in posteriors.items()
-    }
-    posteriors: dict[str, np.ndarray] = flatten_list_parameters(posteriors)
-    # drop any final_timestep parameters in case they snuck in
-    posteriors = drop_keys_with_substring(posteriors, "final_timestep")
+    posteriors: dict[str, np.ndarray] = flatten_list_parameters(
+        {
+            key: np.array(val) if isinstance(val, list) else val
+            for key, val in posteriors_in.items()
+        }
+    )
+    # drop any timestep parameters in case they snuck in
+    posteriors = drop_keys_with_substring(posteriors, "timestep")
     number_of_samples = posteriors[list(posteriors.keys())[0]].shape[1]
     # if we are dealing with many samples per chain,
     # narrow down to max_samples_calculated samples per chain
@@ -401,7 +404,7 @@ def plot_checkpoint_inference_correlation_pairs(
 
 
 def plot_mcmc_chains(
-    samples: dict[str : np.ndarray | list],
+    samples_in: dict[str, np.ndarray | list],
     matplotlib_style: list[str]
     | str = [
         "seaborn-v0_8-colorblind",
@@ -414,7 +417,7 @@ def plot_mcmc_chains(
 
     Parameters
     ----------
-    posteriors: dict[str : np.ndarray | list]
+    posteriors: dict[str , np.ndarray | list]
         a dictionary (usually loaded from the checkpoint.json file) containing
         the sampled posteriors for each chain in the shape
         (num_chains, num_samples). All parameters generated with numpyro.plate
@@ -430,13 +433,14 @@ def plot_mcmc_chains(
         matplotlib figure containing the plots
     """
     # Determine the number of parameters and chains
-    samples = {
-        key: np.array(val) if isinstance(val, list) else val
-        for key, val in samples.items()
-    }
-    samples: dict[str, np.ndarray] = flatten_list_parameters(samples)
-    # drop any final_timestep parameters in case they snuck in
-    samples = drop_keys_with_substring(samples, "final_timestep")
+    samples: dict[str, np.ndarray] = flatten_list_parameters(
+        {
+            key: np.array(val) if isinstance(val, list) else val
+            for key, val in samples_in.items()
+        }
+    )
+    # drop any timestep parameters in case they snuck in
+    samples = drop_keys_with_substring(samples, "timestep")
     param_names = list(samples.keys())
     num_params = len(param_names)
     num_chains = samples[param_names[0]].shape[0]
@@ -473,19 +477,43 @@ def plot_mcmc_chains(
 
 
 def _sample_prior_distributions(priors, num_samples):
+    """Sample numpyro.distributions `num_samples` times.
+
+    Parameters
+    ----------
+    priors : dict[str, Any]
+        A dictionary containing keys of different parameter
+        names and values of any type.
+    num_samples : int
+        number of times to sample numpyro.distribution objects.
+
+    Returns
+    -------
+    dict[str, jax.Array]
+        Numpyro sample site name with jax.Array(shape=(num_samples,)) for each
+        numpyro.distribution found within `priors`.
+
+    Notes
+    --------
+    Return dict key names follow the same naming convention as when sampling.
+    Meaning that distributions within lists or matricies have their
+    index stored as a list of _i suffix at the end of their name.
+    """
     dist_only = {}
     d = identify_distribution_indexes(priors)
     # filter down to just the distribution objects
     for dist_name, locator_dct in d.items():
         parameter_name = locator_dct["sample_name"]
+        assert isinstance(parameter_name, str)
         parameter_idx = locator_dct["sample_idx"]
+        assert isinstance(parameter_idx, tuple) or parameter_idx is None
         # if the sample is on its own, not nested in a list, sample_idx is none
         if parameter_idx is None:
             dist_only[parameter_name] = priors[parameter_name]
         # otherwise this sample is nested in a list and should be retrieved
         else:
-            # go in index by index to access multi-dimensional lists
             temp = priors[parameter_name]
+            # go into multi-dimensional matricies one index at a time
             for i in parameter_idx:
                 temp = temp[i]
             dist_only[dist_name] = temp
@@ -498,7 +526,7 @@ def _sample_prior_distributions(priors, num_samples):
 
 
 def plot_prior_distributions(
-    priors: dict[str],
+    priors: dict[str, Any],
     matplotlib_style: list[str]
     | str = [
         "seaborn-v0_8-colorblind",
@@ -518,7 +546,7 @@ def plot_prior_distributions(
 
     Parameters
     ----------
-    priors : dict[str: Any]
+    priors : dict[str, Any]
         a dictionary with str keys possibly containing distribution
         objects as values. Each key with a distribution object type
         key will be included in the plot

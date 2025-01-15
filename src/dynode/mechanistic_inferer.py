@@ -4,6 +4,7 @@ through Ordinary Differential Equations (ODEs) and comparing the likelihood of t
 observed metrics.
 """
 
+import datetime
 import json
 from typing import Union
 
@@ -21,6 +22,7 @@ from . import SEIC_Compartments
 from .abstract_parameters import AbstractParameters
 from .config import Config
 from .mechanistic_runner import MechanisticRunner
+from .utils import date_to_sim_day
 
 
 class MechanisticInferer(AbstractParameters):
@@ -182,18 +184,8 @@ class MechanisticInferer(AbstractParameters):
         dct = self.run_simulation(tf)
         solution = dct["solution"]
         predicted_metrics = dct["hospitalizations"]
-        numpyro.deterministic(
-            "final_timestep_s", solution.ys[self.config.COMPARTMENT_IDX.S][-1]
-        )
-        numpyro.deterministic(
-            "final_timestep_e", solution.ys[self.config.COMPARTMENT_IDX.E][-1]
-        )
-        numpyro.deterministic(
-            "final_timestep_i", solution.ys[self.config.COMPARTMENT_IDX.I][-1]
-        )
-        numpyro.deterministic(
-            "final_timestep_c", solution.ys[self.config.COMPARTMENT_IDX.C][-1]
-        )
+        assert isinstance(solution, Solution)
+        self._checkpoint_compartment_sizes(solution)
         predicted_metrics = jnp.maximum(predicted_metrics, 1e-6)
         numpyro.sample(
             "incidence",
@@ -247,6 +239,41 @@ class MechanisticInferer(AbstractParameters):
         )
         return bx_model
 
+    def _checkpoint_compartment_sizes(self, solution: Solution):
+        """marks the final_timesteps parameters as well as any
+        requested dates from self.config.COMPARTMENT_SAVE_DATES if the
+        parameter exists. Skipping over any invalid dates.
+
+        This method does not actually save the compartment sizes to a file,
+        instead it stores the values within `self.inference_algo.get_samples()`
+        so that they may be later saved by self.checkpoint() or by the user.
+
+
+        Parameters
+        ----------
+        solution : diffrax.Solution
+            a diffrax Solution object returned by solving ODEs, most often
+            retrieved by `self.run_simulation()`
+        """
+        for compartment in self.config.COMPARTMENT_IDX:
+            numpyro.deterministic(
+                "final_timestep_%s" % compartment.name,
+                solution.ys[compartment][-1],
+            )
+        for d in getattr(self.config, "COMPARTMENT_SAVE_DATES", []):
+            date: datetime.date = d
+            date_str = date.strftime("%Y_%m_%d")
+            sim_day = date_to_sim_day(date, self.config.INIT_DATE)
+            # ensure user requests a day we actually have in `solution`
+            if sim_day >= 0 and sim_day < len(
+                solution.ys[self.config.COMPARTMENT_IDX.S]
+            ):
+                for compartment in self.config.COMPARTMENT_IDX:
+                    numpyro.deterministic(
+                        "%s_timestep_%s" % (date_str, compartment.name),
+                        solution.ys[compartment][sim_day],
+                    )
+
     def checkpoint(
         self, checkpoint_path: str, group_by_chain: bool = True
     ) -> None:
@@ -295,6 +322,7 @@ class MechanisticInferer(AbstractParameters):
         particles: Union[tuple[int, int], list[tuple[int, int]]],
         tf: Union[int, None] = None,
         external_particle: dict[str, jax.Array] = {},
+        verbose: bool = False,
     ) -> dict[
         tuple[int, int],
         dict[str, Union[Solution, jax.Array, dict[str, jax.Array]]],
@@ -306,6 +334,7 @@ class MechanisticInferer(AbstractParameters):
 
         if `external_posteriors` are specified, uses them instead of self.inference_algo.get_samples()
         to load static particle values.
+
         Parameters
         ------------
         particles: Union[tuple[int, int], list[tuple[int, int]]]
@@ -319,6 +348,9 @@ class MechanisticInferer(AbstractParameters):
             For example, loading a checkpoint.json containing saved posteriors from a different run.
             expects keys that match those given to `numpyro.sample` often from
             inference_algo.get_samples(group_by_chain=True).
+        verbose: bool, optional
+            whether or not to pring out the current chain_particle value being executed
+
 
         Returns
         ---------------
@@ -329,18 +361,20 @@ class MechanisticInferer(AbstractParameters):
         Example
         --------------
         <insert 2 chain inference above>
-        load_posterior_particle([(0, 100), [1, 120],...]) = {(0, 100): {solution: diffrax.Solution, "posteriors": {...}},
-                                                     (1, 120): {solution: diffrax.Solution, "posteriors": {...}} ...}
+        `load_posterior_particle([(0, 100), [1, 120],...]) = {(0, 100): {solution: diffrax.Solution, "posteriors": {...}},
+                                                     (1, 120): {solution: diffrax.Solution, "posteriors": {...}} ...}`
 
         Note
         ------------
         Very important note if you choose to use `external_posteriors`. In the scenario
         this instance of `MechanisticInferer.likelihood` samples parameters not named in `external_posteriors`
-        they will be RESAMPLED AT RANDOM. This method will not error and will instead fill in those
-        missing samples according to the PRNGKey seeded with self.config.INFERENCE_PRNGKEY as well as
-        unique salting of each chain_particle combination.
+        they will be RESAMPLED according to the distribution passed in the config.
+        This method will also salt the RNG key used on the prior according to the
+        chain & particule numbers currently being run.
 
-        This may be useful to you if you wish to obtain confidence intervals by varying a particular value.
+
+        This may be useful to you if you wish to fit upon some data, then introduce
+        a new varying parameter over the posteriors (often during projection).
         """
         # if its a single particle, convert to len(1) list for simplicity
         if isinstance(particles, tuple):
@@ -374,6 +408,11 @@ class MechanisticInferer(AbstractParameters):
         for particle in particles:
             # get the particle chain and number
             chain_num, particle_num = particle
+            if verbose:
+                print(
+                    "Executing (chain, particle): (%s, %s)"
+                    % (str(chain_num), str(particle_num))
+                )
             single_particle_samples = {}
             # go through each posterior and select that specific chain and particle
             for param in posterior_samples.keys():

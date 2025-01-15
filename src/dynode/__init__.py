@@ -36,20 +36,18 @@ from .covid_sero_initializer import CovidSeroInitializer
 from .dynode_runner import AbstractDynodeRunner
 from .mechanistic_inferer import MechanisticInferer
 from .mechanistic_runner import MechanisticRunner
-from .solution_iterpreter import SolutionInterpreter
 from .static_value_parameters import StaticValueParameters
 
 # Defines all the different modules able to be imported from src
 __all__ = [
-    AbstractParameters,
-    AbstractInitializer,
-    CovidSeroInitializer,
-    MechanisticInferer,
-    MechanisticRunner,
-    SolutionInterpreter,
-    StaticValueParameters,
-    utils,
-    Config,
-    vis_utils,
-    AbstractDynodeRunner,
+    "AbstractParameters",
+    "AbstractInitializer",
+    "CovidSeroInitializer",
+    "MechanisticInferer",
+    "MechanisticRunner",
+    "StaticValueParameters",
+    "utils",
+    "Config",
+    "vis_utils",
+    "AbstractDynodeRunner",
 ]

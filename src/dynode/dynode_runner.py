@@ -11,7 +11,7 @@ import json
 import os
 import warnings
 from abc import ABC, abstractmethod
-from typing import Optional, Union
+from typing import Optional
 
 import numpy as np
 import pandas as pd  # type: ignore
@@ -106,7 +106,7 @@ class AbstractDynodeRunner(ABC):
 
         if len(series) < index_len:
             return _pad_fn(series, index_len, pad)
-        return series
+        return np.array(series)
 
     def _get_vaccination_timeseries(
         self, vaccination_func, num_days_predicted
@@ -367,7 +367,7 @@ class AbstractDynodeRunner(ABC):
 
     def save_mcmc_chains_plot(
         self,
-        samples: dict[str : list : np.ndarray],
+        samples: dict[str, list | np.ndarray],
         save_filename: str = "mcmc_chains.png",
         plot_kwargs: dict = {},
     ):
@@ -375,7 +375,7 @@ class AbstractDynodeRunner(ABC):
 
         Parameters
         ----------
-        samples : dict[str: list | np.ndarray]
+        samples : dict[str, list | np.ndarray]
             a dictionary (usually loaded from the checkpoint.json file) containing
             the sampled posteriors for each chain in the shape
             (num_chains, num_samples). All parameters generated with numpyro.plate
@@ -394,7 +394,7 @@ class AbstractDynodeRunner(ABC):
 
     def save_correlation_pairs_plot(
         self,
-        samples: dict[str : list : np.ndarray],
+        samples: dict[str, list | np.ndarray],
         save_filename: str = "mcmc_correlations.png",
         plot_kwargs: dict = {},
     ):
@@ -402,7 +402,7 @@ class AbstractDynodeRunner(ABC):
 
         Parameters
         ----------
-        samples : dict[str: list | np.ndarray]
+        samples : dict[str, list | np.ndarray]
             a dictionary (usually loaded from the checkpoint.json file) containing
             the sampled posteriors for each chain in the shape
             (num_chains, num_samples). All parameters generated with numpyro.plate
@@ -426,7 +426,7 @@ class AbstractDynodeRunner(ABC):
         self,
         inferer: MechanisticInferer,
         save_filename="checkpoint.json",
-        exclude_prefixes=["final_timestep"],
+        exclude_prefixes=["timestep"],
         save_chains_plot=True,
         save_pairs_correlation_plot=True,
     ) -> None:
@@ -443,7 +443,8 @@ class AbstractDynodeRunner(ABC):
         exclude_prefixes: list[str], optional
             a list of strs that, if found in a sample name,
             are exlcuded from the saved json. This is common for large logging
-            info that will bloat filesize like, by default ["final_timestep"]
+            info that will bloat filesize like, by default ["timestep"]
+            to exclude all timestep deterministic variables.
         save_chains_plot: bool, optional
             whether to save accompanying mcmc chains plot, by default True
         save_pairs_correlation_plot: bool, optional
@@ -480,40 +481,61 @@ class AbstractDynodeRunner(ABC):
         self,
         inferer: MechanisticInferer,
         save_filename="final_timesteps.json",
-        final_timestep_identifier="final_timestep",
     ):
-        """saves the `final_timestep` posterior, if it is found in mcmc.get_samples(), otherwise raises a warning
-        and saves nothing
+        """saves the `final_timestep` posterior, if it is found in
+        mcmc.get_samples(), otherwise raises a warning and saves nothing
 
         Parameters
         ----------
         inferer : MechanisticInferer
             inferer that was run with `inferer.infer()`
         save_filename : str, optional
-            output filename, by default "final_timesteps.json"
+            output filename, by default "timesteps.json"
         final_timestep_identifier : str, optional
-            prefix attached to the final_timestep parameter, by default "final_timestep"
+            prefix attached to the final_timestep parameter, by default "timestep"
+        """
+        self.save_inference_timesteps(
+            inferer, save_filename, timestep_identifier="final_timestep"
+        )
+
+    def save_inference_timesteps(
+        self,
+        inferer: MechanisticInferer,
+        save_filename="timesteps.json",
+        timestep_identifier="timestep",
+    ):
+        """saves all `timestep` posteriors, if they are found in
+        mcmc.get_samples(), otherwise raises a warning and saves nothing
+
+        Parameters
+        ----------
+        inferer : MechanisticInferer
+            inferer that was run with `inferer.infer()`
+        save_filename : str, optional
+            output filename, by default "timesteps.json"
+        step_identifier : str, optional
+            identifying token attached to any timestep parameter, by default "timestep"
         """
         # if inference complete, convert jnp/np arrays to list, then json dump
         if inferer.infer_complete:
             samples = inferer.inference_algo.get_samples(group_by_chain=True)
-            final_timesteps = {
+            timesteps = {
                 name: timesteps
                 for name, timesteps in samples.items()
-                if final_timestep_identifier in name
+                if timestep_identifier in name
             }
             # if it is empty, warn the user, save nothing
-            if final_timesteps:
+            if timesteps:
                 save_path = os.path.join(self.azure_output_dir, save_filename)
-                self._save_samples(final_timesteps, save_path)
+                self._save_samples(timesteps, save_path)
             else:
                 warnings.warn(
-                    "attempting to call `save_inference_final_timesteps` but failed to find any final_timesteps with prefix %s"
-                    % final_timestep_identifier
+                    "attempting to call `save_inference_timesteps` but failed to find any timesteps with prefix %s"
+                    % timestep_identifier
                 )
         else:
             warnings.warn(
-                "attempting to call `save_inference_final_timesteps` before inference is complete. Something is likely wrong..."
+                "attempting to call `save_inference_timesteps` before inference is complete. Something is likely wrong..."
             )
 
     def save_inference_timelines(
@@ -521,9 +543,10 @@ class AbstractDynodeRunner(ABC):
         inferer: MechanisticInferer,
         timeline_filename: str = "azure_visualizer_timeline.csv",
         particles_saved=1,
-        extra_timelines: pd.DataFrame = None,
-        tf: Union[int, None] = None,
+        extra_timelines: None | pd.DataFrame = None,
+        tf: int | None = None,
         external_particle: dict[str, Array] = {},
+        verbose: bool = False,
     ) -> str:
         """saves history of inferer sampled values for use by the azure visualizer.
         saves CSV file to `self.azure_output_dir/timeline_filename`.
@@ -551,6 +574,8 @@ class AbstractDynodeRunner(ABC):
             For example, loading a checkpoint.json containing saved posteriors from an Azure Batch job.
             expects keys that match those given to `numpyro.sample` often from
             inference_algo.get_samples(group_by_chain=True).
+        verbose: bool, optional
+            whether or not to pring out the current chain_particle value being executed
 
         Returns
         -------
@@ -596,16 +621,21 @@ class AbstractDynodeRunner(ABC):
                 chain_particle_pairs,
                 tf=tf,
                 external_particle=external_particle,
+                verbose=verbose,
             )
             for (chain, particle), sol_dct in posteriors.items():
                 # content of `sol_dct` depends on return value of inferer.likelihood func
                 infection_timeline: Solution = sol_dct["solution"]
-                hospitalizations: Array = sol_dct["hospitalizations"]
-                static_parameters: dict[str, Array] = sol_dct["parameters"]
+                hospitalizations_tmp = sol_dct["hospitalizations"]
+                assert isinstance(hospitalizations_tmp, Array)
+                hospitalizations: Array = hospitalizations_tmp
+                parameters_tmp = sol_dct["parameters"]
+                assert isinstance(parameters_tmp, dict)
+                static_parameters: dict[str, Array] = parameters_tmp
                 # spoof the inferer to return our static parameters when calling `get_parameters()`
                 # instead of trying to sample like it normally does
                 spoof_static_inferer = copy.copy(inferer)
-                spoof_static_inferer.get_parameters = lambda: static_parameters
+                spoof_static_inferer.get_parameters = lambda: static_parameters  # type: ignore # You shouldn't be setting a member function like this
                 df = self._generate_model_component_timelines(
                     spoof_static_inferer,
                     infection_timeline,

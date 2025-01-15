@@ -8,7 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 import pandas as pd
 
-from . import utils
+from . import SEIC_Compartments, utils
 from .abstract_initializer import AbstractInitializer
 from .config import Config
 
@@ -52,7 +52,9 @@ class CovidSeroInitializer(AbstractInitializer):
             self.config.INITIAL_INFECTIONS
         )
 
-    def load_initial_state(self, initial_infections: float) -> None:
+    def load_initial_state(
+        self, initial_infections: float
+    ) -> SEIC_Compartments:
         """
         a function which takes a number of initial infections,
         disperses them across infectious and exposed compartments according to the INIT_INFECTED_DIST
@@ -136,7 +138,9 @@ class CovidSeroInitializer(AbstractInitializer):
         # read in csv, do a bunch of data cleaning
         sero_df = pd.read_csv(sero_path)
         sero_df["type"] = sero_df["type"].fillna("None")
-        sero_df.columns = ["age", "hist", "vax", "0", "1", "2", "3", "4"]
+        sero_df.columns = pd.Index(
+            ["age", "hist", "vax", "0", "1", "2", "3", "4"]
+        )
         melted_df = pd.melt(
             sero_df,
             id_vars=["age", "hist", "vax"],
