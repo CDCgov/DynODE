@@ -1,4 +1,4 @@
-"""Run a series of ODE equations, and return Solution object."""
+"""Solve a system of ODEs and return a Solution object."""
 
 import datetime
 from collections.abc import Callable

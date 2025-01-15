@@ -108,8 +108,8 @@ class Config:
 
         Checks if a specific parameter exists, sets any parameters that depend on it.
 
-        Example
-        -----------
+        Examples
+        --------
         >>> hasattr(self, "AGE_LIMITS")
         True
         >>> hasattr(self, "NUM_AGE_GROUPS")
@@ -134,7 +134,7 @@ class Config:
         References PARAMETER's `validate` functions, if listed.
 
         Raises
-        ----------
+        ------
         ConfigValidationError
             if parameter(s) are incongruent in some way, either individually
             or in combination with one another.
@@ -211,7 +211,7 @@ def distribution_converter(
         A dictionary representing any JSON object that is passed into `Config`.
 
     Returns
-    -----------
+    -------
     dict | distributions.Distribution | transforms.Transform | distributions.constraints.Constraint
         distributions.Distribution if json dict has "distribution" and
         "params" key. transforms.Transform if dict has a "transform" key and
@@ -219,7 +219,7 @@ def distribution_converter(
         "constraint" and "params" key. Otherwise dict returned untouched.
 
     Notes
-    -----------
+    -----
     A distribution is identified by the `distribution` and `params`
     keys inside of a json object.
     A transform is identified by the `transform` and `params`

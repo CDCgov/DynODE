@@ -14,9 +14,9 @@ from . import SEIC_Compartments, utils
 
 
 class AbstractInitializer(ABC):
-    """An Abstract class meant for use by disease-specific initializers.
+    """An abstract class meant for use by disease-specific initializers.
 
-    An initializers sole responsibility is to return an INITIAL_STATE
+    An initializer's sole responsibility is to return an INITIAL_STATE
     parameter via self.get_initial_state().
     """
 
@@ -52,7 +52,7 @@ class AbstractInitializer(ABC):
         """Load age demographics for the specified region.
 
         Returns
-        ----------
+        -------
         numpy.ndarray
             Proportion of the total population that falls into each age group.
             `len(self.load_initial_population_fractions()) == self.config.NUM_AGE_GROUPS`

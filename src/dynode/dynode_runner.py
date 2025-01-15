@@ -1,4 +1,4 @@
-"""Defines a an abstract_azure_runner, to standardize dynode experiments.
+"""Defines a an abstract_azure_runner, to standardize DynODE experiments.
 
 Commonly used to accelerate runs of the model onto azure this file
 aids the user in the production of timeseries to describe a model run
@@ -25,7 +25,7 @@ from .static_value_parameters import StaticValueParameters
 
 
 class AbstractDynodeRunner(ABC):
-    """An Abstract class made to standardize the process of running simulations and fitting.
+    """An abstract class made to standardize the process of running simulations and fitting.
 
     Children of this class may use functions within to standardize their processies across experiments.
     """
@@ -49,7 +49,7 @@ class AbstractDynodeRunner(ABC):
 
         Entry point that handles all of the logic of getting a solution object.
 
-        Should Call upon helper functions like save_config,
+        Should call helper functions like save_config,
         save_inference_posteriors/save_static_run_timeseries to
         easily save its outputs for later visualization.
 

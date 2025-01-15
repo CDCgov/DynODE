@@ -80,7 +80,7 @@ class MechanisticInferer(AbstractParameters):
             infer algo you wish to use, by default "mcmc"
 
         Returns
-        ----------
+        -------
         MCMC
             returns MCMC inference algorithm as it is the only supported
             algorithm currently
@@ -224,13 +224,13 @@ class MechanisticInferer(AbstractParameters):
         """Infer parameters given priors inside of self.config.
 
         Parameters
-        -----------
+        ----------
         obs_metrics: jax.Array
             observed metrics on which likelihood will be calculated on
             to tune parameters.
 
         Returns
-        -----------
+        -------
         MCMC
             The inference object, currently `numpyro.infer.MCMC`,
             used to infer parameters and produce posterior samples.
@@ -312,7 +312,7 @@ class MechanisticInferer(AbstractParameters):
         long as it is within the numpyro trace.
 
         Parameters
-        -----------
+        ----------
         checkpoint_path: str
             a path to which the json file is saved to. Throws error if folder
             does not exist, overwrites existing JSON files within.
@@ -323,13 +323,13 @@ class MechanisticInferer(AbstractParameters):
             Default, True which retains chain structure creating 2d lists.
 
         Raises
-        ----------
+        ------
         ValueError
             if inference has not been called (not self.infer_complete),
             and thus there are no posteriors to be saved to `checkpoint_path`
 
         Returns
-        -----------
+        -------
         None
         """
         if not self.infer_complete:
@@ -371,7 +371,7 @@ class MechanisticInferer(AbstractParameters):
         self.inference_algo.get_samples() to load numpyro sites.
 
         Parameters
-        ------------
+        ----------
         particles: Union[tuple[int, int], list[tuple[int, int]]]
             a single tuple or list of tuples, each of which specifies
             the (chain_num, particle_num) to load
@@ -390,20 +390,20 @@ class MechanisticInferer(AbstractParameters):
 
 
         Returns
-        ---------------
+        -------
         `dict[tuple(int, int)]` a dictionary containing
         the returned value of `self.run_simulation()` evaluated with values
         from (chain_num, particle_num).
         Posterior values used appended to the dictionary under the "posteriors" key.
 
-        Example
-        --------------
+        Examples
+        --------
         <insert 2 chain inference above>
         `load_posterior_particle([(0, 100), [1, 120],...]) = {(0, 100): {solution: diffrax.Solution, "posteriors": {...}},
                                                      (1, 120): {solution: diffrax.Solution, "posteriors": {...}} ...}`
 
         Notes
-        ------------
+        -----
         In the scenario this instance of `MechanisticInferer.run_simulation()`
         samples parameters not named in `external_particle`
         they will be resampled according to the prior specified in self.config.

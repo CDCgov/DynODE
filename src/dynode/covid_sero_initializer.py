@@ -1,4 +1,4 @@
-"""This module defines a covid initializer with input serology data."""
+"""Define a covid initializer for parsing and transforming input serology data."""
 
 import os
 
@@ -87,13 +87,13 @@ class CovidSeroInitializer(AbstractInitializer):
         disperse between infectious and exposed compartments.
 
         Returns
-        ----------
+        -------
         INITIAL_STATE: SEIC_Compartments
             a tuple of len 4 representing the S, E, I, and C compartment
             population counts after model initialization.
 
         Notes
-        ----------
+        -----
         Requires the following variables be loaded into self:
         - CONTACT_MATRIX: loading in config or via
         `self.load_contact_matrix()`
@@ -156,15 +156,15 @@ class CovidSeroInitializer(AbstractInitializer):
         """Load the serology init file and calculates initial immune history of susceptibles.
 
         Returns
-        ---------
+        -------
         np.ndarray
             The initial immune history of individuals within each age bin in the system.
             `INIT_IMMUNE_HISTORY[i][j][k][l]` describes the proportion of
             individuals in age bin `i`, who fall under
             immune history `j`, vaccination count `k`, and waning bin `l`.
 
-        Example
-        ---------
+        Examples
+        --------
         Assume united_states_initialization.csv exists and is valid.
         >>> init = CovidSeroInitializer("c.json", "global.json")
         >>> immune_histories = init.load_immune_history_via_serological_data()
@@ -264,7 +264,7 @@ class CovidSeroInitializer(AbstractInitializer):
         feburary 2022.
 
         Returns
-        -------------
+        -------
         np.ndarray
             matrix describing the proportion of new infections falling under
             each stratification of the compartment. E.g
@@ -387,7 +387,7 @@ class CovidSeroInitializer(AbstractInitializer):
             via self.load_initial_infection_dist_via_contact_matrix()
 
         Notes
-        ------
+        -----
         Ratio of initial infections across the E and I compartments
         dictated by the ratio of their waiting times.
         ```
@@ -414,7 +414,7 @@ class CovidSeroInitializer(AbstractInitializer):
         Usually sourced from https://github.com/mobs-lab/mixing-patterns
 
         Returns
-        ----------
+        -------
         numpy.ndarray
             a matrix of shape (self.config.NUM_AGE_GROUPS, self.config.NUM_AGE_GROUPS)
             where `CONTACT_MATRIX[i][j]` refers to the per capita
@@ -432,14 +432,14 @@ class CovidSeroInitializer(AbstractInitializer):
         """Load the crossimmunity matrix given the strain interactions matrix.
 
         Returns
-        ----------
+        -------
         jax.Array
             matrix of shape (self.config.NUM_STRAINS, self.config.NUM_PREV_INF_HIST)
             containing the relative immune escape values for each challenging
             strain compared to each prior immune history in the model.
 
         Notes
-        ----------
+        -----
         Strain interactions matrix is a matrix of shape
         (self.config.NUM_STRAINS, self.config.NUM_STRAINS)
         representing the relative immune escape risk of those who are being

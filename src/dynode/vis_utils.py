@@ -1,4 +1,4 @@
-"""A series of utility functions for generating visualizations for the model."""
+"""A set of utility functions for generating visualizations for the model."""
 
 from typing import Any
 

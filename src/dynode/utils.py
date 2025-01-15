@@ -332,11 +332,11 @@ def sim_day_to_date(sim_day: int, init_date: datetime.date):
         Initialization date usually found in config.INIT_DATE parameter.
 
     Returns
-    ---------
+    -------
     datetime.date object representing current `sim_day`
 
-    Examples :
-    ---------
+    Examples
+    --------
     >>> import datetime
     >>> init_date = datetime.date(2022, 10, 15)
     >>> sim_day_to_date(10, init_date )
@@ -358,15 +358,13 @@ def sim_day_to_epiweek(
     init_date : datetime.date
         Initialization date usually found in config.INIT_DATE parameter.
 
-
     Returns
-    ---------
+    -------
     epiweeks.Week
         CDC epiweek on day sim_day
 
-
     Examples
-    ---------
+    --------
     >>> import datetime
     >>> init_date=datetime.date(2022, 10, 15)
     >>> sim_day_to_epiweek(10, init_date )
@@ -389,12 +387,12 @@ def date_to_sim_day(date: datetime.date, init_date: datetime.date):
         Initialization date usually found in config.INIT_DATE parameter.
 
     Returns
-    ---------
+    -------
     int
     how many days have passed since `init _date`
 
     Examples
-    ---------
+    --------
     >>> import datetime
     >>> init_date=datetime.date(2022, 10, 15)
     >>> date=datetime.date(2022, 11, 05)
@@ -437,13 +435,13 @@ def new_immune_state(current_state: int, exposed_strain: int) -> int:
         expects that `0 <= exposed_strain <= num_strains - 1`.
 
     Returns
-    -----------
+    -------
     int
         Individual or population's new immune state after exposure and recovery
         from `exposed_strain`.
 
-    Example
-    ----------
+    Examples
+    --------
     num_strains = 2, possible states are:
     00(no exposure), 1(exposed to strain 0 only), 2(exposed to strain 1 only),
     3(exposed to both)
@@ -500,12 +498,12 @@ def all_immune_states_with(strain: int, num_strains: int):
         Number of strains in the model.
 
     Returns
-    ----------
+    -------
     list[int]
         all immune states that include previous exposure to `strain`
 
-    Example
-    ----------
+    Examples
+    --------
     in a simple model where num_strains = 2
     Reminder:
     state = 0 (no exposure),
@@ -544,12 +542,12 @@ def all_immune_states_without(strain: int, num_strains: int):
         Number of strains in the model.
 
     Returns
-    ----------
+    -------
     list[int] representing all immune states that
     do not include previous exposure to `strain`
 
-    Example
-    ----------
+    Examples
+    --------
     in a simple model where num_strains = 2.
     Reminder:
     state = 0 (no exposure),
@@ -573,7 +571,7 @@ def get_strains_exposed_to(state: int, num_strains: int):
     Says nothing of the order at which an individual was exposed to strains.
 
     Parameters
-    -----------
+    ----------
     state : int
         The state a given individual is in, as dicated by a single or series of
         exposures to strains. State dynamics determined by `new_immune_state()`.
@@ -582,7 +580,7 @@ def get_strains_exposed_to(state: int, num_strains: int):
         used to determin total size of state space.
 
     Returns
-    -----------
+    -------
     list[int]
         strains the individual in `state` was exposed to.
     """
@@ -617,7 +615,7 @@ def combined_strains_mapping(
         Number of strains in the model, constrains immune state space.
 
     Returns
-    -----------
+    -------
     tuple(dict[int,int], dict[int,int])
         First dict[int,int] maps from immune state -> immune state before and
         after `from_strain` is combined with `to_strain` for all states.
@@ -625,8 +623,8 @@ def combined_strains_mapping(
         Second dict[int,int] maps from strain idx -> strain idx
         before and after`from_strain` is combined with `to_strain` for all strains.
 
-    Example
-    -----------
+    Examples
+    --------
     In a basic 2 strain model you have the following immune states:
     0-> no exposure, 1 -> strain 0 exposure,
     2-> strain 1 exposure, 3-> exposure to both
@@ -714,7 +712,7 @@ def combine_strains(
         in `strain_dim`. Not all compartments track `strain`.
 
     Returns
-    ----------
+    -------
     np.ndarray:
         A modified copy of `compartment` with all immune states and
         strains combined according to `state_mapping` and `strain_mapping`
@@ -801,7 +799,7 @@ def combine_epochs(
         tracked in each epoch.
 
     Returns
-    -----------
+    -------
     tuple(np.ndarray): a single state object that combines the timelines of
     all N epochs with states and strain definitions matching that
     of the most recent epoch.
@@ -893,13 +891,13 @@ def find_age_bin(age: int, age_limits: list[int]) -> int:
         values are exclusive in upper bound. so [0,18] means 0-17, 18+.
 
     Returns
-    ----------
+    -------
     int
         The index of the bin, assuming 0 is the youngest age bin
         and len(age_limits)-1 is the oldest age bin.
 
-    Example
-    -------------
+    Examples
+    --------
     >>> [find_age_bin(age = age, age_limits = [0,18,50,65])
     ... for age in [0, 17, 18, 49, 50, 64, 65, 100]]
     [0, 0, 1, 1, 2, 2, 3, 3]
@@ -926,7 +924,7 @@ def find_vax_bin(vax_shots: int, max_doses: int) -> int:
         doses are no longer counted.
 
     Returns
-    ----------
+    -------
     int
         Index representing which vaccination bin the population
         or individual belong to.
@@ -939,8 +937,8 @@ def convert_hist(strains: str, STRAIN_IDX: IntEnum) -> int:
 
     Any unrecognized strain strings inside of `strains` do not contiribute to the returned state.
 
-    Example
-    ----------
+    Examples
+    --------
     strains: "alpha, delta, omicron"
     STRAIN_IDX: delta=0, omicron=1
     num_strains: 2
@@ -967,14 +965,14 @@ def convert_strain(strain: str, STRAIN_IDX: IntEnum) -> int:
     """Lookup strain name in STRAIN_IDX, return 0 if not found.
 
     Parameters
-    -----------
+    ----------
     strain: str
         a string representing the infecting strain, capitalization does not matter.
     STRAIN_IDX: intEnum
         an enum containing the name of each strain and its associated strain index, as initialized by ConfigBase.
 
     Returns
-    ----------
+    -------
     int
         STRAIN_IDX[strain] if exists, else 0
     """
@@ -1218,7 +1216,7 @@ def convolve_hosp_to_death(hosp, hfr, shape, scale, padding="nan"):
         be 4 weeks less than input hospitalization.
 
     Returns
-    ----------
+    -------
     numpy.array
         List of `num_day` vaccination rates arrays, each by the shape of (NUM_AGE_GROUPS,
         MAX_VAX_COUNT + 1)
@@ -1263,8 +1261,8 @@ def generate_yearly_age_bins_from_limits(age_limits: list) -> list[list[int]]:
     list[list[int]]
         List of lists containing integer years within each age bin.
 
-    Example
-    ----------
+    Examples
+    --------
     >>> generate_yearly_age_bins_from_limits([0, 5, 10, ... 80])
     [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9],... [80, 81, 82, 83, 84]]
     """
@@ -1296,7 +1294,7 @@ def load_age_demographics(
         populations older than 84 are counted as 84 years old.
 
     Returns
-    ----------
+    -------
     demographic_data : dict[str, np.ndarray]
         A dictionary maping FIPS region supplied in `regions`
         to an array of length `len(age_limits)` representing
@@ -1432,7 +1430,7 @@ def get_timeline_from_solution_with_command(
         A string command of the format specified in the function description.
 
     Returns
-    ----------
+    -------
     tuple(jnp.array, str)
         a slice of the `sol` object collapsed into the first dimension
         a string with the label of the new line, helps with
@@ -1649,7 +1647,7 @@ def get_immunity(inferer, solution):
         `diffrax.diffeqsolve`)
 
     Returns
-    ----------
+    -------
     jnp.array:
         an array of immunity protection by the shape of (NUM_STRAINS, num_days,
         NUM_AGE_GROUPS)
@@ -1684,7 +1682,7 @@ def get_vaccination_rates(inferer, num_day):
         number of simulation days
 
     Returns
-    ----------
+    -------
     list:
         list of `num_day` vaccination rates arrays, each by the shape of (NUM_AGE_GROUPS,
         MAX_VACCINATION_COUNT + 1)
@@ -1990,19 +1988,37 @@ class dual_logger_out(object):
     """
 
     def __init__(self, name, mode):
+        """Spoofs stdout __init__ but redirects flow to a file as well.
+
+        Parameters
+        ----------
+        name : str
+            File name to pipe output to.
+        mode : str
+            file open mode, usually "w" or "x".
+        """
         self.file = open(name, mode)
         self.stdout = sys.stdout
         sys.stdout = self
 
     def close(self):
+        """Finish writing to file and direct stdout back to sys.stdout."""
         sys.stdout = self.stdout
         self.file.close()
 
     def write(self, data):
+        """Write `data` to file and to sys.stdout.
+
+        Parameters
+        ----------
+        data : str
+            data to write to file and to sys.stdout
+        """
         self.file.write(data)
         self.stdout.write(data)
 
     def flush(self):
+        """Flush file contents."""
         self.file.flush()
 
 
@@ -2013,19 +2029,37 @@ class dual_logger_err(object):
     """
 
     def __init__(self, name, mode):
+        """Spoofs stderr __init__ but redirects flow to a file as well.
+
+        Parameters
+        ----------
+        name : str
+            File name to pipe output to.
+        mode : str
+            file open mode, usually "w" or "x".
+        """
         self.file = open(name, mode)
         self.stderr = sys.stderr
         sys.stderr = self
 
     def close(self):
+        """Finish writing to file and direct stderr back to sys.stderr."""
         sys.stderr = self.stderr
         self.file.close()
 
     def write(self, data):
+        """Write `data` to file and to sys.stderr.
+
+        Parameters
+        ----------
+        data : str
+            data to write to file and to sys.stderr
+        """
         self.file.write(data)
         self.stderr.write(data)
 
     def flush(self):
+        """Flush file contents."""
         self.file.flush()
 
 

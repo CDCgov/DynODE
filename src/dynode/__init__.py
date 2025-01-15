@@ -1,4 +1,4 @@
-"""Dynode, a dynamic ordinary differential model framework.
+"""DynODE, a dynamic ordinary differential model framework.
 
 DynODE is a a compartmental mechanistic ODE model that accounts for
 age structure, immunity history, vaccination, immunity waning and

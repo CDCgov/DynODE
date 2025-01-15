@@ -365,8 +365,8 @@ class AbstractParameters:
             Coefficient by which BETA can be multiplied to
             externally increase or decrease its value.
 
-        Example
-        -------
+        Examples
+        --------
         Multiple values of `t` being passed at once for this example only.
 
         >>> self.config.BETA_COEFICIENTS
@@ -415,9 +415,9 @@ class AbstractParameters:
         `seasonality_second_wave` and shifted by `seasonality_shift` days.
 
         Parameters
-        -----------
-        t: int/Traced<ShapedArray(int)> as jax.Tracer during runtime
-
+        ----------
+        t: ArrayLike
+            Current model day.
         seasonality_amplitude: float/Traced<ShapedArray(float64[])>
             maximum and minimum of the combined curves,
             taking values of `1 +/-seasonality_amplitude` respectively
@@ -428,12 +428,12 @@ class AbstractParameters:
         seasonality_shift: float/Traced<ShapedArray(float64[])>
             horizontal shift across time in days, cant not exceed +/-(365/2)
             if seasonality_shift=0, peak occurs at t=0.
+
         Returns
-        -----------
+        -------
         <ArrayLike | Float>
             Seasonality coefficient signaling an increase (>1) or decrease (<1)
-            in transmission due to the impact of seasonality.
-
+            in transmission due to the impact of seasonality.\
         """
         # cosine curves are defined by a cycle of 365 days begining at jan 1st
         # start by shifting the curve some number of days such that we line up with our INIT_DATE
@@ -508,14 +508,14 @@ class AbstractParameters:
         """Load the Crossimmunity matrix given the strain interactions matrix.
 
         Returns
-        ----------
+        -------
         jax.Array
             matrix of shape (self.config.NUM_STRAINS, self.config.NUM_PREV_INF_HIST)
             containing the relative immune escape values for each challenging
             strain compared to each prior immune history in the model.
 
         Notes
-        ----------
+        -----
         Strain interactions matrix is a matrix of shape
         (self.config.NUM_STRAINS, self.config.NUM_STRAINS),
         representing the relative immune escape risk of those who are being
@@ -531,7 +531,7 @@ class AbstractParameters:
         """Load parameters of a polynomial spline vaccination model.
 
         Returns
-        -----------
+        -------
         the following are 3 parallel lists, each with leading dimensions
         `(NUM_AGE_GROUPS, MAX_VAX_COUNT+1)` identifying the vaccination spline
         from age group I and vaccination count J to vaccination count J+1.
@@ -549,13 +549,13 @@ class AbstractParameters:
             by `VACCINATION_MODEL_KNOT_LOCATIONS[i][j]`.
 
         Raises
-        ----------
+        ------
         FileNotFoundError
             if path is not a csv file or directory. Or if directory path does not contain region
             specific file matching expected naming convention.
 
         Notes
-        ----------
+        -----
         Reads spline information from `self.config.VACCINATION_MODEL_DATA`,
         if path given is a directory, attempts a region-specific lookup with
         `self.config.REGIONS[0]`, using format
@@ -658,8 +658,8 @@ class AbstractParameters:
         t: ArrayLike
             current time in the model.
 
-        Example
-        ----------
+        Examples
+        --------
         >>> assert self.config.SEASONAL_VACCINATION
         >>> self.config.VACCINATION_SEASON_CHANGE
         50
@@ -700,7 +700,7 @@ class AbstractParameters:
         Usually sourced from https://github.com/mobs-lab/mixing-patterns.
 
         Returns
-        ----------
+        -------
         numpy.ndarray
             a matrix of shape (self.config.NUM_AGE_GROUPS, self.config.NUM_AGE_GROUPS)
             where `CONTACT_MATRIX[i][j]` refers to the per capita
