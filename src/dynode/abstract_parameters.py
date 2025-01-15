@@ -256,8 +256,9 @@ class AbstractParameters:
 
         Notes
         -----
-            Use `self.config.INTRODUCTION_AGE_MASK` to select which age bins are affected by external populations.
-            External populations are not tracked but still interact with the contact matrix, influencing spread dynamics.
+        Use `self.config.INTRODUCTION_AGE_MASK` to select which age bins are
+        affected by external populations. External populations are not tracked
+        but still interact with the contact matrix, influencing spread dynamics.
         """
         external_i_distributions = [
             lambda _: 0 for _ in range(self.config.NUM_STRAINS)
@@ -321,11 +322,11 @@ class AbstractParameters:
 
         Notes
         -----
-            Use `self.config.VACCINATION_MODEL_DAYS_SHIFT` to adjust t=0 specifically for this function.
-
-            Refer to `load_vaccination_model` for details on spline definitions and loading.
-
-            The function is continuous and differentiable for all times `t`.
+        Use `self.config.VACCINATION_MODEL_DAYS_SHIFT` to adjust t=0
+        specifically for this function.
+        Refer to `load_vaccination_model` for details on spline definitions
+        and loading.
+        The function is continuous and differentiable for all times `t`.
         """
         # shifting splines if needed for multi-epochs, 0 by default
         t_added = getattr(self.config, "VACCINATION_MODEL_DAYS_SHIFT", 0)
@@ -385,9 +386,9 @@ class AbstractParameters:
 
         Notes
         -----
-            The function defaults to a coefficient of 1.0 if no
-            modifications are specified. It uses `BETA_TIMES` and
-            `BETA_COEFICIENTS` from the configuration for adjustments.
+        The function defaults to a coefficient of 1.0 if no modifications are
+        specified. It uses `BETA_TIMES` and `BETA_COEFICIENTS` from the
+        configuration for adjustments.
         """
         # a smart lookup function that works with JAX just in time compilation
         # if t > self.config.BETA_TIMES_i, return self.config.BETA_COEFICIENTS_i
@@ -516,11 +517,11 @@ class AbstractParameters:
         Notes
         ----------
         Strain interactions matrix is a matrix of shape
-        (self.config.NUM_STRAINS, self.config.NUM_STRAINS)
+        (self.config.NUM_STRAINS, self.config.NUM_STRAINS),
         representing the relative immune escape risk of those who are being
         challenged by a strain in dim 0 but have recovered
-        previously from a strain in dim 1. Neither the strain interactions matrix
-        nor the crossimmunity matrix take into account waning.
+        previously from a strain in dim 1. Neither the strain interactions
+        matrix nor the crossimmunity matrix take into account waning.
         """
         return utils.strain_interaction_to_cross_immunity(
             self.config.NUM_STRAINS, self.config.STRAIN_INTERACTIONS
@@ -694,7 +695,7 @@ class AbstractParameters:
             return 0
 
     def load_contact_matrix(self) -> np.ndarray:
-        """load region specific contact matrix.
+        """Load region specific contact matrix.
 
         Usually sourced from https://github.com/mobs-lab/mixing-patterns.
 
@@ -740,8 +741,8 @@ class AbstractParameters:
 
         Notes
         -----
-            The function ensures that the relative sizes of
-            Exposed and Infectious compartments are preserved during scaling.
+        The function ensures that the relative sizes of
+        Exposed and Infectious compartments are preserved during scaling.
         """
         pop_counts_by_compartment = jnp.array(
             [

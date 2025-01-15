@@ -95,20 +95,21 @@ class CovidSeroInitializer(AbstractInitializer):
         Notes
         ----------
         Requires the following variables be loaded into self:
-        CONTACT_MATRIX: loading in config or via self.load_contact_matrix()
-        INIT_INFECTIOUS_DIST: loaded in config or via
+        - CONTACT_MATRIX: loading in config or via
+        `self.load_contact_matrix()`
+        - INIT_INFECTIOUS_DIST: loaded in config or via
         `get_initial_infectious_distribution()`
-        INIT_EXPOSED_DIST: loaded in config or via
+        - INIT_EXPOSED_DIST: loaded in config or via
         `get_initial_exposed_distribution()`
-        INIT_IMMUNE_HISTORY: loaded in config or via
+        - INIT_IMMUNE_HISTORY: loaded in config or via
         `load_immune_history_via_serological_data()`.
 
-        Age and immune history distributions of infectious and exposed populations
-        dictated by `self.config.INIT_INFECTIOUS_DIST`
-        and `self.config.INIT_EXPOSED_DIST` matricies.
-        Subtracts both those populations from the total population and
-        places the remaining individuals in the susceptible compartment,
-        distributed according to the `self.config.INIT_IMMUNE_HISTORY` matrix.
+        Age and immune history distributions of infectious and exposed
+        populations dictated by `self.config.INIT_INFECTIOUS_DIST` and
+        `self.config.INIT_EXPOSED_DIST` matricies. Subtracts both those
+        populations from the total population and places the remaining
+        individuals in the susceptible compartment, distributed according to
+        the `self.config.INIT_IMMUNE_HISTORY` matrix.
         """
         # create population distribution with INIT_INFECTIOUS_DIST then sum by age
         initial_infectious_count = (
@@ -387,8 +388,8 @@ class CovidSeroInitializer(AbstractInitializer):
 
         Notes
         ------
-        Ratio of initial infections across the E and I compartments dictated by
-        the ratio of their waiting times.
+        Ratio of initial infections across the E and I compartments
+        dictated by the ratio of their waiting times.
         ```
         self.config.EXPOSED_TO_INFECTIOUS
         / (self.config.EXPOSED_TO_INFECTIOUS + self.config.INFECTIOUS_PERIOD)

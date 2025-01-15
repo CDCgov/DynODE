@@ -1037,7 +1037,7 @@ def strain_interaction_to_cross_immunity(
 
     Notes
     -----
-        relative immunity does not account for waning.
+    Relative immunity does not account for waning.
     """
     infection_history = range(2**num_strains)
     crossimmunity_matrix = jnp.zeros((num_strains, len(infection_history)))
@@ -1142,8 +1142,7 @@ def flatten_list_parameters(
 
     Notes
     -----
-        If no plated parameters are present,
-        returns a copy of the original dictionary.
+    If no plated parameters are present, returns a copy of the dictionary.
     """
     return_dict = {}
     for key, value in samples.items():

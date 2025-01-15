@@ -220,12 +220,12 @@ def distribution_converter(
 
     Notes
     -----------
-    A distribution is identified by the `distribution` and `params` keys inside
-    of a json object.
-    A transform is identified by the `transform` and `params` keys inside
-    of a json object.
-    A constraint is identified by the `constraint` and `params` keys inside
-    of a json object
+    A distribution is identified by the `distribution` and `params`
+    keys inside of a json object.
+    A transform is identified by the `transform` and `params`
+    keys inside of a json object.
+    A constraint is identified by the `constraint` and `params`
+    keys inside of a json object
     """
     try:
         if "distribution" in dct.keys() and "params" in dct.keys():
