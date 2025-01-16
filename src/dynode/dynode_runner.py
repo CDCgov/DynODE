@@ -1,6 +1,6 @@
-"""
-The following abstract class defines a an abstract_azure_runner,
-commonly used to accelerate runs of the model onto azure this file
+"""Defines a an abstract_azure_runner, to standardize DynODE experiments.
+
+Commonly used to accelerate runs of the model onto azure this file
 aids the user in the production of timeseries to describe a model run
 
 It also handles the saving of stderr and stdout copies as the job executes.
@@ -22,8 +22,9 @@ from .static_value_parameters import StaticValueParameters
 
 
 class AbstractDynodeRunner(ABC):
-    """An Abstract class made to standardize the process of running an experiment on Azure.
-    Children of this class may use the functions within to standardize their processies across experiments
+    """An abstract class made to standardize the process of running simulations and fitting.
+
+    Children of this class may use functions within to standardize their processies across experiments.
     """
 
     def __init__(self, azure_output_dir):
@@ -41,29 +42,35 @@ class AbstractDynodeRunner(ABC):
 
     @abstractmethod
     def process_state(self, state, **kwargs):
-        """Abstract function meant to be implemented by the instance of the runner.
-        This handles all of the logic of actually getting a solution object. Feel free to override
-        or use a different function
+        """Abstract function meant to be implemented by instance of the runner.
 
-        Calls upon `save_*` methods to easily save its outputs for later visualization.
+        Entry point that handles all of the logic of getting a solution object.
+
+        Should call helper functions like `save_*` methods to
+        easily save its outputs for later visualization.
 
         Parameters
         ----------
         state : str
             USPS state code for an individual state or territory.
+        kwargs : any
+            any other parameters needed to identify an individual simulation.
         """
         pass
 
     def save_config(self, config_path: str, suffix: str = "_used"):
-        """saves a config json located at `config_path` appending `suffix` to the filename
-        to help distinguish it from other configs.
+        """Save a copy of config json located at `config_path`.
+
+        Appends `suffix` to the filename to help distinguish it from input configs.
 
         Parameters
         ----------
         config_path : str
-            the path, relative or absolute, to the config file wishing to be saved.
+            the path, relative or absolute,
+            to the config file wishing to be saved.
         suffix : str, optional
-            suffix to append onto filename, if "" config path remains untouched, by default "_used"
+            suffix to append onto filename,
+            if "" config filename remains untouched, by default "_used"
         """
         config_path = config_path.replace(
             "\\", "/"
