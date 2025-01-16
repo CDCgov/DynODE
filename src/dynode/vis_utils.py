@@ -469,7 +469,7 @@ def _sample_prior_distributions(priors, num_samples) -> dict[str, Array]:
         numpyro.distribution found within `priors`.
 
     Notes
-    --------
+    -----
     Return dict key names follow the same naming convention as when sampling.
     Meaning that distributions within lists or matricies have their
     index stored as a list of _i suffix at the end of their name.
@@ -584,6 +584,35 @@ def plot_violin_plots(
         "seaborn-v0_8-colorblind",
     ],
 ):
+    """Save violin plot of priors and posteriors together.
+
+    Parameters
+    ----------
+    priors : dict[str, list], optional
+        samples from a parameter's prior distribution, by default None
+    posteriors : dict[str, list], optional
+        samples from a parameter's posterior distribution, by default None
+    matplotlib_style : list[str] | str, optional
+        matplotlib style(s) to apply, by default [ "seaborn-v0_8-colorblind",]
+
+    Returns
+    -------
+    matplotlib.Figure
+        matplotlib Figure containing violin plots of the priors and posteriors.
+
+    Raises
+    ------
+    VisualizationError
+        if both `priors` and `posteriors` is None there is nothing to plot.
+
+    Notes
+    -----
+    Returned figure will be roughly square containing N subplots for N
+    parameters.
+
+    If some parameters are missing in either dictionary, an open space in
+    that subplot will be left in the figure.
+    """
     if priors is None and posteriors is None:
         raise VisualizationError(
             "must provide either a dictionary of priors or posteriors"

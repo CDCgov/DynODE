@@ -1189,8 +1189,22 @@ def drop_keys_with_substring(dct: dict[str, Any], drop_s: str):
 def match_index_len(
     series: Array, index_len: int, pad: str = "l"
 ) -> np.ndarray:
-    """A helper function designed to simply insert Nans on the left or right
-    of a series so that it matches the desired `index_len`"""
+    """Pad `series` to the left or right until it reaches desired length.
+
+    Parameters
+    ----------
+    series : jax.Array
+        Array to pad
+    index_len : int
+        desired len of `series`, modifies only first dimension.
+    pad : str, optional
+        which side of `series` to pad, "l" or "r", by default "l"
+
+    Returns
+    -------
+    jax.Array
+        `series` padded with 0s.
+    """
 
     def _pad_fn(series, index_len, pad):
         if "l" in pad:
@@ -1549,7 +1563,7 @@ def get_timeseries_from_solution_with_command(
 def get_vaccination_timeseries(
     vaccination_func, num_days_predicted
 ) -> np.ndarray:
-    """gets num individuals vaccinated by day and age bin
+    """Generate the numbers of individuals vaccinated by day and age bin.
 
     Parameters
     ----------
@@ -1562,7 +1576,8 @@ def get_vaccination_timeseries(
     -------
     np.ndarray
         timeseries of shape (num_days_predicted, age) containing the
-        output of vax_function applied on that day summed across all different vaccine stratifications
+        output of vax_function applied on that day summed across all
+        different vaccine stratifications.
     """
     return np.array(
         [
@@ -1575,7 +1590,7 @@ def get_vaccination_timeseries(
 def get_seasonality_timeseries(
     seasonality_func, num_days_predicted: int
 ) -> np.ndarray:
-    """gets seasonality coefficient by day
+    """Generate the seasonality coefficient by day.
 
     Parameters
     ----------
@@ -1587,7 +1602,8 @@ def get_seasonality_timeseries(
     Returns
     -------
     np.ndarray
-        timeseries of shape (num_days_predicted,) containing the output of seasonality_func applied on that day
+        timeseries of shape (num_days_predicted,) containing the output of
+        seasonality_func applied on that day.
     """
     return np.array([seasonality_func(t) for t in range(num_days_predicted)])
 
@@ -1595,21 +1611,22 @@ def get_seasonality_timeseries(
 def get_external_infection_timeseries(
     external_i_func, num_days_predicted: int, model
 ) -> np.ndarray:
-    """generates the external_introduction counts by day and strain
+    """Generate the external_introduction counts by day and strain.
 
     Parameters
     ----------
     external_i_func : Callable[int]
-        function to generate externally introduced people
+        Function to generate externally introduced people
     num_days_predicted : int
-        number of days the simulation was run for
+        Number of days the simulation was run for
     model : AbstractParameters
-        parameters object for enum lookup
+        Parameters object for enum lookup
 
     Returns
     -------
     np.ndarray
-        timseries of all external introductions of shape (num_days_predicted, model.config.NUM_STRAINS)
+        Timeseries of all external introductions of shape
+        (num_days_predicted, model.config.NUM_STRAINS).
     """
     # sum across age groups since we do % of each age bin anyways
     return np.array(
@@ -1632,26 +1649,24 @@ def get_sero_proportion_timeseries(
     population: Array,
     model,
 ) -> np.ndarray:
-    """given a timeseries of infections, finds individuals who
-    have never been infected, and uses that to calculate the predicted sero-positive
-    proportion among the population by day.
+    """Calculate positive sero-prevalence by age for each day in a timeseries.
 
     Parameters
     ----------
     infections : SEIC_Compartments
-        tuple of jax arrays containing a timeseries of each compartment's values
+        Tuple of jax arrays containing a timeseries of each compartment's values
         on a given day.
     population : jax.Array
-        an array of len(model.config.NUM_AGE_GROUPS) containing the
-        population sizes of each age bin
+        An array of len(model.config.NUM_AGE_GROUPS) containing the
+        population sizes of each age bin.
     model : AbstractParameters
-        a parameter object containing a config.S_AXIS_IDX enum for lookups and
-        a config.POPULATION array for population counts
+        A parameter object containing a config.S_AXIS_IDX enum for lookups and
+        a config.POPULATION array for population counts.
 
     Returns
     -------
     np.ndarray
-        array of two dimensions (time, age) matching the first two dimensions
+        Array of two dimensions (time, age) matching the first two dimensions
         of the Susceptible compartment's timeseries
     """
     # select timeseries of those with infect_hist 0, sum over all vax/wane tiers
@@ -1666,7 +1681,7 @@ def get_sero_proportion_timeseries(
 
 def get_var_proportions(inferer, solution):
     """
-    Calculate _daily_ variant proportions based on a simulation run.
+    Calculate _daily_ variant proportions on a simulation run.
 
     Parameters
     ----------
@@ -1676,9 +1691,9 @@ def get_var_proportions(inferer, solution):
         Solution object from an ODE run (specifically through `diffrax.diffeqsolve`).
 
     Returns
-    ----------
+    -------
     jnp.array:
-        an array of strain prevalence by the shape of (num_days, NUM_STRAINS)
+        An array of strain prevalence by the shape of (num_days, NUM_STRAINS)
     """
     strain_incidence = jnp.sum(
         solution.ys[inferer.config.COMPARTMENT_IDX.C],
@@ -1791,29 +1806,30 @@ def generate_model_component_timeseries(
     solution: Solution,
     hospitalization_preds: Optional[Array] = None,
 ) -> pd.DataFrame:
-    """
-    a private function which generates a dataframe of different timeseries of interest, optionally including hospitalizations
+    """Generate a dataframe of different timeseries of interest.
+
+    Timeseries of interest include: vaccination, seasonality coefficient,
+    external introductions, beta coefficients, and sero positive population.
 
     Parameters
     ----------
     model : AbstractParameters
-        a class that inherits from AbstractParameters and therefore has a get_parameters() method
+        a class with a  get_parameters() method.
     solution : Solution
-        diffrax Solution object as produced by MechanisticRunner.run() command
+        Diffrax Solution object as produced by MechanisticRunner.run() command.
     hospitalization_preds : Optional Array
-        models hospitalization predictions, usually the infections
-        matrix with some infection hospitalization ratio applied,
-        must be of shape (time, age_bin)
+        Hospitalization predictions by age, Optional.
 
-    NOTE
-    -------------
-    `infections` and `hospitalization_preds` are assumed to begin at
+    Notes
+    -----
+    `hospitalization_preds` are assumed to begin at
     model.config.INIT_DATE.
 
     Returns
     -------
     pd.DataFrame
-        a pandas dataframe with a "date" column along with a number of views of the model output
+        a pandas dataframe with a "date" column along with a number of
+        timeseries of interest involving model output.
     """
     compartment_timeseries = solution.ys
     num_days_predicted = compartment_timeseries[
@@ -2317,14 +2333,12 @@ def find_files(
 
 
 def save_samples(samples: dict[str, Array], save_path: str, indent=None):
-    """a helper method designed to save dictionaries of jax arrays, which by
-    default are not json serializable. Converts all numpy/jax arrays to
-    python lists, preserves shape.
+    """Save model samples to `save_path`, with JSON serializability.
 
     Parameters
     ----------
     samples : dict[str, Array]
-        dictionary with str keys each containing a jax array of samples or
+        Dictionary with str keys each containing a jax array of samples or
         posteriors, often returned by MCMC.get_samples()
     save_path : str
         path, relative or absolute to save json to
