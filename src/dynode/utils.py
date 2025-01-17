@@ -1121,14 +1121,14 @@ def drop_sample_chains(samples: dict, dropped_chain_vals: list):
 
 
 def flatten_list_parameters(
-    samples: dict[str, np.ndarray],
+    samples: dict[str, np.ndarray | Array],
 ) -> dict[str, np.ndarray]:
     """
     Flatten plated parameters into separate keys in the samples dictionary.
 
     Parameters
     ----------
-    samples : dict[str, np.ndarray]
+    samples : dict[str, np.ndarray | Array]
         Dictionary with parameter names as keys and sample
         arrays as values. Arrays may have shape MxNxP for P independent draws.
 
@@ -1144,7 +1144,7 @@ def flatten_list_parameters(
     """
     return_dict = {}
     for key, value in samples.items():
-        if isinstance(value, np.ndarray) and value.ndim > 2:
+        if isinstance(value, (np.ndarray, Array)) and value.ndim > 2:
             num_dims = value.ndim - 2
             indices = (
                 np.indices(value.shape[-num_dims:]).reshape(num_dims, -1).T
