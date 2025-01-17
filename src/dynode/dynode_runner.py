@@ -16,7 +16,8 @@ import pandas as pd  # type: ignore
 from diffrax import Solution  # type: ignore
 from jax import Array
 
-from . import utils, vis_utils
+from . import SEIC_Compartments, utils, vis_utils
+from .abstract_parameters import AbstractParameters
 from .mechanistic_inferer import MechanisticInferer
 from .static_value_parameters import StaticValueParameters
 
@@ -28,6 +29,16 @@ class AbstractDynodeRunner(ABC):
     """
 
     def __init__(self, azure_output_dir):
+        """Initialize DynODE manager class.
+
+        A DynODERunner or manager is a class that helps standardize different
+        DynODE run output and automate basic exploratory visualziations.
+
+        Parameters
+        ----------
+        azure_output_dir : str
+            Directory to save logs, figures, and output to.
+        """
         # saving for future use
         self.azure_output_dir = azure_output_dir
         if not os.path.exists(azure_output_dir):
@@ -350,7 +361,7 @@ class AbstractDynodeRunner(ABC):
             spoof_static_inferer = _spoof_static_inferer(
                 inferer, static_parameters
             )
-            df = utils.generate_model_component_timeseries(
+            df = self.generate_model_component_timeseries(
                 spoof_static_inferer,
                 infection_timeseries,
                 hospitalization_preds=hospitalizations,
@@ -403,7 +414,7 @@ class AbstractDynodeRunner(ABC):
         pd.DataFrame
             Dataframe containing timeseries of metrics of note.
         """
-        df = utils.generate_model_component_timeseries(parameters, sol)
+        df = self.generate_model_component_timeseries(parameters, sol)
         # there is no chain nor particle in a static run, so we save as na_na
         df["chain_particle"] = "na_na"
         if timeseries_filename:
@@ -415,6 +426,252 @@ class AbstractDynodeRunner(ABC):
                 index=False,
             )
         return df
+
+    def generate_model_component_timeseries(
+        self,
+        model: AbstractParameters,
+        solution: Solution,
+        hospitalization_preds: Array = None,
+    ) -> pd.DataFrame:
+        """Generate a dataframe of different timeseries of interest.
+
+        Timeseries of interest include: vaccination, seasonality coefficient,
+        external introductions, beta coefficients, and sero positive population.
+
+        Parameters
+        ----------
+        model : AbstractParameters
+            a class with a  get_parameters() method.
+        solution : Solution
+            Diffrax Solution object as produced by MechanisticRunner.run() command.
+        hospitalization_preds : Optional Array
+            Hospitalization predictions by age, Optional.
+
+        Notes
+        -----
+        `hospitalization_preds` are assumed to begin at
+        model.config.INIT_DATE.
+
+        Returns
+        -------
+        pd.DataFrame
+            a pandas dataframe with a "date" column along with a number of
+            timeseries of interest involving model output.
+        """
+        compartment_timeseries = solution.ys
+        num_days_predicted = compartment_timeseries[
+            model.config.COMPARTMENT_IDX.S
+        ].shape[0]
+        sim_dates = [
+            utils.sim_day_to_date(day, model.config.INIT_DATE)
+            for day in range(num_days_predicted)
+        ]
+        df = pd.DataFrame()
+        df["date"] = sim_dates
+        parameters = model.get_parameters()
+        # save a timeseries of shape (num_days_predicted, age_groups)
+        # sum across vax status
+        vaccination_timeseries = self._get_vaccination_timeseries(
+            vaccination_func=parameters["VACCINATION_RATES"],
+            num_days_predicted=num_days_predicted,
+        )
+        # save a seasonality timeseries of shape (num_days_predicted, )
+        df["seasonality_coef"] = self._get_seasonality_timeseries(
+            seasonality_func=parameters["SEASONALITY"],
+            num_days_predicted=num_days_predicted,
+        )
+        # save external introductions timeseries of shape (num_days_predicted, num_strains)
+        external_i_timeseries = self._get_external_infection_timeseries(
+            external_i_func=parameters["EXTERNAL_I"],
+            num_days_predicted=num_days_predicted,
+            model=model,
+        )
+        sim_sero = self._get_sero_proportion_timeseries(
+            compartment_timeseries=compartment_timeseries,
+            population=parameters["POPULATION"],
+            model=model,
+        )
+
+        for age_bin_str in model.config.AGE_GROUP_STRS:
+            age_bin_idx = model.config.AGE_GROUP_IDX[age_bin_str]
+            age_bin_str = age_bin_str.replace("-", "_")
+            # save ground truth and predicted hosp by age
+            if hospitalization_preds is not None:
+                df["pred_hosp_%s" % (age_bin_str)] = utils.match_index_len(
+                    hospitalization_preds[:, age_bin_idx], len(df.index)
+                )
+            # save vaccination rate by age
+            df["vaccination_%s" % (age_bin_str)] = vaccination_timeseries[
+                :, age_bin_idx
+            ]
+            # save sero-positive rate by age
+            df["sero_%s" % (age_bin_str)] = sim_sero[:, age_bin_idx]
+        # get total infection incidence
+        (
+            infection_incidence,
+            _,
+        ) = utils.get_timeseries_from_solution_with_command(
+            compartment_timeseries,
+            model.config.COMPARTMENT_IDX,
+            model.config.WANE_IDX,
+            model.config.STRAIN_IDX,
+            "incidence",
+        )
+        # incidence takes a diff, thus reducing length by 1
+        # since we cant measure change in infections at t=0 we just prepend None
+        # plots can start the next day.
+        df["total_infection_incidence"] = utils.match_index_len(
+            infection_incidence, len(df.index)
+        )
+        # get strain proportion by strain for each day
+        (
+            strain_proportions,
+            _,
+        ) = utils.get_timeseries_from_solution_with_command(
+            compartment_timeseries,
+            model.config.COMPARTMENT_IDX,
+            model.config.WANE_IDX,
+            model.config.STRAIN_IDX,
+            "strain_prevalence",
+        )
+        # shape (strain, num_days_predicted) summed across age bins
+        population_immunity = np.mean(
+            utils.get_immunity(model, solution), axis=-1
+        )
+        for s_idx, strain_name in enumerate(
+            model.config.STRAIN_IDX._member_names_
+        ):
+            # save out strain specific data for each strain
+            df["%s_strain_proportion" % strain_name] = strain_proportions[
+                s_idx
+            ]
+            df[
+                "%s_external_introductions" % strain_name
+            ] = external_i_timeseries[:, s_idx]
+            df["%s_average_immunity" % strain_name] = population_immunity[
+                s_idx, :
+            ]
+        return df
+
+    def _get_vaccination_timeseries(
+        self, vaccination_func, num_days_predicted
+    ) -> np.ndarray:
+        """Generate the numbers of individuals vaccinated by day and age bin.
+
+        Parameters
+        ----------
+        vaccination_func : Callable[int]
+            function to generate vaccinations on a given day
+        num_days_predicted : int
+            number of days the simulation was run for
+
+        Returns
+        -------
+        np.ndarray
+            timeseries of shape (num_days_predicted, age) containing the
+            output of vax_function applied on that day summed across all
+            different vaccine stratifications.
+        """
+        return np.array(
+            [
+                np.sum(vaccination_func(t), axis=1)
+                for t in range(num_days_predicted)
+            ]
+        )
+
+    def _get_seasonality_timeseries(
+        self, seasonality_func, num_days_predicted: int
+    ) -> np.ndarray:
+        """Generate the seasonality coefficient by day.
+
+        Parameters
+        ----------
+        seasonality_func : Callable[int]
+            function to generate seasonality coefficients in the model
+        num_days_predicted : int
+            number of days the simulation was run for
+
+        Returns
+        -------
+        np.ndarray
+            timeseries of shape (num_days_predicted,) containing the output of
+            seasonality_func applied on that day.
+        """
+        return np.array(
+            [seasonality_func(t) for t in range(num_days_predicted)]
+        )
+
+    def _get_external_infection_timeseries(
+        self, external_i_func, num_days_predicted: int, model
+    ) -> np.ndarray:
+        """Generate the external_introduction counts by day and strain.
+
+        Parameters
+        ----------
+        external_i_func : Callable[int]
+            Function to generate externally introduced people
+        num_days_predicted : int
+            Number of days the simulation was run for
+        model : AbstractParameters
+            Parameters object for enum lookup
+
+        Returns
+        -------
+        np.ndarray
+            Timeseries of all external introductions of shape
+            (num_days_predicted, model.config.NUM_STRAINS).
+        """
+        # sum across age groups since we do % of each age bin anyways
+        return np.array(
+            [
+                np.sum(
+                    external_i_func(t),
+                    axis=(
+                        model.config.I_AXIS_IDX.age,
+                        model.config.I_AXIS_IDX.hist,
+                        model.config.I_AXIS_IDX.vax,
+                    ),
+                )
+                for t in range(num_days_predicted)
+            ]
+        )
+
+    def _get_sero_proportion_timeseries(
+        self,
+        compartment_timeseries: SEIC_Compartments,
+        population: Array,
+        model,
+    ) -> np.ndarray:
+        """Calculate positive sero-prevalence by age for each day in a timeseries.
+
+        Parameters
+        ----------
+        infections : SEIC_Compartments
+            Tuple of jax arrays containing a timeseries of each compartment's values
+            on a given day.
+        population : jax.Array
+            An array of len(model.config.NUM_AGE_GROUPS) containing the
+            population sizes of each age bin.
+        model : AbstractParameters
+            A parameter object containing a config.S_AXIS_IDX enum for lookups and
+            a config.POPULATION array for population counts.
+
+        Returns
+        -------
+        np.ndarray
+            Array of two dimensions (time, age) matching the first two dimensions
+            of the Susceptible compartment's timeseries
+        """
+        # select timeseries of those with infect_hist 0, sum over all vax/wane tiers
+        never_infected = np.sum(
+            compartment_timeseries[model.config.COMPARTMENT_IDX.S][
+                :, :, 0, :, :
+            ],
+            axis=(model.config.S_AXIS_IDX.vax, model.config.S_AXIS_IDX.wane),
+        )
+        # 1-never_infected is those sero-positive / POPULATION to make proportions
+        sim_sero = 1 - never_infected / population
+        return sim_sero
 
     def _validate_extra_timeseries(
         self, extra_timeseries: pd.DataFrame | None
