@@ -826,44 +826,6 @@ def strain_interaction_to_cross_immunity(
     return crossimmunity_matrix
 
 
-def drop_sample_chains(samples: dict, dropped_chain_vals: list):
-    """
-    Drop specified chains from posterior samples.
-
-    Parameters
-    ----------
-    samples : dict[str, list]
-        Dictionary with parameter names as keys and sample
-        lists as values. Shapes of these values are (M,N) for
-        a model with M chains and N samples per chain.
-    dropped_chain_vals : list[int]
-        List of chain indices to be dropped. If empty, no chains are dropped.
-
-    Returns
-    -------
-    dict[str, list]
-        Copy of samples dictionary with specified chains removed.
-    """
-    # Create a new dictionary to store the filtered samples
-    filtered_dict = {}
-    # Iterate over the keys (parameter names) in the original dictionary
-    for param_name in samples.keys():
-        # Get the samples for the current parameter
-        param_samples = samples[param_name]
-        # Remove the specified chains from the samples
-        filtered_samples = np.array(
-            [
-                samples
-                for i, samples in enumerate(param_samples)
-                if i not in dropped_chain_vals
-            ]
-        )
-        # Add the filtered samples to the new dictionary
-        filtered_dict[param_name] = filtered_samples
-
-    return filtered_dict
-
-
 def flatten_list_parameters(
     samples: dict[str, np.ndarray | Array],
 ) -> dict[str, np.ndarray | Array]:
