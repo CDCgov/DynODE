@@ -754,34 +754,6 @@ def combine_strains(
     return strain_combined_compartment
 
 
-def find_waning_compartment(TSLIE: int, waning_times: list[int]) -> int:
-    """
-    Determine the waning compartment index based on time since last immunogenetic event (TSLIE).
-
-    Parameters
-    ----------
-    TSLIE : int
-        Days since the immunogenetic event (e.g., vaccination or infection).
-    waning_times : list[int]
-        Days an individual stays in each waning compartment, ending in zero.
-
-    Returns
-    -------
-    int
-        Index of the waning bin for an event that occurred `TSLIE` days ago.
-    """
-    # possible with cumulative sum, but this solution still O(N) and more interpretable
-    current_bin = 0
-    for wane_time in waning_times:
-        if TSLIE - wane_time < 0:
-            return current_bin
-        else:
-            TSLIE -= wane_time
-            current_bin += 1
-    # last compartment waning_time = 0, shifts us 1 extra bin, shift back in this edge case.
-    return current_bin - 1
-
-
 def strain_interaction_to_cross_immunity(
     num_strains: int, strain_interactions: np.ndarray
 ) -> Array:
