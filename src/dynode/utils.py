@@ -754,35 +754,6 @@ def combine_strains(
     return strain_combined_compartment
 
 
-def convert_hist(strains: str, STRAIN_IDX: IntEnum) -> int:
-    """Parse a comma separated list of strains into an immune history state.
-
-    Any unrecognized strain strings inside of `strains` do not contiribute to the returned state.
-
-    Examples
-    --------
-    strains: "alpha, delta, omicron"
-    STRAIN_IDX: delta=0, omicron=1
-    num_strains: 2
-
-    method will ignore alpha infection as it is not in STRAIN_IDX, returning state=3, indicating infection with both delta and omicron.
-
-    Parameters
-    ----------
-    strains: str
-        a comma separated string of each exposed strain, order does not matter, capitalization does not matter.
-    STRAIN_IDX: intEnum
-        an enum containing the name of each strain and its associated strain index, as initialized by ConfigBase.
-    num_strains:
-        the number of _tracked_ strains in the model.
-    """
-    state = 0
-    for strain in filter(None, strains.split(",")):
-        strain_idx = convert_strain(strain, STRAIN_IDX)
-        state = new_immune_state(state, strain_idx)
-    return state
-
-
 def convert_strain(strain: str, STRAIN_IDX: IntEnum) -> int:
     """Lookup strain name in STRAIN_IDX, return 0 if not found.
 
