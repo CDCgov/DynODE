@@ -754,40 +754,6 @@ def combine_strains(
     return strain_combined_compartment
 
 
-def find_age_bin(age: int, age_limits: list[int]) -> int:
-    """
-    Given an age, return the age bin it belongs to in the age limits array.
-
-    Parameters
-    ----------
-    age : int
-        Age of the individual or population to be binned.
-    age_limits : list[int]
-        Age limit for each age bin in the model, beginning with minimum age,
-        values are exclusive in upper bound. so [0,18] means 0-17, 18+.
-
-    Returns
-    -------
-    int
-        The index of the bin, assuming 0 is the youngest age bin
-        and len(age_limits)-1 is the oldest age bin.
-
-    Examples
-    --------
-    >>> [find_age_bin(age = age, age_limits = [0,18,50,65])
-    ... for age in [0, 17, 18, 49, 50, 64, 65, 100]]
-    [0, 0, 1, 1, 2, 2, 3, 3]
-
-    """
-    current_bin = -1
-    for age_limit in age_limits:
-        if age - age_limit < 0:
-            return current_bin
-        else:
-            current_bin += 1
-    return current_bin
-
-
 def find_vax_bin(vax_shots: int, max_doses: int) -> int:
     """Calculate vaccination bin.
 
