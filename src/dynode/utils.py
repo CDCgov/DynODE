@@ -12,7 +12,6 @@ from typing import Any
 
 import epiweeks
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import numpy as np
 import numpyro  # type: ignore
 import numpyro.distributions as Dist  # type: ignore
@@ -1063,39 +1062,6 @@ def load_age_demographics(
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # Plotting CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-
-def plot_sample_chains(samples):
-    """Plot trace plots of M chains through N samples for each parameter.
-
-    Parameters
-    ----------
-    samples : dict[str, list]
-        Dictionary with parameter names as keys and sample lists as values (MxN shape).
-
-    Returns
-    -------
-    tuple[matplotlib.Figure, matplotlib.Axes]
-        Plots each parameter along with each chain of that parameter,
-        also returns `plt.fig` and `plt.axs` objects for modification.
-    """
-    # ensure samples are all NxM before plotting
-    if any([samples[key].ndim == 3 for key in samples.keys()]):
-        samples = flatten_list_parameters(samples)
-    # we want ceil(n/2) rows and 2 columns
-    fig, axs = plt.subplots(int(len(samples.keys()) + 1) / 2, 2)
-    for i, parameter in enumerate(samples.keys()):
-        num_chains = len(samples["parameter"])
-        # basic bounds checking to set our axs obj
-        row = i if i < len(axs) else i - len(axs)
-        col = 1 if i >= len(axs) else 0
-        axs[row, col].set_title(parameter)
-        axs[row, col].plot(
-            np.transpose(samples[parameter]), label=range(num_chains)
-        )
-    fig.legend()
-    plt.show()
-    return fig, axs
 
 
 def get_timeline_from_solution_with_command(
