@@ -1342,26 +1342,6 @@ def get_immunity(inferer, solution):
     return immunity_strain
 
 
-def get_vaccination_rates(inferer, num_day):
-    """Calculate _daily_ vaccination rates over the course of `num_day`.
-
-    Parameters
-    ----------
-    `inferer` : AbstractParameters
-        an AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) that
-        is used to produce `solution`.
-    `num_day`: int
-        number of simulation days
-
-    Returns
-    -------
-    list:
-        list of `num_day` vaccination rates arrays, each by the shape of (NUM_AGE_GROUPS,
-        MAX_VACCINATION_COUNT + 1)
-    """
-    return [inferer.vaccination_rate(t).tolist() for t in range(num_day)]
-
-
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # CONTACT MATRIX CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
