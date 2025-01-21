@@ -14,14 +14,6 @@ example_strain_idxs = IntEnum("example_strain_idxs", ["a", "b", "c"], start=0)
 num_strains = 3
 
 
-def test_convert_strain():
-    assert utils.convert_strain("a", example_strain_idxs) == 0
-    assert utils.convert_strain("b", example_strain_idxs) == 1
-    assert utils.convert_strain("c", example_strain_idxs) == 2
-    assert utils.convert_strain("C", example_strain_idxs) == 2
-    assert utils.convert_strain("not_in_idxs", example_strain_idxs) == 0
-
-
 def test_base_equation():
     # attempt to test: 5 + 1t + 2t^2 + 3t^3
     def equation(t):

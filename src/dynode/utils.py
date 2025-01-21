@@ -754,27 +754,6 @@ def combine_strains(
     return strain_combined_compartment
 
 
-def convert_strain(strain: str, STRAIN_IDX: IntEnum) -> int:
-    """Lookup strain name in STRAIN_IDX, return 0 if not found.
-
-    Parameters
-    ----------
-    strain: str
-        a string representing the infecting strain, capitalization does not matter.
-    STRAIN_IDX: intEnum
-        an enum containing the name of each strain and its associated strain index, as initialized by ConfigBase.
-
-    Returns
-    -------
-    int
-        STRAIN_IDX[strain] if exists, else 0
-    """
-    if strain.lower() in STRAIN_IDX._member_map_:
-        return STRAIN_IDX[strain.lower()]
-    else:
-        return 0  # return oldest strain if not included
-
-
 def find_waning_compartment(TSLIE: int, waning_times: list[int]) -> int:
     """
     Determine the waning compartment index based on time since last immunogenetic event (TSLIE).
