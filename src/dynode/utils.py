@@ -754,26 +754,6 @@ def combine_strains(
     return strain_combined_compartment
 
 
-def find_vax_bin(vax_shots: int, max_doses: int) -> int:
-    """Calculate vaccination bin.
-
-    Parameters
-    ----------
-    vax_shots : int
-        The number of vaccinations given.
-    max_doses : int
-        The number of doses maximum before all subsequent
-        doses are no longer counted.
-
-    Returns
-    -------
-    int
-        Index representing which vaccination bin the population
-        or individual belong to.
-    """
-    return min(vax_shots, max_doses)
-
-
 def convert_hist(strains: str, STRAIN_IDX: IntEnum) -> int:
     """Parse a comma separated list of strains into an immune history state.
 
