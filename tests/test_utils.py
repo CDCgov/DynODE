@@ -3,6 +3,7 @@ import itertools
 from enum import IntEnum
 
 import jax.numpy as jnp
+import numpy as np
 import numpyro.distributions as dist
 
 from dynode import utils
@@ -426,3 +427,57 @@ def test_get_timeline_from_solution_with_command_compartment_slice():
     assert jnp.all(
         timeline == 16
     )  # Each element in sol is 1, summed over 4*1*1*4 = 16
+
+
+def test_flatten_list_params_numpy():
+    # simulate 4 chains and 20 samples each with 4 plated parameters
+    testing = {"test": np.ones((4, 20, 5))}
+    flattened = utils.flatten_list_parameters(testing)
+    assert "test" not in flattened.keys()
+    for suffix in range(5):
+        key = "test_%s" % str(suffix)
+        assert (
+            key in flattened.keys()
+        ), "flatten_list_parameters not naming split params correctly."
+        assert flattened[key].shape == (
+            4,
+            20,
+        ), "flatten_list_parameters breaking up wrong axis"
+
+
+def test_flatten_list_params_jax_numpy():
+    # simulate 4 chains and 20 samples each with 4 plated parameters
+    # this time with jax numpy instead of numpy
+    testing = {"test": jnp.ones((4, 20, 5))}
+    flattened = utils.flatten_list_parameters(testing)
+    assert "test" not in flattened.keys()
+    for suffix in range(5):
+        key = "test_%s" % str(suffix)
+        assert (
+            key in flattened.keys()
+        ), "flatten_list_parameters not naming split params correctly."
+        assert flattened[key].shape == (
+            4,
+            20,
+        ), "flatten_list_parameters breaking up wrong axis"
+
+
+def test_flatten_list_params_multi_dim():
+    # simulate 4 chains and 20 samples each with 10 plated parameters
+    # this time with jax numpy instead of numpy
+    testing = {"test": jnp.ones((4, 20, 5, 2))}
+    flattened = utils.flatten_list_parameters(testing)
+    assert "test" not in flattened.keys()
+    for suffix_first_dim in range(5):
+        for suffix_second_dim in range(2):
+            key = "test_%s_%s" % (
+                str(suffix_first_dim),
+                str(suffix_second_dim),
+            )
+            assert (
+                key in flattened.keys()
+            ), "flatten_list_parameters not naming split params correctly."
+            assert flattened[key].shape == (
+                4,
+                20,
+            ), "flatten_list_parameters breaking up wrong axis when passed >3"
