@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """A basic covid example to show off how to work with DynODE.
 
 Results produced by this basic example are not meant to be taken as serious
@@ -10,8 +11,6 @@ estimates of what epidemiological variables produced it.
 For runtime the fitting is very short and not very accurate, you may improve
 the accuracy at the cost of runtime by modifying the inferer config.
 """
-
-#!/usr/bin/env python
 
 import argparse
 import os
