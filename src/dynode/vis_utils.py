@@ -280,7 +280,7 @@ def plot_checkpoint_inference_correlation_pairs(
         Figure with n rows and n columns where n is the number of sampled parameters.
     """
     # convert lists to np.arrays
-    posteriors: dict[str, np.ndarray] = flatten_list_parameters(
+    posteriors: dict[str, np.ndarray | Array] = flatten_list_parameters(
         {
             key: np.array(val) if isinstance(val, list) else val
             for key, val in posteriors_in.items()
@@ -408,7 +408,7 @@ def plot_mcmc_chains(
         Matplotlib figure containing the plots.
     """
     # Determine the number of parameters and chains
-    samples: dict[str, np.ndarray] = flatten_list_parameters(
+    samples: dict[str, np.ndarray | Array] = flatten_list_parameters(
         {
             key: np.array(val) if isinstance(val, list) else val
             for key, val in samples_in.items()

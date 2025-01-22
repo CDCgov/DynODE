@@ -1118,8 +1118,8 @@ def drop_sample_chains(samples: dict, dropped_chain_vals: list):
 
 
 def flatten_list_parameters(
-    samples: dict[str, np.ndarray | Array],
-) -> dict[str, np.ndarray]:
+    samples: dict[str, np.ndarray | Array | Array],
+) -> dict[str, np.ndarray | Array]:
     """
     Flatten plated parameters into separate keys in the samples dictionary.
 
