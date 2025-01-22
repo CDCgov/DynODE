@@ -10,6 +10,7 @@ import json
 import os
 import warnings
 from abc import ABC, abstractmethod
+from typing import Optional
 
 import numpy as np
 import pandas as pd  # type: ignore
@@ -431,7 +432,7 @@ class AbstractDynodeRunner(ABC):
         self,
         model: AbstractParameters,
         solution: Solution,
-        hospitalization_preds: Array = None,
+        hospitalization_preds: Optional[Array] = None,
     ) -> pd.DataFrame:
         """Generate a dataframe of different timeseries of interest.
 
