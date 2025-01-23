@@ -433,7 +433,7 @@ class AbstractParameters:
         -------
         <ArrayLike | Float>
             Seasonality coefficient signaling an increase (>1) or decrease (<1)
-            in transmission due to the impact of seasonality.\
+            in transmission due to the impact of seasonality.
         """
         # cosine curves are defined by a cycle of 365 days begining at jan 1st
         # start by shifting the curve some number of days such that we line up with our INIT_DATE
