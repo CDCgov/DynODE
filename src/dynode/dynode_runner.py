@@ -152,10 +152,10 @@ class AbstractDynodeRunner(ABC):
 
         Notes
         -----
-        All parameters generated with numpyro.plate within `samples`
-        and thus have a third dimension (num_chains, num_samples, num_plates)
-        are flattened to the desired and displayed as
-        separate parameters with _i suffix for each i in num_plates.
+        All parameters generated as a list, often with methods such as
+        numpyro.plate within `samples` and thus have a third dimension
+        (num_chains, num_samples, num_plates) are flattened to the desired and
+        displayed as separate parameters with _i suffix for each element i.
 
         Most often `samples` is generated via `MCMC.get_samples()` on a
         finished inference object.
