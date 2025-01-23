@@ -116,7 +116,7 @@ class ExampleDynodeRunner(AbstractDynodeRunner):
             inferer.infer(jnp.array(synthetic_observed_hospitalizations))
             print("saving a suite of inference visualizations ")
             # save some particle 0 and 5 from chains 0 and 1 for example
-            self.save_inference_timeseries(
+            self.generate_inference_timeseries(
                 inferer,
                 particles=[(0, 0), (1, 0), (0, 5), (1, 5)],
                 timeseries_filename="local_inference_timeseries.csv",

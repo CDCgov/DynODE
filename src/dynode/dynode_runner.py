@@ -278,7 +278,7 @@ class AbstractDynodeRunner(ABC):
                 "attempting to call `save_inference_timesteps` before inference is complete. Something is likely wrong..."
             )
 
-    def save_inference_timeseries(
+    def generate_inference_timeseries(
         self,
         inferer: MechanisticInferer,
         particles: list[tuple[int, int]],
@@ -303,7 +303,7 @@ class AbstractDynodeRunner(ABC):
             wish to save, values must be less than
             `model.config.INFERENCE_NUM_CHAINS/SAMPLES` respectively.
         timeseries_filename : str, optional
-            Filename to be saved under. None does not save file.
+            Filename to be saved under. If None, does not save file.
             Do not change without modification to downstream postprocessing
             scripts, by default "simulation_timeseries.csv"
         extra_timeseries: pd.DataFrame, optional
@@ -354,15 +354,16 @@ class AbstractDynodeRunner(ABC):
             hospitalizations_tmp = sol_dct["hospitalizations"]
             assert isinstance(hospitalizations_tmp, Array)
             hospitalizations: Array = hospitalizations_tmp
-            parameters_tmp = sol_dct["parameters"]
-            assert isinstance(parameters_tmp, dict)
-            static_parameters: dict[str, Array] = parameters_tmp
-            # spoof the inferer to return our static parameters when calling `get_parameters()`
-            # instead of trying to sample like it normally does
+            posterior_parameters_tmp = sol_dct["parameters"]
+            assert isinstance(posterior_parameters_tmp, dict)
+            posterior_parameters: dict[str, Array] = posterior_parameters_tmp
+            # spoof the inferer to return our posterior parameters
+            # when calling `get_parameters()` instead of trying to sample.
+            # TODO fix this flow to not use spoofing.
             spoof_static_inferer = _spoof_static_inferer(
-                inferer, static_parameters
+                inferer, posterior_parameters
             )
-            df = self.generate_model_component_timeseries(
+            df = self._generate_model_component_timeseries(
                 spoof_static_inferer,
                 infection_timeseries,
                 hospitalization_preds=hospitalizations,
@@ -415,7 +416,7 @@ class AbstractDynodeRunner(ABC):
         pd.DataFrame
             Dataframe containing timeseries of metrics of note.
         """
-        df = self.generate_model_component_timeseries(parameters, sol)
+        df = self._generate_model_component_timeseries(parameters, sol)
         # there is no chain nor particle in a static run, so we save as na_na
         df["chain_particle"] = "na_na"
         if timeseries_filename:
@@ -428,7 +429,7 @@ class AbstractDynodeRunner(ABC):
             )
         return df
 
-    def generate_model_component_timeseries(
+    def _generate_model_component_timeseries(
         self,
         model: AbstractParameters,
         solution: Solution,
