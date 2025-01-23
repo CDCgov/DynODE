@@ -179,9 +179,9 @@ class AbstractDynodeRunner(ABC):
         Parameters
         ----------
         inferer : MechanisticInferer
-            Inferer on which inference was performed via `inferer.infer()`
+            Inferer on which inference was performed via `inferer.infer()`.
         save_filename : str, optional
-            Output filename, by default "checkpoint.json"
+            Output filename, by default "checkpoint.json".
         exclude_prefixes: list[str], optional
             Prefixes to samples to exclude from `save_filename` for memory reasons.
             by default ["timestep"] to exclude all timestep logging variables.
@@ -189,7 +189,7 @@ class AbstractDynodeRunner(ABC):
             Whether to save accompanying mcmc chains plot, by default True
         save_pairs_correlation_plot: bool, optional
             Whether to save accompanying pairs correlation plot,
-            by default True
+            by default True.
         """
         # if inference complete, convert jnp/np arrays to list, then json dump
         if inferer.infer_complete:
