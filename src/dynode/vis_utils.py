@@ -25,17 +25,17 @@ class VisualizationError(Exception):
     pass
 
 
-def _cleanup_and_normalize_timelines(
-    all_state_timelines: pd.DataFrame,
+def _cleanup_and_normalize_timeseries(
+    all_state_timeseries: pd.DataFrame,
     plot_types: np.ndarray,
     plot_normalizations: np.ndarray,
     state_pop_sizes: dict[str, int],
 ):
     # Select columns with 'float64' dtype
-    float_cols = list(all_state_timelines.select_dtypes(include="float64"))
+    float_cols = list(all_state_timeseries.select_dtypes(include="float64"))
     # round down near-zero values to zero to make plots cleaner
-    all_state_timelines[float_cols] = all_state_timelines[float_cols].mask(
-        np.isclose(all_state_timelines[float_cols], 0, atol=1e-4), 0
+    all_state_timeseries[float_cols] = all_state_timeseries[float_cols].mask(
+        np.isclose(all_state_timeseries[float_cols], 0, atol=1e-4), 0
     )
     for plot_type, plot_normalization in zip(plot_types, plot_normalizations):
         for state_name, state_pop in state_pop_sizes.items():
@@ -47,14 +47,14 @@ def _cleanup_and_normalize_timelines(
             )
             # select all columns from that column type
             cols = [
-                col for col in all_state_timelines.columns if plot_type in col
+                col for col in all_state_timeseries.columns if plot_type in col
             ]
             # update that states columns by the normalization factor
-            all_state_timelines.loc[
-                all_state_timelines["state"] == state_name,
+            all_state_timeseries.loc[
+                all_state_timeseries["state"] == state_name,
                 cols,
             ] *= normalization_factor
-    return all_state_timelines
+    return all_state_timeseries
 
 
 def plot_model_overview_subplot_matplotlib(
@@ -132,19 +132,19 @@ def plot_model_overview_subplot_matplotlib(
         % (str(necessary_cols), str(timeseries_df.columns))
     )
     num_states = len(timeseries_df["state"].unique())
-    # we are counting the number of plot_types that are within timelines.columns
-    # this way we dont try to plot something that timelines does not have
-    plots_in_timelines = [
+    # we are counting the number of plot_types that are within timeseries.columns
+    # this way we dont try to plot something that timeseries does not have
+    plots_in_timeseries = [
         any([plot_type in col for col in timeseries_df.columns])
         for plot_type in plot_types
     ]
-    num_unique_plots_in_timelines = sum(plots_in_timelines)
-    # select only the plots we actually find within `timelines`
-    plot_types = plot_types[plots_in_timelines]
-    plot_titles = plot_titles[plots_in_timelines]
-    plot_normalizations = plot_normalizations[plots_in_timelines]
+    num_unique_plots_in_timeseries = sum(plots_in_timeseries)
+    # select only the plots we actually find within `timeseries`
+    plot_types = plot_types[plots_in_timeseries]
+    plot_titles = plot_titles[plots_in_timeseries]
+    plot_normalizations = plot_normalizations[plots_in_timeseries]
     # normalize our dataframe by the given y axis normalization schemes
-    timeseries_df = _cleanup_and_normalize_timelines(
+    timeseries_df = _cleanup_and_normalize_timeseries(
         timeseries_df,
         plot_types,
         plot_normalizations,
@@ -152,17 +152,17 @@ def plot_model_overview_subplot_matplotlib(
     )
     with plt.style.context(matplotlib_style):
         fig, ax = plt.subplots(
-            nrows=num_unique_plots_in_timelines,
+            nrows=num_unique_plots_in_timeseries,
             ncols=num_states,
             sharex=True,
             sharey="row",
             squeeze=False,
-            figsize=(6 * num_states, 3 * num_unique_plots_in_timelines),
+            figsize=(6 * num_states, 3 * num_unique_plots_in_timeseries),
         )
     # melt this df down to have an ID column "column" and a value column "val"
     id_vars = ["date", "state", "chain_particle"]
     rest = [x for x in timeseries_df.columns if x not in id_vars]
-    timelines_melt = pd.melt(
+    timeseries_melt = pd.melt(
         timeseries_df,
         id_vars=["date", "state", "chain_particle"],
         value_vars=rest,
@@ -170,12 +170,12 @@ def plot_model_overview_subplot_matplotlib(
         value_name="val",
     )
     # convert to datetime if not already
-    timelines_melt["date"] = pd.to_datetime(timelines_melt["date"])
+    timeseries_melt["date"] = pd.to_datetime(timeseries_melt["date"])
 
     # go through each plot type, look for matching columns and plot
     # that plot_type for each chain_particle pair.
     for state_num, state in enumerate(timeseries_df["state"].unique()):
-        state_df = timelines_melt[timelines_melt["state"] == state]
+        state_df = timeseries_melt[timeseries_melt["state"] == state]
         print("Plotting State : " + state)
         for plot_num, (plot_title, plot_type) in enumerate(
             zip(plot_titles, plot_types)
@@ -469,7 +469,7 @@ def _sample_prior_distributions(priors, num_samples) -> dict[str, Array]:
         numpyro.distribution found within `priors`.
 
     Notes
-    --------
+    -----
     Return dict key names follow the same naming convention as when sampling.
     Meaning that distributions within lists or matricies have their
     index stored as a list of _i suffix at the end of their name.
@@ -584,6 +584,35 @@ def plot_violin_plots(
         "seaborn-v0_8-colorblind",
     ],
 ):
+    """Save violin plot of priors and posteriors together.
+
+    Parameters
+    ----------
+    priors : dict[str, list], optional
+        samples from a parameter's prior distribution, by default None
+    posteriors : dict[str, list], optional
+        samples from a parameter's posterior distribution, by default None
+    matplotlib_style : list[str] | str, optional
+        matplotlib style(s) to apply, by default [ "seaborn-v0_8-colorblind",]
+
+    Returns
+    -------
+    matplotlib.Figure
+        matplotlib Figure containing violin plots of the priors and posteriors.
+
+    Raises
+    ------
+    VisualizationError
+        if both `priors` and `posteriors` is None there is nothing to plot.
+
+    Notes
+    -----
+    Returned figure will be roughly square containing N subplots for N
+    parameters.
+
+    If some parameters are missing in either dictionary, an open space in
+    that subplot will be left in the figure.
+    """
     if priors is None and posteriors is None:
         raise VisualizationError(
             "must provide either a dictionary of priors or posteriors"
