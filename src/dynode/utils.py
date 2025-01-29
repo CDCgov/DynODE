@@ -1725,7 +1725,9 @@ class dual_logger_err(object):
 
 
 def save_samples(samples: dict[str, Array], save_path: str, indent=None):
-    """Save model samples to `save_path`, with JSON serializability.
+    """
+    Save model samples to `save_path`, with JSON serializability.
+
     Parameters
     ----------
     samples : dict[str, Array]
