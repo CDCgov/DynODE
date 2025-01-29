@@ -1,0 +1,28 @@
+name: Run pydocstyle
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  pydocstyle:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install global dependencies
+      run: |
+        pip install poetry
+
+    - name: Test docstring conventions
+      run: |
+        poetry install
+        poetry run pydocstyle convention=numpy src/

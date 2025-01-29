@@ -336,88 +336,88 @@ def _get_sol():
     )
 
 
-def test_get_timeline_from_solution_with_command_compartment_name():
+def test_get_timeseries_from_solution_with_command_compartment_name():
     # Test case 1: Command is a compartment name
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = utils.get_timeline_from_solution_with_command(
+    timeseries, label = utils.get_timeseries_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "S"
     )
-    assert timeline.shape == (100,)
+    assert timeseries.shape == (100,)
     assert label == "S"
     assert jnp.all(
-        timeline == 256
+        timeseries == 256
     )  # Each element in sol is 1, summed over 4*4*4*4 = 256
 
 
-def test_get_timeline_from_solution_with_command_strain_name():
+def test_get_timeseries_from_solution_with_command_strain_name():
     # Test case 2: Command is a strain name
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = utils.get_timeline_from_solution_with_command(
+    timeseries, label = utils.get_timeseries_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "S2"
     )
-    assert timeline.shape == (100,)
+    assert timeseries.shape == (100,)
     assert label == "E + I : S2"
     assert jnp.all(
-        timeline == 128
+        timeseries == 128
     )  # Exposed + Infected, both are 64 each and of course 64*2==128
 
 
-def test_get_timeline_from_solution_with_command_wane_name():
+def test_get_timeseries_from_solution_with_command_wane_name():
     # Test case 3: Command is a waning compartment name
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = utils.get_timeline_from_solution_with_command(
+    timeseries, label = utils.get_timeseries_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "W0"
     )
-    assert timeline.shape == (100,)
+    assert timeseries.shape == (100,)
     assert label == "W0"
     assert jnp.all(
-        timeline == 64
+        timeseries == 64
     )  # Each element in sol is 1, summed over 4*4*4*1 = 64
 
 
-def test_get_timeline_from_solution_with_command_incidence():
+def test_get_timeseries_from_solution_with_command_incidence():
     # Test case 4: Command is 'incidence'
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = utils.get_timeline_from_solution_with_command(
+    timeseries, label = utils.get_timeseries_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "incidence"
     )
-    assert timeline.shape == (99,)
+    assert timeseries.shape == (99,)
     assert label == "E : incidence"
     assert jnp.all(
-        timeline == 0
+        timeseries == 0
     )  # Since the input arrays are all ones, the diff should be zeros
 
 
-def test_get_timeline_from_solution_with_command_strain_prevalence():
+def test_get_timeseries_from_solution_with_command_strain_prevalence():
     # Test case 5: Command is 'strain_prevalence'
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timelines, labels = utils.get_timeline_from_solution_with_command(
+    timeseries, labels = utils.get_timeseries_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "strain_prevalence"
     )
-    assert len(timelines) == 4
+    assert len(timeseries) == 4
     assert len(labels) == 4
     assert jnp.all(
-        jnp.array([jnp.array(j).shape == (100,) for j in timelines])
+        jnp.array([jnp.array(j).shape == (100,) for j in timeseries])
     )
     assert set(labels) == set(strain_idx._member_names_)
 
 
-def test_get_timeline_from_solution_with_command_compartment_slice():
+def test_get_timeseries_from_solution_with_command_compartment_slice():
     # Test case 6: Command is a slice of a compartment
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = utils.get_timeline_from_solution_with_command(
+    timeseries, label = utils.get_timeseries_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "S[:, 0, 0, :]"
     )
-    assert timeline.shape == (100,)
+    assert timeseries.shape == (100,)
     assert label == "S[:, 0, 0, :]"
     assert jnp.all(
-        timeline == 16
+        timeseries == 16
     )  # Each element in sol is 1, summed over 4*1*1*4 = 16
 
 

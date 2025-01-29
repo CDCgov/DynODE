@@ -77,7 +77,7 @@ class MechanisticRunner:
             https://docs.kidger.site/diffrax/api/solution/
 
         Notes
-        --------------
+        -----
         - No partial date (or time) calculations partial days are truncated
         - if `args["CONSTANT_STEP_SIZE"] > 0` uses constant stepsizer of
         that size, else uses adaptive step sizing with

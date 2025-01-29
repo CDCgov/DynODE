@@ -244,9 +244,6 @@ def conditional_knots(t, knots, coefficients):
     return jnp.sum(indicators**3 * coefficients, axis=-1)
 
 
-# days of separation between each knot
-
-
 def evaluate_cubic_spline(
     t,
     knot_locations: jnp.ndarray,
@@ -891,6 +888,47 @@ def drop_keys_with_substring(dct: dict[str, Any], drop_s: str):
     return dct
 
 
+def match_index_len(
+    series: Array | np.ndarray, index_len: int, pad: str = "l"
+) -> np.ndarray:
+    """Pad `series` to the left or right until it reaches desired length.
+
+    Parameters
+    ----------
+    series : jax.Array[float] | np.ndarray[float]
+        Array to pad, must be dtype float so `nan` is a valid value.
+    index_len : int
+        desired len of `series`, modifies only first dimension.
+    pad : str, optional
+        which side of `series` to pad, "l" or "r", by default "l"
+
+    Returns
+    -------
+    jax.Array
+        `series` padded with nans.
+    """
+
+    def _pad_fn(series, index_len, pad):
+        if "l" in pad:
+            return np.pad(
+                series,
+                (index_len - len(series), 0),
+                "constant",
+                constant_values=None,
+            )
+        elif "r" in pad:
+            return np.pad(
+                series,
+                (0, index_len - len(series)),
+                "constant",
+                constant_values=None,
+            )
+
+    if len(series) < index_len:
+        return _pad_fn(series, index_len, pad)
+    return np.array(series)
+
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # DEATH CALCULATION CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1064,7 +1102,7 @@ def load_age_demographics(
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 
-def get_timeline_from_solution_with_command(
+def get_timeseries_from_solution_with_command(
     sol: tuple[Array, Array, Array, Array],
     compartment_idx: IntEnum,
     w_idx: IntEnum,
@@ -1183,7 +1221,7 @@ def get_timeline_from_solution_with_command(
                 )
             )
             print(
-                "Please review `utils/get_timeline_from_solution_with_command()` documentation"
+                "Please review `utils/get_timeseries_from_solution_with_command()` documentation"
             )
             return np.zeros(sol[compartment_idx["S"]].shape[0]), "Error"
     dimensions_to_sum_over = tuple(range(1, compartment.ndim))
@@ -1193,20 +1231,19 @@ def get_timeline_from_solution_with_command(
 
 def get_var_proportions(inferer, solution):
     """
-    Calculate daily variant proportions based on a simulation run.
+    Calculate _daily_ variant proportions on a simulation run.
 
     Parameters
     ----------
     inferer : AbstractParameters
-        An AbstractParameters (e.g., MechanisticInferer or
-        StaticValueParameters) used to produce `solution`.
-    solution : diffrax.Solution
+        An AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) used to produce `solution`.
+    solution : tuple[jnp.ndarray]
         Solution object from an ODE run (specifically through `diffrax.diffeqsolve`).
 
     Returns
     -------
-    jnp.ndarray
-        Array of strain prevalence with shape (num_days, inferer.config.NUM_STRAINS).
+    jnp.array:
+        An array of strain prevalence by the shape of (num_days, NUM_STRAINS)
     """
     strain_incidence = jnp.sum(
         solution.ys[inferer.config.COMPARTMENT_IDX.C],
@@ -1219,34 +1256,6 @@ def get_var_proportions(inferer, solution):
     strain_incidence = jnp.diff(strain_incidence, axis=0)
     sim_vars = strain_incidence / jnp.sum(strain_incidence, axis=-1)[:, None]
     return sim_vars
-
-
-def get_seroprevalence(inferer, solution):
-    """
-    Calculate the seroprevalence (cumulative attack rate) based on a simulation run.
-
-    Parameters
-    ----------
-    inferer : AbstractParameters
-        An AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) used to produce `solution`.
-    solution : tuple[jnp.ndarray]
-        Solution object from an ODE run (specifically through `diffrax.diffeqsolve`).
-
-    Returns
-    -------
-    jnp.ndarray
-        Array of seroprevalence with shape (num_days, NUM_AGE_GROUPS).
-    """
-    never_infected = jnp.sum(
-        solution.ys[inferer.config.COMPARTMENT_IDX.S][:, :, 0, :, :],
-        axis=(
-            # offset for day dimension, un-offset by infection history
-            inferer.config.S_AXIS_IDX.vax,
-            inferer.config.S_AXIS_IDX.wane,
-        ),
-    )
-    sim_sero = 1 - never_infected / inferer.config.POPULATION
-    return sim_sero
 
 
 def get_foi_suscept(p, force_of_infection):
