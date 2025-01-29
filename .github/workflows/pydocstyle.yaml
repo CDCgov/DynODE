@@ -22,7 +22,7 @@ jobs:
       run: |
         pip install poetry
 
-    - name: Test
+    - name: Test docstring conventions
       run: |
         poetry install
         poetry run pydocstyle convention=numpy src/
