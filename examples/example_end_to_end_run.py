@@ -1,13 +1,15 @@
 #!/usr/bin/env python
-"""
-A basic local covid example meant to show off the flow of running the mechanistic model
+"""A basic covid example to show off how to work with DynODE.
 
-Results produced by this basic example are not meant to be taken as serious predictions, but rather
-a demonstration with synthetic data.
+Results produced by this basic example are not meant to be taken as serious
+predictions, but rather a demonstration with synthetic data.
 
 To see a image detailing the output of a single run, if you set the --infer flag
 this script will generate some example output, and then fit back onto it with some broad prior
 estimates of what epidemiological variables produced it.
+
+For runtime the fitting is very short and not very accurate, you may improve
+the accuracy at the cost of runtime by modifying the inferer config.
 """
 
 import argparse
@@ -39,18 +41,22 @@ parser.add_argument(
 
 
 class ExampleDynodeRunner(AbstractDynodeRunner):
+    """An Example DynODE Runner used to launch this illustration."""
+
     def process_state(self, state: str, **kwargs):
-        """An example of a method used to process a single state using DynODE
+        """Every DynODE runner must have an entry point.
+
         In this case the example configs are built around US data, so we are
         running the whole US as a single entity.
 
         Parameters
         ----------
         state : str
-            state USPS, ignored in this specific example
+            State USPS, ignored in this specific example as it only runs USA.
         infer : bool, optional
-            whether or not the user of this example script wants to run inference,
-            by default False
+            Whether or not the user of this example script wants to run inference,
+            by default False. Stored in kwargs to align with
+            `AbstractDynodeRunner` function signature.
         """
         infer = bool(kwargs["infer"])
         # step 1: define your paths

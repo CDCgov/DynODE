@@ -1,3 +1,5 @@
+"""A script designed to generate a sample population from ABM output."""
+
 import datetime
 import sqlite3
 
@@ -164,7 +166,7 @@ infection_history_by_infected = infection_history_by_infected.drop(
 
 
 #### REPLACE EMPTY SET WITH NONE  #################################
-def replace_empty_set_with_none(input_set):
+def _replace_empty_set_with_none(input_set):
     if len(input_set) == 0:
         return ""
     else:
@@ -173,7 +175,7 @@ def replace_empty_set_with_none(input_set):
 
 infection_history_by_infected["strains"] = infection_history_by_infected[
     "strains"
-].apply(replace_empty_set_with_none)
+].apply(_replace_empty_set_with_none)
 
 infection_history_by_infected.to_csv(OUTPUT_DATA_PATH, index=False)
 
