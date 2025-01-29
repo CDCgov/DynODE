@@ -1722,3 +1722,23 @@ class dual_logger_err(object):
     def flush(self):
         """Flush file contents."""
         self.file.flush()
+
+
+def save_samples(samples: dict[str, Array], save_path: str, indent=None):
+    """Save model samples to `save_path`, with JSON serializability.
+    Parameters
+    ----------
+    samples : dict[str, Array]
+        Dictionary with str keys each containing a jax array of samples or
+        posteriors, often returned by MCMC.get_samples()
+    save_path : str
+        path, relative or absolute to save json to
+    indent : Optional[int]
+        optional indent spaces for pretty-printing of json,
+        None is most compact and least readable, by default None
+    """
+    import json
+
+    # convert np arrays to lists
+    s = {param: samples[param].tolist() for param in samples.keys()}
+    json.dump(s, open(save_path, "w"), indent=indent)
