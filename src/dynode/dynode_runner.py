@@ -547,9 +547,9 @@ class AbstractDynodeRunner(ABC):
             df["%s_strain_proportion" % strain_name] = strain_proportions[
                 s_idx
             ]
-            df[
-                "%s_external_introductions" % strain_name
-            ] = external_i_timeseries[:, s_idx]
+            df["%s_external_introductions" % strain_name] = (
+                external_i_timeseries[:, s_idx]
+            )
             df["%s_average_immunity" % strain_name] = population_immunity[
                 s_idx, :
             ]

@@ -721,9 +721,9 @@ def combine_strains(
         new_state = state_mapping[immune_state]
         # += because multiple `immune_states` can flow into one `new_state`
         # use swapaxis to grab an arbitrary dimension of the array, ignoring ordering bugs
-        strain_combined_compartment.swapaxes(0, state_dim)[
-            new_state
-        ] += compartment.swapaxes(0, state_dim)[immune_state]
+        strain_combined_compartment.swapaxes(0, state_dim)[new_state] += (
+            compartment.swapaxes(0, state_dim)[immune_state]
+        )
     # next, if we must also remap an infected_by strain axis, do that
     if strain_axis:
         # anything that does not have a strain flowing into it, ends up being zeroed out

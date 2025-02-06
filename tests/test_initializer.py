@@ -10,7 +10,7 @@ initializer = CovidSeroInitializer(INITIALIZER_CONFIG_PATH, CONFIG_GLOBAL_PATH)
 
 def test_invalid_paths_raise():
     with pytest.raises(FileNotFoundError):
-        CovidSeroInitializer("random_broken_path", CONFIG_GLOBAL_PATH),
+        (CovidSeroInitializer("random_broken_path", CONFIG_GLOBAL_PATH),)
     with pytest.raises(FileNotFoundError):
         CovidSeroInitializer(INITIALIZER_CONFIG_PATH, "random_broken_path")
     with pytest.raises(FileNotFoundError):

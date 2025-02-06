@@ -131,9 +131,7 @@ def seip_ode(state: PyTree, t: ArrayLike, parameters: dict):
 
     # get all combinations of strain x immune history, jax version of cartesian product
     combinations = jnp.stack(
-        jnp.meshgrid(
-            jnp.arange(p.NUM_STRAINS), jnp.arange(2**p.NUM_STRAINS)
-        ),
+        jnp.meshgrid(jnp.arange(p.NUM_STRAINS), jnp.arange(2**p.NUM_STRAINS)),
         axis=-1,
     ).reshape(-1, 2)
     assert len(combinations.T) == 2

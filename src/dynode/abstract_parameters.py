@@ -160,11 +160,11 @@ class AbstractParameters:
         """
         try:
             # create or re-recreate parameters based on other possibly sampled parameters
-            parameters[
-                "CROSSIMMUNITY_MATRIX"
-            ] = utils.strain_interaction_to_cross_immunity(
-                parameters["NUM_STRAINS"],
-                parameters["STRAIN_INTERACTIONS"],
+            parameters["CROSSIMMUNITY_MATRIX"] = (
+                utils.strain_interaction_to_cross_immunity(
+                    parameters["NUM_STRAINS"],
+                    parameters["STRAIN_INTERACTIONS"],
+                )
             )
             beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
             gamma = 1 / parameters["INFECTIOUS_PERIOD"]
@@ -200,7 +200,7 @@ class AbstractParameters:
                 "BETA_COEF": self.beta_coef,
                 "SEASONAL_VACCINATION_RESET": self.seasonal_vaccination_reset,
                 "SEASONALITY": seasonality_function_prefilled,
-            }
+            },
         )
 
         return parameters
@@ -625,8 +625,8 @@ class AbstractParameters:
                 [col for col in parameters.columns if "location" in col]
             ].values
             # check that same number of knots as coefficients
-            assert len(knot_coefficients) == len(
-                knot_locations
+            assert (
+                len(knot_coefficients) == len(knot_locations)
             ), "number of knot_coefficients and number of knot locations found do not match"
             age_group_idx = self.config.AGE_GROUP_IDX[age_group]
             # splines `dose` dictate the `to_dose`, but we store them as outward flows
