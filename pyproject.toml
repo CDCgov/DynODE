@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dynode"
-version = "2024.02.06.1a"
+version = "2024.02.06.2a"
 description = "CDC CFA Predict Scenarios model development"
 authors = ["CFA"]
 license = "Apache License, Version 2.0, January 2004"
@@ -8,28 +8,27 @@ readme = "README.md"
 package-mode = true
 
 [tool.poetry.dependencies]
-python = "^3.10"
-diffrax = "0.5.0"
-jax = "<=0.4.26"
-jaxlib = "<=0.4.26"
-matplotlib = ">=3.7.2"
-numpy = ">=1.25.2"
-numpyro = ">=0.13.2"
-pandas = ">=2.0.3"
-seaborn = ">=0.13.2"
-pytest = ">=7.4.0"
-pip = "^24.0"
-epiweeks = "^2.3.0"
-pre-commit = "^3.7.1"
-mypy = "^1.10.0"
-requests = "^2.32.3"
-docker = "^7.1.0"
-bayeux-ml = "^0.1.14"
-pydocstyle = "^6.3.0"
+python = "3.10.*"
+diffrax = "0.5.*"
+jax = "0.4.*"
+jaxlib = "0.4.*"
+matplotlib = "3.7.*"
+numpy = "1.25.*"
+numpyro = "0.13.*"
+pandas = "2.0.*"
+seaborn = "0.13.*"
+pip = "24.*"
+epiweeks = "2.3.*"
+pre-commit = "3.7.*"
+docker = "7.1.*"
 
 
 [tool.poetry.group.dev.dependencies]
-pandas-stubs = "^2.2.3.241126"
+pandas-stubs = "2.2.*"
+pydocstyle = "6.3.*"
+bayeux-ml = "0.1.*"
+mypy = "1.10.*"
+pytest = "7.4.*"
 
 [build-system]
 requires = ["poetry-core"]
