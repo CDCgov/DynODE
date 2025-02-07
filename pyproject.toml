@@ -19,7 +19,6 @@ pandas = "2.0.*"
 seaborn = "0.13.*"
 pip = "24.*"
 epiweeks = "2.3.*"
-pre-commit = "3.7.*"
 docker = "7.1.*"
 
 
@@ -29,6 +28,7 @@ pydocstyle = "6.3.*"
 bayeux-ml = "0.1.*"
 mypy = "1.10.*"
 pytest = "7.4.*"
+pre-commit = "3.7.*"
 
 [build-system]
 requires = ["poetry-core"]
