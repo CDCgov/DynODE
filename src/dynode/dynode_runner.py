@@ -350,17 +350,14 @@ class AbstractDynodeRunner(ABC):
         )
         for (chain, particle), sol_dct in posteriors.items():
             # content of `sol_dct` depends on return value of inferer.run_simulation func
-            infection_timeseries_tmp = sol_dct["solution"]
-            assert isinstance(infection_timeseries_tmp, Solution)
-            infection_timeseries: Solution = infection_timeseries_tmp
+            assert isinstance(sol_dct["solution"], Solution)
+            infection_timeseries: Solution = sol_dct["solution"]
 
-            hospitalizations_tmp = sol_dct["hospitalizations"]
-            assert isinstance(hospitalizations_tmp, Array)
-            hospitalizations: Array = hospitalizations_tmp
+            assert isinstance(sol_dct["hospitalizations"], Array)
+            hospitalizations: Array = sol_dct["hospitalizations"]
 
-            posterior_parameters_tmp = sol_dct["parameters"]
-            assert isinstance(posterior_parameters_tmp, dict)
-            posterior_parameters: dict[str, Array] = posterior_parameters_tmp
+            assert isinstance(sol_dct["parameters"], dict)
+            posterior_parameters: dict[str, Array] = sol_dct["parameters"]
             # spoof the inferer to return our posterior parameters
             # when calling `get_parameters()` instead of trying to sample.
             # TODO fix this flow to not use spoofing.
