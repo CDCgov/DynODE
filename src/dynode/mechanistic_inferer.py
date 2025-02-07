@@ -7,7 +7,6 @@ import datetime
 import json
 from typing import Union
 
-# import bayeux as bx
 import jax.numpy as jnp
 import jax.typing
 import numpy as np
