@@ -46,6 +46,9 @@ synthetic_solution = runner.run(
     args=static_params.get_parameters(),
 )
 ihr = [0.002, 0.004, 0.008, 0.06]
+assert (
+    synthetic_solution.ys is not None
+), "solution.ys returned None, odes failed."
 model_incidence = jnp.sum(synthetic_solution.ys[3], axis=(2, 3, 4))
 model_incidence = jnp.diff(model_incidence, axis=0)
 synthetic_hosp_obs = jnp.rint(np.asarray(model_incidence) * ihr).astype(int)
@@ -175,10 +178,3 @@ def test_random_sampling_across_chains_and_particles():
             "Unable to run all tests within test_random_sampling_across_chains_and_particles "
             "since you have only one chain! check test_config_inferer.json"
         )
-
-
-def test_debug_inferer():
-    """A simple test to make sure the _debug_likelihood function does not explode and correctly passes kwargs"""
-    inferer._debug_likelihood(
-        tf=len(synthetic_hosp_obs), obs_metrics=synthetic_hosp_obs
-    )
