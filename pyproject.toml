@@ -24,7 +24,6 @@ docker = "7.1.*"
 
 [tool.poetry.group.dev.dependencies]
 pandas-stubs = "2.2.*"
-#bayeux-ml = "0.1.*"
 pydocstyle = "6.3.*"
 mypy = "1.11.*"
 pytest = "8.3.*"
