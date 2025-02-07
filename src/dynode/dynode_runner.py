@@ -350,10 +350,14 @@ class AbstractDynodeRunner(ABC):
         )
         for (chain, particle), sol_dct in posteriors.items():
             # content of `sol_dct` depends on return value of inferer.run_simulation func
-            infection_timeseries: Solution = sol_dct["solution"]
+            infection_timeseries_tmp = sol_dct["solution"]
+            assert isinstance(infection_timeseries_tmp, Solution)
+            infection_timeseries: Solution = infection_timeseries_tmp
+
             hospitalizations_tmp = sol_dct["hospitalizations"]
             assert isinstance(hospitalizations_tmp, Array)
             hospitalizations: Array = hospitalizations_tmp
+
             posterior_parameters_tmp = sol_dct["parameters"]
             assert isinstance(posterior_parameters_tmp, dict)
             posterior_parameters: dict[str, Array] = posterior_parameters_tmp
@@ -461,6 +465,9 @@ class AbstractDynodeRunner(ABC):
             timeseries of interest involving model output.
         """
         compartment_timeseries = solution.ys
+        assert (
+            compartment_timeseries is not None
+        ), "solution.ys returned None, odes failed."
         num_days_predicted = compartment_timeseries[
             model.config.COMPARTMENT_IDX.S
         ].shape[0]
