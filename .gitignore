@@ -52,6 +52,7 @@ testing.py
 !examples/data/**/*.csv
 !tests/*.json
 !pyproject.toml
+!ruff.toml
 
 #####
 # Python
