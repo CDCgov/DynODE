@@ -12,10 +12,11 @@ runs:
     shell: bash
   - run: python -m pip freeze --local
     shell: bash
-  - uses: actions/cache@v3
+  - uses: actions/cache@v4
     with:
       path: |
         ~/.cache/pre-commit
+        ~/.cache/R/renv
       key: pre-commit-3|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
   - run: pre-commit run --show-diff-on-failure --color=always ${{ inputs.extra_args }}
     shell: bash

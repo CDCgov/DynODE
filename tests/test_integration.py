@@ -321,9 +321,7 @@ def test_output_matches_previous_version(temp_config_files):
         If you made any of the following changes feel free to run _override_test_output() to regenerate
         the new solution and save it to "test_output.json", otherwise, some other tests may be failing or
         you introduced a bug without realizing it.
-        """ % str(
-            compartment
-        )
+        """ % str(compartment)
         compartment = int(compartment)
         assert np.isclose(
             solution.ys[compartment], comparison_compartments[str(compartment)]

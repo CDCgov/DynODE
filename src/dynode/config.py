@@ -369,12 +369,13 @@ def _test_positive(key, value):
 
 
 def _test_enum_len(key, enum, expected_len):
-    assert (
-        len(enum) == expected_len
-    ), "Expected %s to have %s entries, got %s" % (
-        key,
-        expected_len,
-        len(enum),
+    assert len(enum) == expected_len, (
+        "Expected %s to have %s entries, got %s"
+        % (
+            key,
+            expected_len,
+            len(enum),
+        )
     )
 
 
@@ -488,13 +489,14 @@ def _compare_geq(keys, vals):
     elif issubclass(type(vals[0]), distributions.Distribution):
         dist = vals[0]
         if hasattr(dist.support, "lower_bound"):
-            assert (
-                dist.support.lower_bound >= vals[1]
-            ), "lower bound of %s must be >= %s, got %s >= %s" % (
-                keys[0],
-                keys[1],
-                str(higher_dist.support.lower_bound),
-                str(vals[1]),
+            assert dist.support.lower_bound >= vals[1], (
+                "lower bound of %s must be >= %s, got %s >= %s"
+                % (
+                    keys[0],
+                    keys[1],
+                    str(higher_dist.support.lower_bound),
+                    str(vals[1]),
+                )
             )
         elif isinstance(dist.support, distributions.constraints._Real):
             assert False, (
@@ -511,13 +513,14 @@ def _compare_geq(keys, vals):
     elif issubclass(type(vals[1]), distributions.Distribution):
         dist = vals[1]
         if hasattr(dist.support, "upper_bound"):
-            assert (
-                vals[0] >= dist.support.upper_bound
-            ), " %s must be >= upper bound of %s, got %s >= %s" % (
-                keys[0],
-                keys[1],
-                str(vals[0]),
-                str(dist.support.upper_bound),
+            assert vals[0] >= dist.support.upper_bound, (
+                " %s must be >= upper bound of %s, got %s >= %s"
+                % (
+                    keys[0],
+                    keys[1],
+                    str(vals[0]),
+                    str(dist.support.upper_bound),
+                )
             )
         elif isinstance(dist.support, distributions.constraints._Real):
             assert False, (
