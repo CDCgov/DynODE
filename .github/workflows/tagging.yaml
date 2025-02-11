@@ -5,6 +5,7 @@ on:
     branches:
       - development
       - main
+      - uva-test-auto-tagging
 
 jobs:
   tag:
