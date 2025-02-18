@@ -10,9 +10,9 @@ from .config_definition import (
     Compartment,
     CompartmentalModel,
     Dimension,
-    DiscretizedPositiveIntBin,
     LastStrainImmuneHistory,
     Strain,
+    VaccinationDimension,
     WaneBin,
 )
 
@@ -30,13 +30,8 @@ class SEIPModel(CompartmentalModel):
             ],
         )
         immune_history_dimension = LastStrainImmuneHistory(strains=strains)
-        vaccination_dimension = Dimension(
-            name="vax",
-            bins=[
-                DiscretizedPositiveIntBin(min_value=0, max_value=0),
-                DiscretizedPositiveIntBin(min_value=1, max_value=1),
-                DiscretizedPositiveIntBin(min_value=2, max_value=2),
-            ],
+        vaccination_dimension = VaccinationDimension(
+            max_ordinal_vaccinations=2, seasonal_vaccination=True
         )
         waning_dimension = Dimension(
             name="wane",

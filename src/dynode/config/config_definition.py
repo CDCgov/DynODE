@@ -59,6 +59,20 @@ class Dimension(BaseModel):
     ]
 
 
+class Vaccinations(Dimension):
+    def __init__(
+        self, max_ordinal_vaccinations: int, seasonal_vaccination: bool = False
+    ):
+        self.name = "vax"
+        if seasonal_vaccination:
+            max_ordinal_vaccinations += 1
+        self.bins = [
+            DiscretizedPositiveIntBin(min_value=vax_count, max_value=vax_count)
+            for vax_count in range(max_ordinal_vaccinations + 1)
+        ]
+        pass
+
+
 class Compartment(BaseModel):
     """Specify a single compartment"""
 
