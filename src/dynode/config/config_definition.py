@@ -21,13 +21,13 @@ from dynode import CompartmentGradiants
 
 
 class CategoricalBin(BaseModel):
-    "bin with a distinct name"
+    "Bin with a distinct name"
 
     name: str
 
 
 class DiscretizedPositiveIntBin(BaseModel):
-    "bin with a distinct discretized positive int mins (e.g., age)"
+    "Bin with a distinct discretized positive int inclusive min/max."
 
     min_value: NonNegativeInt
     max_value: NonNegativeInt
@@ -60,6 +60,8 @@ class Dimension(BaseModel):
 
 
 class VaccinationDimension(Dimension):
+    """A vaccination dimension of a compartment, supporting ordinal (and optionally seasonal) vaccinations."""
+
     def __init__(
         self, max_ordinal_vaccinations: int, seasonal_vaccination: bool = False
     ):
@@ -73,7 +75,7 @@ class VaccinationDimension(Dimension):
 
 
 class Compartment(BaseModel):
-    """Specify a single compartment"""
+    """Defines a single compartment of an ODE model"""
 
     name: str
     dimensions: List[Dimension]
@@ -92,6 +94,8 @@ class Compartment(BaseModel):
 
 
 class Strain(BaseModel):
+    """A strain in the ODE model, optionally introduced from external population."""
+
     strain_name: Annotated[
         str,
         StringConstraints(strip_whitespace=True, min_length=1, to_lower=True),
@@ -139,6 +143,8 @@ class LastStrainImmuneHistory(Dimension):
 class ParamStore(BaseModel):
     strains: List[Strain]
     strain_interactions: dict[str, dict[str, NonNegativeFloat]]
+    ode_solver_rel_tolerance: PositiveFloat
+    ode_solver_abs_tolerance: PositiveFloat
 
 
 class CompartmentalModel(BaseModel):
