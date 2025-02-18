@@ -2,18 +2,103 @@ import numpyro.distributions as dist
 import numpyro.distributions.constraints as constraints
 import numpyro.distributions.transforms as transforms
 
+from dynode.model_odes.seip_model import seip_ode
+
 from .config_definition import (
     AgeBin,
     CategoricalBin,
     Compartment,
     CompartmentalModel,
     Dimension,
+    DiscretizedPositiveIntBin,
+    LastStrainImmuneHistory,
     Strain,
+    WaneBin,
 )
 
 
 class SEIPModel(CompartmentalModel):
     def __init__(self):
+        strains = self._get_strains()
+        age_dimension = Dimension(
+            name="age",
+            bins=[
+                AgeBin(min_value=0, max_value=17),
+                AgeBin(min_value=18, max_value=49),
+                AgeBin(min_value=50, max_value=64),
+                AgeBin(min_value=65, max_value=99),
+            ],
+        )
+        immune_history_dimension = LastStrainImmuneHistory(strains=strains)
+        vaccination_dimension = Dimension(
+            name="vax",
+            bins=[
+                DiscretizedPositiveIntBin(min_value=0, max_value=0),
+                DiscretizedPositiveIntBin(min_value=1, max_value=1),
+                DiscretizedPositiveIntBin(min_value=2, max_value=2),
+            ],
+        )
+        waning_dimension = Dimension(
+            name="wane",
+            bins=[
+                WaneBin(waning_time=70, waning_protection=1.0),
+                WaneBin(waning_time=70, waning_protection=1.0),
+                WaneBin(waning_time=70, waning_protection=1.0),
+                WaneBin(waning_time=0, waning_protection=0.0),
+            ],
+        )
+        infecting_strain_dimension = Dimension(
+            name="strain",
+            bins=[
+                CategoricalBin(name=strain.strain_name) for strain in strains
+            ],
+        )
+        s_compartment = Compartment(
+            name="s",
+            dimensions=[
+                age_dimension,
+                immune_history_dimension,
+                vaccination_dimension,
+                waning_dimension,
+            ],
+        )
+        e_compartment = Compartment(
+            name="e",
+            dimensions=[
+                age_dimension,
+                immune_history_dimension,
+                vaccination_dimension,
+                infecting_strain_dimension,
+            ],
+        )
+        i_compartment = Compartment(
+            name="i",
+            dimensions=[
+                age_dimension,
+                immune_history_dimension,
+                vaccination_dimension,
+                infecting_strain_dimension,
+            ],
+        )
+        c_compartment = Compartment(
+            name="c",
+            dimensions=[
+                age_dimension,
+                immune_history_dimension,
+                vaccination_dimension,
+                waning_dimension,
+                infecting_strain_dimension,
+            ],
+        )
+        self.compartments = [
+            s_compartment,
+            e_compartment,
+            i_compartment,
+            c_compartment,
+        ]
+        self.ode_function = seip_ode
+
+    def _get_strains(self) -> list[Strain]:
         strains = [
             Strain(
                 strain_name="omicron",
@@ -87,26 +172,4 @@ class SEIPModel(CompartmentalModel):
                 introduction_ages=[AgeBin(min_value=18, max_value=49)],
             ),
         ]
-        age_dimension = Dimension(
-            name="age",
-            bins=[
-                AgeBin(min_value=0, max_value=17),
-                AgeBin(min_value=18, max_value=49),
-                AgeBin(min_value=50, max_value=64),
-                AgeBin(min_value=65, max_value=99),
-            ],
-        )
-        immune_history_dimension = Dimension(
-            name="hist",
-            bins=[
-                CategoricalBin(name=strain.strain_name) for strain in strains
-            ],
-        )
-        immune_history_full = Dimension(
-            name="hist", bins=immune_history_dimension
-        )
-        s_compartment = Compartment(
-            name="s",
-            dimensions=[age_dimension, immune_history_full],
-        )
-        self.compartments = [s_compartment]
+        return strains
