@@ -17,6 +17,8 @@ from pydantic import (
 )
 from typing_extensions import Self
 
+from dynode import CompartmentGradiants
+
 
 class CategoricalBin(BaseModel):
     "bin with a distinct name"
@@ -76,10 +78,6 @@ class Compartment(BaseModel):
         return self
 
 
-class CompartmentGrad(Compartment):
-    pass
-
-
 class Strain(BaseModel):
     strain_name: Annotated[
         str,
@@ -134,7 +132,7 @@ class CompartmentalModel(BaseModel):
     compartments: List[Compartment]
     # passed to diffrax.diffeqsolve
     ode_function: Callable[
-        [List[Compartment], PositiveFloat, ParamStore], CompartmentGrad
+        [List[Compartment], PositiveFloat, ParamStore], CompartmentGradiants
     ]
     # includes observation method, specified at runtime.
     inference_method: Optional[MCMC | SVI] = None

@@ -35,6 +35,8 @@ SEIC_Timeseries = tuple[
     jax.Array,
 ]
 
+CompartmentGradiants = tuple[jax.Array]
+
 from . import utils, vis_utils
 
 # keep imports relative to avoid circular importing
