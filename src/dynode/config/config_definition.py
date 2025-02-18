@@ -59,7 +59,7 @@ class Dimension(BaseModel):
     ]
 
 
-class Vaccinations(Dimension):
+class VaccinationDimension(Dimension):
     def __init__(
         self, max_ordinal_vaccinations: int, seasonal_vaccination: bool = False
     ):
@@ -70,7 +70,6 @@ class Vaccinations(Dimension):
             DiscretizedPositiveIntBin(min_value=vax_count, max_value=vax_count)
             for vax_count in range(max_ordinal_vaccinations + 1)
         ]
-        pass
 
 
 class Compartment(BaseModel):
