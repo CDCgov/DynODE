@@ -7,13 +7,19 @@ from pydantic import (
 from typing_extensions import Self
 
 
-class CategoricalBin(BaseModel):
+class Bin(BaseModel):
+    """A catch-all bin class meant to represent an individual cell of an ODE compartment."""
+
+    pass
+
+
+class CategoricalBin(Bin):
     "Bin with a distinct name"
 
     name: str
 
 
-class DiscretizedPositiveIntBin(BaseModel):
+class DiscretizedPositiveIntBin(Bin):
     "Bin with a distinct discretized positive int inclusive min/max."
 
     min_value: NonNegativeInt

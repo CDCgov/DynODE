@@ -1,20 +1,19 @@
-from typing import List, Union
+from typing import List
 
 from pydantic import BaseModel
 
-from .bins import AgeBin, CategoricalBin, DiscretizedPositiveIntBin
-from .config_definition import Strain
+from .bins import Bin, CategoricalBin, DiscretizedPositiveIntBin
+from .strains import Strain
 
 
 class Dimension(BaseModel):
     """A dimension for a compartment"""
 
     name: str
-    bins: Union[
-        List[CategoricalBin],
-        List[DiscretizedPositiveIntBin],
-        List[AgeBin],
-    ]
+    bins: List[Bin]
+
+    def __len__(self):
+        return len(self.bins)
 
 
 class VaccinationDimension(Dimension):
@@ -45,7 +44,7 @@ class FullStratifiedImmuneHistory(Dimension):
             immune_hist = []
             for j in range(num_strains):
                 if (i & (1 << j)) > 0:
-                    immune_hist.append(strains[j])
+                    immune_hist.append(strain_names[j])
             all_immune_histories.append("-".join(immune_hist))
 
         self.bins = [

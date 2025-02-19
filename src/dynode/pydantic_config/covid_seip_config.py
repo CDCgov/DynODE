@@ -180,10 +180,10 @@ class SEIPModel(CompartmentalModel):
         waning_dimension = Dimension(
             name="wane",
             bins=[
-                WaneBin(waning_time=70, waning_protection=1.0),
-                WaneBin(waning_time=70, waning_protection=1.0),
-                WaneBin(waning_time=70, waning_protection=1.0),
-                WaneBin(waning_time=0, waning_protection=0.0),
+                WaneBin(name="w0", waning_time=70, waning_protection=1.0),
+                WaneBin(name="w1", waning_time=70, waning_protection=1.0),
+                WaneBin(name="w2", waning_time=70, waning_protection=1.0),
+                WaneBin(name="w3", waning_time=0, waning_protection=0.0),
             ],
         )
         infecting_strain_dimension = Dimension(

@@ -1,26 +1,25 @@
 # from dataclasses import dataclass
 from datetime import date
-from typing import Annotated, Callable, List, Optional, Union
+from typing import Callable, List, Optional
 
 # import numpyro.distributions as dist
 from jax import Array
 from jax import numpy as jnp
-from numpyro.distributions import Distribution
 from numpyro.infer import MCMC, SVI
 from pydantic import (
     BaseModel,
+    ConfigDict,
     NonNegativeFloat,
     PositiveFloat,
     PositiveInt,
-    StringConstraints,
     model_validator,
 )
 from typing_extensions import Self
 
 from dynode import CompartmentGradiants
 
-from .bins import AgeBin
 from .dimension import Dimension
+from .strains import Strain
 
 
 class Compartment(BaseModel):
@@ -33,7 +32,9 @@ class Compartment(BaseModel):
     @model_validator(mode="after")
     def shape_match(self) -> Self:
         """Sets default values if unspecified, asserts dimensions and values shape matches."""
-        target_values_shape = tuple(*[len(d_i for d_i in self.dimensions)])
+        target_values_shape: tuple[int, ...] = tuple(
+            [len(d_i) for d_i in self.dimensions]
+        )
         if self.values is not None:
             assert target_values_shape == self.values.shape
         else:
@@ -42,25 +43,9 @@ class Compartment(BaseModel):
         return self
 
 
-class Strain(BaseModel):
-    """A strain in the ODE model, optionally introduced from external population."""
-
-    strain_name: Annotated[
-        str,
-        StringConstraints(strip_whitespace=True, min_length=1, to_lower=True),
-    ]
-    r0: Union[NonNegativeFloat, Distribution]
-    infectious_period: PositiveFloat
-    exposed_to_infectious: Optional[PositiveFloat]
-    vaccine_efficacy: List[NonNegativeFloat]
-    is_introduced: bool = False
-    introduction_time: Optional[Union[date, NonNegativeFloat, Distribution]]
-    introduction_percentage: Optional[Union[PositiveFloat, Distribution]]
-    introduction_scale: Optional[Union[PositiveFloat, Distribution]]
-    introduction_ages: Optional[List[AgeBin]]
-
-
 class ParamStore(BaseModel):
+    # allow users to pass custom types to ParamStore
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     strains: List[Strain]
     strain_interactions: dict[str, dict[str, NonNegativeFloat]]
     ode_solver_rel_tolerance: PositiveFloat
@@ -103,6 +88,8 @@ class Initializer(BaseModel):
 
 
 class CompartmentalModel(BaseModel):
+    # allow users to pass custom types into CompartmentalModel
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     initializer: Initializer
     compartments: List[Compartment]
     parameters: ParamStore
