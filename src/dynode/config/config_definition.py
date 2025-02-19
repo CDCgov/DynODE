@@ -10,8 +10,8 @@ from numpyro.infer import MCMC, SVI
 from pydantic import (
     BaseModel,
     NonNegativeFloat,
-    NonNegativeInt,
     PositiveFloat,
+    PositiveInt,
     StringConstraints,
     model_validator,
 )
@@ -19,59 +19,8 @@ from typing_extensions import Self
 
 from dynode import CompartmentGradiants
 
-
-class CategoricalBin(BaseModel):
-    "Bin with a distinct name"
-
-    name: str
-
-
-class DiscretizedPositiveIntBin(BaseModel):
-    "Bin with a distinct discretized positive int inclusive min/max."
-
-    min_value: NonNegativeInt
-    max_value: NonNegativeInt
-
-    @model_validator(mode="after")
-    def bin_valid_side(self) -> Self:
-        """Asserts that min_value <= max_value"""
-        assert self.min_value <= self.max_value
-        return self
-
-
-class AgeBin(DiscretizedPositiveIntBin):
-    pass
-
-
-class WaneBin(CategoricalBin):
-    waning_time: NonNegativeInt
-    waning_protection: PositiveFloat
-
-
-class Dimension(BaseModel):
-    """A dimension for a compartment"""
-
-    name: str
-    bins: Union[
-        List[CategoricalBin],
-        List[DiscretizedPositiveIntBin],
-        List[AgeBin],
-    ]
-
-
-class VaccinationDimension(Dimension):
-    """A vaccination dimension of a compartment, supporting ordinal (and optionally seasonal) vaccinations."""
-
-    def __init__(
-        self, max_ordinal_vaccinations: int, seasonal_vaccination: bool = False
-    ):
-        self.name = "vax"
-        if seasonal_vaccination:
-            max_ordinal_vaccinations += 1
-        self.bins = [
-            DiscretizedPositiveIntBin(min_value=vax_count, max_value=vax_count)
-            for vax_count in range(max_ordinal_vaccinations + 1)
-        ]
+from .bins import AgeBin
+from .dimension import Dimension
 
 
 class Compartment(BaseModel):
@@ -111,35 +60,6 @@ class Strain(BaseModel):
     introduction_ages: Optional[List[AgeBin]]
 
 
-class FullStratifiedImmuneHistory(Dimension):
-    """A type of immune history which represents all possible unique infections."""
-
-    def __init__(self, strains: list[Strain]) -> None:
-        """Create a fully stratified immune history dimension."""
-        self.name = "hist"
-        strain_names = [s.strain_name for s in strains]
-        num_strains = len(strain_names)
-        all_immune_histories = []
-        for i in range(2**num_strains):
-            immune_hist = []
-            for j in range(num_strains):
-                if (i & (1 << j)) > 0:
-                    immune_hist.append(strains[j])
-            all_immune_histories.append("-".join(immune_hist))
-
-        self.bins = [
-            CategoricalBin(name=state) for state in all_immune_histories
-        ]
-
-
-class LastStrainImmuneHistory(Dimension):
-    def __init__(self, strains: list[Strain]) -> None:
-        """Create an immune history dimension that only tracks last infected strain."""
-        self.name = "hist"
-        strain_names = [s.strain_name for s in strains]
-        self.bins = [CategoricalBin(name=state) for state in strain_names]
-
-
 class ParamStore(BaseModel):
     strains: List[Strain]
     strain_interactions: dict[str, dict[str, NonNegativeFloat]]
@@ -147,8 +67,45 @@ class ParamStore(BaseModel):
     ode_solver_abs_tolerance: PositiveFloat
 
 
+class Initializer(BaseModel):
+    description: str
+    initialize_date: date
+    population_size: PositiveInt
+
+    def get_initial_state(
+        self,
+        compartments: list[Compartment],
+        initial_infection_scale: NonNegativeFloat,
+    ) -> list[Compartment]:
+        """Fill in compartments with values summing to `population_size`.
+
+        Parameters
+        ----------
+        compartments : list[Compartment]
+            compartments whose values to fill in.
+
+        Returns
+        -------
+        list[Compartment]
+            input compartments with values filled in with compartments
+            at `initialize_date`.
+
+        Raises
+        ------
+        NotImplementedError
+            Each initializer must implement their own `get_initial_state()`
+            based on the available data streams on the `initialize_date`
+
+        """
+        raise NotImplementedError(
+            "implement functionality to get initial state"
+        )
+
+
 class CompartmentalModel(BaseModel):
+    initializer: Initializer
     compartments: List[Compartment]
+    parameters: ParamStore
     # passed to diffrax.diffeqsolve
     ode_function: Callable[
         [List[Compartment], PositiveFloat, ParamStore], CompartmentGradiants

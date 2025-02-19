@@ -1,97 +1,91 @@
+from datetime import date
+
 import numpyro.distributions as dist
 import numpyro.distributions.constraints as constraints
 import numpyro.distributions.transforms as transforms
 
 from dynode.model_odes.seip_model import seip_ode
 
+from .bins import AgeBin, CategoricalBin, WaneBin
 from .config_definition import (
-    AgeBin,
-    CategoricalBin,
     Compartment,
     CompartmentalModel,
-    Dimension,
-    LastStrainImmuneHistory,
+    Initializer,
+    ParamStore,
     Strain,
-    VaccinationDimension,
-    WaneBin,
 )
+from .dimension import Dimension, LastStrainImmuneHistory, VaccinationDimension
 
 
 class SEIPModel(CompartmentalModel):
     def __init__(self):
         strains = self._get_strains()
-        age_dimension = Dimension(
-            name="age",
-            bins=[
-                AgeBin(min_value=0, max_value=17),
-                AgeBin(min_value=18, max_value=49),
-                AgeBin(min_value=50, max_value=64),
-                AgeBin(min_value=65, max_value=99),
-            ],
+        compartments = self._get_compartments(strains)
+        param_store = self._get_param_store()
+        # Here you pass in a subclass of the initializer() class with you particular behavior
+        self.initializer = Initializer(
+            description="initializer for feb 11 2022",
+            initialize_date=date(2022, 2, 11),
+            population_size=100000,
         )
-        immune_history_dimension = LastStrainImmuneHistory(strains=strains)
-        vaccination_dimension = VaccinationDimension(
-            max_ordinal_vaccinations=2, seasonal_vaccination=True
-        )
-        waning_dimension = Dimension(
-            name="wane",
-            bins=[
-                WaneBin(waning_time=70, waning_protection=1.0),
-                WaneBin(waning_time=70, waning_protection=1.0),
-                WaneBin(waning_time=70, waning_protection=1.0),
-                WaneBin(waning_time=0, waning_protection=0.0),
-            ],
-        )
-        infecting_strain_dimension = Dimension(
-            name="strain",
-            bins=[
-                CategoricalBin(name=strain.strain_name) for strain in strains
-            ],
-        )
-        s_compartment = Compartment(
-            name="s",
-            dimensions=[
-                age_dimension,
-                immune_history_dimension,
-                vaccination_dimension,
-                waning_dimension,
-            ],
-        )
-        e_compartment = Compartment(
-            name="e",
-            dimensions=[
-                age_dimension,
-                immune_history_dimension,
-                vaccination_dimension,
-                infecting_strain_dimension,
-            ],
-        )
-        i_compartment = Compartment(
-            name="i",
-            dimensions=[
-                age_dimension,
-                immune_history_dimension,
-                vaccination_dimension,
-                infecting_strain_dimension,
-            ],
-        )
-        c_compartment = Compartment(
-            name="c",
-            dimensions=[
-                age_dimension,
-                immune_history_dimension,
-                vaccination_dimension,
-                waning_dimension,
-                infecting_strain_dimension,
-            ],
-        )
-        self.compartments = [
-            s_compartment,
-            e_compartment,
-            i_compartment,
-            c_compartment,
-        ]
+        self.compartments = compartments
+        self.parameters = param_store
+        # here you pass in your ODEs which take in the same compartment shapes you specified above
         self.ode_function = seip_ode
+
+    def _get_param_store(self, strains) -> ParamStore:
+        return ParamStore(
+            strains=strains,
+            strain_interactions={
+                "omicron": {
+                    "omicron": 0.75,
+                    "ba2ba5": 1.0,
+                    "xbb": 1.0,
+                    "jn1": 1.0,
+                },
+                "ba2ba5": {
+                    "omicron": dist.TransformedDistribution(
+                        base_distribution=dist.Beta(60, 240),
+                        transforms=transforms.AffineTransform(
+                            loc=0.5,
+                            scale=0.5,
+                            domain=constraints.unit_interval,
+                        ),
+                    ),
+                    "ba2ba5": 1.0,
+                    "xbb": 1.0,
+                    "jn1": 1.0,
+                },
+                "xbb": {
+                    "omicron": 0.22,  # todo, figure out how to specify linkage between this and [jn1][ba2ba5]
+                    "ba2ba5": dist.TransformedDistribution(
+                        base_distribution=dist.Beta(120, 180),
+                        transforms=transforms.AffineTransform(
+                            loc=0.5,
+                            scale=0.5,
+                            domain=constraints.unit_interval,
+                        ),
+                    ),
+                    "xbb": 1.0,
+                    "jn1": 1.0,
+                },
+                "jn1": {
+                    "omicron": 0.33,
+                    "ba2ba5": 0.22,
+                    "xbb": dist.TransformedDistribution(
+                        base_distribution=dist.Beta(120, 180),
+                        transforms=transforms.AffineTransform(
+                            loc=0.5,
+                            scale=0.5,
+                            domain=constraints.unit_interval,
+                        ),
+                    ),
+                    "jn1": 1.0,
+                },
+            },
+            ode_solver_rel_tolerance=1e-5,
+            ode_solver_abs_tolerance=1e-6,
+        )
 
     def _get_strains(self) -> list[Strain]:
         strains = [
@@ -168,3 +162,76 @@ class SEIPModel(CompartmentalModel):
             ),
         ]
         return strains
+
+    def _get_compartments(self, strains) -> list[Compartment]:
+        age_dimension = Dimension(
+            name="age",
+            bins=[
+                AgeBin(min_value=0, max_value=17),
+                AgeBin(min_value=18, max_value=49),
+                AgeBin(min_value=50, max_value=64),
+                AgeBin(min_value=65, max_value=99),
+            ],
+        )
+        immune_history_dimension = LastStrainImmuneHistory(strains=strains)
+        vaccination_dimension = VaccinationDimension(
+            max_ordinal_vaccinations=2, seasonal_vaccination=True
+        )
+        waning_dimension = Dimension(
+            name="wane",
+            bins=[
+                WaneBin(waning_time=70, waning_protection=1.0),
+                WaneBin(waning_time=70, waning_protection=1.0),
+                WaneBin(waning_time=70, waning_protection=1.0),
+                WaneBin(waning_time=0, waning_protection=0.0),
+            ],
+        )
+        infecting_strain_dimension = Dimension(
+            name="strain",
+            bins=[
+                CategoricalBin(name=strain.strain_name) for strain in strains
+            ],
+        )
+        s_compartment = Compartment(
+            name="s",
+            dimensions=[
+                age_dimension,
+                immune_history_dimension,
+                vaccination_dimension,
+                waning_dimension,
+            ],
+        )
+        e_compartment = Compartment(
+            name="e",
+            dimensions=[
+                age_dimension,
+                immune_history_dimension,
+                vaccination_dimension,
+                infecting_strain_dimension,
+            ],
+        )
+        i_compartment = Compartment(
+            name="i",
+            dimensions=[
+                age_dimension,
+                immune_history_dimension,
+                vaccination_dimension,
+                infecting_strain_dimension,
+            ],
+        )
+        c_compartment = Compartment(
+            name="c",
+            dimensions=[
+                age_dimension,
+                immune_history_dimension,
+                vaccination_dimension,
+                waning_dimension,
+                infecting_strain_dimension,
+            ],
+        )
+        return [
+            s_compartment,
+            e_compartment,
+            i_compartment,
+            c_compartment,
+        ]
