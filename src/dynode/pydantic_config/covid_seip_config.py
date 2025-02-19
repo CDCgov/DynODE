@@ -1,3 +1,5 @@
+"""Config for fitting covid SEIP models from feb 11th 2022 onwards."""
+
 from datetime import date
 
 import numpyro.distributions as dist
@@ -17,8 +19,11 @@ from .config_definition import (
 from .dimension import Dimension, LastStrainImmuneHistory, VaccinationDimension
 
 
-class SEIPModel(CompartmentalModel):
+class SEIPCovidModel(CompartmentalModel):
+    """Covid model with partial susceptibility."""
+
     def __init__(self):
+        """Initialize the SEIP covid config."""
         strains = self._get_strains()
         compartments = self._get_compartments(strains)
         param_store = self._get_param_store()

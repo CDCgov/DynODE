@@ -1,3 +1,5 @@
+"""Dimension types for ODE compartments."""
+
 from typing import List
 
 from pydantic import BaseModel, model_validator
@@ -8,16 +10,18 @@ from .strains import Strain
 
 
 class Dimension(BaseModel):
-    """A dimension for a compartment"""
+    """A dimension of an compartment."""
 
     name: str
     bins: List[Bin]
 
     def __len__(self):
+        """Get len of a Dimension."""
         return len(self.bins)
 
     @model_validator(mode="after")
     def check_bins_same_type(self) -> Self:
+        """Assert all bins are of same type and bins is not empty."""
         assert len(self.bins) > 0, "can not have dimension with no bins"
         bin_type = type(self.bins[0])
         assert all([type(b) is bin_type for b in self.bins]), (
@@ -33,6 +37,7 @@ class VaccinationDimension(Dimension):
     def __init__(
         self, max_ordinal_vaccinations: int, seasonal_vaccination: bool = False
     ):
+        """Specify a vaccination dimension with some ordinal doses and optional seasonal dose."""
         self.name = "vax"
         if seasonal_vaccination:
             max_ordinal_vaccinations += 1
@@ -64,6 +69,8 @@ class FullStratifiedImmuneHistory(Dimension):
 
 
 class LastStrainImmuneHistory(Dimension):
+    """Immune history dimension that only tracks most recent infection."""
+
     def __init__(self, strains: list[Strain]) -> None:
         """Create an immune history dimension that only tracks last infected strain."""
         self.name = "hist"

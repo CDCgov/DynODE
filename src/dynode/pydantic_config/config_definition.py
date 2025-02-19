@@ -1,8 +1,8 @@
-# from dataclasses import dataclass
+"""Top level classes for DynODE configs."""
+
 from datetime import date
 from typing import Callable, List, Optional
 
-# import numpyro.distributions as dist
 from jax import Array
 from jax import numpy as jnp
 from numpyro.infer import MCMC, SVI
@@ -23,7 +23,7 @@ from .strains import Strain
 
 
 class Compartment(BaseModel):
-    """Defines a single compartment of an ODE model"""
+    """Defines a single compartment of an ODE model."""
 
     name: str
     dimensions: List[Dimension]
@@ -31,7 +31,7 @@ class Compartment(BaseModel):
 
     @model_validator(mode="after")
     def shape_match(self) -> Self:
-        """Sets default values if unspecified, asserts dimensions and values shape matches."""
+        """Set default values if unspecified, asserts dimensions and values shape matches."""
         target_values_shape: tuple[int, ...] = tuple(
             [len(d_i) for d_i in self.dimensions]
         )
@@ -44,6 +44,8 @@ class Compartment(BaseModel):
 
 
 class ParamStore(BaseModel):
+    """Miscellaneous parameters of an ODE model."""
+
     # allow users to pass custom types to ParamStore
     model_config = ConfigDict(arbitrary_types_allowed=True)
     strains: List[Strain]
@@ -53,6 +55,8 @@ class ParamStore(BaseModel):
 
 
 class Initializer(BaseModel):
+    """Initalize compartment state of an ODE model."""
+
     description: str
     initialize_date: date
     population_size: PositiveInt
@@ -88,6 +92,8 @@ class Initializer(BaseModel):
 
 
 class CompartmentalModel(BaseModel):
+    """An ODE compartment model configuration file."""
+
     # allow users to pass custom types into CompartmentalModel
     model_config = ConfigDict(arbitrary_types_allowed=True)
     initializer: Initializer

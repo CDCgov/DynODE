@@ -1,4 +1,5 @@
-# from dataclasses import dataclass
+"""Strain types for ODE compartment models."""
+
 from datetime import date
 from typing import Annotated, List, Optional, Union
 
