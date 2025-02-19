@@ -38,13 +38,13 @@ class VaccinationDimension(Dimension):
         self, max_ordinal_vaccinations: int, seasonal_vaccination: bool = False
     ):
         """Specify a vaccination dimension with some ordinal doses and optional seasonal dose."""
-        self.name = "vax"
         if seasonal_vaccination:
             max_ordinal_vaccinations += 1
-        self.bins = [
+        bins = [
             DiscretizedPositiveIntBin(min_value=vax_count, max_value=vax_count)
             for vax_count in range(max_ordinal_vaccinations + 1)
         ]
+        super().__init__(name="vax", bins=bins)
 
 
 class FullStratifiedImmuneHistory(Dimension):
@@ -52,7 +52,6 @@ class FullStratifiedImmuneHistory(Dimension):
 
     def __init__(self, strains: list[Strain]) -> None:
         """Create a fully stratified immune history dimension."""
-        self.name = "hist"
         strain_names = [s.strain_name for s in strains]
         num_strains = len(strain_names)
         all_immune_histories = []
@@ -63,9 +62,8 @@ class FullStratifiedImmuneHistory(Dimension):
                     immune_hist.append(strain_names[j])
             all_immune_histories.append("-".join(immune_hist))
 
-        self.bins = [
-            CategoricalBin(name=state) for state in all_immune_histories
-        ]
+        bins = [CategoricalBin(name=state) for state in all_immune_histories]
+        super().__init__(name="hist", bins=bins)
 
 
 class LastStrainImmuneHistory(Dimension):
@@ -73,6 +71,6 @@ class LastStrainImmuneHistory(Dimension):
 
     def __init__(self, strains: list[Strain]) -> None:
         """Create an immune history dimension that only tracks last infected strain."""
-        self.name = "hist"
         strain_names = [s.strain_name for s in strains]
-        self.bins = [CategoricalBin(name=state) for state in strain_names]
+        bins = [CategoricalBin(name=state) for state in strain_names]
+        super().__init__(name="hist", bins=bins)

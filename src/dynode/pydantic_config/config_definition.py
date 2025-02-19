@@ -5,6 +5,7 @@ from typing import Callable, List, Optional
 
 from jax import Array
 from jax import numpy as jnp
+from numpyro.distributions import Distribution
 from numpyro.infer import MCMC, SVI
 from pydantic import (
     BaseModel,
@@ -25,6 +26,8 @@ from .strains import Strain
 class Compartment(BaseModel):
     """Defines a single compartment of an ODE model."""
 
+    # allow jax array objects within Compartments
+    model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True)
     name: str
     dimensions: List[Dimension]
     values: Optional[Array] = None
@@ -42,6 +45,11 @@ class Compartment(BaseModel):
             self.values = jnp.zeros(target_values_shape)
         return self
 
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """Get shape of the compartment."""
+        return tuple([len(d_i) for d_i in self.dimensions])
+
 
 class ParamStore(BaseModel):
     """Miscellaneous parameters of an ODE model."""
@@ -49,7 +57,7 @@ class ParamStore(BaseModel):
     # allow users to pass custom types to ParamStore
     model_config = ConfigDict(arbitrary_types_allowed=True)
     strains: List[Strain]
-    strain_interactions: dict[str, dict[str, NonNegativeFloat]]
+    strain_interactions: dict[str, dict[str, NonNegativeFloat | Distribution]]
     ode_solver_rel_tolerance: PositiveFloat
     ode_solver_abs_tolerance: PositiveFloat
 

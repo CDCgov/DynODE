@@ -26,19 +26,21 @@ class SEIPCovidModel(CompartmentalModel):
         """Initialize the SEIP covid config."""
         strains = self._get_strains()
         compartments = self._get_compartments(strains)
-        param_store = self._get_param_store()
+        param_store = self._get_param_store(strains)
         # Here you pass in a subclass of the initializer() class with you particular behavior
-        self.initializer = Initializer(
+        initializer = Initializer(
             description="initializer for feb 11 2022",
             initialize_date=date(2022, 2, 11),
             population_size=100000,
         )
-        self.compartments = compartments
-        self.parameters = param_store
-        # here you pass in your ODEs which take in the same compartment shapes you specified above
-        self.ode_function = seip_ode
+        super().__init__(
+            initializer=initializer,
+            compartments=compartments,
+            parameters=param_store,
+            ode_function=seip_ode,
+        )
 
-    def _get_param_store(self, strains) -> ParamStore:
+    def _get_param_store(self, strains: list[Strain]) -> ParamStore:
         return ParamStore(
             strains=strains,
             strain_interactions={
@@ -168,7 +170,7 @@ class SEIPCovidModel(CompartmentalModel):
         ]
         return strains
 
-    def _get_compartments(self, strains) -> list[Compartment]:
+    def _get_compartments(self, strains: list[Strain]) -> list[Compartment]:
         age_dimension = Dimension(
             name="age",
             bins=[

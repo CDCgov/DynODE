@@ -2,8 +2,8 @@
 
 from pydantic import (
     BaseModel,
+    NonNegativeFloat,
     NonNegativeInt,
-    PositiveFloat,
     model_validator,
 )
 from typing_extensions import Self
@@ -44,4 +44,4 @@ class WaneBin(CategoricalBin):
     """Waning bin with a protection value and waning time in days."""
 
     waning_time: NonNegativeInt
-    waning_protection: PositiveFloat
+    waning_protection: NonNegativeFloat
