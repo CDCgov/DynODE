@@ -1,6 +1,7 @@
 from typing import List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
+from typing_extensions import Self
 
 from .bins import Bin, CategoricalBin, DiscretizedPositiveIntBin
 from .strains import Strain
@@ -14,6 +15,16 @@ class Dimension(BaseModel):
 
     def __len__(self):
         return len(self.bins)
+
+    @model_validator(mode="after")
+    def check_bins_same_type(self) -> Self:
+        assert len(self.bins) > 0, "can not have dimension with no bins"
+        bin_type = type(self.bins[0])
+        assert all([type(b) is bin_type for b in self.bins]), (
+            "can not instantiate dimension with mixed type bins. Found list of types %s"
+            % str([type(b) for b in self.bins])
+        )
+        return self
 
 
 class VaccinationDimension(Dimension):
