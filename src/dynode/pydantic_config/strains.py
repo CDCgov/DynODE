@@ -19,7 +19,7 @@ class Strain(BaseModel):
     """A strain in the ODE model, optionally introduced from external population."""
 
     # allow Distribution objects within Strains
-    model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     strain_name: Annotated[
         str,

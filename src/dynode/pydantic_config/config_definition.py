@@ -27,7 +27,7 @@ class Compartment(BaseModel):
     """Defines a single compartment of an ODE model."""
 
     # allow jax array objects within Compartments
-    model_config: ConfigDict = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     name: str
     dimensions: List[Dimension]
     values: Optional[Array] = None
