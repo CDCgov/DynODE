@@ -40,6 +40,22 @@ class SEIPCovidModel(CompartmentalModel):
             ode_function=seip_ode,
         )
 
+    @property
+    def s(self) -> Compartment:
+        return self.compartments[0]
+
+    @property
+    def e(self) -> Compartment:
+        return self.compartments[1]
+
+    @property
+    def i(self) -> Compartment:
+        return self.compartments[2]
+
+    @property
+    def c(self) -> Compartment:
+        return self.compartments[3]
+
     def _get_param_store(self, strains: list[Strain]) -> ParamStore:
         return ParamStore(
             strains=strains,

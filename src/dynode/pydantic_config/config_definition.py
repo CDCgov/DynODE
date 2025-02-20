@@ -1,7 +1,7 @@
 """Top level classes for DynODE configs."""
 
 from datetime import date
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Union
 
 from jax import Array
 from jax import numpy as jnp
@@ -49,6 +49,13 @@ class Compartment(BaseModel):
     def shape(self) -> tuple[int, ...]:
         """Get shape of the compartment."""
         return tuple([len(d_i) for d_i in self.dimensions])
+
+    def __setitem__(
+        self, index: Union[int, slice, tuple], value: float
+    ) -> None:
+        """Experimental function that sets a value in the JAX array using functional update with slicing support."""
+        assert isinstance(self.values, Array), "values is not an array"
+        self.values = self.values.at[index].set(value)
 
 
 class ParamStore(BaseModel):
