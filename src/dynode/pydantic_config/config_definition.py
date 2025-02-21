@@ -76,17 +76,13 @@ class Initializer(BaseModel):
     initialize_date: date
     population_size: PositiveInt
 
-    def get_initial_state(
-        self,
-        compartments: list[Compartment],
-        initial_infection_scale: NonNegativeFloat,
-    ) -> list[Compartment]:
+    def get_initial_state(self, **kwargs) -> list[Compartment]:
         """Fill in compartments with values summing to `population_size`.
 
         Parameters
         ----------
-        compartments : list[Compartment]
-            compartments whose values to fill in.
+        kwargs
+            Any parameters needed by the specific initializer.
 
         Returns
         -------
@@ -120,3 +116,12 @@ class CompartmentalModel(BaseModel):
     ]
     # includes observation method, specified at runtime.
     inference_method: Optional[MCMC | SVI] = None
+
+    def get_compartment(self, compartment_name: str):
+        for compartment in self.compartments:
+            if compartment_name == compartment.name:
+                return compartment
+        raise AssertionError(
+            "Compartment with name %s not found in model, found only these names: %s"
+            % (compartment_name, str([c.name for c in self.compartments]))
+        )

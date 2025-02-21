@@ -27,8 +27,8 @@ class Strain(BaseModel):
     ]
     r0: Union[NonNegativeFloat, Distribution]
     infectious_period: PositiveFloat
-    exposed_to_infectious: Optional[PositiveFloat]
-    vaccine_efficacy: List[NonNegativeFloat]
+    exposed_to_infectious: Optional[PositiveFloat] = None
+    vaccine_efficacy: Optional[List[NonNegativeFloat]] = None
     is_introduced: bool = False
     introduction_time: Optional[
         Union[date, NonNegativeFloat, Distribution]
