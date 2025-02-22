@@ -8,15 +8,16 @@ import numpyro.distributions.transforms as transforms
 
 from dynode.model_odes.seip_model import seip_ode
 
-from .bins import AgeBin, CategoricalBin, WaneBin
+from .bins import AgeBin, Bin, WaneBin
 from .config_definition import (
     Compartment,
     CompartmentalModel,
     Initializer,
-    ParamStore,
-    Strain,
+    Params,
 )
 from .dimension import Dimension, LastStrainImmuneHistory, VaccinationDimension
+from .params import SolverParams, TransmissionParams
+from .strains import Strain
 
 
 class SEIPCovidModel(CompartmentalModel):
@@ -56,8 +57,8 @@ class SEIPCovidModel(CompartmentalModel):
     def c(self) -> Compartment:
         return self.compartments[3]
 
-    def _get_param_store(self, strains: list[Strain]) -> ParamStore:
-        return ParamStore(
+    def _get_param_store(self, strains: list[Strain]) -> Params:
+        transmission_params = TransmissionParams(
             strains=strains,
             strain_interactions={
                 "omicron": {
@@ -106,8 +107,13 @@ class SEIPCovidModel(CompartmentalModel):
                     "jn1": 1.0,
                 },
             },
-            ode_solver_rel_tolerance=1e-5,
-            ode_solver_abs_tolerance=1e-6,
+        )
+        return Params(
+            transmission_params=transmission_params,
+            solver_params=SolverParams(
+                ode_solver_rel_tolerance=1e-5,
+                ode_solver_abs_tolerance=1e-6,
+            ),
         )
 
     def _get_strains(self) -> list[Strain]:
@@ -124,7 +130,7 @@ class SEIPCovidModel(CompartmentalModel):
                 ),
                 infectious_period=7.0,
                 exposed_to_infectious=3.6,
-                vaccine_efficacy=[0, 0.35, 0.70],
+                vaccine_efficacy={0: 0, 1: 0.35, 2: 0.70},
             ),
             Strain(
                 strain_name="ba2ba5",
@@ -136,7 +142,7 @@ class SEIPCovidModel(CompartmentalModel):
                 ),
                 infectious_period=7.0,
                 exposed_to_infectious=3.6,
-                vaccine_efficacy=[0, 0.30, 0.60],
+                vaccine_efficacy={0: 0, 1: 0.30, 2: 0.60},
                 is_introduced=True,
                 introduction_time=dist.TruncatedNormal(
                     loc=20, scale=5, low=10
@@ -155,7 +161,7 @@ class SEIPCovidModel(CompartmentalModel):
                 ),
                 infectious_period=7.0,
                 exposed_to_infectious=3.6,
-                vaccine_efficacy=[0, 0.30, 0.60],
+                vaccine_efficacy={0: 0, 1: 0.30, 2: 0.60},
                 is_introduced=True,
                 introduction_time=dist.TruncatedNormal(
                     loc=230, scale=5, low=190
@@ -174,7 +180,7 @@ class SEIPCovidModel(CompartmentalModel):
                 ),
                 infectious_period=7.0,
                 exposed_to_infectious=3.6,
-                vaccine_efficacy=[0, 0.095, 0.19],
+                vaccine_efficacy={0: 0, 1: 0.095, 2: 0.19},
                 is_introduced=True,
                 introduction_time=dist.TruncatedNormal(
                     loc=640, scale=5, low=600
@@ -198,7 +204,7 @@ class SEIPCovidModel(CompartmentalModel):
         )
         immune_history_dimension = LastStrainImmuneHistory(strains=strains)
         vaccination_dimension = VaccinationDimension(
-            max_ordinal_vaccinations=2, seasonal_vaccination=True
+            max_ordinal_vaccinations=2, seasonal_vaccination=False
         )
         waning_dimension = Dimension(
             name="wane",
@@ -211,9 +217,7 @@ class SEIPCovidModel(CompartmentalModel):
         )
         infecting_strain_dimension = Dimension(
             name="strain",
-            bins=[
-                CategoricalBin(name=strain.strain_name) for strain in strains
-            ],
+            bins=[Bin(name=strain.strain_name) for strain in strains],
         )
         s_compartment = Compartment(
             name="s",

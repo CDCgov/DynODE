@@ -1,11 +1,12 @@
 """Dimension types for ODE compartments."""
 
+from itertools import combinations
 from typing import List
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator
 from typing_extensions import Self
 
-from .bins import Bin, CategoricalBin, DiscretizedPositiveIntBin
+from .bins import Bin, DiscretizedPositiveIntBin
 from .strains import Strain
 
 
@@ -19,16 +20,56 @@ class Dimension(BaseModel):
         """Get len of a Dimension."""
         return len(self.bins)
 
-    @model_validator(mode="after")
-    def check_bins_same_type(self) -> Self:
+    def __eq__(self, value):
+        if isinstance(value, Dimension):
+            if self.name == value.name and len(self.bins) == len(value.bins):
+                # check that all bins are in same order and have same names/values
+                for bin_l, bin_r in zip(self.bins, value.bins):
+                    if bin_l != bin_r:
+                        return False
+                return True
+        return False
+
+    @field_validator("bins", mode="after")
+    @classmethod
+    def check_bins_same_type(cls, bins) -> Self:
         """Assert all bins are of same type and bins is not empty."""
-        assert len(self.bins) > 0, "can not have dimension with no bins"
-        bin_type = type(self.bins[0])
-        assert all([type(b) is bin_type for b in self.bins]), (
+        assert len(bins) > 0, "can not have dimension with no bins"
+        bin_type = type(bins[0])
+        assert all([type(b) is bin_type for b in bins]), (
             "can not instantiate dimension with mixed type bins. Found list of types %s"
-            % str([type(b) for b in self.bins])
+            % str([type(b) for b in bins])
         )
-        return self
+        return bins
+
+    @field_validator("bins", mode="after")
+    @classmethod
+    def check_bin_names_unique(cls, bins: list[Bin]) -> list[Bin]:
+        assert len(bins) > 0, "can not have dimension with no bins"
+        names = [b.name for b in bins]
+        assert len(set(names)) == len(
+            names
+        ), "Dimension of categorical bins must have unique bin names."
+        return bins
+
+    @field_validator("bins", mode="after")
+    @classmethod
+    def sort_discretized_int_bins(cls, bins: list[Bin]) -> list[Bin]:
+        """Assert that DiscretizedPositiveIntBin do not overlap and sorts them lowest to highest."""
+        assert len(bins) > 0, "can not have dimension with no bins"
+        if isinstance(bins[0], DiscretizedPositiveIntBin):
+            # sort age bins with lowest min_value first
+            bins: list[DiscretizedPositiveIntBin] = sorted(
+                bins, key=lambda b: b.min_value, reverse=False
+            )
+            # assert that bins dont overlap now they are sorted
+            assert all(
+                [
+                    bins[i].max_value < bins[i + 1].min_value
+                    for i in range(len(bins) - 1)
+                ]
+            ), "DiscretizedPositiveIntBin within a dimension can not overlap."
+        return bins
 
 
 class VaccinationDimension(Dimension):
@@ -54,19 +95,12 @@ class FullStratifiedImmuneHistory(Dimension):
         """Create a fully stratified immune history dimension."""
         # TODO add a no-infection bin
         strain_names = [s.strain_name for s in strains]
-        num_strains = len(strain_names)
-        all_immune_histories = []
-        for i in range(2**num_strains):
-            immune_hist = []
-            for j in range(num_strains):
-                if (i & (1 << j)) > 0:
-                    immune_hist.append(strain_names[j])
-            all_immune_histories.append("-".join(immune_hist))
+        all_immune_histories = [Bin(name="none")]
+        for strain in range(1, len(strain_names) + 1):
+            combs = combinations(strain_names, strain)
+            all_immune_histories.extend(["_".join(comb) for comb in combs])
 
-        bins: list[Bin] = [
-            CategoricalBin(name=state) for state in all_immune_histories
-        ]
-        super().__init__(name="hist", bins=bins)
+        super().__init__(name="hist", bins=all_immune_histories)
 
 
 class LastStrainImmuneHistory(Dimension):
@@ -76,7 +110,6 @@ class LastStrainImmuneHistory(Dimension):
         """Create an immune history dimension that only tracks last infected strain."""
         # TODO add a no-infection bin
         strain_names = [s.strain_name for s in strains]
-        bins: list[Bin] = [
-            CategoricalBin(name=state) for state in strain_names
-        ]
+        bins: list[Bin] = [Bin(name=state) for state in strain_names]
+        bins.insert(0, Bin(name="none"))
         super().__init__(name="hist", bins=bins)
