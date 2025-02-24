@@ -38,7 +38,8 @@ class Compartment(BaseModel):
 
     @field_validator("name", mode="before")
     @classmethod
-    def make_attr_compliant(cls, value: str) -> str:
+    def _verify_names(cls, value: str) -> str:
+        """Validate to ensure names are always lowercase and underscored."""
         if value.replace("_", "").isalpha():
             return value.lower()
         else:
@@ -47,7 +48,7 @@ class Compartment(BaseModel):
             )
 
     @model_validator(mode="after")
-    def shape_match(self) -> Self:
+    def _shape_match(self) -> Self:
         """Set default values if unspecified, asserts dimensions and values shape matches."""
         target_values_shape: tuple[int, ...] = tuple(
             [len(d_i) for d_i in self.dimensions]
@@ -64,7 +65,23 @@ class Compartment(BaseModel):
         """Get shape of the compartment."""
         return tuple([len(d_i) for d_i in self.dimensions])
 
-    def __eq__(self, value):
+    def __eq__(self, value) -> bool:
+        """Check for equality definitions between two Compartments.
+
+        Parameters
+        ----------
+        value : Any
+            Other value to compare, usually another Compartment
+
+        Returns
+        -------
+        bool
+            whether or not the two compartments are equal in name and dimension structure.
+
+        Note
+        ----
+        does not check the values of the compartments, only their dimensionality and definition.
+        """
         if isinstance(value, Compartment):
             if self.name == value.name and len(self.dimensions) == len(
                 value.dimensions
@@ -76,14 +93,32 @@ class Compartment(BaseModel):
                 return True
         return False
 
-    # def __setitem__(
-    #     self, index: Union[int, slice, tuple], value: float
-    # ) -> None:
-    #     """Experimental function that sets a value in the JAX array using functional update with slicing support."""
-    #     self.values = self.values.at[index].set(value)
+    def __setitem__(self, index: int | slice | tuple, value: float) -> None:
+        """Set Compartment value in a numpy-like way.
 
-    # def __getitem__(self, index: Union[int, slice, tuple]) -> Any:
-    #     return self.values.at[index].get()
+        Parameters
+        ----------
+        index : int | slice | tuple
+            index or slice or tuple to index the Compartment's values.
+        value : float
+            float to set values[index] to.
+        """
+        self.values = self.values.at[index].set(value)
+
+    def __getitem__(self, index: int | slice | tuple) -> Array:
+        """Get the Compartment's values at some index.
+
+        Parameters
+        ----------
+        index : int | slice | tuple
+            index to look up.
+
+        Returns
+        -------
+        Any
+            value of the `self.values` tensor at that index.
+        """
+        return self.values.at[index].get()
 
 
 class Initializer(BaseModel):
@@ -136,7 +171,7 @@ class CompartmentalModel(BaseModel):
     def validate_shared_compartment_dimensions(self) -> Self:
         """Validate that any dimensions with same name across compartments are equal."""
         # quad-nested for loops are not ideal, but lists are very small so this should be fine
-        dimension_map = {}
+        dimension_map: dict[str, Dimension] = {}
         for compartment in self.compartments:
             for dimension in compartment.dimensions:
                 if dimension.name in dimension_map:
@@ -150,7 +185,16 @@ class CompartmentalModel(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def validate_immune_histories(self):
+    def _validate_immune_histories(self):
+        """Validate that the immune history dimensions within each compartment are initialized from the same strain definitions.
+
+        Example
+        -------
+        If you have 2 strains, `x` and `y`,
+        - a `FullStratifiedImmuneHistory` should have 4 bins, `none`, `x`, `y`, `x_y`
+        - a `LastStrainImmuneHistory` should have 3 bins, `none`, `x`, `y`
+        - Neither class should bins with any other strain `z` or exclude one of the required bins.
+        """
         strains = self.parameters.transmission_params.strains
         # gather all ImmuneHistory dimensions
         for compartment in self.compartments:
@@ -193,6 +237,8 @@ class CompartmentalModel(BaseModel):
 
 
 class InferenceProcess(BaseModel):
+    """Inference process for fitting a CompartmentalModel to data."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
     model: CompartmentalModel
     # includes observation method, specified at runtime.

@@ -20,19 +20,9 @@ class Dimension(BaseModel):
         """Get len of a Dimension."""
         return len(self.bins)
 
-    def __eq__(self, value):
-        if isinstance(value, Dimension):
-            if self.name == value.name and len(self.bins) == len(value.bins):
-                # check that all bins are in same order and have same names/values
-                for bin_l, bin_r in zip(self.bins, value.bins):
-                    if bin_l != bin_r:
-                        return False
-                return True
-        return False
-
     @field_validator("bins", mode="after")
     @classmethod
-    def check_bins_same_type(cls, bins) -> Self:
+    def _check_bins_same_type(cls, bins) -> Self:
         """Assert all bins are of same type and bins is not empty."""
         assert len(bins) > 0, "can not have dimension with no bins"
         bin_type = type(bins[0])
@@ -44,7 +34,7 @@ class Dimension(BaseModel):
 
     @field_validator("bins", mode="after")
     @classmethod
-    def check_bin_names_unique(cls, bins: list[Bin]) -> list[Bin]:
+    def _check_bin_names_unique(cls, bins: list[Bin]) -> list[Bin]:
         assert len(bins) > 0, "can not have dimension with no bins"
         names = [b.name for b in bins]
         assert len(set(names)) == len(
@@ -57,18 +47,19 @@ class Dimension(BaseModel):
     def sort_discretized_int_bins(cls, bins: list[Bin]) -> list[Bin]:
         """Assert that DiscretizedPositiveIntBin do not overlap and sorts them lowest to highest."""
         assert len(bins) > 0, "can not have dimension with no bins"
-        if isinstance(bins[0], DiscretizedPositiveIntBin):
+        if all(isinstance(bin, DiscretizedPositiveIntBin) for bin in bins):
             # sort age bins with lowest min_value first
-            bins: list[DiscretizedPositiveIntBin] = sorted(
+            bins_sorted = sorted(
                 bins, key=lambda b: b.min_value, reverse=False
             )
             # assert that bins dont overlap now they are sorted
             assert all(
                 [
-                    bins[i].max_value < bins[i + 1].min_value
+                    bins_sorted[i].max_value < bins[i + 1].min_value
                     for i in range(len(bins) - 1)
                 ]
             ), "DiscretizedPositiveIntBin within a dimension can not overlap."
+            return bins_sorted
         return bins
 
 
@@ -98,7 +89,9 @@ class FullStratifiedImmuneHistory(Dimension):
         all_immune_histories = [Bin(name="none")]
         for strain in range(1, len(strain_names) + 1):
             combs = combinations(strain_names, strain)
-            all_immune_histories.extend(["_".join(comb) for comb in combs])
+            all_immune_histories.extend(
+                [Bin(name="_".join(comb)) for comb in combs]
+            )
 
         super().__init__(name="hist", bins=all_immune_histories)
 

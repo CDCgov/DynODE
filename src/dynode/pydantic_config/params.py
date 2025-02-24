@@ -1,3 +1,5 @@
+"""Module containing Parameter classes for storing DynODE parameters."""
+
 from typing import List
 
 from numpyro.distributions import Distribution
@@ -8,27 +10,37 @@ from .strains import Strain
 
 
 class SolverParams(BaseModel):
+    """Parameters used by the ODE solver."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
     ode_solver_rel_tolerance: PositiveFloat
     ode_solver_abs_tolerance: PositiveFloat
 
 
 class TransmissionParams(BaseModel):
+    """Transmission Parameters for the respiratory model."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
     strain_interactions: dict[str, dict[str, NonNegativeFloat | Distribution]]
     strains: List[Strain]
 
 
 class InferenceParams(BaseModel):
+    """Parameters necessary for inference."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class MCMCParams(InferenceParams):
+    """Inference parameters specific to Markov Chain Monte Carlo (MCMC) fitting methods."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
     inference_mcmc_steps: PositiveFloat
 
 
 class SVIParams(InferenceParams):
+    """Inference parameters specific to Stochastic Variational Inference (SVI) fitting methods."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
@@ -41,7 +53,7 @@ class Params(BaseModel):
     transmission_params: TransmissionParams
 
     def realize_distributions(self) -> Self:
-        """Go through parameters and sample all distribution objects
+        """Go through parameters and sample all distribution objects.
 
         Returns
         -------

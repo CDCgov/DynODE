@@ -1,7 +1,5 @@
 """Bin types for ODE compartment models."""
 
-from typing import Optional
-
 from pydantic import (
     BaseModel,
     NonNegativeFloat,
@@ -16,27 +14,31 @@ class Bin(BaseModel):
 
     name: str
 
-    def __eq__(self, value):
-        if type(self) is type(value):
-            return self.__dict__ == value.__dict__
-        else:
-            return False
-
 
 class DiscretizedPositiveIntBin(Bin):
     """Bin with a distinct discretized positive int inclusive min/max."""
 
     min_value: NonNegativeInt
     max_value: NonNegativeInt
-    name: Optional[str] = None
 
     def __init__(self, min_value, max_value, name=None):
+        """Initialize a Discretized bin with inclusive min/max and sensible default name.
+
+        Parameters
+        ----------
+        min_value : int
+            minimum value contained by the bin (inclusive)
+        max_value : int
+            maximum value contained by the bin (inclusive)
+        name : str, optional
+            name of the bin, by default f"{min_value}_{max_value}" if None
+        """
         if name is None:
             name = f"{min_value}_{max_value}"
         super().__init__(name=name, min_value=min_value, max_value=max_value)
 
     @model_validator(mode="after")
-    def bin_valid_side(self) -> Self:
+    def _bin_valid_side(self) -> Self:
         """Assert that min_value <= max_value."""
         assert self.min_value <= self.max_value
         return self

@@ -8,16 +8,20 @@ import numpyro.distributions.transforms as transforms
 
 from dynode.model_odes.seip_model import seip_ode
 
-from .bins import AgeBin, Bin, WaneBin
-from .config_definition import (
+from ..bins import AgeBin, Bin, WaneBin
+from ..config_definition import (
     Compartment,
     CompartmentalModel,
     Initializer,
     Params,
 )
-from .dimension import Dimension, LastStrainImmuneHistory, VaccinationDimension
-from .params import SolverParams, TransmissionParams
-from .strains import Strain
+from ..dimension import (
+    Dimension,
+    LastStrainImmuneHistory,
+    VaccinationDimension,
+)
+from ..params import SolverParams, TransmissionParams
+from ..strains import Strain
 
 
 class SEIPCovidModel(CompartmentalModel):
@@ -43,18 +47,22 @@ class SEIPCovidModel(CompartmentalModel):
 
     @property
     def s(self) -> Compartment:
+        """The Susceptible compartment of the model."""
         return self.compartments[0]
 
     @property
     def e(self) -> Compartment:
+        """The Exposed compartment of the model."""
         return self.compartments[1]
 
     @property
     def i(self) -> Compartment:
+        """The Infectious compartment of the model."""
         return self.compartments[2]
 
     @property
     def c(self) -> Compartment:
+        """The Cumulative compartment of the model."""
         return self.compartments[3]
 
     def _get_param_store(self, strains: list[Strain]) -> Params:
