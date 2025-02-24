@@ -26,6 +26,7 @@ from .utils import date_to_sim_day
 
 logger = logging.getLogger("dynode")
 
+
 class MechanisticInferer(AbstractParameters):
     """Manage the fitting process of epidemiological parameters on ODEs.
 

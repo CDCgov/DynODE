@@ -24,6 +24,7 @@ pd.options.mode.chained_assignment = None
 
 logger = logging.getLogger("dynode")
 
+
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # SAMPLING FUNCTIONS
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1747,15 +1748,24 @@ def save_samples(samples: dict[str, Array], save_path: str, indent=None):
     s = {param: samples[param].tolist() for param in samples.keys()}
     json.dump(s, open(save_path, "w"), indent=indent)
 
-def use_logging(level = "INFO", output = "stdout", log_path = "./logs"):
-    #remove any loggers set previously
+
+def use_logging(level: str ="INFO", output: str ="stdout", log_path: str ="./logs") -> None:
+    """
+    Sets or disables logging with the dynode package.
+
+    Args:
+        level (str, optional): Log level desired. Choices from None, DEBUG, INFO, WARN, ERROR and CRITICAL. Defaults to "INFO".
+        output (str, optional): Output for logs. Choices from stdout, file, and both. Defaults to "stdout".
+        log_path (str, optional): folder path to store log files. Defaults to "./logs".
+    """
+    # remove any loggers set previously
     global logger
-    #clear logger handlers to avoid duplication in outputs
+    # clear logger handlers to avoid duplication in outputs
     logger.handlers.clear()
-    #get the log level
+    # get the log level
     match level.lower():
         case "none":
-            log_level = logging.CRITICAL+1
+            log_level = logging.CRITICAL + 1
             level_name = "NONE"
         case "debug":
             log_level = logging.DEBUG
@@ -1773,29 +1783,34 @@ def use_logging(level = "INFO", output = "stdout", log_path = "./logs"):
             log_level = logging.CRITICAL
             level_name = "CRITICAL"
         case _:
-            print(f"Did not recognize {level} as a valid log level. Using INFO.")
+            print(
+                f"Did not recognize {level} as a valid log level. Using INFO."
+            )
             log_level = logging.INFO
 
-    #logger.setLevel(log_level)
+    # logger.setLevel(log_level)
     logger.setLevel(log_level)
     formatter = logging.Formatter(
-        "[%(levelname)s] %(asctime)s: %(message)s",
-        datefmt = "%Y-%m-%d_%H:%M:%S"
+        "[%(levelname)s] %(asctime)s: %(message)s", datefmt="%Y-%m-%d_%H:%M:%S"
     )
-    #check output
-    if output.lower().startswith("std") or output.lower().startswith("console"):
+    # check output
+    if output.lower().startswith("std") or output.lower().startswith(
+        "console"
+    ):
         stream_handler = logging.StreamHandler(sys.stdout)
         stream_handler.setFormatter(formatter)
         stream_handler.setLevel(log_level)
         logger.addHandler(stream_handler)
-    elif output.lower().startswith("file") or output.lower().startswith("both"):
-        #make log_path folder
+    elif output.lower().startswith("file") or output.lower().startswith(
+        "both"
+    ):
+        # make log_path folder
         os.makedirs(log_path, exist_ok=True)
-        #get logfile path
+        # get logfile path
         run_time = datetime.datetime.now()
         now_string = f"{run_time:%Y-%m-%d_%H:%M:%S}"
         logfile = os.path.join(log_path, f"{now_string}.log")
-        #create handlers
+        # create handlers
         if output.lower().startswith("file"):
             file_handler = logging.FileHandler(logfile)
             file_handler.setFormatter(formatter)
@@ -1811,7 +1826,7 @@ def use_logging(level = "INFO", output = "stdout", log_path = "./logs"):
             stream_handler.setLevel(log_level)
             logger.addHandler(stream_handler)
     else:
-        #set to stdout
+        # set to stdout
         stream_handler = logging.StreamHandler(sys.stdout)
         stream_handler.setFormatter(formatter)
         stream_handler.setLevel(log_level)

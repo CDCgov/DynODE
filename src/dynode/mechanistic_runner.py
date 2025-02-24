@@ -1,8 +1,8 @@
 """Solve a system of ODEs and return a Solution object."""
 
 import datetime
-from collections.abc import Callable
 import logging
+from collections.abc import Callable
 from typing import Union
 
 import jax
@@ -26,6 +26,7 @@ numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
 
 logger = logging.getLogger("dynode")
+
 
 class MechanisticRunner:
     """Solves ODEs using Diffrax and produces Solution objects."""

@@ -7,8 +7,8 @@ It also handles the saving of stderr and stdout copies as the job executes.
 """
 
 import json
-import os
 import logging
+import os
 import warnings
 from abc import ABC, abstractmethod
 from typing import Optional
@@ -24,6 +24,7 @@ from .mechanistic_inferer import MechanisticInferer
 from .static_value_parameters import StaticValueParameters
 
 logger = logging.getLogger("dynode")
+
 
 class AbstractDynodeRunner(ABC):
     """An abstract class made to standardize the process of running simulations and fitting.

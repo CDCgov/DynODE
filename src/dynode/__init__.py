@@ -8,10 +8,10 @@ DynODE is currently under active development and will be substantially
 refactored in the near future!
 """
 
+import logging
+
 # ruff: noqa: E402
 import jax
-import logging
-import sys
 
 """
 SEIC Compartments defines a tuple of the four major compartments used in the model
@@ -64,5 +64,5 @@ __all__ = [
 ]
 
 logger = logging.getLogger("dynode")
-logger.setLevel(logging.CRITICAL+1)
+logger.setLevel(logging.CRITICAL + 1)
 logger.addHandler(logging.NullHandler())

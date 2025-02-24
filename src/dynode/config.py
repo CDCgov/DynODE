@@ -24,6 +24,7 @@ from jax.random import PRNGKey
 
 logger = logging.getLogger("dynode")
 
+
 class Config:
     """A factory class to validate and build on top of JSON config files."""
 

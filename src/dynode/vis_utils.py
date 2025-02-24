@@ -1,7 +1,7 @@
 """A set of utility functions for generating visualizations for the model."""
 
-from typing import Any
 import logging
+from typing import Any
 
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
