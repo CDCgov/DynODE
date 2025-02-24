@@ -23,6 +23,7 @@ from .dimension import (
     Dimension,
     FullStratifiedImmuneHistory,
     LastStrainImmuneHistory,
+    VaccinationDimension,
 )
 from .params import InferenceParams, Params
 
@@ -229,6 +230,23 @@ class CompartmentalModel(BaseModel):
                         dim_class(strains) == dimension
                     ), "Found immune states that dont correlate with strains from transmission_params"
         return self
+
+    @model_validator(mode="after")
+    def _validate_vaccination_counts(self):
+        """Validate that the number of doses you specify in your vaccination
+        dimensions are consistent."""
+        # assert that all similarly named dimensions have same vaccine bins
+        num_shots = {}
+        for compartment in self.compartments:
+            for dimension in compartment.dimensions:
+                dim_class = type(dimension)
+                if dim_class is VaccinationDimension:
+                    if dimension.name in num_shots:
+                        assert (
+                            dimension.max_shots == num_shots[dimension.name]
+                        ), "vaccination dimensions with same name have different numbers of shots."
+                    else:
+                        num_shots[dimension.name] = dimension.max_shots
 
     def get_compartment(self, compartment_name: str) -> Compartment:
         """Search the CompartmentModel and return a specific Compartment if it exists.
