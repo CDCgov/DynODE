@@ -1,7 +1,7 @@
 """Top level classes for DynODE configs."""
 
 from datetime import date
-from typing import Callable, List, Literal, Optional
+from typing import Callable, List, Optional, Union
 
 from jax import Array
 from jax import numpy as jnp
@@ -22,7 +22,9 @@ from dynode import CompartmentGradiants
 from .bins import AgeBin, Bin
 from .dimension import (
     Dimension,
+    FullStratifiedImmuneHistory,
     ImmuneHistoryDimension,
+    LastStrainImmuneHistory,
     VaccinationDimension,
 )
 from .params import InferenceParams, Params
@@ -194,7 +196,7 @@ class CompartmentalModel(BaseModel):
         """Validate that any dimensions with same name across compartments are equal."""
         # quad-nested for loops are not ideal, but lists are very small so this should be fine
         dimension_map: dict[str, Dimension] = {}
-        all_dims = self.flatten("dimension")
+        all_dims: list[Dimension] = self.flatten_dims()
         for dimension in all_dims:
             if dimension.name in dimension_map:
                 assert (
@@ -219,12 +221,16 @@ class CompartmentalModel(BaseModel):
         """
         strains = self.parameters.transmission_params.strains
         # gather all ImmuneHistory dimensions
-        all_dims = self.flatten("dimension")
+        all_dims = self.flatten_dims()
         all_immune_hist_dims = [
             d for d in all_dims if isinstance(d, ImmuneHistoryDimension)
         ]
         # assert that all immune histories were generated from this set of strains.
         for dimension in all_immune_hist_dims:
+            assert isinstance(
+                dimension,
+                (FullStratifiedImmuneHistory, LastStrainImmuneHistory),
+            )
             assert (
                 type(dimension)(strains) == dimension
             ), "Found immune states that dont correlate with strains from transmission_params"
@@ -234,7 +240,7 @@ class CompartmentalModel(BaseModel):
     def _validate_introduced_strains(self) -> Self:
         """Validate that all introduced strains have the same age binning as defined by the Model's compartments."""
         strains = self.parameters.transmission_params.strains
-        all_bins = self.flatten("bin")
+        all_bins = self.flatten_bins()
         age_structure = [b for b in all_bins if isinstance(b, AgeBin)]
         for strain in strains:
             strain_target_ages = strain.introduction_ages
@@ -251,11 +257,10 @@ class CompartmentalModel(BaseModel):
 
     @model_validator(mode="after")
     def _validate_vaccination_counts(self) -> Self:
-        """Validate that the number of doses you specify in your vaccination
-        dimensions are consistent."""
+        """Validate vaccination dose definitions are correct across the model."""
         # assert that all similarly named dimensions have same vaccine bins
-        num_shots = {}
-        all_dims = self.flatten("dimension")
+        num_shots: dict[str, int] = {}
+        all_dims = self.flatten_dims()
         all_vax_dims = [
             d for d in all_dims if isinstance(d, VaccinationDimension)
         ]
@@ -266,7 +271,7 @@ class CompartmentalModel(BaseModel):
                 ), "vaccination dimensions with same name have different numbers of shots."
             else:
                 num_shots[dimension.name] = dimension.max_shots
-        return Self
+        return self
 
     def get_compartment(self, compartment_name: str) -> Compartment:
         """Search the CompartmentModel and return a specific Compartment if it exists.
@@ -294,33 +299,46 @@ class CompartmentalModel(BaseModel):
             % (compartment_name, str([c.name for c in self.compartments]))
         )
 
-    def flatten(
-        self, level: Literal["dimension", "bin"] = "bin"
-    ) -> list[Dimension | Bin]:
-        """Flatten all compartments down to either dimensions or bins.
-
-        Parameters
-        ----------
-        level : Literal['dimension', 'bin'], optional
-            level on which to stop before flattening, by default 'bin'
+    def flatten_bins(
+        self,
+    ) -> Union[list[Bin]]:
+        """Flatten all compartments down to list of bins.
 
         Returns
         -------
-        list[Dimension | Bin]
-            flattened compartments' dimension or bin objects depending on `level`
+        list[Bin]
+            flattened compartments' bin objects.
+
+        Note
+        ----
+        This operation preserves the order of the compartments, dimensions,
+        and bins in the final flattened output.
         """
-        assert (
-            level.lower() == "dimension" or level.lower() == "bin"
-        ), f"level must be either `dimension` or `bin`, got {level}"
-        flattened_lst = []
+        flattened_lst: list[Bin] = []
         for compartment in self.compartments:
-            compartment_lst = []
-            if level == "dimension":
-                compartment_lst = compartment.dimensions
-            else:  # flatten bins for each dimension
-                for dimension in compartment.dimensions:
-                    compartment_lst.extend(dimension.bins)
-            flattened_lst.extend(compartment_lst)
+            # flatten bins for each dimension
+            for dimension in compartment.dimensions:
+                flattened_lst.extend(dimension.bins)
+        return flattened_lst
+
+    def flatten_dims(
+        self,
+    ) -> Union[list[Dimension]]:
+        """Flatten all compartments down to list of dimensions.
+
+        Returns
+        -------
+        list[Dimension]
+            flattened compartments' Dimension objects.
+
+        Note
+        ----
+        This operation preserves the order of the compartments,
+        and dimensions, in the final flattened output.
+        """
+        flattened_lst: list[Dimension] = []
+        for compartment in self.compartments:
+            flattened_lst.extend(compartment.dimensions)
         return flattened_lst
 
 

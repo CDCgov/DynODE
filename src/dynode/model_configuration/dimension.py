@@ -86,7 +86,8 @@ class VaccinationDimension(Dimension):
     def max_shots(self) -> int:
         """Maximum number of tracked vaccinations in the dimension.
 
-        Additional shots do not increase the count."""
+        Additional shots do not increase the count.
+        """
         # subtract 1 because we have a bin for 0 shots.
         return len(self.bins) - 1
 
