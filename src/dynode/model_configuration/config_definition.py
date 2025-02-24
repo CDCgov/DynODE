@@ -32,9 +32,16 @@ class Compartment(BaseModel):
 
     # allow jax array objects within Compartments
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    name: str
-    dimensions: List[Dimension]
-    values: Array = Field(default_factory=lambda: jnp.array([]))
+    name: str = Field(
+        description="""Compartment name, must be unique within a CompartmentModel."""
+    )
+    dimensions: List[Dimension] = Field(
+        description="""Compartment dimension definitions."""
+    )
+    values: Array = Field(
+        default_factory=lambda: jnp.array([]),
+        description="Compartment matrix values.",
+    )
 
     @field_validator("name", mode="before")
     @classmethod
@@ -124,9 +131,14 @@ class Compartment(BaseModel):
 class Initializer(BaseModel):
     """Initalize compartment state of an ODE model."""
 
-    description: str
-    initialize_date: date
-    population_size: PositiveInt
+    description: str = Field(
+        description="""Description of the initializer, its data streams and/or
+         its intended initialization date range."""
+    )
+    initialize_date: date = Field(description="""Initialization date.""")
+    population_size: PositiveInt = Field(
+        description="""Target initial population size."""
+    )
 
     def get_initial_state(self, **kwargs) -> list[Compartment]:
         """Fill in compartments with values summing to `population_size`.
@@ -159,13 +171,22 @@ class CompartmentalModel(BaseModel):
 
     # allow users to pass custom types into CompartmentalModel
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    initializer: Initializer
-    compartments: List[Compartment]
-    parameters: Params
+    initializer: Initializer = Field(
+        description="""Initializer to create initial state with."""
+    )
+    compartments: List[Compartment] = Field(
+        description="""Compartments of the model."""
+    )
+    parameters: Params = Field(
+        description="""Model parameters, includes epidemiological and miscellaneous."""
+    )
     # passed to diffrax.diffeqsolve
     ode_function: Callable[
         [List[Compartment], PositiveFloat, Params], CompartmentGradiants
-    ]
+    ] = Field(
+        description="""Callable to calculate instantaneous rate of change of
+        each compartment."""
+    )
 
     @model_validator(mode="after")
     def validate_shared_compartment_dimensions(self) -> Self:
@@ -240,7 +261,16 @@ class InferenceProcess(BaseModel):
     """Inference process for fitting a CompartmentalModel to data."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    model: CompartmentalModel
+    model: CompartmentalModel = Field(
+        description="CompartmentalModel on which inference is performed."
+    )
     # includes observation method, specified at runtime.
-    inference_method: Optional[MCMC | SVI] = None
-    inference_parameters: InferenceParams
+    inference_method: Optional[MCMC | SVI] = Field(
+        default=None,
+        description="""Inference method to execute,
+        currently only MCMC and SVI supported""",
+    )
+    inference_parameters: InferenceParams = Field(
+        description="""inference related parameters, not to be confused with
+        CompartmentalModel parameters for solving ODEs."""
+    )

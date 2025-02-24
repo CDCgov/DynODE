@@ -3,7 +3,7 @@
 from itertools import combinations
 from typing import List
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from typing_extensions import Self
 
 from .bins import Bin, DiscretizedPositiveIntBin
@@ -13,8 +13,12 @@ from .strains import Strain
 class Dimension(BaseModel):
     """A dimension of an compartment."""
 
-    name: str
-    bins: List[Bin]
+    name: str = Field(
+        description="""Dimension name, must be unique within a Compartment"""
+    )
+    bins: List[Bin] = Field(
+        description="""Bins/cells within this dimension."""
+    )
 
     def __len__(self):
         """Get len of a Dimension."""

@@ -2,8 +2,16 @@
 
 from typing import List
 
+from jax import Array
+from jax.random import PRNGKey
 from numpyro.distributions import Distribution
-from pydantic import BaseModel, ConfigDict, NonNegativeFloat, PositiveFloat
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    NonNegativeFloat,
+    PositiveFloat,
+    PositiveInt,
+)
 from typing_extensions import Self
 
 from .strains import Strain
@@ -29,13 +37,15 @@ class InferenceParams(BaseModel):
     """Parameters necessary for inference."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    inference_prngkey: Array = PRNGKey(8675314)
 
 
 class MCMCParams(InferenceParams):
     """Inference parameters specific to Markov Chain Monte Carlo (MCMC) fitting methods."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    inference_mcmc_steps: PositiveFloat
+    inference_mcmc_samples: PositiveInt
+    inference_mcmc_warmup: PositiveInt
 
 
 class SVIParams(InferenceParams):
