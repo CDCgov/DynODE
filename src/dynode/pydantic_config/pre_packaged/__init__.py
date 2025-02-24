@@ -2,4 +2,4 @@
 
 from .covid_seip_config import SEIPCovidModel
 
-alias = SEIPCovidModel
+redundant_alias_SEIPCovidModel = SEIPCovidModel

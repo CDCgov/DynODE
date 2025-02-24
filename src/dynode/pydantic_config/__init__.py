@@ -7,7 +7,7 @@ from .config_definition import (
     Initializer,
 )
 
-alias = Compartment
-alias = CompartmentalModel
-alias = InferenceParams
-alias = Initializer
+redundant_alias_Compartment = Compartment
+redundant_alias_CompartmentalModel = CompartmentalModel
+redundant_alias_InferenceParams = InferenceParams
+redundant_alias_Initializer = Initializer

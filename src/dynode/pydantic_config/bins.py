@@ -47,7 +47,19 @@ class DiscretizedPositiveIntBin(Bin):
 class AgeBin(DiscretizedPositiveIntBin):
     """Age bin with inclusive mix and max age values, fills in name of bin for you."""
 
-    pass
+    def __init__(self, min_value, max_value, name=None):
+        """Initialize a Discretized bin with inclusive min/max and sensible default name.
+
+        Parameters
+        ----------
+        min_value : int
+            minimum value contained by the bin (inclusive)
+        max_value : int
+            maximum value contained by the bin (inclusive)
+        name : str, optional
+            name of the bin, by default f"{min_value}_{max_value}" if None
+        """
+        super().__init__(name=name, min_value=min_value, max_value=max_value)
 
 
 class WaneBin(Bin):
