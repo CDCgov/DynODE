@@ -1749,7 +1749,9 @@ def save_samples(samples: dict[str, Array], save_path: str, indent=None):
     json.dump(s, open(save_path, "w"), indent=indent)
 
 
-def use_logging(level: str ="INFO", output: str ="stdout", log_path: str ="./logs") -> None:
+def use_logging(
+    level: str = "INFO", output: str = "stdout", log_path: str = "./logs"
+) -> None:
     """
     Sets or disables logging with the dynode package.
 
