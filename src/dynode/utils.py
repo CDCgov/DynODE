@@ -2,6 +2,7 @@
 
 import datetime
 import glob
+import logging
 import os
 import sys
 
@@ -21,6 +22,7 @@ from scipy.stats import gamma
 
 pd.options.mode.chained_assignment = None
 
+logger = logging.getLogger("dynode")
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # SAMPLING FUNCTIONS
@@ -1744,3 +1746,75 @@ def save_samples(samples: dict[str, Array], save_path: str, indent=None):
     # convert np arrays to lists
     s = {param: samples[param].tolist() for param in samples.keys()}
     json.dump(s, open(save_path, "w"), indent=indent)
+
+def use_logging(level = "INFO", output = "stdout", log_path = "./logs"):
+    #remove any loggers set previously
+    global logger
+    #clear logger handlers to avoid duplication in outputs
+    logger.handlers.clear()
+    #get the log level
+    match level.lower():
+        case "none":
+            log_level = logging.CRITICAL+1
+            level_name = "NONE"
+        case "debug":
+            log_level = logging.DEBUG
+            level_name = "DEBUG"
+        case "info":
+            log_level = logging.INFO
+            level_name = "INFO"
+        case "warn" | "warning":
+            log_level = logging.WARN
+            level_name = "WARN"
+        case "error":
+            log_level = logging.ERROR
+            level_name = "ERROR"
+        case "critical":
+            log_level = logging.CRITICAL
+            level_name = "CRITICAL"
+        case _:
+            print(f"Did not recognize {level} as a valid log level. Using INFO.")
+            log_level = logging.INFO
+
+    #logger.setLevel(log_level)
+    logger.setLevel(log_level)
+    formatter = logging.Formatter(
+        "[%(levelname)s] %(asctime)s: %(message)s",
+        datefmt = "%Y-%m-%d_%H:%M:%S"
+    )
+    #check output
+    if output.lower().startswith("std") or output.lower().startswith("console"):
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setFormatter(formatter)
+        stream_handler.setLevel(log_level)
+        logger.addHandler(stream_handler)
+    elif output.lower().startswith("file") or output.lower().startswith("both"):
+        #make log_path folder
+        os.makedirs(log_path, exist_ok=True)
+        #get logfile path
+        run_time = datetime.datetime.now()
+        now_string = f"{run_time:%Y-%m-%d_%H:%M:%S}"
+        logfile = os.path.join(log_path, f"{now_string}.log")
+        #create handlers
+        if output.lower().startswith("file"):
+            file_handler = logging.FileHandler(logfile)
+            file_handler.setFormatter(formatter)
+            file_handler.setLevel(log_level)
+            logger.addHandler(file_handler)
+        else:
+            file_handler = logging.FileHandler(logfile)
+            file_handler.setFormatter(formatter)
+            file_handler.setLevel(log_level)
+            logger.addHandler(file_handler)
+            stream_handler = logging.StreamHandler(sys.stdout)
+            stream_handler.setFormatter(formatter)
+            stream_handler.setLevel(log_level)
+            logger.addHandler(stream_handler)
+    else:
+        #set to stdout
+        stream_handler = logging.StreamHandler(sys.stdout)
+        stream_handler.setFormatter(formatter)
+        stream_handler.setLevel(log_level)
+        logger.addHandler(stream_handler)
+        print("Did not recognize {output}. Saving to stdout.")
+    print(f"Setting log level {level_name}.")

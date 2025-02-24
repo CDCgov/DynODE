@@ -4,6 +4,10 @@ from . import SEIC_Compartments
 from .abstract_parameters import AbstractParameters
 from .config import Config
 
+import logging
+
+logger = logging.getLogger("dynode")
+
 
 class StaticValueParameters(AbstractParameters):
     """A Parameters class made for use on static parameters, with no sampling mechanism."""

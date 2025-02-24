@@ -6,12 +6,14 @@ to produce an initial state representing some analyzed population
 """
 
 from abc import ABC, abstractmethod
+import logging
 from typing import Any
 
 from numpy import ndarray
 
 from . import SEIC_Compartments, utils
 
+logger = logging.getLogger("dynode")
 
 class AbstractInitializer(ABC):
     """An abstract class meant for use by disease-specific initializers.

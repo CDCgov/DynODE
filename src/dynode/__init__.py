@@ -10,6 +10,8 @@ refactored in the near future!
 
 # ruff: noqa: E402
 import jax
+import logging
+import sys
 
 """
 SEIC Compartments defines a tuple of the four major compartments used in the model
@@ -60,3 +62,7 @@ __all__ = [
     "vis_utils",
     "AbstractDynodeRunner",
 ]
+
+logger = logging.getLogger("dynode")
+logger.setLevel(logging.CRITICAL+1)
+logger.addHandler(logging.NullHandler())

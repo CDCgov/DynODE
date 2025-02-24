@@ -1,6 +1,7 @@
 """A set of utility functions for generating visualizations for the model."""
 
 from typing import Any
+import logging
 
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
@@ -17,6 +18,8 @@ from .utils import (
     flatten_list_parameters,
     identify_distribution_indexes,
 )
+
+logger = logging.getLogger("dynode")
 
 
 class VisualizationError(Exception):

@@ -1,6 +1,7 @@
 """Define a covid initializer for parsing and transforming input serology data."""
 
 import os
+import logging
 
 import jax.numpy as jnp
 import numpy as np
@@ -11,6 +12,7 @@ from . import SEIC_Compartments, utils
 from .abstract_initializer import AbstractInitializer
 from .config import Config
 
+logger = logging.getLogger("dynode")
 
 class CovidSeroInitializer(AbstractInitializer):
     """A Covid specific initializer class using serology input data to stratify immunity."""

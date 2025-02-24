@@ -9,6 +9,7 @@ import copy
 import os
 from abc import abstractmethod
 from functools import partial
+import logging
 
 import jax
 import jax.numpy as jnp
@@ -22,6 +23,7 @@ from . import SEIC_Compartments, utils
 from .config import Config
 from .mechanistic_runner import MechanisticRunner
 
+logger = logging.getLogger("dynode")
 
 class AbstractParameters:
     """A class to define a disease-agnostic parameters object for running disease models.

@@ -2,6 +2,7 @@
 
 import datetime
 from collections.abc import Callable
+import logging
 from typing import Union
 
 import jax
@@ -24,6 +25,7 @@ from .utils import date_to_sim_day
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
 
+logger = logging.getLogger("dynode")
 
 class MechanisticRunner:
     """Solves ODEs using Diffrax and produces Solution objects."""

@@ -5,6 +5,7 @@ Compare the likelihood of the output to some observed metrics.
 
 import datetime
 import json
+import logging
 from typing import Union
 
 import bayeux as bx
@@ -23,6 +24,7 @@ from .config import Config
 from .mechanistic_runner import MechanisticRunner
 from .utils import date_to_sim_day
 
+logger = logging.getLogger("dynode")
 
 class MechanisticInferer(AbstractParameters):
     """Manage the fitting process of epidemiological parameters on ODEs.
