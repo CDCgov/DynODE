@@ -91,7 +91,13 @@ class VaccinationDimension(Dimension):
         return len(self.bins) - 1
 
 
-class FullStratifiedImmuneHistory(Dimension):
+class ImmuneHistoryDimension(Dimension):
+    """A dimension meant to track how a population's immunity changes after recovering from a disease."""
+
+    pass
+
+
+class FullStratifiedImmuneHistory(ImmuneHistoryDimension):
     """A type of immune history which represents all possible unique infections."""
 
     def __init__(self, strains: list[Strain]) -> None:
@@ -108,7 +114,7 @@ class FullStratifiedImmuneHistory(Dimension):
         super().__init__(name="hist", bins=all_immune_histories)
 
 
-class LastStrainImmuneHistory(Dimension):
+class LastStrainImmuneHistory(ImmuneHistoryDimension):
     """Immune history dimension that only tracks most recent infection."""
 
     def __init__(self, strains: list[Strain]) -> None:

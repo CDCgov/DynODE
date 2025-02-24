@@ -1,7 +1,7 @@
 """Top level classes for DynODE configs."""
 
 from datetime import date
-from typing import Callable, List, Optional
+from typing import Callable, List, Literal, Optional
 
 from jax import Array
 from jax import numpy as jnp
@@ -19,10 +19,10 @@ from typing_extensions import Self
 
 from dynode import CompartmentGradiants
 
+from .bins import AgeBin, Bin
 from .dimension import (
     Dimension,
-    FullStratifiedImmuneHistory,
-    LastStrainImmuneHistory,
+    ImmuneHistoryDimension,
     VaccinationDimension,
 )
 from .params import InferenceParams, Params
@@ -190,24 +190,24 @@ class CompartmentalModel(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_shared_compartment_dimensions(self) -> Self:
+    def _validate_shared_compartment_dimensions(self) -> Self:
         """Validate that any dimensions with same name across compartments are equal."""
         # quad-nested for loops are not ideal, but lists are very small so this should be fine
         dimension_map: dict[str, Dimension] = {}
-        for compartment in self.compartments:
-            for dimension in compartment.dimensions:
-                if dimension.name in dimension_map:
-                    assert (
-                        dimension == dimension_map[dimension.name]
-                    ), f"""dimension {dimension.name} has different definitions
-                    across different compartments, if this intended, make
-                    the dimensions have different names"""
-                else:  # first time encountering this dimension name
-                    dimension_map[dimension.name] = dimension
+        all_dims = self.flatten("dimension")
+        for dimension in all_dims:
+            if dimension.name in dimension_map:
+                assert (
+                    dimension == dimension_map[dimension.name]
+                ), f"""dimension {dimension.name} has different definitions
+                across different compartments, if this intended, make
+                the dimensions have different names"""
+            else:  # first time encountering this dimension name
+                dimension_map[dimension.name] = dimension
         return self
 
     @model_validator(mode="after")
-    def _validate_immune_histories(self):
+    def _validate_immune_histories(self) -> Self:
         """Validate that the immune history dimensions within each compartment are initialized from the same strain definitions.
 
         Example
@@ -219,34 +219,54 @@ class CompartmentalModel(BaseModel):
         """
         strains = self.parameters.transmission_params.strains
         # gather all ImmuneHistory dimensions
-        for compartment in self.compartments:
-            for dimension in compartment.dimensions:
-                dim_class = type(dimension)
-                if (
-                    dim_class is FullStratifiedImmuneHistory
-                    or dim_class is LastStrainImmuneHistory
-                ):
-                    assert (
-                        dim_class(strains) == dimension
-                    ), "Found immune states that dont correlate with strains from transmission_params"
+        all_dims = self.flatten("dimension")
+        all_immune_hist_dims = [
+            d for d in all_dims if isinstance(d, ImmuneHistoryDimension)
+        ]
+        # assert that all immune histories were generated from this set of strains.
+        for dimension in all_immune_hist_dims:
+            assert (
+                type(dimension)(strains) == dimension
+            ), "Found immune states that dont correlate with strains from transmission_params"
         return self
 
     @model_validator(mode="after")
-    def _validate_vaccination_counts(self):
+    def _validate_introduced_strains(self) -> Self:
+        """Validate that all introduced strains have the same age binning as defined by the Model's compartments."""
+        strains = self.parameters.transmission_params.strains
+        all_bins = self.flatten("bin")
+        age_structure = [b for b in all_bins if isinstance(b, AgeBin)]
+        for strain in strains:
+            strain_target_ages = strain.introduction_ages
+            if strain.is_introduced and strain_target_ages is not None:
+                assert all(
+                    [
+                        target_age in age_structure
+                        for target_age in strain_target_ages
+                    ]
+                ), f"""{strain.strain_name} attempts to introduce itself using
+                    {strain_target_ages} age bins, but those are not found
+                    within the age structure of the model."""
+        return self
+
+    @model_validator(mode="after")
+    def _validate_vaccination_counts(self) -> Self:
         """Validate that the number of doses you specify in your vaccination
         dimensions are consistent."""
         # assert that all similarly named dimensions have same vaccine bins
         num_shots = {}
-        for compartment in self.compartments:
-            for dimension in compartment.dimensions:
-                dim_class = type(dimension)
-                if dim_class is VaccinationDimension:
-                    if dimension.name in num_shots:
-                        assert (
-                            dimension.max_shots == num_shots[dimension.name]
-                        ), "vaccination dimensions with same name have different numbers of shots."
-                    else:
-                        num_shots[dimension.name] = dimension.max_shots
+        all_dims = self.flatten("dimension")
+        all_vax_dims = [
+            d for d in all_dims if isinstance(d, VaccinationDimension)
+        ]
+        for dimension in all_vax_dims:
+            if dimension.name in num_shots:
+                assert (
+                    dimension.max_shots == num_shots[dimension.name]
+                ), "vaccination dimensions with same name have different numbers of shots."
+            else:
+                num_shots[dimension.name] = dimension.max_shots
+        return Self
 
     def get_compartment(self, compartment_name: str) -> Compartment:
         """Search the CompartmentModel and return a specific Compartment if it exists.
@@ -273,6 +293,35 @@ class CompartmentalModel(BaseModel):
             "Compartment with name %s not found in model, found only these names: %s"
             % (compartment_name, str([c.name for c in self.compartments]))
         )
+
+    def flatten(
+        self, level: Literal["dimension", "bin"] = "bin"
+    ) -> list[Dimension | Bin]:
+        """Flatten all compartments down to either dimensions or bins.
+
+        Parameters
+        ----------
+        level : Literal['dimension', 'bin'], optional
+            level on which to stop before flattening, by default 'bin'
+
+        Returns
+        -------
+        list[Dimension | Bin]
+            flattened compartments' dimension or bin objects depending on `level`
+        """
+        assert (
+            level.lower() == "dimension" or level.lower() == "bin"
+        ), f"level must be either `dimension` or `bin`, got {level}"
+        flattened_lst = []
+        for compartment in self.compartments:
+            compartment_lst = []
+            if level == "dimension":
+                compartment_lst = compartment.dimensions
+            else:  # flatten bins for each dimension
+                for dimension in compartment.dimensions:
+                    compartment_lst.extend(dimension.bins)
+            flattened_lst.extend(compartment_lst)
+        return flattened_lst
 
 
 class InferenceProcess(BaseModel):
