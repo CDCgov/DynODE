@@ -1756,8 +1756,8 @@ def use_logging(
     Sets or disables logging with the dynode package.
 
     Args:
-        level (str, optional): Log level desired. Choices from None, DEBUG, INFO, WARN, ERROR and CRITICAL. Defaults to "INFO".
-        output (str, optional): Output for logs. Choices from stdout, file, and both. Defaults to "stdout".
+        level (str, optional): Log level desired. Choices from "None", "DEBUG", "INFO", "WARN", "ERROR" and "CRITICAL". Defaults to "INFO".
+        output (str, optional): Output for logs. Choices from "stdout", "file", and "both". Defaults to "stdout".
         log_path (str, optional): folder path to store log files. Defaults to "./logs".
     """
     # remove any loggers set previously

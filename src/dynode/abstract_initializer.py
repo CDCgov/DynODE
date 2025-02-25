@@ -61,11 +61,16 @@ class AbstractInitializer(ABC):
             `len(self.load_initial_population_fractions()) == self.config.NUM_AGE_GROUPS`
             `np.sum(self.load_initial_population_fractions()) == 1.0
         """
+        logger.debug(
+            "Creating populations_path based on DEMOGRAPHIC_DATA_PATH in config."
+        )
         populations_path = (
             self.config.DEMOGRAPHIC_DATA_PATH
             + "population_rescaled_age_distributions/"
         )
+        logger.debug(f"Set populations path as {populations_path}.")
         # TODO support getting more regions than just 1
+        logger.debug("Returning values from utils.load_age_demographics()")
         return utils.load_age_demographics(
             populations_path, self.config.REGIONS, self.config.AGE_LIMITS
         )[self.config.REGIONS[0]]
