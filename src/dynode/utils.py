@@ -394,7 +394,7 @@ def date_to_sim_day(date: datetime.date, init_date: datetime.date):
     --------
     >>> import datetime
     >>> init_date=datetime.date(2022, 10, 15)
-    >>> date=datetime.date(2022, 11, 05)
+    >>> date=datetime.date(2022, 11, 5)
     >>> date_to_sim_day(date, init_date)
     21
     """
@@ -1749,9 +1749,7 @@ def save_samples(samples: dict[str, Array], save_path: str, indent=None):
     json.dump(s, open(save_path, "w"), indent=indent)
 
 
-def use_logging(
-    level: str = "INFO", output: str = "stdout", log_path: str = "./logs"
-) -> None:
+def use_logging(level: str = "INFO", output: str = "stdout", log_path: str = "./logs") -> None:
     """
     Sets or disables logging with the dynode package.
 
@@ -1785,53 +1783,39 @@ def use_logging(
             log_level = logging.CRITICAL
             level_name = "CRITICAL"
         case _:
-            print(
-                f"Did not recognize {level} as a valid log level. Using INFO."
-            )
+            print(f"Did not recognize {level} as a valid log level. Using INFO.")
             log_level = logging.INFO
 
     # logger.setLevel(log_level)
     logger.setLevel(log_level)
-    formatter = logging.Formatter(
-        "[%(levelname)s] %(asctime)s: %(message)s", datefmt="%Y-%m-%d_%H:%M:%S"
-    )
+    formatter = logging.Formatter("[%(levelname)s] %(asctime)s: %(message)s", datefmt="%Y-%m-%d_%H:%M:%S")
+
+    # make log_path folder
+    os.makedirs(log_path, exist_ok=True)
+    # get logfile path
+    run_time = datetime.datetime.now()
+    now_string = f"{run_time:%Y-%m-%d_%H:%M:%S}"
+    logfile = os.path.join(log_path, f"{now_string}.log")
+
+    # setting up console and file handlers
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setFormatter(formatter)
+    stream_handler.setLevel(log_level)
+
+    file_handler = logging.FileHandler(logfile)
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(log_level)
+
     # check output
-    if output.lower().startswith("std") or output.lower().startswith(
-        "console"
-    ):
-        stream_handler = logging.StreamHandler(sys.stdout)
-        stream_handler.setFormatter(formatter)
-        stream_handler.setLevel(log_level)
+    if output.lower().startswith("std") or output.lower().startswith("console"):
         logger.addHandler(stream_handler)
-    elif output.lower().startswith("file") or output.lower().startswith(
-        "both"
-    ):
-        # make log_path folder
-        os.makedirs(log_path, exist_ok=True)
-        # get logfile path
-        run_time = datetime.datetime.now()
-        now_string = f"{run_time:%Y-%m-%d_%H:%M:%S}"
-        logfile = os.path.join(log_path, f"{now_string}.log")
-        # create handlers
-        if output.lower().startswith("file"):
-            file_handler = logging.FileHandler(logfile)
-            file_handler.setFormatter(formatter)
-            file_handler.setLevel(log_level)
-            logger.addHandler(file_handler)
-        else:
-            file_handler = logging.FileHandler(logfile)
-            file_handler.setFormatter(formatter)
-            file_handler.setLevel(log_level)
-            logger.addHandler(file_handler)
-            stream_handler = logging.StreamHandler(sys.stdout)
-            stream_handler.setFormatter(formatter)
-            stream_handler.setLevel(log_level)
-            logger.addHandler(stream_handler)
+    elif output.lower().startswith("file"):
+        logger.addHandler(file_handler)
+    elif output.lower().startswith("both"):
+        logger.addHandler(file_handler)
+        logger.addHandler(stream_handler)
     else:
         # set to stdout
-        stream_handler = logging.StreamHandler(sys.stdout)
-        stream_handler.setFormatter(formatter)
-        stream_handler.setLevel(log_level)
         logger.addHandler(stream_handler)
         print("Did not recognize {output}. Saving to stdout.")
     print(f"Setting log level {level_name}.")

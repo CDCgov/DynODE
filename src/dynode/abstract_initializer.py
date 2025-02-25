@@ -48,7 +48,7 @@ class AbstractInitializer(ABC):
             tuple of matricies representing initial state of each compartment
             in the model.
         """
-        assert self.INITIAL_STATE is not None
+        assert self.INITIAL_STATE is not None, logger.error("INITIAL_STATE is None.")
         return self.INITIAL_STATE
 
     def load_initial_population_fractions(self) -> ndarray:
@@ -61,16 +61,17 @@ class AbstractInitializer(ABC):
             `len(self.load_initial_population_fractions()) == self.config.NUM_AGE_GROUPS`
             `np.sum(self.load_initial_population_fractions()) == 1.0
         """
-        logger.debug(
-            "Creating populations_path based on DEMOGRAPHIC_DATA_PATH in config."
-        )
+        logger.debug("Creating populations_path based on DEMOGRAPHIC_DATA_PATH in config.")
+
         populations_path = (
             self.config.DEMOGRAPHIC_DATA_PATH
             + "population_rescaled_age_distributions/"
         )
+
         logger.debug(f"Set populations path as {populations_path}.")
-        # TODO support getting more regions than just 1
         logger.debug("Returning values from utils.load_age_demographics()")
+
+        # TODO support getting more regions than just 1
         return utils.load_age_demographics(
             populations_path, self.config.REGIONS, self.config.AGE_LIMITS
         )[self.config.REGIONS[0]]
