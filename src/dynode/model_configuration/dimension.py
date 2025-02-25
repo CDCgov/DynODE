@@ -103,7 +103,6 @@ class FullStratifiedImmuneHistory(ImmuneHistoryDimension):
 
     def __init__(self, strains: list[Strain]) -> None:
         """Create a fully stratified immune history dimension."""
-        # TODO add a no-infection bin
         strain_names = [s.strain_name for s in strains]
         all_immune_histories = [Bin(name="none")]
         for strain in range(1, len(strain_names) + 1):
@@ -120,7 +119,6 @@ class LastStrainImmuneHistory(ImmuneHistoryDimension):
 
     def __init__(self, strains: list[Strain]) -> None:
         """Create an immune history dimension that only tracks last infected strain."""
-        # TODO add a no-infection bin
         strain_names = [s.strain_name for s in strains]
         bins: list[Bin] = [Bin(name=state) for state in strain_names]
         bins.insert(0, Bin(name="none"))
