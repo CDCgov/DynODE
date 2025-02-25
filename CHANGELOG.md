@@ -9,6 +9,23 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2024.02.25.1a] - Pydantic Config Groundwork
+### Added
+- The `src/dynode/model_configuration` module for creation of Python config classes to initialize the new DynODE framework.
+
+### Changed
+- Nothing yet, as the new DynODE framework is written it will reference the new config classes instead of old structure.
+
+### Deprecated
+- Old `config.py` file within `src/dynode`
+
+### Removed
+
+### Fixed
+
+---
+
+
 ## [2024.02.06.0a] - DynODE Evolution Initialization
 ### Added
 - Added this changelog
