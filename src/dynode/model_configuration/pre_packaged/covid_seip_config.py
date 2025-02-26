@@ -22,7 +22,7 @@ from ..dimension import (
 )
 from ..params import SolverParams, TransmissionParams
 from ..strains import Strain
-from ..types import DependentParameter
+from ..types import DeterministicParameter
 
 
 class SEIPCovidModel(CompartmentalModel):
@@ -67,8 +67,8 @@ class SEIPCovidModel(CompartmentalModel):
         return self.compartments[3]
 
     def _get_param_store(self, strains: list[Strain]) -> Params:
-        transmission_params = TransmissionParams(
-            strains=strains,
+        # ignore mypy when additional parameters not found in TransmissionParams
+        transmission_params = TransmissionParams(  # type:ignore
             strain_interactions_2_steps=dist.TransformedDistribution(
                 base_distribution=dist.Beta(60, 240),
                 transforms=transforms.AffineTransform(
@@ -76,6 +76,7 @@ class SEIPCovidModel(CompartmentalModel):
                 ),
             ),
             strain_interactions_3_steps=dist.Beta(75, 225),
+            strains=strains,
             strain_interactions={
                 "omicron": {
                     "omicron": 0.75,
@@ -97,8 +98,8 @@ class SEIPCovidModel(CompartmentalModel):
                     "jn1": 1.0,
                 },
                 "xbb": {
-                    "omicron": DependentParameter(
-                        "strain_interactions_2_steps"
+                    "omicron": DeterministicParameter(
+                        depends_on="strain_interactions_2_steps"
                     ),
                     "ba2ba5": dist.TransformedDistribution(
                         base_distribution=dist.Beta(120, 180),
@@ -112,11 +113,11 @@ class SEIPCovidModel(CompartmentalModel):
                     "jn1": 1.0,
                 },
                 "jn1": {
-                    "omicron": DependentParameter(
-                        "strain_interactions_3_steps"
+                    "omicron": DeterministicParameter(
+                        depends_on="strain_interactions_3_steps"
                     ),
-                    "ba2ba5": DependentParameter(
-                        "strain_interactions_2_steps"
+                    "ba2ba5": DeterministicParameter(
+                        depends_on="strain_interactions_2_steps"
                     ),
                     "xbb": dist.TransformedDistribution(
                         base_distribution=dist.Beta(120, 180),

@@ -19,7 +19,7 @@ import pandas as pd  # type: ignore
 from jax import Array
 from scipy.stats import gamma
 
-from .model_configuration.types import DependentParameter
+from .model_configuration.types import DeterministicParameter
 
 pd.options.mode.chained_assignment = None
 
@@ -141,7 +141,7 @@ def resolve_if_dependent(parameters):
     """
     for key, param in parameters.items():
         # if distribution, sample and replace
-        if isinstance(param, DependentParameter):
+        if isinstance(param, DeterministicParameter):
             param = numpyro.deterministic(key, param.resolve(parameters))
         # if list, check for distributions within and replace them
         elif isinstance(param, (np.ndarray, list)):
@@ -150,7 +150,7 @@ def resolve_if_dependent(parameters):
             # check for distributions inside of the flattened parameter list
             if any(
                 [
-                    isinstance(param_lst, DependentParameter)
+                    isinstance(param_lst, DeterministicParameter)
                     for param_lst in flat_param
                 ]
             ):
@@ -171,7 +171,7 @@ def resolve_if_dependent(parameters):
                                 ),
                                 param_lst.resolve(parameters),
                             )
-                            if isinstance(param_lst, DependentParameter)
+                            if isinstance(param_lst, DeterministicParameter)
                             else param_lst
                         )
                         for i, param_lst in enumerate(flat_param)

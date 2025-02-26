@@ -14,6 +14,7 @@ from pydantic import (
 )
 
 from .bins import AgeBin
+from .types import DeterministicParameter
 
 
 class Strain(BaseModel):
@@ -26,7 +27,7 @@ class Strain(BaseModel):
         str,
         StringConstraints(strip_whitespace=True, min_length=1, to_lower=True),
     ] = Field(description="Strain name, lower case.")
-    r0: Union[NonNegativeFloat, Distribution] = Field(
+    r0: Union[NonNegativeFloat, Distribution, DeterministicParameter] = Field(
         description="""Strain reproduction number used to calculate transmission rate."""
     )
     infectious_period: PositiveFloat = Field(
@@ -53,7 +54,7 @@ class Strain(BaseModel):
         New strains are introduced to the tracked population this way.""",
     )
     introduction_time: Optional[
-        Union[date, NonNegativeFloat, Distribution]
+        Union[date, NonNegativeFloat, Distribution, DeterministicParameter]
     ] = Field(
         default=None,
         description="""Date of peak external infectious population mixing.
@@ -61,18 +62,20 @@ class Strain(BaseModel):
         tracked population to avoid discontinuities in the ode solver.
         Only utilized if `is_introduced` is True. """,
     )
-    introduction_percentage: Optional[Union[PositiveFloat, Distribution]] = (
-        Field(
-            default=None,
-            description="""Size of the untracked external population relative
+    introduction_percentage: Optional[
+        Union[PositiveFloat, Distribution, DeterministicParameter]
+    ] = Field(
+        default=None,
+        description="""Size of the untracked external population relative
             to tracked model population.
             0.0 = No External introductions.
             0.05 = external population size is 5 percent of tracked population size.
             1.0 = external population has equal size to model population.
             Only utilized if `is_introduced` is True. """,
-        )
     )
-    introduction_scale: Optional[Union[PositiveFloat, Distribution]] = Field(
+    introduction_scale: Optional[
+        Union[PositiveFloat, Distribution, DeterministicParameter]
+    ] = Field(
         default=None,
         description="""How rapidly external infectious population mixes with
         tracked population. Measured as a standard deviation of a normal distribution.

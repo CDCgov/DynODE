@@ -15,6 +15,7 @@ from pydantic import (
 from typing_extensions import Self
 
 from .strains import Strain
+from .types import DeterministicParameter
 
 
 class SolverParams(BaseModel):
@@ -28,8 +29,11 @@ class SolverParams(BaseModel):
 class TransmissionParams(BaseModel):
     """Transmission Parameters for the respiratory model."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    strain_interactions: dict[str, dict[str, NonNegativeFloat | Distribution]]
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
+    strain_interactions: dict[
+        str,
+        dict[str, NonNegativeFloat | Distribution | DeterministicParameter],
+    ]
     strains: List[Strain]
 
 
