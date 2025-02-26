@@ -22,6 +22,7 @@ from ..dimension import (
 )
 from ..params import SolverParams, TransmissionParams
 from ..strains import Strain
+from ..types import DependentParameter
 
 
 class SEIPCovidModel(CompartmentalModel):
@@ -68,6 +69,13 @@ class SEIPCovidModel(CompartmentalModel):
     def _get_param_store(self, strains: list[Strain]) -> Params:
         transmission_params = TransmissionParams(
             strains=strains,
+            strain_interactions_2_steps=dist.TransformedDistribution(
+                base_distribution=dist.Beta(60, 240),
+                transforms=transforms.AffineTransform(
+                    loc=0.5, scale=0.5, domain=constraints.unit_interval
+                ),
+            ),
+            strain_interactions_3_steps=dist.Beta(75, 225),
             strain_interactions={
                 "omicron": {
                     "omicron": 0.75,
@@ -89,7 +97,9 @@ class SEIPCovidModel(CompartmentalModel):
                     "jn1": 1.0,
                 },
                 "xbb": {
-                    "omicron": 0.22,  # todo, figure out how to specify linkage between this and [jn1][ba2ba5]
+                    "omicron": DependentParameter(
+                        "strain_interactions_2_steps"
+                    ),
                     "ba2ba5": dist.TransformedDistribution(
                         base_distribution=dist.Beta(120, 180),
                         transforms=transforms.AffineTransform(
@@ -102,8 +112,12 @@ class SEIPCovidModel(CompartmentalModel):
                     "jn1": 1.0,
                 },
                 "jn1": {
-                    "omicron": 0.33,
-                    "ba2ba5": 0.22,
+                    "omicron": DependentParameter(
+                        "strain_interactions_3_steps"
+                    ),
+                    "ba2ba5": DependentParameter(
+                        "strain_interactions_2_steps"
+                    ),
                     "xbb": dist.TransformedDistribution(
                         base_distribution=dist.Beta(120, 180),
                         transforms=transforms.AffineTransform(

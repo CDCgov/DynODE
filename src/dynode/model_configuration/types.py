@@ -1,5 +1,7 @@
 """Module for declaring types to be used within DynODE config files."""
 
+from typing import Any, Optional
+
 import numpyro.distributions as dist
 
 
@@ -31,3 +33,35 @@ class PosteriorSample(dist.Distribution):
             "posterior samples to the context via numpyro.infer.Predictive() or "
             "numpyro.handlers.substitute()."
         )
+
+
+class DependentParameter:
+    """A parameter whose value depends on a different parameter's value."""
+
+    def __init__(self, depends_on: str, index: Optional[int | tuple] = None):
+        """Link this DependentParameter to another parameter, possibly within a list"""
+        self.depends_on = depends_on
+        self.index = index
+
+    def resolve(self, parameter_state: dict[str, Any]) -> Any:
+        """Retrieve value in its current state. Marking it as deterministic
+
+        Parameters
+        ----------
+        parameter_state : dict[str, Any]
+            current parameters, must include `self.depends_on` in keys.
+
+        Returns
+        -------
+        Any
+            value at parameter_state[self.depends_on][self.index]
+
+        Raises
+        ------
+        IndexError
+            if parameter_state[self.depends_on][self.index] does not exist
+        """
+        if self.index is None:
+            return parameter_state[self.depends_on]
+        else:
+            return parameter_state[self.depends_on][self.index]
