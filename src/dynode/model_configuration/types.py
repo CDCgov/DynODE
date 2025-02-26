@@ -14,7 +14,7 @@ class PosteriorSample(dist.Distribution):
 
     def __init__(self):
         """Create a placeholder PosteriorSample distribution."""
-        super(PosteriorSample, self).__init__()
+        super().__init__()
 
     def sample(self, _, sample_shape=()):
         """Retrieve sample from a Posterior distribution.
@@ -26,8 +26,8 @@ class PosteriorSample(dist.Distribution):
             numpyro.handlers.substitute() or numpyro.infer.Predictive.
         """
         raise SamplePosteriorError(
-            """Attempted to sample a PosteriorSample parameter outside of a
-            Predictive() context. This likely means you did not provide
-            posterior samples to the context via numpyro.infer.Predictive() or
-            numpyro.handlers.substitute()."""
+            "Attempted to sample a PosteriorSample parameter outside of a "
+            "Predictive() context. This likely means you did not provide "
+            "posterior samples to the context via numpyro.infer.Predictive() or "
+            "numpyro.handlers.substitute()."
         )

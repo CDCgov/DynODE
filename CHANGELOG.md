@@ -9,7 +9,7 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
-## [2024.02.25.2a] - PosteriorSample distribution
+## [2024.02.26.1a] - PosteriorSample distribution
 ### Added
 - A `types.py` module for declaring types to be used within DynODE config files.
 - A `PosteriorSample` class within `dynode.model_configuration.types` meant to identify parameters whose values will be replaced by a Posterior sample from a previous fit of the model.
