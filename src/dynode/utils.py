@@ -102,33 +102,33 @@ def sample_if_distribution(parameters):
     return parameters
 
 
-def resolve_if_dependent(parameters):
-    """Find and resolve all DependentParameter types.
+def resolve_if_deterministic(parameters):
+    """Find and resolve all DeterministicParameter types.
 
     Parameters
     ----------
     parameters : dict[str: Any]
         A dictionary mapping parameter names to any object.
-        `dynode.model_configuration.DependentParameter` objects are resolved,
+        `dynode.model_configuration.DeterministicParameter` objects are resolved,
         with new values replacing the objects within `parameters`.
 
     Returns
     -------
     dict
-        The parameters dictionary with any `DependentParameter` objects replaced by
+        The parameters dictionary with any `DeterministicParameter` objects replaced by
         the values they depend on. All lists and `np.ndarray` are replaced by `jnp.array`.
 
     Examples
     --------
     >>> import numpyro.distributions as dist
-    ... from dynode.model_configuration.types import DependentParameter
+    ... from dynode.model_configuration.types import DeterministicParameter
     ... from dynode.utils import sample_if_distribution, resolve_if_dependent
     ... import numpyro.handlers as handlers
 
     >>> parameters = {"x": dist.Normal(),
-    ...               "y": DependentParameter("x"),
+    ...               "y": DeterministicParameter("x"),
     ...               "x_lst": [0, dist.Normal(), 2],
-    ...               "y_lst": [0, DependentParameter("x_lst", index=1), 2]}
+    ...               "y_lst": [0, DeterministicParameter("x_lst", index=1), 2]}
 
     >>> with handlers.seed(rng_seed=1):
     ...     samples = sample_if_distribution(parameters)
