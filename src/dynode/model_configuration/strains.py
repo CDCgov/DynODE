@@ -13,8 +13,8 @@ from pydantic import (
     StringConstraints,
 )
 
+from ..typing import DeterministicParameter
 from .bins import AgeBin
-from .types import DeterministicParameter
 
 
 class Strain(BaseModel):

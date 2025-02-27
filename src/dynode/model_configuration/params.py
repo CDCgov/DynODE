@@ -14,8 +14,8 @@ from pydantic import (
 )
 from typing_extensions import Self
 
+from ..typing import DeterministicParameter
 from .strains import Strain
-from .types import DeterministicParameter
 
 
 class SolverParams(BaseModel):

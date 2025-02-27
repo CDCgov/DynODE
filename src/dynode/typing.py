@@ -2,7 +2,25 @@
 
 from typing import Any, Optional
 
+import jax
 import numpyro.distributions as dist
+
+CompartmentGradiants = tuple[jax.Array]
+
+SEIC_Compartments = tuple[
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+]
+# a timeseries is a tuple of compartment sizes where the leading dimension is time
+# so SEIC_Timeseries has shape (tf, SEIC_Compartments.shape) for some number of timesteps tf
+SEIC_Timeseries = tuple[
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+]
 
 
 class SamplePosteriorError(Exception):

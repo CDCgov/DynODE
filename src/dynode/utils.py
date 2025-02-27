@@ -19,7 +19,7 @@ import pandas as pd  # type: ignore
 from jax import Array
 from scipy.stats import gamma
 
-from .model_configuration.types import DeterministicParameter
+from .typing import DeterministicParameter
 
 pd.options.mode.chained_assignment = None
 

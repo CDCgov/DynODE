@@ -7,9 +7,10 @@ import numpy as np
 import pandas as pd
 from jax import Array
 
-from . import SEIC_Compartments, utils
+from . import utils
 from .abstract_initializer import AbstractInitializer
 from .config import Config
+from .typing import SEIC_Compartments
 
 
 class CovidSeroInitializer(AbstractInitializer):

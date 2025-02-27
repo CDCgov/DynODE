@@ -16,10 +16,10 @@ from jax.random import PRNGKey
 from numpyro import distributions as Dist
 from numpyro.infer import MCMC, NUTS  # type: ignore
 
-from . import SEIC_Compartments
 from .abstract_parameters import AbstractParameters
 from .config import Config
 from .mechanistic_runner import MechanisticRunner
+from .typing import SEIC_Compartments
 from .utils import date_to_sim_day
 
 
