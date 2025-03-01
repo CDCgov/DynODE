@@ -90,3 +90,10 @@ class Strain(BaseModel):
         according to the chosen contact matrix.
         Only utilized if `is_introduced` is True.""",
     )
+    introduction_ages_one_hot: Optional[List[int]] = Field(
+        default=None,
+        description="""PRIVATE: A field automatically set when this strain enters a
+    CompartmentalModel, after validating that `introduction_ages`
+    contains valid bins, this field one-hot encodes which age bins
+    will be introduced, None= All zeros for each age bin.""",
+    )
