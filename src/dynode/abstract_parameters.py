@@ -137,6 +137,13 @@ class AbstractParameters:
                 )
         # sample any distributions found within this dictionary
         parameters = utils.sample_if_distribution(parameters)
+        # convert lists and np ndarrays to jax before entering ODEs.
+        parameters = {
+            key: jnp.array(value)
+            if isinstance(value, (list, np.ndarray))
+            else value
+            for key, value in parameters.items()
+        }
         return parameters
 
     def generate_downstream_parameters(self, parameters: dict) -> dict:
