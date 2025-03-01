@@ -124,14 +124,24 @@ class TransmissionParams(BaseModel):
         return strains
 
     def to_chex(self, cls=_TransmissionParamsChex) -> _TransmissionParamsChex:
+        """Sample and resolve parameters, converting to a Chex parameters class.
+
+        Parameters
+        ----------
+        cls : _TransmissionParamsChex, optional
+            class to parse self into, if specified must be subclass
+            of _TransmissionParamsChex, by default _TransmissionParamsChex
+
+        Returns
+        -------
+        _TransmissionParamsChex
+            instance of _TransmissionParamsChex or a subclass passed from `cls`.
+        """
         parameters_dct = self.__pydantic_extra__
-        if not parameters_dct:
-
-            class _testing(_TransmissionParamsChex):
-                pass
-
-            for field in parameters_dct.keys():
-                setattr()
+        assert parameters_dct is not None
+        assert issubclass(cls, _TransmissionParamsChex)
+        # todo, figure out a way to dynamically add fields to _TransmissionParamsChex
+        # so that we dont need to make a new class each time.
 
         strain_names = [strain.strain_name for strain in self.strains]
         # preserve strain order form `self.strains` but convert dict -> matrix
