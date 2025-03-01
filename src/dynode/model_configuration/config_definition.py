@@ -17,7 +17,7 @@ from pydantic import (
 )
 from typing_extensions import Self
 
-from dynode.typing import CompartmentGradiants
+from dynode import CompartmentGradiants
 
 from .bins import AgeBin, Bin
 from .dimension import (
@@ -253,43 +253,6 @@ class CompartmentalModel(BaseModel):
                 ), f"""{strain.strain_name} attempts to introduce itself using
                     {strain_target_ages} age bins, but those are not found
                     within the age structure of the model."""
-        return self
-
-    @model_validator(mode="after")
-    def _create_introduction_ages_one_hot_encoding(self) -> Self:
-        """Strain's introduction ages are currently AgeBin objects or None,
-        Odes use vectors, so lets one-hot encode these lists instead."""
-
-        # dont bother one-hot encoding introduction_ages if they dont exist
-        if any(
-            [
-                strain.introduction_ages is not None
-                for strain in self.parameters.transmission_params.strains
-            ]
-        ):
-            # find a dimension with Age stratification
-            age_binning = []
-            for dim in self.flatten_dims():
-                # only check first element since dimensions must all be same type
-                if isinstance(dim.bins[0], AgeBin):
-                    age_binning = dim.bins
-                    break
-            assert (
-                len(age_binning) > 0
-            ), """attempted to one hot encode introduction_ages but could not
-                find any age structure in the model"""
-            one_hot_vector = []
-            for strain in self.parameters.transmission_params.strains:
-                # assume intro_ages is found in age_structure due to above validator
-                if strain.introduction_ages is not None:
-                    one_hot_vector = [
-                        1 if b in strain.introduction_ages else 0
-                        for b in age_binning
-                    ]
-                else:
-                    one_hot_vector = [0 for _ in age_binning]
-                # set the private field now that validation is complete.
-                strain.introduction_ages_one_hot = one_hot_vector
         return self
 
     @model_validator(mode="after")
