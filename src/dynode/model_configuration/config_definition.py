@@ -238,9 +238,7 @@ class CompartmentalModel(BaseModel):
 
     @model_validator(mode="after")
     def _create_introduction_ages_one_hot_encoding(self) -> Self:
-        """Strain's introduction ages are currently AgeBin objects or None,
-        Odes use vectors, so lets one-hot encode these lists instead."""
-
+        """Convert Strain's introduction_ages to a one-hot encoded tensor."""
         # dont bother one-hot encoding introduction_ages if they dont exist
         if any(
             [
