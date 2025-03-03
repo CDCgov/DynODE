@@ -27,11 +27,11 @@ pd.options.mode.chained_assignment = None
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # SAMPLING FUNCTIONS
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-def sample_if_distribution(parameters: dict[str, Any]):
+def sample_if_distribution(parameters):
     """Search through a dictionary and sample any `numpyro.distribution` objects found.
 
     Replaces the distribution object within `parameters` with a sample from
-    that distribution.
+    that distribution and converts all lists to `jnp.ndarray`.
 
     Numpyro sample site names will match the key of the `parameters` dict unless
     the distribution is part of a list. Lists containing distributions will have
@@ -48,14 +48,15 @@ def sample_if_distribution(parameters: dict[str, Any]):
     -------
     dict
         The parameters dictionary with any `numpyro.distribution` objects replaced by
-        samples of those distributions from `numpyro.sample`.
+        samples of those distributions from `numpyro.sample`. All lists and
+        `np.ndarray` are replaced by `jnp.array`.
 
     Examples
     --------
     >>> import numpyro.distributions as dist
     >>> params = {'a': dist.Normal(0, 1), 'b': [dist.Normal(0, 1), dist.Normal(0, 1)]}
     >>> new_params = sample_if_distribution(params)
-    ['a': 0.523543, 'b' [0.321321, 0.456456]] # example samples made up.
+    # This would replace 'a' with a sample from Normal(0, 1) and each element in 'b' with samples from Normal(0, 1).
     """
     for key, param in parameters.items():
         # if distribution, sample and replace
@@ -63,8 +64,8 @@ def sample_if_distribution(parameters: dict[str, Any]):
             param = numpyro.sample(key, param)
         # if list, check for distributions within and replace them
         elif isinstance(param, (np.ndarray, list)):
-            param_np = np.array(param)  # cast np.array so we get .shape
-            flat_param = np.ravel(param_np)  # Flatten the parameter array
+            param = np.array(param)  # cast np.array so we get .shape
+            flat_param = np.ravel(param)  # Flatten the parameter array
             # check for distributions inside of the flattened parameter list
             if any(
                 [
@@ -73,12 +74,12 @@ def sample_if_distribution(parameters: dict[str, Any]):
                 ]
             ):
                 dim_idxs = np.unravel_index(
-                    np.arange(flat_param.size), param_np.shape
+                    np.arange(flat_param.size), param.shape
                 )
                 # if we find distributions, sample them, then reshape back to the original shape
                 # all this code with dim_idxs and joining strings is to properly display the
                 # row/col indexes in any number of dimensions, not just 1 and 2D matrix
-                flat_param = np.array(
+                flat_param = jnp.array(
                     [
                         (
                             numpyro.sample(
@@ -95,12 +96,7 @@ def sample_if_distribution(parameters: dict[str, Any]):
                         for i, param_lst in enumerate(flat_param)
                     ]
                 )
-                param_np = np.reshape(flat_param, param_np.shape)
-                # convert back to list if input param was list.
-                if isinstance(param, list):
-                    param = param_np.tolist()
-                else:
-                    param = param_np
+                param = jnp.reshape(flat_param, param.shape)
         # else static param, do nothing
         parameters[key] = param
     return parameters

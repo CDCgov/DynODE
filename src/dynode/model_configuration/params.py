@@ -1,8 +1,7 @@
 """Module containing Parameter classes for storing DynODE parameters."""
 
-from typing import List, Optional
+from typing import List
 
-import chex
 from jax import Array
 from jax.random import PRNGKey
 from numpyro.distributions import Distribution
@@ -18,7 +17,6 @@ from pydantic import (
 from typing_extensions import Self
 
 from ..typing import DeterministicParameter
-from ..utils import resolve_if_deterministic, sample_if_distribution
 from .strains import Strain
 
 
@@ -28,29 +26,6 @@ class SolverParams(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     ode_solver_rel_tolerance: PositiveFloat
     ode_solver_abs_tolerance: PositiveFloat
-
-
-# TODO, figure out how to pass extra user-submitted parameters into the ODEs
-@chex.dataclass
-class _TransmissionParamsChex:
-    """The internal representation of TransmissionParams passed to the ODEs.
-
-    Because ODEs work with vectors/matricies/tensors as opposed to objects,
-    this internal state flattens the list of strains into the tensors of information
-    separate from the `Strain` class entirely.
-    """
-
-    strain_interactions: chex.ArrayDevice
-    r0: chex.ArrayDevice
-    infectious_period: chex.ArrayDevice
-    exposed_to_infectious: Optional[chex.ArrayDevice] = None
-    vaccine_efficacy: Optional[chex.ArrayDevice] = None
-    is_introduced: bool = False
-    introduction_time: Optional[chex.ArrayDevice] = None
-    introduction_percentage: Optional[chex.ArrayDevice] = None
-    introduction_scale: Optional[chex.ArrayDevice] = None
-    # TODO figure out how the internal representation of ages will work in jax way.
-    introduction_ages: Optional[chex.ArrayDevice] = None
 
 
 class TransmissionParams(BaseModel):
@@ -122,54 +97,6 @@ class TransmissionParams(BaseModel):
                         )
 
         return strains
-
-    def to_chex(self, cls=_TransmissionParamsChex) -> _TransmissionParamsChex:
-        """Sample and resolve parameters, converting to a Chex parameters class.
-
-        Parameters
-        ----------
-        cls : _TransmissionParamsChex, optional
-            class to parse self into, if specified must be subclass
-            of _TransmissionParamsChex, by default _TransmissionParamsChex
-
-        Returns
-        -------
-        _TransmissionParamsChex
-            instance of _TransmissionParamsChex or a subclass passed from `cls`.
-        """
-        parameters_dct = self.__pydantic_extra__
-        assert parameters_dct is not None
-        assert issubclass(cls, _TransmissionParamsChex)
-        # todo, figure out a way to dynamically add fields to _TransmissionParamsChex
-        # so that we dont need to make a new class each time.
-
-        strain_names = [strain.strain_name for strain in self.strains]
-        # preserve strain order form `self.strains` but convert dict -> matrix
-        parameters_dct["strain_interactions"] = [
-            [
-                self.strain_interactions[infecting_strain][
-                    recovered_from_strain
-                ]
-                for recovered_from_strain in strain_names
-            ]
-            for infecting_strain in strain_names
-        ]
-        # flatten all Strain parameters into lists, preserve strain order.
-        for strain_field in Strain.model_fields.keys():
-            parameters_dct[strain_field] = [
-                getattr(strain, strain_field) for strain in self.strains
-            ]
-        parameters_dct["introduction_ages"] = parameters_dct[
-            "introduction_ages_one_hot"
-        ]
-        parameters_dct.__delitem__("introduction_ages_one_hot")
-        parameters_dct.__delitem__("strain_name")
-        # sample `numpyro.distributions.Distribution` objects
-        parameters_dct = sample_if_distribution(parameters_dct)
-        # resolve `dynode.typing.Deterministic` types
-        parameters_dct = resolve_if_deterministic(parameters_dct)
-        # create chex class from the dict.
-        return cls(**parameters_dct)
 
 
 class InferenceParams(BaseModel):
