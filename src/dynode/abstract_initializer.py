@@ -9,7 +9,7 @@ from typing import Any
 from numpy import ndarray
 from . import SEIC_Compartments, utils
 import logging
-from src.dynode.utility.log_decorator import log_decorator
+from .utility.log_decorator import log_decorator
 
 logger = logging.getLogger("dynode")
 
