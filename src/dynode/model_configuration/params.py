@@ -2,6 +2,7 @@
 
 from typing import List
 
+import chex
 from jax import Array
 from jax.random import PRNGKey
 from numpyro.distributions import Distribution
@@ -26,6 +27,18 @@ class SolverParams(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     ode_solver_rel_tolerance: PositiveFloat
     ode_solver_abs_tolerance: PositiveFloat
+
+
+@chex.dataclass
+class ODEParameters:
+    """The internal representation containing parameters passed to the ODEs.
+    Because ODEs work with vectors/matricies/tensors as opposed to objects,
+    this internal state flattens the list of strains into the tensors of information
+    separate from the `Strain` class entirely.
+    """
+
+    strain_interactions: chex.ArrayDevice
+    betas: chex.ArrayDevice
 
 
 class TransmissionParams(BaseModel):
