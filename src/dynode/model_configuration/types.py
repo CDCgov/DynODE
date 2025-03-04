@@ -1,5 +1,7 @@
 """Module for declaring types to be used within DynODE config files."""
 
+from typing import Any, Optional
+
 import numpyro.distributions as dist
 
 
@@ -31,3 +33,54 @@ class PlaceholderSample(dist.Distribution):
             "posterior samples to the context via numpyro.infer.Predictive() or "
             "numpyro.handlers.substitute()."
         )
+
+
+class DeterministicParameter:
+    """A parameter whose value depends on a different parameter's value."""
+
+    def __init__(
+        self, depends_on: str, index: Optional[int | tuple | slice] = None
+    ):
+        """Specify a linkage between this DeterministicParameter and another value.
+
+        Parameters
+        ----------
+        depends_on : str
+            str identifier of the parameter to which this instance is linked.
+        index : Optional[int  |  tuple  |  slice], optional
+            optional index in case `depends_on` is a list you wish to index,
+            by default None, grabs entire list if
+            `isinstance(parameter_state[depends_on], list))`.
+        """
+        self.depends_on = depends_on
+        self.index = index
+
+    def resolve(self, parameter_state: dict[str, Any]) -> Any:
+        """Retrieve value from `self.depends_on` from `parameter_state`.
+
+        Marking it as deterministic within numpyro.
+
+        Parameters
+        ----------
+        parameter_state : dict[str, Any]
+            current parameters, must include `self.depends_on` in keys.
+
+        Returns
+        -------
+        Any
+            value at parameter_state[self.depends_on][self.index]
+
+        Raises
+        ------
+        IndexError
+            if parameter_state[self.depends_on][self.index] does not exist or attempt to
+            index with tuple on type list.
+
+        TypeError
+            if parameter_state[self.depends_on] is of type list, but `self.index` is
+            a tuple, you cant index a list with a tuple, only a slice.
+        """
+        if self.index is None:
+            return parameter_state[self.depends_on]
+        else:
+            return parameter_state[self.depends_on][self.index]
