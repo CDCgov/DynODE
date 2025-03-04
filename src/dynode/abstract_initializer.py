@@ -4,14 +4,12 @@ An initializer objects primary purpose is initialize the state on which ODEs wil
 AbstractInitializers will often be tasked with reading, parsing, and combining data sources
 to produce an initial state representing some analyzed population
 """
-
-import logging
 from abc import ABC, abstractmethod
 from typing import Any
-
 from numpy import ndarray
-
 from . import SEIC_Compartments, utils
+import logging
+from src.dynode.utility.log_decorator import log_decorator
 
 logger = logging.getLogger("dynode")
 
@@ -37,6 +35,7 @@ class AbstractInitializer(ABC):
         self.config: Any = {}
         pass
 
+    @log_decorator()
     def get_initial_state(
         self,
     ) -> SEIC_Compartments:

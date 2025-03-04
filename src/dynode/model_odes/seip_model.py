@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 from jaxtyping import ArrayLike, PyTree
 
-from dynode.utils import Parameters, get_foi_suscept, new_immune_state
+from src.dynode.utils import Parameters, get_foi_suscept, new_immune_state
 
 logger = logging.getLogger("dynode")
 

@@ -29,6 +29,7 @@ from dynode import (  # type: ignore
     vis_utils,
 )
 from dynode.model_odes import seip_ode  # type: ignore
+from dynode.utility import log
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -37,6 +38,21 @@ parser.add_argument(
     default=False,
     action="store_true",
     help="whether or not to run the inference section of this example",
+)
+parser.add_argument(
+    "-d",
+    "--debug_log",
+    default=False,
+    action="store_true",
+    help="run logging at the highest level of detail 'DEBUG'",
+)
+# should probably add a sub parser structure for expanding single command options
+parser.add_argument(
+    "-c",
+    "--console",
+    default=False,
+    action="store_true",
+    help="print log to console",
 )
 
 
@@ -170,6 +186,17 @@ if __name__ == "__main__":
     # Make the output directory.
     if not os.path.exists("output"):
         os.mkdir("output")
+
+    # Dev Log: Consider just passing the args to use_logging or another function in log.py to handle setup
+    log_level = "INFO"
+    log_output = "File"
+
+    if args.debug_log:
+        log_level = "DEBUG"
+    if args.console:
+        log_output = "Both"
+
+    log.use_logging(level=log_level, output=log_output)
 
     runner = ExampleDynodeRunner("output/")
     runner.process_state("USA", infer=infer)

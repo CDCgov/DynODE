@@ -1,6 +1,6 @@
 import sys, os, datetime
 import logging
-from custom_log_formatter import CustomLogFormatter
+from src.dynode.utility.custom_log_formatter import CustomLogFormatter
 
 logger = logging.getLogger("dynode")
 
@@ -50,8 +50,12 @@ def use_logging(level: str = "INFO", output: str = "stdout", log_path: str = "./
     os.makedirs(log_path, exist_ok=True)
     # get logfile path
     run_time = datetime.datetime.now()
-    now_string = f"{run_time:%Y-%m-%d_%H:%M:%S}"
+    now_string = f"{run_time:%Y-%m-%d_%Hh-%Mm-%Ss}"
     logfile = os.path.join(log_path, f"{now_string}.log")
+
+    if not os.path.exists(logfile):
+        with open(logfile, 'w') as file:
+            file.write('')
 
     # setting up console and file handlers
     stream_handler = logging.StreamHandler(sys.stdout)
