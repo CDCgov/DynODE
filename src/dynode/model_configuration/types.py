@@ -9,15 +9,15 @@ class SamplePosteriorError(Exception):
     pass
 
 
-class PosteriorSample(dist.Distribution):
-    """A parameter that draws its values from an external set of posterior samples."""
+class PlaceholderSample(dist.Distribution):
+    """A parameter that draws its values from an external set of samples."""
 
     def __init__(self):
-        """Create a placeholder PosteriorSample distribution."""
+        """Create a PlaceholderSample distribution."""
         super().__init__()
 
     def sample(self, _, sample_shape=()):
-        """Retrieve sample from a Posterior distribution.
+        """Retrieve sample from an external set of samples.
 
         Raises
         ------
