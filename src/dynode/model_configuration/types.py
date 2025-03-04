@@ -3,8 +3,8 @@
 import numpyro.distributions as dist
 
 
-class SamplePosteriorError(Exception):
-    """A special error raised if you attempt to randomly sample a deterministic posterior draw."""
+class SamplePlaceholderError(Exception):
+    """A special error raised if you attempt to randomly sample a placeholder variable."""
 
     pass
 
@@ -25,7 +25,7 @@ class PlaceholderSample(dist.Distribution):
             if sample is called outside of an in-place substitute context like
             numpyro.handlers.substitute() or numpyro.infer.Predictive.
         """
-        raise SamplePosteriorError(
+        raise SamplePlaceholderError(
             "Attempted to sample a PosteriorSample parameter outside of a "
             "Predictive() context. This likely means you did not provide "
             "posterior samples to the context via numpyro.infer.Predictive() or "
