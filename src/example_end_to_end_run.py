@@ -39,21 +39,22 @@ parser.add_argument(
     action="store_true",
     help="whether or not to run the inference section of this example",
 )
-parser.add_argument(
-    "-d",
-    "--debug_log",
-    default=False,
-    action="store_true",
-    help="run logging at the highest level of detail 'DEBUG'",
+
+subparsers = parser.add_subparsers(title="subcommands", dest="subcommand")
+
+log_parser = subparsers.add_parser('log', help="Subcommands for logging")
+log_parser.add_argument(
+    '--level',
+    default='info',
+    choices=['debug', 'info', 'warning', 'error', 'critical'],
+    help="set the logging level the default if info"
 )
-# should probably add a sub parser structure for expanding single command options
-parser.add_argument(
-    "-c",
-    "--console",
-    default=False,
-    action="store_true",
-    help="print log to console",
-)
+log_parser.add_argument(
+    '--output',
+    default='file',
+    choices=['file', 'console', 'both'],
+    help="print logs to console, file, or both the default is file"
+    )
 
 
 class ExampleDynodeRunner(AbstractDynodeRunner):
@@ -187,16 +188,8 @@ if __name__ == "__main__":
     if not os.path.exists("output"):
         os.mkdir("output")
 
-    # Dev Log: Consider just passing the args to use_logging or another function in log.py to handle setup
-    log_level = "INFO"
-    log_output = "File"
-
-    if args.debug_log:
-        log_level = "DEBUG"
-    if args.console:
-        log_output = "Both"
-
-    log.use_logging(level=log_level, output=log_output)
+    if args.subcommand == 'log':
+        log.use_logging(level=args.level, output=args.output)
 
     runner = ExampleDynodeRunner("output/")
     runner.process_state("USA", infer=infer)
