@@ -32,6 +32,7 @@ class SolverParams(BaseModel):
 @chex.dataclass
 class ODEParameters:
     """The internal representation containing parameters passed to the ODEs.
+
     Because ODEs work with vectors/matricies/tensors as opposed to objects,
     this internal state flattens the list of strains into the tensors of information
     separate from the `Strain` class entirely.
