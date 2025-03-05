@@ -1,13 +1,13 @@
 """Module for declaring types to be used within DynODE config files."""
 
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
 import jax
 import numpyro.distributions as dist
 
-CompartmentGradiants = tuple[jax.Array]
+CompartmentGradiants = Tuple[jax.Array]
 
-SEIC_Compartments = tuple[
+SEIC_Compartments = Tuple[
     jax.Array,
     jax.Array,
     jax.Array,
@@ -15,7 +15,7 @@ SEIC_Compartments = tuple[
 ]
 # a timeseries is a tuple of compartment sizes where the leading dimension is time
 # so SEIC_Timeseries has shape (tf, SEIC_Compartments.shape) for some number of timesteps tf
-SEIC_Timeseries = tuple[
+SEIC_Timeseries = Tuple[
     jax.Array,
     jax.Array,
     jax.Array,
@@ -23,21 +23,21 @@ SEIC_Timeseries = tuple[
 ]
 
 
-class SamplePosteriorError(Exception):
-    """A special error raised if you attempt to randomly sample a deterministic posterior draw."""
+class SamplePlaceholderError(Exception):
+    """A special error raised if you attempt to randomly sample a placeholder variable."""
 
     pass
 
 
-class PosteriorSample(dist.Distribution):
-    """A parameter that draws its values from an external set of posterior samples."""
+class PlaceholderSample(dist.Distribution):
+    """A parameter that draws its values from an external set of samples."""
 
     def __init__(self):
-        """Create a placeholder PosteriorSample distribution."""
+        """Create a PlaceholderSample distribution."""
         super().__init__()
 
     def sample(self, _, sample_shape=()):
-        """Retrieve sample from a Posterior distribution.
+        """Retrieve sample from an external set of samples.
 
         Raises
         ------
@@ -45,7 +45,7 @@ class PosteriorSample(dist.Distribution):
             if sample is called outside of an in-place substitute context like
             numpyro.handlers.substitute() or numpyro.infer.Predictive.
         """
-        raise SamplePosteriorError(
+        raise SamplePlaceholderError(
             "Attempted to sample a PosteriorSample parameter outside of a "
             "Predictive() context. This likely means you did not provide "
             "posterior samples to the context via numpyro.infer.Predictive() or "

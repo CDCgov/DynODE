@@ -9,7 +9,15 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
-## [2024.02.26.1a] - DeterministicParameter type
+## [2024.03.04.1a] - DeterministicParameter type
+### Changed
+- moved `dynode.model_configuration.types` to `dynode.typing`
+- moved types previously declared within `dynode.__init__` into `dynode.typing`
+- formally logging the change of the type `PosteriorSample` to `PlaceholderSample`
+
+---
+
+## [2024.02.26.2a] - DeterministicParameter type
 ### Added
 - A `DeterministicParameter` class within `dynode.model_configuration.types` meant to identify parameters whose values depend on a possibly not yet realized value from another parameter. E.g. a parameter that is equal to another parameter that is itself a sample from some prior distribution.
 
