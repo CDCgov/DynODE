@@ -9,6 +9,7 @@ from numpyro.distributions import Distribution
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     NonNegativeFloat,
     PositiveFloat,
     PositiveInt,
@@ -25,8 +26,39 @@ class SolverParams(BaseModel):
     """Parameters used by the ODE solver."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    ode_solver_rel_tolerance: PositiveFloat
-    ode_solver_abs_tolerance: PositiveFloat
+    ode_solver_rel_tolerance: PositiveFloat = Field(
+        default=1e-5,
+        description="""Solver relative tolerance, used for adaptive step sizer
+        to decide the size of a subsequent step. Use constant_step_size to
+        switch to constant solver mode. For more information on tolerance see
+        the `choosing tolerances` drop down here:
+        https://docs.kidger.site/diffrax/api/stepsize_controller/#diffrax.PIDController""",
+    )
+    ode_solver_abs_tolerance: PositiveFloat = Field(
+        default=1e-6,
+        description="""Solver absolute tolerance, used for adaptive step sizer
+        to decide the size of a subsequent step. Use constant_step_size to
+        switch to constant solver mode. For more information on tolerance see
+        the `choosing tolerances` drop down here:
+        https://docs.kidger.site/diffrax/api/stepsize_controller/#diffrax.PIDController""",
+    )
+    max_steps: PositiveInt = Field(
+        default=int(1e6),
+        description="""The maximum number of steps the ode solver will take
+        before raising an error. For complex problems use higher number.""",
+    )
+    constant_step_size: NonNegativeFloat = Field(
+        default=0,
+        description="""If non-zero, solver will use constant step size
+        equal to the value set. If 0 solver will use adaptive step size with
+        ode_solver_rel/abs_tolerance""",
+    )
+    discontinuity_points: list[int] = Field(
+        default_factory=lambda: [],
+        description="""Points in the ode's solve that a discontinuity occurs,
+        meaning the higher order gradiants are not smooth. Int values
+        represent the simulation day, or days since init date of the model.""",
+    )
 
 
 @chex.dataclass
@@ -39,7 +71,7 @@ class ODEParameters:
     """
 
     strain_interactions: chex.ArrayDevice
-    betas: chex.ArrayDevice
+    beta: chex.ArrayDevice
 
 
 class TransmissionParams(BaseModel):

@@ -17,7 +17,7 @@ from pydantic import (
 )
 from typing_extensions import Self
 
-from ..typing import CompartmentGradiants
+from ..typing import CompartmentGradients
 from .bins import AgeBin, Bin
 from .dimension import (
     Dimension,
@@ -184,7 +184,7 @@ class CompartmentalModel(BaseModel):
     )
     # passed to diffrax.diffeqsolve
     ode_function: Callable[
-        [List[Compartment], PositiveFloat, Params], CompartmentGradiants
+        [List[Compartment], PositiveFloat, Params], CompartmentGradients
     ] = Field(
         description="""Callable to calculate instantaneous rate of change of
         each compartment."""

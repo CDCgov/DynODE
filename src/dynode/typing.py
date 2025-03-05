@@ -5,7 +5,7 @@ from typing import Any, Optional, Tuple
 import jax
 import numpyro.distributions as dist
 
-CompartmentGradiants = Tuple[jax.Array]
+CompartmentGradients = Tuple[jax.Array, ...]
 
 SEIC_Compartments = Tuple[
     jax.Array,
