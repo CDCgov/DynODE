@@ -1,8 +1,26 @@
 """Module for declaring types to be used within DynODE config files."""
 
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 
+import jax
 import numpyro.distributions as dist
+
+CompartmentGradiants = Tuple[jax.Array]
+
+SEIC_Compartments = Tuple[
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+]
+# a timeseries is a tuple of compartment sizes where the leading dimension is time
+# so SEIC_Timeseries has shape (tf, SEIC_Compartments.shape) for some number of timesteps tf
+SEIC_Timeseries = Tuple[
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+]
 
 
 class SamplePlaceholderError(Exception):

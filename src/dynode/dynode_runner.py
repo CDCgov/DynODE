@@ -17,10 +17,11 @@ import pandas as pd  # type: ignore
 from diffrax import Solution  # type: ignore
 from jax import Array
 
-from . import SEIC_Compartments, utils, vis_utils
+from . import utils, vis_utils
 from .abstract_parameters import AbstractParameters
 from .mechanistic_inferer import MechanisticInferer
 from .static_value_parameters import StaticValueParameters
+from .typing import SEIC_Compartments
 
 
 class AbstractDynodeRunner(ABC):

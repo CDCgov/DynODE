@@ -19,7 +19,7 @@ from diffrax import (  # type: ignore
 )
 from jaxtyping import PyTree
 
-from . import SEIC_Compartments
+from .typing import SEIC_Compartments
 from .utils import date_to_sim_day
 
 numpyro.set_host_device_count(4)

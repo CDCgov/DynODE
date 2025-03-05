@@ -8,6 +8,7 @@ import numpyro.distributions.transforms as transforms
 
 from dynode.model_odes.seip_model import seip_ode
 
+from ...typing import DeterministicParameter
 from ..bins import AgeBin, Bin, WaneBin
 from ..config_definition import (
     Compartment,
@@ -22,7 +23,6 @@ from ..dimension import (
 )
 from ..params import SolverParams, TransmissionParams
 from ..strains import Strain
-from ..types import DeterministicParameter
 
 
 class SEIPCovidModel(CompartmentalModel):

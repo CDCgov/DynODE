@@ -10,7 +10,8 @@ from typing import Any
 
 from numpy import ndarray
 
-from . import SEIC_Compartments, utils
+from . import utils
+from .typing import SEIC_Compartments
 
 
 class AbstractInitializer(ABC):
