@@ -23,9 +23,7 @@ class SEIP_ODE(ODEBase):
         compartmental_model : SEIPCovidModel
             SEIP model that will be calling this ODE.
         """
-        self.compartmental_model = compartmental_model
-        # TODO use logger to log compartmental_model.params.solver_parameters
-        self.init_date = compartmental_model.initializer.initialize_date
+        super().__init__(compartmental_model)
         pass
 
     def __call__(

@@ -34,6 +34,7 @@ class ODEBase:
         compartmental_model : CompartmentalModel
             CompartmentalModel that will be calling this ODE.
         """
+        self.compartmental_model = compartmental_model
         pass
 
     def solve(
@@ -103,7 +104,9 @@ class ODEBase:
         t0 = 0.0
         dt0 = solver_parameters.constant_step_size
         tf_int = (
-            date_to_sim_day(tf, self.init_date)
+            date_to_sim_day(
+                tf, self.compartmental_model.initializer.initialize_date
+            )
             if isinstance(tf, datetime.date)
             else tf
         )
