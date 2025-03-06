@@ -72,15 +72,13 @@ class SEIP_COVID_ODE(ODEBase):
             jnp.zeros(i.shape),
             jnp.zeros(c.shape),
         )
-        beta_coef = p.beta_coef(t)
-        seasonality_coef = p.seasonality(t)
         # CALCULATING SUCCESSFULL INFECTIONS OF (partially) SUSCEPTIBLE INDIVIDUALS
         # including externally infected individuals to introduce new strains
         force_of_infection = (
             (
                 p.beta
-                * beta_coef
-                * seasonality_coef
+                * p.beta_coef(t)
+                * p.seasonality(t)
                 * jnp.einsum(
                     "ab,bijk->ak",
                     p.contact_matrix,
