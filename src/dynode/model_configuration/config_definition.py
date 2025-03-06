@@ -236,7 +236,7 @@ class CompartmentalModel(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def _create_introduction_ages_one_hot_encoding(self) -> Self:
+    def _create_introduction_ages_mask_encoding(self) -> Self:
         """Convert Strain's introduction_ages to a one-hot encoded tensor."""
         # dont bother one-hot encoding introduction_ages if they dont exist
         if any(
@@ -256,18 +256,18 @@ class CompartmentalModel(BaseModel):
                 len(age_binning) > 0
             ), """attempted to one hot encode introduction_ages but could not
                 find any age structure in the model"""
-            one_hot_vector = []
+            mask = []
             for strain in self.parameters.transmission_params.strains:
                 # assume intro_ages is found in age_structure due to above validator
                 if strain.introduction_ages is not None:
-                    one_hot_vector = [
+                    mask = [
                         1 if b in strain.introduction_ages else 0
                         for b in age_binning
                     ]
                 else:
-                    one_hot_vector = [0 for _ in age_binning]
+                    mask = [0 for _ in age_binning]
                 # set the private field now that validation is complete.
-                strain.introduction_ages_one_hot = one_hot_vector
+                strain.introduction_ages_mask_vector = mask
         return self
 
     @model_validator(mode="after")
