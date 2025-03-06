@@ -17,8 +17,7 @@ from pydantic import (
 )
 from typing_extensions import Self
 
-from dynode.typing import CompartmentGradiants
-
+from ..typing import CompartmentGradiants
 from .bins import AgeBin, Bin
 from .dimension import (
     Dimension,
