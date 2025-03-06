@@ -3,6 +3,7 @@
 from typing import List
 
 import chex
+from diffrax import AbstractSolver, Tsit5
 from jax import Array
 from jax.random import PRNGKey
 from numpyro.distributions import Distribution
@@ -26,6 +27,13 @@ class SolverParams(BaseModel):
     """Parameters used by the ODE solver."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    solver_method: AbstractSolver = Field(
+        default_factory=lambda: Tsit5(),
+        description="""What sort of differential equation solver you wish to
+        use to solve ODEs, defaults to Tsit5(), a general solver good for
+        non-stiff problems. For more information on picking a solver see:
+        https://docs.kidger.site/diffrax/usage/how-to-choose-a-solver/""",
+    )
     ode_solver_rel_tolerance: PositiveFloat = Field(
         default=1e-5,
         description="""Solver relative tolerance, used for adaptive step sizer
@@ -69,9 +77,6 @@ class ODEParameters:
     this internal state flattens the list of strains into the tensors of information
     separate from the `Strain` class entirely.
     """
-
-    strain_interactions: chex.ArrayDevice
-    beta: chex.ArrayDevice
 
 
 class TransmissionParams(BaseModel):

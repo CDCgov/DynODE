@@ -12,7 +12,7 @@ from dynode.typing import CompartmentGradients, SEIC_Compartments
 from dynode.utils import get_foi_suscept, new_immune_state
 
 
-class SEIP_ODE(ODEBase):
+class SEIP_COVID_ODE(ODEBase):
     """SEIP specific ODE class to solve covid SEIP models."""
 
     def __init__(self, compartmental_model: SEIPCovidModel):

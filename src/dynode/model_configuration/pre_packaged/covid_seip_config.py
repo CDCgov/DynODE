@@ -300,6 +300,8 @@ class ODEParametersSEIP(ODEParameters):
     vaccination_rates: Callable[[float], chex.ArrayDevice]
     seasonal_vaccination_reset: Callable[[float], chex.ArrayDevice]
     num_strains: int
+    strain_interactions: chex.ArrayDevice
+    beta: chex.ArrayDevice
     sigma: chex.ArrayDevice
     gamma: chex.ArrayDevice
     waning_rates: chex.ArrayDevice

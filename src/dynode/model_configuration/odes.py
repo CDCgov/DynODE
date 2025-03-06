@@ -11,7 +11,6 @@ from diffrax import (  # type: ignore
     PIDController,
     SaveAt,
     Solution,
-    Tsit5,
     diffeqsolve,
 )
 from jax import Array
@@ -100,7 +99,6 @@ class ODEBase:
                 ode_parameters,
             )
         )
-        solver = Tsit5()
         t0 = 0.0
         dt0 = solver_parameters.constant_step_size
         tf_int = (
@@ -133,7 +131,7 @@ class ODEBase:
 
         solution = diffeqsolve(
             term,
-            solver,
+            solver_parameters.solver_method,
             t0,
             tf_int,
             dt0,
