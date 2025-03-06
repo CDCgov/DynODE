@@ -237,7 +237,7 @@ class CompartmentalModel(BaseModel):
 
     @model_validator(mode="after")
     def _create_introduction_ages_mask_encoding(self) -> Self:
-        """Convert Strain's introduction_ages to a one-hot encoded tensor."""
+        """Parse Strain's introduction_ages to a binary mask."""
         # dont bother one-hot encoding introduction_ages if they dont exist
         if any(
             [
@@ -254,7 +254,7 @@ class CompartmentalModel(BaseModel):
                     break
             assert (
                 len(age_binning) > 0
-            ), """attempted to one hot encode introduction_ages but could not
+            ), """attempted to encode introduction_ages but could not
                 find any age structure in the model"""
             mask = []
             for strain in self.parameters.transmission_params.strains:
