@@ -35,10 +35,10 @@ def log_decorator(_func=None):
                 log_value = "\n".join(map(str,value))
                 logger.info(f"Execution Time: {execution_time}", extra=extra_args)
                 logger.info(f"Returned: - End function \n{log_value}", extra=extra_args)
-            except:
+            except Exception as ex:
                 ''' log exception if occurs in function '''
-                logger.error(f"Exception: {str(sys.exc_info()[1])}", extra=extra_args)
-                raise
+                logger.error(f"Exception: {ex}", extra=extra_args)
+                raise ex
 
             return value
 
