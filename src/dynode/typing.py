@@ -1,11 +1,11 @@
 """Module for declaring types to be used within DynODE config files."""
 
-from typing import Any, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 import jax
 import numpyro.distributions as dist
 
-CompartmentGradiants = Tuple[jax.Array]
+CompartmentGradients = Tuple[jax.Array, ...]
 
 SEIC_Compartments = Tuple[
     jax.Array,
@@ -57,7 +57,10 @@ class DeterministicParameter:
     """A parameter whose value depends on a different parameter's value."""
 
     def __init__(
-        self, depends_on: str, index: Optional[int | tuple | slice] = None
+        self,
+        depends_on: str,
+        index: Optional[int | tuple | slice] = None,
+        transform: Callable[[Any], Any] = lambda x: x,
     ):
         """Specify a linkage between this DeterministicParameter and another value.
 
@@ -72,6 +75,7 @@ class DeterministicParameter:
         """
         self.depends_on = depends_on
         self.index = index
+        self.transform = transform
 
     def resolve(self, parameter_state: dict[str, Any]) -> Any:
         """Retrieve value from `self.depends_on` from `parameter_state`.
@@ -99,6 +103,6 @@ class DeterministicParameter:
             a tuple, you cant index a list with a tuple, only a slice.
         """
         if self.index is None:
-            return parameter_state[self.depends_on]
+            return self.transform(parameter_state[self.depends_on])
         else:
-            return parameter_state[self.depends_on][self.index]
+            return self.transform(parameter_state[self.depends_on][self.index])

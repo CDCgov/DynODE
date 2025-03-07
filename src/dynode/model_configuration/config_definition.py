@@ -17,7 +17,7 @@ from pydantic import (
 )
 from typing_extensions import Self
 
-from ..typing import CompartmentGradiants
+from ..typing import CompartmentGradients
 from .bins import AgeBin, Bin
 from .dimension import (
     Dimension,
@@ -184,7 +184,7 @@ class CompartmentalModel(BaseModel):
     )
     # passed to diffrax.diffeqsolve
     ode_function: Callable[
-        [List[Compartment], PositiveFloat, Params], CompartmentGradiants
+        [List[Compartment], PositiveFloat, Params], CompartmentGradients
     ] = Field(
         description="""Callable to calculate instantaneous rate of change of
         each compartment."""
@@ -233,6 +233,41 @@ class CompartmentalModel(BaseModel):
             assert (
                 type(dimension)(strains) == dimension
             ), "Found immune states that dont correlate with strains from transmission_params"
+        return self
+
+    @model_validator(mode="after")
+    def _create_introduction_ages_mask_encoding(self) -> Self:
+        """Parse Strain's introduction_ages to a binary mask."""
+        # dont bother one-hot encoding introduction_ages if they dont exist
+        if any(
+            [
+                strain.introduction_ages is not None
+                for strain in self.parameters.transmission_params.strains
+            ]
+        ):
+            # find a dimension with Age stratification
+            age_binning = []
+            for dim in self.flatten_dims():
+                # only check first element since dimensions must all be same type
+                if isinstance(dim.bins[0], AgeBin):
+                    age_binning = dim.bins
+                    break
+            assert (
+                len(age_binning) > 0
+            ), """attempted to encode introduction_ages but could not
+                find any age structure in the model"""
+            mask = []
+            for strain in self.parameters.transmission_params.strains:
+                # assume intro_ages is found in age_structure due to above validator
+                if strain.introduction_ages is not None:
+                    mask = [
+                        1 if b in strain.introduction_ages else 0
+                        for b in age_binning
+                    ]
+                else:
+                    mask = [0 for _ in age_binning]
+                # set the private field now that validation is complete.
+                strain.introduction_ages_mask_vector = mask
         return self
 
     @model_validator(mode="after")
