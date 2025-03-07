@@ -9,7 +9,14 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
-## [2024.03.04.1a] - DeterministicParameter type
+## [2024.03.07.1a] - Adding `transform` to DeterministicParameter
+### Changed
+- `DeterministicParameter` from `dynode.typing` now has a `transform` parameter
+which allows users to define a transform function for their parameter.
+
+---
+
+## [2024.03.04.1a] - Dynode typing
 ### Changed
 - moved `dynode.model_configuration.types` to `dynode.typing`
 - moved types previously declared within `dynode.__init__` into `dynode.typing`
