@@ -1,9 +1,7 @@
 """Config for fitting covid SEIP models from feb 11th 2022 onwards."""
 
 from datetime import date
-from typing import Callable
 
-import chex
 import numpyro.distributions as dist
 import numpyro.distributions.constraints as constraints
 import numpyro.distributions.transforms as transforms
@@ -23,7 +21,7 @@ from ..dimension import (
     LastStrainImmuneHistory,
     VaccinationDimension,
 )
-from ..params import ODEParameters, SolverParams, TransmissionParams
+from ..params import SolverParams, TransmissionParams
 from ..strains import Strain
 
 
@@ -287,24 +285,3 @@ class SEIPCovidModel(CompartmentalModel):
             i_compartment,
             c_compartment,
         ]
-
-
-@chex.dataclass
-class ODEParametersSEIP(ODEParameters):
-    """An SEIP specific ODEParameters chex class."""
-
-    # already includes strain_interactions and beta
-    beta_coef: Callable[[float], float]
-    seasonality: Callable[[float], float]
-    external_i: Callable[[float], chex.ArrayDevice]
-    vaccination_rates: Callable[[float], chex.ArrayDevice]
-    seasonal_vaccination_reset: Callable[[float], chex.ArrayDevice]
-    num_strains: int
-    strain_interactions: chex.ArrayDevice
-    beta: chex.ArrayDevice
-    sigma: chex.ArrayDevice
-    gamma: chex.ArrayDevice
-    waning_rates: chex.ArrayDevice
-    contact_matrix: chex.ArrayDevice
-    population: chex.ArrayDevice
-    max_vaccination_count: int

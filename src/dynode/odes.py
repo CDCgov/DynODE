@@ -3,6 +3,7 @@
 import datetime
 from typing import Sequence, Union, get_type_hints
 
+import chex
 import jax.numpy as jnp
 from diffrax import (  # type: ignore
     AbstractStepSizeController,
@@ -19,7 +20,17 @@ from dynode.model_configuration import CompartmentalModel
 from dynode.typing import CompartmentGradients
 from dynode.utils import date_to_sim_day
 
-from .params import ODEParameters, SolverParams
+from .model_configuration.params import SolverParams
+
+
+@chex.dataclass
+class AbstractODEParams:
+    """The internal representation containing parameters passed to the ODEs.
+
+    Because ODEs work with vectors/matricies/tensors as opposed to objects,
+    this internal state flattens the list of strains into the tensors of information
+    separate from the `Strain` class entirely.
+    """
 
 
 class ODEBase:
@@ -40,7 +51,7 @@ class ODEBase:
         self,
         initial_state: Sequence[Array],
         solver_parameters: SolverParams,
-        ode_parameters: ODEParameters,
+        ode_parameters: AbstractODEParams,
         tf: Union[int, datetime.date] = 100,
     ) -> Solution:
         """Solve ODEs for `tf` days using `initial_state` and `args` parameters.
@@ -55,10 +66,10 @@ class ODEBase:
             ODEs in their initial states at t=0.
         solver_parameters : SolverParams
             solver specific parameters that dictate how the ODE solver works.
-        ode_parameters : ODEParameters
+        ode_parameters : AbstractODEParams
             ode specific parameters that dictate transmission, protection,
             strain introduction etc. Specific ODE classes will likely
-            require subclasses of ODEParameters for their usecase.
+            require subclasses of AbstractODEParams for their usecase.
         tf : int | datetime.date, Optional
             number of days to solve ODEs for, if datetime.date is passed, runs
             up to that date, by default 100 days
@@ -85,7 +96,7 @@ class ODEBase:
             raise TypeError(
                 "Please pass jax.numpy.array instead of np.array to ODEs"
             )
-        # check to make sure you are not passing the wrong ODEParameters
+        # check to make sure you are not passing the wrong AbstractODEParams
         # subclass to self.__call__()
         expected_ode_parameters_type = get_type_hints(self.__call__)["p"]
         assert (
@@ -147,7 +158,7 @@ class ODEBase:
         self,
         compartments: Sequence[Array],
         t: float,
-        p: ODEParameters,
+        p: AbstractODEParams,
     ) -> CompartmentGradients:
         """Calculate the instantanious compartment gradients for some point `t`.
 
@@ -157,7 +168,7 @@ class ODEBase:
             current state of the compartments.
         t : float
             current date being calculated
-        p : ODEParameters
+        p : AbstractODEParams
             parameters needed to calculated gradients.
 
         Returns

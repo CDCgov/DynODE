@@ -1,15 +1,38 @@
 """SEIP specific ODE class."""
 
+from typing import Callable
+
+import chex
 import jax
 import jax.numpy as jnp
 
-from dynode.model_configuration.odes import ODEBase
 from dynode.model_configuration.pre_packaged.covid_seip_config import (
-    ODEParametersSEIP,
     SEIPCovidModel,
 )
+from dynode.odes import AbstractODEParams, ODEBase
 from dynode.typing import CompartmentGradients, SEIC_Compartments
 from dynode.utils import get_foi_suscept, new_immune_state
+
+
+@chex.dataclass
+class ODEParamsSEIP(AbstractODEParams):
+    """An SEIP specific AbstractODEParams chex class."""
+
+    # already includes strain_interactions and beta
+    beta_coef: Callable[[float], float]
+    seasonality: Callable[[float], float]
+    external_i: Callable[[float], chex.ArrayDevice]
+    vaccination_rates: Callable[[float], chex.ArrayDevice]
+    seasonal_vaccination_reset: Callable[[float], chex.ArrayDevice]
+    num_strains: int
+    strain_interactions: chex.ArrayDevice
+    beta: chex.ArrayDevice
+    sigma: chex.ArrayDevice
+    gamma: chex.ArrayDevice
+    waning_rates: chex.ArrayDevice
+    contact_matrix: chex.ArrayDevice
+    population: chex.ArrayDevice
+    max_vaccination_count: int
 
 
 class SEIP_COVID_ODE(ODEBase):
@@ -30,7 +53,7 @@ class SEIP_COVID_ODE(ODEBase):
         self,
         compartments: SEIC_Compartments,  # type: ignore[override]
         t: float,
-        p: ODEParametersSEIP,  # type: ignore[override]
+        p: ODEParamsSEIP,  # type: ignore[override]
     ) -> CompartmentGradients:
         """Set of flows defining a SEIP (Susceptible, Exposed, Infectious, Partial) ODE model.
 
@@ -47,7 +70,7 @@ class SEIP_COVID_ODE(ODEBase):
         t : ArrayLike
             current time of the model in days
 
-        parameters : ODEParametersSEIP
+        parameters : ODEParamsSEIP
             parameters needed by the SEIP ODE model.
 
         Returns

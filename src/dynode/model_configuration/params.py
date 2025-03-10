@@ -2,7 +2,6 @@
 
 from typing import List
 
-import chex
 from diffrax import AbstractSolver, Tsit5
 from jax import Array
 from jax.random import PRNGKey
@@ -69,16 +68,6 @@ class SolverParams(BaseModel):
     )
 
 
-@chex.dataclass
-class ODEParameters:
-    """The internal representation containing parameters passed to the ODEs.
-
-    Because ODEs work with vectors/matricies/tensors as opposed to objects,
-    this internal state flattens the list of strains into the tensors of information
-    separate from the `Strain` class entirely.
-    """
-
-
 class TransmissionParams(BaseModel):
     """Transmission Parameters for the respiratory model."""
 
@@ -94,18 +83,20 @@ class TransmissionParams(BaseModel):
         strain_names = [strain.strain_name for strain in self.strains]
         for infecting_strain in strain_names:
             for recovered_from_strain in strain_names:
-                assert (
-                    infecting_strain in self.strain_interactions.keys()
-                ), f"""{infecting_strain} not found in first level of the
-                    strain_interactions_dictionary, , every strain should
-                    have an interaction value against all other strains, found :
-                    {list(self.strain_interactions.keys())}"""
+                assert infecting_strain in self.strain_interactions.keys(), (
+                    f"{infecting_strain} not found in first level of the "
+                    f"strain_interactions_dictionary, , every strain should "
+                    f"have an interaction value against all other strains, found : "
+                    f"{list(self.strain_interactions.keys())}"
+                )
                 assert (
                     recovered_from_strain
                     in self.strain_interactions[infecting_strain]
-                ), f"""unable to find {recovered_from_strain} within
-                    strain_interactions[{infecting_strain}], every strain should
-                    have an interaction value against all other strains."""
+                ), (
+                    f"unable to find {recovered_from_strain} within "
+                    f"strain_interactions[{infecting_strain}], every strain "
+                    f"should have an interaction value against all other strains."
+                )
         return self
 
     @field_validator("strains", mode="after")
