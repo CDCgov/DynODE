@@ -21,6 +21,7 @@ pip = "24.2.*"
 epiweeks = "2.3.*"
 docker = "7.1.*"
 pydantic = "^2.10.6"
+chex = "^0.1.89"
 
 
 [tool.poetry.group.dev.dependencies]
