@@ -12,7 +12,7 @@ from ...typing import DeterministicParameter
 from ..bins import AgeBin, Bin, WaneBin
 from ..config_definition import (
     Compartment,
-    CompartmentalModel,
+    CompartmentalConfig,
     Initializer,
     Params,
 )
@@ -25,7 +25,7 @@ from ..params import SolverParams, TransmissionParams
 from ..strains import Strain
 
 
-class SEIPCovidModel(CompartmentalModel):
+class SEIPCovidConfig(CompartmentalConfig):
     """Covid model with partial susceptibility."""
 
     def __init__(self):

@@ -6,16 +6,13 @@ import chex
 import jax
 import jax.numpy as jnp
 
-from dynode.model_configuration.pre_packaged.covid_seip_config import (
-    SEIPCovidModel,
-)
 from dynode.odes import AbstractODEParams, ODEBase
 from dynode.typing import CompartmentGradients, SEIC_Compartments
 from dynode.utils import get_foi_suscept, new_immune_state
 
 
 @chex.dataclass
-class ODEParamsSEIP(AbstractODEParams):
+class SEIPCovid_ODEParams(AbstractODEParams):
     """An SEIP specific AbstractODEParams chex class."""
 
     # already includes strain_interactions and beta
@@ -35,43 +32,37 @@ class ODEParamsSEIP(AbstractODEParams):
     max_vaccination_count: int
 
 
-class SEIP_COVID_ODE(ODEBase):
-    """SEIP specific ODE class to solve covid SEIP models."""
+class SEIPCovid_ODE(ODEBase):
+    """ODE class to solve Covid SEIP compartmental equations."""
 
-    def __init__(self, compartmental_model: SEIPCovidModel):
-        """Initialize an ODE specialized for SEIP covid models.
-
-        Parameters
-        ----------
-        compartmental_model : SEIPCovidModel
-            SEIP model that will be calling this ODE.
-        """
-        super().__init__(compartmental_model)
+    def __init__(self):
+        """Initialize an ODE specialized for SEIP covid compartments."""
+        super().__init__()
         pass
 
     def __call__(
         self,
         compartments: SEIC_Compartments,  # type: ignore[override]
         t: float,
-        p: ODEParamsSEIP,  # type: ignore[override]
+        p: SEIPCovid_ODEParams,  # type: ignore[override]
     ) -> CompartmentGradients:
-        """Set of flows defining a SEIP (Susceptible, Exposed, Infectious, Partial) ODE model.
+        """Set of flows defining a SEIP (Susceptible, Exposed, Infectious, Partial) ODE.
 
         In practice, S and P compartments are both defined within S, and the
         fourth compartment is instead used to track cumulative incidence (C)
 
         Parameters
         ----------
-        state : pytree
+        state : SEIC_Compartments
             a tuple or any array-like object capable of unpacking, holding the current
             state of the model. In this case holding population values of the
             S, E, I, and C compartments.
 
         t : ArrayLike
-            current time of the model in days
+            current time in the model in days
 
         parameters : ODEParamsSEIP
-            parameters needed by the SEIP ODE model.
+            parameters needed by the SEIP ODE equations.
 
         Returns
         -------

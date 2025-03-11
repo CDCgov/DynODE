@@ -1,7 +1,6 @@
 """Define the ODEBase class."""
 
-import datetime
-from typing import Sequence, Union, get_type_hints
+from typing import Sequence, get_type_hints
 
 import chex
 import jax.numpy as jnp
@@ -16,9 +15,7 @@ from diffrax import (  # type: ignore
 )
 from jax import Array
 
-from dynode.model_configuration import CompartmentalModel
 from dynode.typing import CompartmentGradients
-from dynode.utils import date_to_sim_day
 
 from .model_configuration.params import SolverParams
 
@@ -36,15 +33,8 @@ class AbstractODEParams:
 class ODEBase:
     """A base class defining the behavior of an ODE."""
 
-    def __init__(self, compartmental_model: CompartmentalModel):
-        """Abstract initialization method for an ODE class.
-
-        Parameters
-        ----------
-        compartmental_model : CompartmentalModel
-            CompartmentalModel that will be calling this ODE.
-        """
-        self.compartmental_model = compartmental_model
+    def __init__(self):
+        """Abstract initialization method for an ODE class."""
         pass
 
     def solve(
@@ -52,7 +42,7 @@ class ODEBase:
         initial_state: Sequence[Array],
         solver_parameters: SolverParams,
         ode_parameters: AbstractODEParams,
-        tf: Union[int, datetime.date] = 100,
+        duration_days: int = 100,
     ) -> Solution:
         """Solve ODEs for `tf` days using `initial_state` and `args` parameters.
 
@@ -112,18 +102,13 @@ class ODEBase:
         )
         t0 = 0.0
         dt0 = solver_parameters.constant_step_size
-        tf_int = (
-            date_to_sim_day(
-                tf, self.compartmental_model.initializer.initialize_date
-            )
-            if isinstance(tf, datetime.date)
-            else tf
-        )
         assert isinstance(
-            tf_int, (int, float)
+            duration_days, (int, float)
         ), "tf must be of type int float or datetime.date"
 
-        saveat = SaveAt(ts=jnp.linspace(t0, tf_int, int(tf_int) + 1))
+        saveat = SaveAt(
+            ts=jnp.linspace(t0, duration_days, int(duration_days) + 1)
+        )
         stepsize_controller: AbstractStepSizeController
         if dt0 > 0.0:
             # if user specifies they want constant step size, set it here
@@ -144,7 +129,7 @@ class ODEBase:
             term,
             solver_parameters.solver_method,
             t0,
-            tf_int,
+            duration_days,
             dt0,
             initial_state,
             args=ode_parameters,
