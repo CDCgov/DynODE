@@ -1,6 +1,6 @@
 import sys, os, datetime
 import logging
-from src.dynode.utility.custom_log_formatter import CustomLogFormatter
+from dynode.utility.custom_log_formatter import CustomLogFormatter
 
 logger = logging.getLogger("dynode")
 
