@@ -166,7 +166,7 @@ class Initializer(BaseModel):
         )
 
 
-class CompartmentalConfig(BaseModel):
+class SimulationConfig(BaseModel):
     """An ODE compartment model configuration file."""
 
     # allow users to pass custom types into CompartmentalConfig
@@ -373,7 +373,7 @@ class InferenceProcess(BaseModel):
     """Inference process for fitting a CompartmentalModel to data."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    compartment_config: CompartmentalConfig = Field(
+    simulation_config: SimulationConfig = Field(
         description="CompartmentalConfig on which inference is performed."
     )
     # includes observation method, specified at runtime.
