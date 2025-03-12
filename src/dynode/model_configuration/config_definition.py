@@ -374,7 +374,7 @@ class InferenceProcess(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
     simulation_config: SimulationConfig = Field(
-        description="CompartmentalConfig on which inference is performed."
+        description="SimulationConfig on which inference is performed."
     )
     # includes observation method, specified at runtime.
     inference_method: Optional[MCMC | SVI] = Field(
@@ -383,6 +383,6 @@ class InferenceProcess(BaseModel):
         currently only MCMC and SVI supported""",
     )
     inference_parameters: InferenceParams = Field(
-        description="""inference related parameters, not to be confused with
+        description="""Inference related parameters, not to be confused with
         CompartmentalModel parameters for solving ODEs."""
     )
