@@ -5,6 +5,7 @@ from pydantic import (
     Field,
     NonNegativeFloat,
     NonNegativeInt,
+    PositiveFloat,
     model_validator,
 )
 from typing_extensions import Self
@@ -70,13 +71,13 @@ class AgeBin(DiscretizedPositiveIntBin):
 class WaneBin(Bin):
     """Waning bin with a protection value and waning time in days."""
 
-    waning_time: NonNegativeInt = Field(
-        description="""average time from when individual first enters
+    waiting_time: PositiveFloat = Field(
+        description="""Average time from when individual first enters
         the bin to them leaving. waning_rate = 1/waning_time = proportion of the bin
-        exits per day.""",
+        exits per day. math.inf -> does not wane out of this bin.""",
     )
-    waning_protection: NonNegativeFloat = Field(
+    base_protection: NonNegativeFloat = Field(
         le=1.0,
-        description="""Proportion of initial immune protection retained within
-          this bin, between [0-1].""",
+        description="""Proportion of immune protection retained by populations within
+          this bin, between [0-1]. May be subsequently modified by strain immune escape.""",
     )
