@@ -6,15 +6,13 @@ import numpyro.distributions as dist
 import numpyro.distributions.constraints as constraints
 import numpyro.distributions.transforms as transforms
 
-from dynode.model_odes.seip_model import seip_ode
-
 from ...typing import DeterministicParameter
 from ..bins import AgeBin, Bin, WaneBin
 from ..config_definition import (
     Compartment,
-    CompartmentalModel,
     Initializer,
     Params,
+    SimulationConfig,
 )
 from ..dimension import (
     Dimension,
@@ -25,7 +23,7 @@ from ..params import SolverParams, TransmissionParams
 from ..strains import Strain
 
 
-class SEIPCovidModel(CompartmentalModel):
+class SEIPCovidConfig(SimulationConfig):
     """Covid model with partial susceptibility."""
 
     def __init__(self):
@@ -43,7 +41,6 @@ class SEIPCovidModel(CompartmentalModel):
             initializer=initializer,
             compartments=compartments,
             parameters=param_store,
-            ode_function=seip_ode,
         )
 
     @property
