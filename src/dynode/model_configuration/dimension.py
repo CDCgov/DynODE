@@ -84,6 +84,7 @@ class Dimension(BaseModel):
     def _validate_no_gaps_discretized_int_bins(
         cls, bins: list[Bin]
     ) -> list[Bin]:
+        """Validate that dimensions of DiscretizedPositiveIntBin have no gaps."""
         assert len(bins) > 0, "can not have dimension with no bins"
         if all(isinstance(bin, DiscretizedPositiveIntBin) for bin in bins):
             for i in range(len(bins) - 1):
@@ -199,6 +200,7 @@ class WaneDimension(Dimension):
 
     @model_validator(mode="after")
     def _validate_wane_bins_end_in_inf(self):
+        """Validate last wane bin can not be waned out of."""
         last_wane_bin = self.bins[-1]
         assert isinstance(last_wane_bin, WaneBin)
         assert isinf(
