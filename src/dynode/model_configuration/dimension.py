@@ -77,7 +77,22 @@ class Dimension(BaseModel):
                     for i in range(len(bins) - 1)
                 ]
             ), "DiscretizedPositiveIntBin within a dimension can not overlap."
-            return bins
+        return bins
+
+    @field_validator("bins", mode="after")
+    @classmethod
+    def _validate_no_gaps_discretized_int_bins(
+        cls, bins: list[Bin]
+    ) -> list[Bin]:
+        assert len(bins) > 0, "can not have dimension with no bins"
+        if all(isinstance(bin, DiscretizedPositiveIntBin) for bin in bins):
+            for i in range(len(bins) - 1):
+                assert bins[i].max_value + 1 == bins[i + 1].min_value, (
+                    f"dimensions containing DiscretizedPositiveIntBin can not "
+                    f"have gaps between them, found one between "
+                    f"{bins[i]} and {bins[i + 1]}"
+                )
+
         return bins
 
 
