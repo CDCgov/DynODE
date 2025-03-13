@@ -236,6 +236,41 @@ class CompartmentalModel(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def _create_introduction_ages_mask_encoding(self) -> Self:
+        """Parse Strain's introduction_ages to a binary mask."""
+        # dont bother one-hot encoding introduction_ages if they dont exist
+        if any(
+            [
+                strain.introduction_ages is not None
+                for strain in self.parameters.transmission_params.strains
+            ]
+        ):
+            # find a dimension with Age stratification
+            age_binning = []
+            for dim in self.flatten_dims():
+                # only check first element since dimensions must all be same type
+                if isinstance(dim.bins[0], AgeBin):
+                    age_binning = dim.bins
+                    break
+            assert (
+                len(age_binning) > 0
+            ), """attempted to encode introduction_ages but could not
+                find any age structure in the model"""
+            mask = []
+            for strain in self.parameters.transmission_params.strains:
+                # assume intro_ages is found in age_structure due to above validator
+                if strain.introduction_ages is not None:
+                    mask = [
+                        1 if b in strain.introduction_ages else 0
+                        for b in age_binning
+                    ]
+                else:
+                    mask = [0 for _ in age_binning]
+                # set the private field now that validation is complete.
+                strain.introduction_ages_mask_vector = mask
+        return self
+
+    @model_validator(mode="after")
     def _validate_introduced_strains(self) -> Self:
         """Validate that all introduced strains have the same age binning as defined by the Model's compartments."""
         strains = self.parameters.transmission_params.strains
