@@ -169,7 +169,7 @@ class Initializer(BaseModel):
 class SimulationConfig(BaseModel):
     """An ODE compartment model configuration file."""
 
-    # allow users to pass custom types into CompartmentalConfig
+    # allow users to pass custom types into SimulationConfig
     model_config = ConfigDict(arbitrary_types_allowed=True)
     initializer: Initializer = Field(
         description="""Initializer to create initial state with."""
@@ -301,7 +301,7 @@ class SimulationConfig(BaseModel):
         return self
 
     def get_compartment(self, compartment_name: str) -> Compartment:
-        """Search the CompartmentalConfig and return a Compartment if it exists.
+        """Search for and return a Compartment if it exists.
 
         Parameters
         ----------
