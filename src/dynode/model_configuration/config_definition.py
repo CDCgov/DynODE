@@ -129,7 +129,7 @@ class Compartment(BaseModel):
 
 
 class Initializer(BaseModel):
-    """Initalize compartment state of the system."""
+    """Initalize compartment state of an ODE model."""
 
     description: str = Field(
         description="""Description of the initializer, its data streams and/or
