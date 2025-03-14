@@ -12,18 +12,16 @@ from diffrax import Solution, is_okay
 from jax import Array
 
 from dynode.model_configuration import (
+    Bin,
     Compartment,
+    Dimension,
     Initializer,
-    SimulationConfig,
-)
-from dynode.model_configuration.bins import Bin
-from dynode.model_configuration.dimension import Dimension
-from dynode.model_configuration.params import (
     Params,
+    SimulationConfig,
     SolverParams,
+    Strain,
     TransmissionParams,
 )
-from dynode.model_configuration.strains import Strain
 from dynode.odes import AbstractODEParams, ODEBase
 
 
@@ -62,12 +60,7 @@ class SIRConfig(SimulationConfig):
             Strain(strain_name="example_strain", r0=2.0, infectious_period=7.0)
         ]
         parameters = Params(
-            solver_params=SolverParams(
-                ode_solver_rel_tolerance=1e-7,
-                ode_solver_abs_tolerance=1e-8,
-                # constant_step_size=0.5,
-                max_steps=100000,
-            ),
+            solver_params=SolverParams(),
             transmission_params=TransmissionParams(
                 strains=strain,
                 strain_interactions={
@@ -106,13 +99,13 @@ class SIR_ODE(ODEBase):
         t: float,  # unused in this basic example, useful for time-varying parameters
         p: SIR_ODEParams,  # notice that we are passing SIR_ODEParams here.
     ):
-        s, i, r = compartments
-        ds = -p.beta * s * i
-        dr = i * p.gamma
-        # jax.debug.print(
-        #     "t {}, s: {}, i {}, r {}, ds: {}, dr: {}", t, s, i, r, ds, dr
-        # )
-        return [ds, -ds - dr, dr]
+        s, i, _ = compartments
+        s_to_i = p.beta * s * i
+        i_to_r = i * p.gamma
+        ds = -s_to_i
+        di = s_to_i - i_to_r
+        dr = i_to_r
+        return [ds, di, dr]
 
 
 # %% simulation
