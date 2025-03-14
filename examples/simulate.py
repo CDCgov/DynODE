@@ -2,9 +2,13 @@
 # Including all the class setup
 # %% imports, mostly for class creation
 from datetime import date
+from functools import partial
 
 import chex
+import jax
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from diffrax import Solution, is_okay
 from jax import Array
 
 from dynode.model_configuration import (
@@ -22,10 +26,11 @@ from dynode.model_configuration.params import (
 from dynode.model_configuration.strains import Strain
 from dynode.odes import AbstractODEParams, ODEBase
 
+
 # %% class definitions
-
-
 class SIRInitializer(Initializer):
+    """Initializer for SIR model, setting initial conditions for compartments."""
+
     def __init__(self):
         super().__init__(
             description="An SIR initalizer",
@@ -38,13 +43,17 @@ class SIRInitializer(Initializer):
         s = config.get_compartment("s")
         i = config.get_compartment("i")
         r = config.get_compartment("r")
-        s.values = 0.99
-        i.values = 0.01
+        s.values = jnp.array([0.99])  # need jnp.array for ode solver
+        i.values = jnp.array([0.01])
+        r.values = jnp.array([0.00])
         return [s, i, r]
 
 
 class SIRConfig(SimulationConfig):
     def __init__(self):
+        """Set parameters for an SIR compartmental model.
+
+        This includes compartment shape, initializer, and solver/transmission parameters."""
         dimension = Dimension(name="value", bins=[Bin(name="value")])
         s = Compartment(name="s", dimensions=[dimension])
         i = Compartment(name="i", dimensions=[dimension])
@@ -53,7 +62,12 @@ class SIRConfig(SimulationConfig):
             Strain(strain_name="example_strain", r0=2.0, infectious_period=7.0)
         ]
         parameters = Params(
-            solver_params=SolverParams(),
+            solver_params=SolverParams(
+                ode_solver_rel_tolerance=1e-7,
+                ode_solver_abs_tolerance=1e-8,
+                # constant_step_size=0.5,
+                max_steps=100000,
+            ),
             transmission_params=TransmissionParams(
                 strains=strain,
                 strain_interactions={
@@ -71,52 +85,74 @@ class SIRConfig(SimulationConfig):
 @chex.dataclass
 class SIR_ODEParams(AbstractODEParams):
     beta: chex.ArrayDevice  # r0/infectious period
-    sigma: chex.ArrayDevice  # 1/infectious period
+    gamma: chex.ArrayDevice  # 1/infectious period
     pass
 
 
+def get_odeparams(transmission_params: TransmissionParams) -> SIR_ODEParams:
+    """Transform and vectorize transmission parameters into ODE parameters."""
+    strain = transmission_params.strains[0]
+    beta = strain.r0 / strain.infectious_period  # infection rate
+    gamma = 1 / strain.infectious_period  # recovery rate
+    return SIR_ODEParams(beta=beta, gamma=gamma)
+
+
 class SIR_ODE(ODEBase):
-    def __call__(self, t: float, y: tuple[Array], params: SIR_ODEParams):
-        s, i, _ = y
-        beta = params.beta
-        ds = -beta * s * i
-        dr = i * params.sigma
-        return [ds, -ds, dr]
+    partial(jax.jit, static_argnums=0)
+
+    def __call__(
+        self,
+        compartments: tuple[Array],
+        t: float,  # unused in this basic example, useful for time-varying parameters
+        p: SIR_ODEParams,  # notice that we are passing SIR_ODEParams here.
+    ):
+        s, i, r = compartments
+        ds = -p.beta * s * i
+        dr = i * p.gamma
+        # jax.debug.print(
+        #     "t {}, s: {}, i {}, r {}, ds: {}, dr: {}", t, s, i, r, ds, dr
+        # )
+        return [ds, -ds - dr, dr]
 
 
 # %% simulation
 
 # set up config
 config = SIRConfig()
-
-
-def get_odeparams(transmission_params: TransmissionParams):
-    strain = transmission_params.strains[0]
-    beta = strain.r0 / strain.infectious_period
-    sigma = 1 / strain.infectious_period
-    return SIR_ODEParams(beta=beta, sigma=sigma)
-
-
 ode_params = get_odeparams(config.parameters.transmission_params)
 
 # set up odes
 ode = SIR_ODE()
 # we need just the jax arrays for the initial state to the ODEs
-intial_state = [
+initial_state = [
     compartment.values
     for compartment in config.initializer.get_initial_state(SIRConfig=config)
 ]
-
 # solve the odes for 100 days
-solution = ode.solve(
-    initial_state=intial_state,
+
+solution: Solution = ode.solve(
+    initial_state=initial_state,
     solver_parameters=config.parameters.solver_params,
     ode_parameters=ode_params,
     duration_days=100,
 )
+if is_okay(solution.result):
+    print("solution is okay")
+    print(solution.ts)
+else:
+    print("solution is not okay")
+    print(solution.result)
+    print(solution.ts)
+    print(initial_state)
+    print(ode_params)
+    raise Exception(str(solution.result))
+
 
 # %% plot
 plt.plot(solution.ys[0], label="s")
 plt.plot(solution.ys[1], label="i")
 plt.plot(solution.ys[2], label="r")
+plt.legend()
 plt.show()
+
+# %%
