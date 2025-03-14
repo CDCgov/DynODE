@@ -101,7 +101,7 @@ class ODEBase:
             )
         )
         t0 = 0.0
-        dt0 = solver_parameters.constant_step_size
+        dt0 = None  # first step size determined automatically
         assert isinstance(
             duration_days, (int, float)
         ), "tf must be of type int float or datetime.date"
@@ -110,9 +110,10 @@ class ODEBase:
             ts=jnp.linspace(t0, duration_days, int(duration_days) + 1)
         )
         stepsize_controller: AbstractStepSizeController
-        if dt0 > 0.0:
+        if solver_parameters.constant_step_size > 0.0:
             # if user specifies they want constant step size, set it here
             stepsize_controller = ConstantStepSize()
+            dt0 = solver_parameters.constant_step_size
         else:  # otherwise use adaptive step size.
             jump_ts = (
                 jnp.array(solver_parameters.discontinuity_points)
