@@ -24,10 +24,9 @@ SEIC_Timeseries = Tuple[
     jax.Array,
 ]
 
-# an ODE_Model is a callable that takes in a float time, a compartment state,
+# an ODES is a callable that takes in a float time, a compartment state,
 # and parameters and returns the gradients of the compartment state
-# TODO, what to name this? VectorField? ODE_Model?
-ODE_Model = Callable[
+ODE_Eqns = Callable[
     [jax.typing.ArrayLike, CompartmentState, PyTree],
     CompartmentGradients,
 ]

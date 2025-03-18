@@ -2,14 +2,12 @@
 # Including all the class setup
 # %% imports, mostly for class creation
 from datetime import date
-from functools import partial
 
 import chex
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from diffrax import Solution, is_okay
-from jax import Array
 
 from dynode.model_configuration import (
     Bin,
@@ -22,7 +20,8 @@ from dynode.model_configuration import (
     Strain,
     TransmissionParams,
 )
-from dynode.odes import AbstractODEParams, ODEBase
+from dynode.odes import AbstractODEParams, simulate
+from dynode.typing import CompartmentGradients, CompartmentState
 
 
 # %% class definitions
@@ -90,22 +89,17 @@ def get_odeparams(transmission_params: TransmissionParams) -> SIR_ODEParams:
     return SIR_ODEParams(beta=beta, gamma=gamma)
 
 
-class SIR_ODE(ODEBase):
-    partial(jax.jit, static_argnums=0)
-
-    def __call__(
-        self,
-        compartments: tuple[Array],
-        t: float,  # unused in this basic example, useful for time-varying parameters
-        p: SIR_ODEParams,  # notice that we are passing SIR_ODEParams here.
-    ):
-        s, i, _ = compartments
-        s_to_i = p.beta * s * i
-        i_to_r = i * p.gamma
-        ds = -s_to_i
-        di = s_to_i - i_to_r
-        dr = i_to_r
-        return [ds, di, dr]
+@jax.jit
+def sir_ode(
+    t: float, state: CompartmentState, p: SIR_ODEParams
+) -> CompartmentGradients:
+    s, i, _ = state
+    s_to_i = p.beta * s * i
+    i_to_r = i * p.gamma
+    ds = -s_to_i
+    di = s_to_i - i_to_r
+    dr = i_to_r
+    return [ds, di, dr]
 
 
 # %% simulation
@@ -114,8 +108,6 @@ class SIR_ODE(ODEBase):
 config = SIRConfig()
 ode_params = get_odeparams(config.parameters.transmission_params)
 
-# set up odes
-ode = SIR_ODE()
 # we need just the jax arrays for the initial state to the ODEs
 initial_state = [
     compartment.values
@@ -123,11 +115,12 @@ initial_state = [
 ]
 # solve the odes for 100 days
 
-solution: Solution = ode.solve(
-    initial_state=initial_state,
-    solver_parameters=config.parameters.solver_params,
-    ode_parameters=ode_params,
+solution: Solution = simulate(
+    ode=sir_ode,
     duration_days=100,
+    initial_state=initial_state,
+    ode_parameters=ode_params,
+    solver_parameters=config.parameters.solver_params,
 )
 if is_okay(solution.result):
     print("solution is okay")
