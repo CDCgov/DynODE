@@ -16,6 +16,8 @@ from pydantic import (
 )
 from typing_extensions import Self
 
+from dynode.typing import CompartmentState
+
 from .bins import AgeBin, Bin
 from .dimension import (
     Dimension,
@@ -140,7 +142,7 @@ class Initializer(BaseModel):
         description="""Target initial population size."""
     )
 
-    def get_initial_state(self, **kwargs) -> list[Compartment]:
+    def get_initial_state(self, **kwargs) -> CompartmentState:
         """Fill in compartments with values summing to `population_size`.
 
         Parameters
