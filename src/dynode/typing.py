@@ -1,9 +1,13 @@
 """Module for declaring types to be used within DynODE config files."""
 
+import datetime
+import os
+from datetime import date
 from typing import Any, Callable, Optional, Tuple
 
 import jax
 import numpyro.distributions as dist
+from jax.typing import ArrayLike
 
 CompartmentGradiants = Tuple[jax.Array]
 
@@ -21,6 +25,81 @@ SEIC_Timeseries = Tuple[
     jax.Array,
     jax.Array,
 ]
+
+
+class SimulationDate(date):
+    """A date object used to track simulation time.
+
+    Meant to be used in place of a normal date when inside a Dynode CompartmentalConfig.
+    """
+
+    def __new__(cls, year, month, day):
+        """Create a new SimulationDate instance."""
+        return date.__new__(cls, year, month, day)
+
+    @property
+    def initialization_date(self):
+        """Query the DYNODE_INITIALIZATION_DATE env variable and return it."""
+        if os.getenv("DYNODE_INITIALIZATION_DATE", None) is None:
+            raise ValueError(
+                "Reference date must be set before adding. Use set_reference_date() "
+                "to set it, or with_reference_date() to create a new "
+                "SimulationDate with a reference date already set."
+            )
+        d = datetime.datetime.strptime(
+            os.getenv("DYNODE_INITIALIZATION_DATE", None), "%Y-%m-%d"
+        ).date()
+        return d
+
+    @property
+    def sim_day(self):
+        """Return the current simulation date relative to the init date."""
+        difference = (self - self.initialization_date).days
+        return difference
+
+    def __add__(self, value):
+        """Add a numeric value to the simulation date."""
+        if isinstance(value, ArrayLike):  # type: ignore
+            return self.sim_day + value
+        elif isinstance(value, SimulationDate):
+            return self.sim_day + value.sim_day
+        return super().__add__(value)
+
+    def __sub__(self, value):
+        """Subtract a numeric value from the simulation date."""
+        if isinstance(value, ArrayLike):  # type: ignore
+            return self.sim_day - value
+        elif isinstance(value, SimulationDate):
+            return self.sim_day - value.sim_day
+        return super().__sub__(value)
+
+    def __rsub__(self, value):
+        """Subtract a numeric value from the simulation date."""
+        return self.__sub__(value)
+
+    def __mul__(self, value):
+        """Multiply a numeric value with the simulation date."""
+        if isinstance(value, ArrayLike):  # type: ignore
+            return self.sim_day * value
+        elif isinstance(value, SimulationDate):
+            return self.sim_day * value.sim_day
+        return super().__mul__(value)
+
+    def __rmul__(self, value):
+        """Multiply a numeric value with the simulation date."""
+        return self.__mul__(value)
+
+    def __ge__(self, value):
+        """Greater than or equal to comparison for simulation date."""
+        if isinstance(value, ArrayLike):  # type: ignore
+            return self.sim_day.__ge__(value)
+        elif isinstance(value, SimulationDate):
+            return self.sim_day > value.sim_day
+        return super().__ge__(value)
+
+    def __repr__(self):
+        """Return a string representation of the SimulationDate."""
+        return f"SimulationDate: ({self.year}-{self.month}-{self.day})({self.sim_day}) "
 
 
 class SamplePlaceholderError(Exception):

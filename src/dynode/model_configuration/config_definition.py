@@ -1,5 +1,6 @@
 """Top level classes for DynODE configs."""
 
+import os
 from datetime import date
 from typing import Callable, List, Optional, Union
 
@@ -15,7 +16,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from typing_extensions import Self
+from typing_extensions import Any, Self
 
 from ..typing import CompartmentGradiants
 from .bins import AgeBin, Bin
@@ -189,6 +190,13 @@ class CompartmentalModel(BaseModel):
         description="""Callable to calculate instantaneous rate of change of
         each compartment."""
     )
+
+    def model_post_init(self, __context: Any) -> None:
+        """Initialize context for model run."""
+        init_date = self.initializer.initialize_date
+        os.environ["DYNODE_INITIALIZATION_DATE"] = init_date.strftime(
+            "%Y-%m-%d"
+        )
 
     @model_validator(mode="after")
     def _validate_shared_compartment_dimensions(self) -> Self:
