@@ -14,7 +14,7 @@ no suffix when releases and the staging branch is pulled into the release branch
 - Added a new `SimulationDate` helper object to allow users to specify datetime-like
 objects in place of integers when specifying behaviors like prior distributions over
 date ranges (E.g. introduction date of a strain centered around some date).
-- Added a new envioronment variable `DYNODE_INITIALIZATION_DATE` so all parts
+- Added a new enviornment variable `DYNODE_INITIALIZATION_DATE` so all parts
 of the program can read in the model's start date regardless of where they
 are in the code.
 
