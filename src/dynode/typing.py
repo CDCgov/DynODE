@@ -40,15 +40,16 @@ class SimulationDate(date):
     @property
     def initialization_date(self):
         """Query the DYNODE_INITIALIZATION_DATE env variable and return it."""
-        if os.getenv("DYNODE_INITIALIZATION_DATE", None) is None:
+        init_date = os.getenv(
+            f"DYNODE_INITIALIZATION_DATE({os.getpid()})", None
+        )
+        if init_date is None:
             raise ValueError(
                 "Reference date must be set before adding. Use set_reference_date() "
                 "to set it, or with_reference_date() to create a new "
                 "SimulationDate with a reference date already set."
             )
-        d = datetime.datetime.strptime(
-            os.getenv("DYNODE_INITIALIZATION_DATE", None), "%Y-%m-%d"
-        ).date()
+        d = datetime.datetime.strptime(init_date, "%Y-%m-%d").date()
         return d
 
     @property

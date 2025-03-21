@@ -194,8 +194,8 @@ class CompartmentalModel(BaseModel):
     def model_post_init(self, __context: Any) -> None:
         """Initialize context for model run."""
         init_date = self.initializer.initialize_date
-        os.environ["DYNODE_INITIALIZATION_DATE"] = init_date.strftime(
-            "%Y-%m-%d"
+        os.environ[f"DYNODE_INITIALIZATION_DATE({os.getpid()})"] = (
+            init_date.strftime("%Y-%m-%d")
         )
 
     @model_validator(mode="after")
