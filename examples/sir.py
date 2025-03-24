@@ -84,9 +84,10 @@ class SIR_ODEParams(AbstractODEParams):
 def get_odeparams(transmission_params: TransmissionParams) -> SIR_ODEParams:
     """Transform and vectorize transmission parameters into ODE parameters."""
     strain = transmission_params.strains[0]
-    beta = strain.r0 / strain.infectious_period  # infection rate
-    gamma = 1 / strain.infectious_period  # recovery rate
-    return SIR_ODEParams(beta=beta, gamma=gamma)
+    assert isinstance(strain.r0, float)
+    beta = strain.r0 / strain.infectious_period
+    gamma = 1 / strain.infectious_period
+    return SIR_ODEParams(beta=jnp.array(beta), gamma=jnp.array(gamma))
 
 
 @jax.jit
@@ -99,7 +100,7 @@ def sir_ode(
     ds = -s_to_i
     di = s_to_i - i_to_r
     dr = i_to_r
-    return [ds, di, dr]
+    return tuple([ds, di, dr])
 
 
 # %% simulation
@@ -109,10 +110,14 @@ config = SIRConfig()
 ode_params = get_odeparams(config.parameters.transmission_params)
 
 # we need just the jax arrays for the initial state to the ODEs
-initial_state = [
-    compartment.values
-    for compartment in config.initializer.get_initial_state(SIRConfig=config)
-]
+initial_state = tuple(
+    [
+        compartment.values
+        for compartment in config.initializer.get_initial_state(
+            SIRConfig=config
+        )
+    ]
+)
 # solve the odes for 100 days
 
 solution: Solution = simulate(
@@ -125,6 +130,12 @@ solution: Solution = simulate(
 if is_okay(solution.result):
     print("solution is okay")
     print(solution.ts)
+    assert solution.ys is not None
+    plt.plot(solution.ys[0], label="s")
+    plt.plot(solution.ys[1], label="i")
+    plt.plot(solution.ys[2], label="r")
+    plt.legend()
+    plt.show()
 else:
     print("solution is not okay")
     print(solution.result)
@@ -132,13 +143,5 @@ else:
     print(initial_state)
     print(ode_params)
     raise Exception(str(solution.result))
-
-
-# %% plot
-plt.plot(solution.ys[0], label="s")
-plt.plot(solution.ys[1], label="i")
-plt.plot(solution.ys[2], label="r")
-plt.legend()
-plt.show()
 
 # %%
