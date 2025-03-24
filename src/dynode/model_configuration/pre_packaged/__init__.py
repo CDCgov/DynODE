@@ -1,5 +1,5 @@
 """A module containing pre-packaged Configs for easy off the shelf use."""
 
-from .covid_seip_config import SEIPCovidModel
+from .covid_seip_config import SEIPCovidConfig
 
-redundant_alias_SEIPCovidModel = SEIPCovidModel
+__all__ = ["SEIPCovidConfig"]

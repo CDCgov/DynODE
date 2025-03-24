@@ -4,8 +4,10 @@ from typing import Any, Callable, Optional, Tuple
 
 import jax
 import numpyro.distributions as dist
+from jaxtyping import PyTree
 
-CompartmentGradiants = Tuple[jax.Array]
+CompartmentState = Tuple[jax.Array, ...]
+CompartmentGradients = Tuple[jax.Array, ...]
 
 SEIC_Compartments = Tuple[
     jax.Array,
@@ -20,6 +22,14 @@ SEIC_Timeseries = Tuple[
     jax.Array,
     jax.Array,
     jax.Array,
+]
+
+# an ODE_Model is a callable that takes in a float time, a compartment state,
+# and parameters and returns the gradients of the compartment state
+# TODO, what to name this? VectorField? ODE_Model?
+ODE_Model = Callable[
+    [jax.typing.ArrayLike, CompartmentState, PyTree],
+    CompartmentGradients,
 ]
 
 
