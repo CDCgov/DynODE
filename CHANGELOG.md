@@ -9,6 +9,16 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2024.03.24.1a] - Adding more `CompartmentalConfig` validations
+### Added
+- Require that each `Compartment` object contains dimensions with unique names.
+- Require that dimensions of `DiscretizedPositiveIntBin` be sorted and have no gaps in coverage.
+- Adding a helper function to allow users to easily create dimensions of `WaneBin` named in the correct way.
+
+### Changed
+- Renaming some minor functions/parameters with better names.
+---
+
 ## [2024.03.013.1a] - Adding ODE support
 ### Added
 - Added `dynode.ode` module containing the `ODEBase` class, allowing users to

@@ -21,10 +21,9 @@ from dynode.typing import CompartmentState
 from .bins import AgeBin, Bin
 from .dimension import (
     Dimension,
-    FullStratifiedImmuneHistory,
+    FullStratifiedImmuneHistoryDimension,
     ImmuneHistoryDimension,
-    LastStrainImmuneHistory,
-    VaccinationDimension,
+    LastStrainImmuneHistoryDimension,
 )
 from .params import InferenceParams, Params
 
@@ -67,6 +66,15 @@ class Compartment(BaseModel):
         else:
             # fill with default for now, values filled in at runtime.
             self.values = jnp.zeros(target_values_shape)
+        return self
+
+    @model_validator(mode="after")
+    def _validate_dimensions_names(self):
+        """Assert that all dimensions in the Compartment have unique names."""
+        dimension_names = [dim.name for dim in self.dimensions]
+        assert (
+            len(set(dimension_names)) == len(dimension_names)
+        ), "you can not have two identically named dimensions within a compartment"
         return self
 
     @property
@@ -221,7 +229,10 @@ class SimulationConfig(BaseModel):
         for dimension in all_immune_hist_dims:
             assert isinstance(
                 dimension,
-                (FullStratifiedImmuneHistory, LastStrainImmuneHistory),
+                (
+                    FullStratifiedImmuneHistoryDimension,
+                    LastStrainImmuneHistoryDimension,
+                ),
             )
             assert (
                 type(dimension)(strains) == dimension
@@ -282,24 +293,6 @@ class SimulationConfig(BaseModel):
                     f"{strain_target_ages} age bins, but those are not found "
                     "within the age structure of the model."
                 )
-        return self
-
-    @model_validator(mode="after")
-    def _validate_vaccination_counts(self) -> Self:
-        """Validate vaccination dose definitions across the Compartments."""
-        # assert that all similarly named dimensions have same vaccine bins
-        num_shots: dict[str, int] = {}
-        all_dims = self.flatten_dims()
-        all_vax_dims = [
-            d for d in all_dims if isinstance(d, VaccinationDimension)
-        ]
-        for dimension in all_vax_dims:
-            if dimension.name in num_shots:
-                assert (
-                    dimension.max_shots == num_shots[dimension.name]
-                ), "vaccination dimensions with same name have different numbers of shots."
-            else:
-                num_shots[dimension.name] = dimension.max_shots
         return self
 
     def get_compartment(self, compartment_name: str) -> Compartment:
