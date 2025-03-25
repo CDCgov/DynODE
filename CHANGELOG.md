@@ -9,7 +9,7 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
-## [2024.03.21.2a] - Adding `sir.py` example run
+## [2024.03.25.2a] - Adding `sir.py` example run
 ### Added
 - added `examples/sir.py` to show new users how to create a basic SIR ODE compartmental model
 and simulate it for some number of days. This will act as a building block for
