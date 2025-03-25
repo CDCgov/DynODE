@@ -1,38 +1,38 @@
 """Config for fitting covid SEIP models from feb 11th 2022 onwards."""
 
+import math
 from datetime import date
 
 import numpyro.distributions as dist
 import numpyro.distributions.constraints as constraints
 import numpyro.distributions.transforms as transforms
 
-from dynode.model_odes.seip_model import seip_ode
-
 from ...typing import DeterministicParameter, SimulationDate
-from ..bins import AgeBin, Bin, WaneBin
+from ..bins import AgeBin, Bin
 from ..config_definition import (
     Compartment,
-    CompartmentalModel,
     Initializer,
     Params,
+    SimulationConfig,
 )
 from ..dimension import (
     Dimension,
-    LastStrainImmuneHistory,
+    LastStrainImmuneHistoryDimension,
     VaccinationDimension,
+    WaneDimension,
 )
 from ..params import SolverParams, TransmissionParams
 from ..strains import Strain
 
 
-class SEIPCovidModel(CompartmentalModel):
+class SEIPCovidConfig(SimulationConfig):
     """Covid model with partial susceptibility."""
 
     def __init__(self):
         """Initialize the SEIP covid config."""
-        strains = self._get_strains()
-        compartments = self._get_compartments(strains)
-        param_store = self._get_param_store(strains)
+        strains = self._create_strains()
+        compartments = self._create_compartments(strains)
+        param_store = self._create_param_store(strains)
         # Here you pass in a subclass of the initializer() class with you particular behavior
         initializer = Initializer(
             description="initializer for feb 11 2022",
@@ -43,7 +43,6 @@ class SEIPCovidModel(CompartmentalModel):
             initializer=initializer,
             compartments=compartments,
             parameters=param_store,
-            ode_function=seip_ode,
         )
 
     @property
@@ -66,7 +65,7 @@ class SEIPCovidModel(CompartmentalModel):
         """The Cumulative compartment of the model."""
         return self.compartments[3]
 
-    def _get_param_store(self, strains: list[Strain]) -> Params:
+    def _create_param_store(self, strains: list[Strain]) -> Params:
         # ignore mypy when additional parameters not found in TransmissionParams
         transmission_params = TransmissionParams(  # type:ignore
             strain_interactions_2_steps=dist.TransformedDistribution(
@@ -139,7 +138,7 @@ class SEIPCovidModel(CompartmentalModel):
             ),
         )
 
-    def _get_strains(self) -> list[Strain]:
+    def _create_strains(self) -> list[Strain]:
         strains = [
             Strain(
                 strain_name="omicron",
@@ -221,7 +220,7 @@ class SEIPCovidModel(CompartmentalModel):
         ]
         return strains
 
-    def _get_compartments(self, strains: list[Strain]) -> list[Compartment]:
+    def _create_compartments(self, strains: list[Strain]) -> list[Compartment]:
         age_dimension = Dimension(
             name="age",
             bins=[
@@ -231,18 +230,15 @@ class SEIPCovidModel(CompartmentalModel):
                 AgeBin(min_value=65, max_value=99),
             ],
         )
-        immune_history_dimension = LastStrainImmuneHistory(strains=strains)
+        immune_history_dimension = LastStrainImmuneHistoryDimension(
+            strains=strains
+        )
         vaccination_dimension = VaccinationDimension(
             max_ordinal_vaccinations=2, seasonal_vaccination=False
         )
-        waning_dimension = Dimension(
-            name="wane",
-            bins=[
-                WaneBin(name="w0", waning_time=70, waning_protection=1.0),
-                WaneBin(name="w1", waning_time=70, waning_protection=1.0),
-                WaneBin(name="w2", waning_time=70, waning_protection=1.0),
-                WaneBin(name="w3", waning_time=0, waning_protection=0.0),
-            ],
+        waning_dimension = WaneDimension(
+            waiting_times=[70, 70, 70, math.inf],
+            base_protections=[1.0, 1.0, 1.0, 0.0],
         )
         infecting_strain_dimension = Dimension(
             name="strain",

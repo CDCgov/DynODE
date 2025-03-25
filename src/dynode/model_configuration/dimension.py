@@ -1,12 +1,21 @@
 """Dimension types for ODE compartments."""
 
 from itertools import combinations
+from math import isinf
 from typing import List
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    PositiveFloat,
+    field_validator,
+    model_validator,
+)
 from typing_extensions import Self
 
-from .bins import Bin, DiscretizedPositiveIntBin
+from dynode.typing import UnitIntervalFloat
+
+from .bins import Bin, DiscretizedPositiveIntBin, WaneBin
 from .strains import Strain
 
 
@@ -48,7 +57,9 @@ class Dimension(BaseModel):
 
     @field_validator("bins", mode="after")
     @classmethod
-    def sort_discretized_int_bins(cls, bins: list[Bin]) -> list[Bin]:
+    def _validate_discretized_int_bins_sorted(
+        cls, bins: list[Bin]
+    ) -> list[Bin]:
         """Assert that DiscretizedPositiveIntBin do not overlap and sorts them lowest to highest."""
         assert len(bins) > 0, "can not have dimension with no bins"
         if all(isinstance(bin, DiscretizedPositiveIntBin) for bin in bins):
@@ -56,14 +67,33 @@ class Dimension(BaseModel):
             bins_sorted = sorted(
                 bins, key=lambda b: b.min_value, reverse=False
             )
+            assert (
+                bins == bins_sorted
+            ), f"Any dimension made up of DiscretizedIntBins must be sorted, got {bins}"
             # assert that bins dont overlap now they are sorted
             assert all(
                 [
-                    bins_sorted[i].max_value < bins[i + 1].min_value
+                    bins[i].max_value < bins[i + 1].min_value
                     for i in range(len(bins) - 1)
                 ]
             ), "DiscretizedPositiveIntBin within a dimension can not overlap."
-            return bins_sorted
+        return bins
+
+    @field_validator("bins", mode="after")
+    @classmethod
+    def _validate_no_gaps_discretized_int_bins(
+        cls, bins: list[Bin]
+    ) -> list[Bin]:
+        """Validate that dimensions of DiscretizedPositiveIntBin have no gaps."""
+        assert len(bins) > 0, "can not have dimension with no bins"
+        if all(isinstance(bin, DiscretizedPositiveIntBin) for bin in bins):
+            for i in range(len(bins) - 1):
+                assert bins[i].max_value + 1 == bins[i + 1].min_value, (
+                    f"dimensions containing DiscretizedPositiveIntBin can not "
+                    f"have gaps between them, found one between "
+                    f"{bins[i]} and {bins[i + 1]}"
+                )
+
         return bins
 
 
@@ -98,7 +128,7 @@ class ImmuneHistoryDimension(Dimension):
     pass
 
 
-class FullStratifiedImmuneHistory(ImmuneHistoryDimension):
+class FullStratifiedImmuneHistoryDimension(ImmuneHistoryDimension):
     """A type of immune history which represents all possible unique infections."""
 
     def __init__(self, strains: list[Strain]) -> None:
@@ -114,7 +144,7 @@ class FullStratifiedImmuneHistory(ImmuneHistoryDimension):
         super().__init__(name="hist", bins=all_immune_histories)
 
 
-class LastStrainImmuneHistory(ImmuneHistoryDimension):
+class LastStrainImmuneHistoryDimension(ImmuneHistoryDimension):
     """Immune history dimension that only tracks most recent infection."""
 
     def __init__(self, strains: list[Strain]) -> None:
@@ -123,3 +153,57 @@ class LastStrainImmuneHistory(ImmuneHistoryDimension):
         bins: list[Bin] = [Bin(name=state) for state in strain_names]
         bins.insert(0, Bin(name="none"))
         super().__init__(name="hist", bins=bins)
+
+
+class WaneDimension(Dimension):
+    """Dimension to tracking waning after recovery from a disease."""
+
+    def __init__(
+        self,
+        waiting_times: list[PositiveFloat],
+        base_protections: list[UnitIntervalFloat],
+        name="wane",
+    ):
+        """Create a Dimension to track waning status.
+
+        Parameters
+        ----------
+        waiting_times : list[PositiveFloat]
+            A list of the waiting times of each bin from first wane bin to last.
+        base_protections : list[UnitIntervalFloat]
+            A list of base protections on [0, 1] for each waning bin, parallel to wait_times.
+        name : str, optional
+            name of the dimension, dimensions tracking different waning states
+            must have different names, by default "wane".
+        """
+        assert (
+            len(waiting_times) > 0
+        ), "Wane dimension must have at least one bin."
+        assert len(waiting_times) == len(
+            base_protections
+        ), "must pass equal length wait times and base protections"
+        bins: list[Bin] = []
+        for idx, (wait_time, base_protection) in enumerate(
+            zip(waiting_times, base_protections)
+        ):
+            bins.append(
+                WaneBin(
+                    name=f"W{idx}",
+                    waiting_time=wait_time,
+                    base_protection=base_protection,
+                )
+            )
+        super().__init__(
+            name=name,
+            bins=bins,
+        )
+
+    @model_validator(mode="after")
+    def _validate_wane_bins_end_in_inf(self):
+        """Validate last wane bin can not be waned out of."""
+        last_wane_bin = self.bins[-1]
+        assert isinstance(last_wane_bin, WaneBin)
+        assert isinf(
+            last_wane_bin.waiting_time
+        ), "last wane bin should have math.inf waiting time"
+        return self

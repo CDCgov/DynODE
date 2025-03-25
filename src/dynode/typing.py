@@ -7,9 +7,13 @@ from typing import Any, Callable, Optional, Tuple
 
 import jax
 import numpyro.distributions as dist
+from annotated_types import Ge, Le
 from jax.typing import ArrayLike
+from jaxtyping import PyTree
+from typing_extensions import Annotated
 
-CompartmentGradiants = Tuple[jax.Array]
+CompartmentState = Tuple[jax.Array, ...]
+CompartmentGradients = Tuple[jax.Array, ...]
 
 SEIC_Compartments = Tuple[
     jax.Array,
@@ -24,6 +28,14 @@ SEIC_Timeseries = Tuple[
     jax.Array,
     jax.Array,
     jax.Array,
+]
+
+UnitIntervalFloat = Annotated[float, Ge(0.0), Le(1.0)]
+
+
+ODE_Eqns = Callable[
+    [jax.typing.ArrayLike, CompartmentState, PyTree],
+    CompartmentGradients,
 ]
 
 

@@ -2,7 +2,7 @@
 
 import os
 from datetime import date
-from typing import Callable, List, Optional, Union
+from typing import List, Optional, Union
 
 from jax import Array
 from jax import numpy as jnp
@@ -11,21 +11,20 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    PositiveFloat,
     PositiveInt,
     field_validator,
     model_validator,
 )
 from typing_extensions import Any, Self
 
-from ..typing import CompartmentGradiants
+from dynode.typing import CompartmentState
+
 from .bins import AgeBin, Bin
 from .dimension import (
     Dimension,
-    FullStratifiedImmuneHistory,
+    FullStratifiedImmuneHistoryDimension,
     ImmuneHistoryDimension,
-    LastStrainImmuneHistory,
-    VaccinationDimension,
+    LastStrainImmuneHistoryDimension,
 )
 from .params import InferenceParams, Params
 
@@ -68,6 +67,15 @@ class Compartment(BaseModel):
         else:
             # fill with default for now, values filled in at runtime.
             self.values = jnp.zeros(target_values_shape)
+        return self
+
+    @model_validator(mode="after")
+    def _validate_dimensions_names(self):
+        """Assert that all dimensions in the Compartment have unique names."""
+        dimension_names = [dim.name for dim in self.dimensions]
+        assert (
+            len(set(dimension_names)) == len(dimension_names)
+        ), "you can not have two identically named dimensions within a compartment"
         return self
 
     @property
@@ -143,7 +151,7 @@ class Initializer(BaseModel):
         description="""Target initial population size."""
     )
 
-    def get_initial_state(self, **kwargs) -> list[Compartment]:
+    def get_initial_state(self, **kwargs) -> CompartmentState:
         """Fill in compartments with values summing to `population_size`.
 
         Parameters
@@ -169,10 +177,10 @@ class Initializer(BaseModel):
         )
 
 
-class CompartmentalModel(BaseModel):
+class SimulationConfig(BaseModel):
     """An ODE compartment model configuration file."""
 
-    # allow users to pass custom types into CompartmentalModel
+    # allow users to pass custom types into SimulationConfig
     model_config = ConfigDict(arbitrary_types_allowed=True)
     initializer: Initializer = Field(
         description="""Initializer to create initial state with."""
@@ -182,13 +190,6 @@ class CompartmentalModel(BaseModel):
     )
     parameters: Params = Field(
         description="""Model parameters, includes epidemiological and miscellaneous."""
-    )
-    # passed to diffrax.diffeqsolve
-    ode_function: Callable[
-        [List[Compartment], PositiveFloat, Params], CompartmentGradiants
-    ] = Field(
-        description="""Callable to calculate instantaneous rate of change of
-        each compartment."""
     )
 
     def model_post_init(self, __context: Any) -> None:
@@ -236,7 +237,10 @@ class CompartmentalModel(BaseModel):
         for dimension in all_immune_hist_dims:
             assert isinstance(
                 dimension,
-                (FullStratifiedImmuneHistory, LastStrainImmuneHistory),
+                (
+                    FullStratifiedImmuneHistoryDimension,
+                    LastStrainImmuneHistoryDimension,
+                ),
             )
             assert (
                 type(dimension)(strains) == dimension
@@ -260,10 +264,10 @@ class CompartmentalModel(BaseModel):
                 if isinstance(dim.bins[0], AgeBin):
                     age_binning = dim.bins
                     break
-            assert (
-                len(age_binning) > 0
-            ), """attempted to encode introduction_ages but could not
-                find any age structure in the model"""
+            assert len(age_binning) > 0, (
+                "attempted to encode introduction_ages but could not "
+                "find any age structure in the compartments"
+            )
             mask = []
             for strain in self.parameters.transmission_params.strains:
                 # assume intro_ages is found in age_structure due to above validator
@@ -292,31 +296,15 @@ class CompartmentalModel(BaseModel):
                         target_age in age_structure
                         for target_age in strain_target_ages
                     ]
-                ), f"""{strain.strain_name} attempts to introduce itself using
-                    {strain_target_ages} age bins, but those are not found
-                    within the age structure of the model."""
-        return self
-
-    @model_validator(mode="after")
-    def _validate_vaccination_counts(self) -> Self:
-        """Validate vaccination dose definitions are correct across the model."""
-        # assert that all similarly named dimensions have same vaccine bins
-        num_shots: dict[str, int] = {}
-        all_dims = self.flatten_dims()
-        all_vax_dims = [
-            d for d in all_dims if isinstance(d, VaccinationDimension)
-        ]
-        for dimension in all_vax_dims:
-            if dimension.name in num_shots:
-                assert (
-                    dimension.max_shots == num_shots[dimension.name]
-                ), "vaccination dimensions with same name have different numbers of shots."
-            else:
-                num_shots[dimension.name] = dimension.max_shots
+                ), (
+                    f"{strain.strain_name} attempts to introduce itself using "
+                    f"{strain_target_ages} age bins, but those are not found "
+                    "within the age structure of the model."
+                )
         return self
 
     def get_compartment(self, compartment_name: str) -> Compartment:
-        """Search the CompartmentModel and return a specific Compartment if it exists.
+        """Search for and return a Compartment if it exists.
 
         Parameters
         ----------
@@ -388,8 +376,8 @@ class InferenceProcess(BaseModel):
     """Inference process for fitting a CompartmentalModel to data."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    model: CompartmentalModel = Field(
-        description="CompartmentalModel on which inference is performed."
+    simulation_config: SimulationConfig = Field(
+        description="SimulationConfig on which inference is performed."
     )
     # includes observation method, specified at runtime.
     inference_method: Optional[MCMC | SVI] = Field(
@@ -398,6 +386,6 @@ class InferenceProcess(BaseModel):
         currently only MCMC and SVI supported""",
     )
     inference_parameters: InferenceParams = Field(
-        description="""inference related parameters, not to be confused with
+        description="""Inference related parameters, not to be confused with
         CompartmentalModel parameters for solving ODEs."""
     )
