@@ -9,7 +9,7 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
-## [2024.03.21.1a] - Adding `SimulationDate` object
+## [2024.03.25.1a] - Adding `SimulationDate` object
 ### Added
 - Added a new `SimulationDate` helper object to allow users to specify datetime-like
 objects in place of integers when specifying behaviors like prior distributions over
