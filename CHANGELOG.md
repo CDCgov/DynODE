@@ -33,6 +33,33 @@ classes to define their own behavior, reusing the odes defined in
 `dynode.model_odes.seip_model`.
 ---
 
+## [2024.03.24.1a] - Adding more `CompartmentalConfig` validations
+### Added
+- Require that each `Compartment` object contains dimensions with unique names.
+- Require that dimensions of `DiscretizedPositiveIntBin` be sorted and have no gaps in coverage.
+- Adding a helper function to allow users to easily create dimensions of `WaneBin` named in the correct way.
+
+### Changed
+- Renaming some minor functions/parameters with better names.
+---
+
+## [2024.03.013.1a] - Adding ODE support
+### Added
+- Added `dynode.ode` module containing the `ODEBase` class, allowing users to
+subclass their ODEs, provide their d/dt function and pass ODEs to other
+Dynode classes and functions for inference / solving.
+
+- Added `AbstractODEParams` within `dynode.ode` to pass a `chex.dataclass`
+to `diffrax.diffeqsolve()` method instead of a dictionary. Improving clarity
+in what parameters are available from within the ODEs as well as reducing
+memory usage from passing large dictionaries of mostly unused parameters.
+
+- Added `dynode.model_odes.seip_ode` module containing an example of how
+a user may implement odes by subclassing the `ODEBase` and `AbstractODEParams`
+classes to define their own behavior, reusing the odes defined in
+`dynode.model_odes.seip_model`.
+---
+
 ## [2024.03.07.2a] - Adding `Strain.introduction_ages_mask_vector` field
 ### Changed
 - added `introduction_ages_mask_vector` field to the `Strain` class, providing an

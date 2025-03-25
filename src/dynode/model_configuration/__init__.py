@@ -9,8 +9,8 @@ from .config_definition import (
 )
 from .dimension import (
     Dimension,
-    FullStratifiedImmuneHistory,
-    LastStrainImmuneHistory,
+    FullStratifiedImmuneHistoryDimension,
+    LastStrainImmuneHistoryDimension,
     VaccinationDimension,
 )
 from .params import (
@@ -29,8 +29,8 @@ __all__ = [
     "Strain",
     "Dimension",
     "VaccinationDimension",
-    "FullStratifiedImmuneHistory",
-    "LastStrainImmuneHistory",
+    "FullStratifiedImmuneHistoryDimension",
+    "LastStrainImmuneHistoryDimension",
     "Bin",
     "WaneBin",
     "DiscretizedPositiveIntBin",
