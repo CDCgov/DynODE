@@ -1,6 +1,8 @@
 """Top level classes for DynODE configs."""
 
 from datetime import date
+from functools import cached_property
+from types import SimpleNamespace
 from typing import List, Optional, Union
 
 from jax import Array
@@ -81,6 +83,40 @@ class Compartment(BaseModel):
     def shape(self) -> tuple[int, ...]:
         """Get shape of the compartment."""
         return tuple([len(d_i) for d_i in self.dimensions])
+
+    @cached_property
+    def enum(self):
+        """An enum-like structure for dimensions and their bins.
+
+        Note
+        ----
+        This is a cache property, so it will only be computed once, modifications
+        to the compartment will not change the enum after it is created.
+
+        Returns
+        -------
+            SimpleNamespace: A namespace containing dimensions and their bins.
+        """
+
+        class _IntWithAttributes(int):
+            """A subclass of int that allows setting attributes."""
+
+            def __new__(cls, value, **attributes):
+                obj = super().__new__(cls, value)
+                for key, val in attributes.items():
+                    setattr(obj, key, val)
+                return obj
+
+        dims_namespace = SimpleNamespace()
+        for dim_idx, dimension in enumerate(self.dimensions):
+            # build up the bins namespace for this dimension
+            bins_namespace = SimpleNamespace()
+            for bin_idx, single_bin in enumerate(dimension.bins):
+                setattr(bins_namespace, single_bin.name, bin_idx)
+            # save the dimension index along with the indexes of all the bins.
+            dim_obj = _IntWithAttributes(dim_idx, **bins_namespace.__dict__)
+            setattr(dims_namespace, dimension.name, dim_obj)
+        return dims_namespace
 
     def __eq__(self, value) -> bool:
         """Check for equality definitions between two Compartments.
