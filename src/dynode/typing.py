@@ -3,6 +3,7 @@
 import datetime
 import os
 from datetime import date
+from functools import cached_property
 from typing import Any, Callable, Optional, Tuple
 
 import jax
@@ -49,9 +50,23 @@ class SimulationDate(date):
         """Create a new SimulationDate instance."""
         return date.__new__(cls, year, month, day)
 
-    @property
-    def initialization_date(self):
-        """Query the DYNODE_INITIALIZATION_DATE env variable and return it."""
+    @cached_property
+    def initialization_date(self) -> date:
+        """Query the DYNODE_INITIALIZATION_DATE env variable and return it.
+
+        Note
+        ----
+        This is a cached property, meaning it is executed only once per instance.
+
+        Raises
+        ------
+        ValueError if the DYNODE_INITIALIZATION_DATE env variable is not set.
+
+        Returns
+        -------
+        date
+            The initialization date as a date object.
+        """
         init_date = os.getenv(
             f"DYNODE_INITIALIZATION_DATE({os.getpid()})", None
         )
@@ -65,7 +80,7 @@ class SimulationDate(date):
         return d
 
     @property
-    def sim_day(self):
+    def sim_day(self) -> int:
         """Return the current simulation date relative to the init date."""
         difference = (self - self.initialization_date).days
         return difference
