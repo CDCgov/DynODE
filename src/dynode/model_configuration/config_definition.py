@@ -98,23 +98,10 @@ class Compartment(BaseModel):
             SimpleNamespace: A namespace containing dimensions and their bins.
         """
 
-        class _IntWithAttributes(int):
-            """A subclass of int that allows setting attributes."""
-
-            def __new__(cls, value, **attributes):
-                obj = super().__new__(cls, value)
-                for key, val in attributes.items():
-                    setattr(obj, key, val)
-                return obj
-
         dims_namespace = SimpleNamespace()
         for dim_idx, dimension in enumerate(self.dimensions):
-            # build up the bins namespace for this dimension
-            bins_namespace = SimpleNamespace()
-            for bin_idx, single_bin in enumerate(dimension.bins):
-                setattr(bins_namespace, single_bin.name, bin_idx)
             # save the dimension index along with the indexes of all the bins.
-            dim_obj = _IntWithAttributes(dim_idx, **bins_namespace.__dict__)
+            dim_obj = _IntWithAttributes(dim_idx, **dimension.enum.__dict__)
             setattr(dims_namespace, dimension.name, dim_obj)
         return dims_namespace
 
@@ -226,6 +213,28 @@ class SimulationConfig(BaseModel):
     parameters: Params = Field(
         description="""Model parameters, includes epidemiological and miscellaneous."""
     )
+
+    @cached_property
+    def enum(self):
+        """An enum-like structure for compartments and their dimensions.
+
+        Note
+        ----
+        This is a cache property, so it will only be computed once, modifications
+        to the compartments will not change the enum after it is created.
+
+        Returns
+        -------
+            SimpleNamespace: A namespace containing compartments and their dimensions.
+        """
+        compartments_namespace = SimpleNamespace()
+        for compartment_idx, compartment in enumerate(self.compartments):
+            # build up the bins namespace for this compartment
+            compartment_obj = _IntWithAttributes(
+                compartment_idx, **compartment.enum.__dict__
+            )
+            setattr(compartments_namespace, compartment.name, compartment_obj)
+        return compartments_namespace
 
     @model_validator(mode="after")
     def _validate_shared_compartment_dimensions(self) -> Self:
@@ -417,3 +426,13 @@ class InferenceProcess(BaseModel):
         description="""Inference related parameters, not to be confused with
         CompartmentalModel parameters for solving ODEs."""
     )
+
+
+class _IntWithAttributes(int):
+    """A subclass of int that allows setting attributes."""
+
+    def __new__(cls, value, **attributes):
+        obj = super().__new__(cls, value)
+        for key, val in attributes.items():
+            setattr(obj, key, val)
+        return obj

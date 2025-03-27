@@ -2,6 +2,7 @@
 
 from itertools import combinations
 from math import isinf
+from types import SimpleNamespace
 from typing import List
 
 from pydantic import (
@@ -32,6 +33,14 @@ class Dimension(BaseModel):
     def __len__(self):
         """Get len of a Dimension."""
         return len(self.bins)
+
+    @property
+    def enum(self):
+        bin_namespace = SimpleNamespace()
+        for bin_idx, single_bin in enumerate(self.bins):
+            # build up the bins namespace for this compartment
+            setattr(bin_namespace, single_bin.name, bin_idx)
+        return bin_namespace
 
     @field_validator("bins", mode="after")
     @classmethod
