@@ -104,11 +104,13 @@ def some_function():
     return value
 ```
 ### Inline Logging
-First you will want to import pythons logging library into which ever file you would like to do inline logging. 
-Then you will want to create a logger variable and grab the global dynode logger.
+The global logger instance is created in the utility packages __init__.py file. \
+The dynode logger can be fetched in the dynode package using the below import statement.
 ```python
-import logging
-logger = logging.getLogger("dynode")
+from . import logger
+
+# If needed dynode logger can be fetched using the below line
+logging.getLogger("dynode")
 ```
 Next you can add logging statements by specifying at which of the 5 levels you would like to log anywhere in your functions and classes. \
 Note: This can be used in addition to a logging decorator on a function and is encouraged for more specific things you would like to log in a function.
