@@ -9,7 +9,6 @@ For more information read the comment directly above the PARAMETERS list definit
 
 import datetime
 import json
-import logging
 import os
 import warnings
 from enum import IntEnum
@@ -21,8 +20,7 @@ import numpy as np
 import numpyro.distributions as distributions  # type: ignore
 import numpyro.distributions.transforms as transforms  # type: ignore
 from jax.random import PRNGKey
-
-logger = logging.getLogger("dynode")
+from . import logger
 
 
 class Config:

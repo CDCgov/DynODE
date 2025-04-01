@@ -1,7 +1,6 @@
 """Solve a system of ODEs and return a Solution object."""
 
 import datetime
-import logging
 from collections.abc import Callable
 from typing import Union
 
@@ -19,13 +18,11 @@ from diffrax import (  # type: ignore
 )
 from jaxtyping import PyTree
 
-from . import SEIC_Compartments
+from . import SEIC_Compartments, logger
 from .utils import date_to_sim_day
 
 numpyro.set_host_device_count(4)
 jax.config.update("jax_enable_x64", True)
-
-logger = logging.getLogger("dynode")
 
 
 class MechanisticRunner:

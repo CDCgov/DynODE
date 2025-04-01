@@ -7,9 +7,6 @@ multiple variants.
 DynODE is currently under active development and will be substantially
 refactored in the near future!
 """
-
-import logging
-
 # ruff: noqa: E402
 import jax
 
@@ -38,6 +35,7 @@ SEIC_Timeseries = tuple[
 ]
 
 from . import utils, vis_utils
+from .utility import logger
 
 # keep imports relative to avoid circular importing
 from .abstract_initializer import AbstractInitializer
@@ -61,8 +59,5 @@ __all__ = [
     "Config",
     "vis_utils",
     "AbstractDynodeRunner",
+    "logger"
 ]
-
-logger = logging.getLogger("dynode")
-logger.setLevel(logging.CRITICAL + 1)
-logger.addHandler(logging.NullHandler())

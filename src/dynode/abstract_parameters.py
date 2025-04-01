@@ -6,7 +6,6 @@ respiratory virus aspects.
 """
 
 import copy
-import logging
 import os
 from abc import abstractmethod
 from functools import partial
@@ -19,11 +18,9 @@ from diffrax import Solution
 from jax.scipy.stats.norm import pdf
 from jax.typing import ArrayLike
 
-from . import SEIC_Compartments, utils
+from . import SEIC_Compartments, utils, logger
 from .config import Config
 from .mechanistic_runner import MechanisticRunner
-
-logger = logging.getLogger("dynode")
 
 
 class AbstractParameters:

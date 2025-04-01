@@ -1,18 +1,31 @@
 import sys, os, datetime
 import logging
+from typing import Literal
 from dynode.utility.custom_log_formatter import CustomLogFormatter
 
 logger = logging.getLogger("dynode")
 
 
-def use_logging(level: str = "INFO", output: str = "stdout", log_path: str = "./logs") -> None:
-    """
-    Sets or disables logging with the dynode package.
+def use_logging(level: Literal["none", "debug", "info", "warn", "error", "critical"] = "info",
+                output: Literal["file", "console", "both"] = "file",
+                log_path: str = "./logs") -> None:
+    """Sets or disables logging with the dynode package
 
-    Args:
-        level (str, optional): Log level desired. Choices from "None", "DEBUG", "INFO", "WARN", "ERROR" and "CRITICAL". Defaults to "INFO".
-        output (str, optional): Output for logs. Choices from "stdout", "file", and "both". Defaults to "stdout".
-        log_path (str, optional): folder path to store log files. Defaults to "./logs".
+    Uses standard python logging library to set up and customize a logger for DynODE. Logger instance can be retrieved
+    from anywhere using logging.getLogger("dynode").
+
+    Parameters
+    ----------
+    level : str, optional
+        Log level desired. Choices from "none", "debug", "info", "warn", "error" and "critical". Defaults to "info".
+    output : str, optional
+        Output for logs. Choices from "console", "file", and "both". Defaults to "file".
+    log_path : str, optional
+        folder path to store log files. Defaults to "./logs".
+
+    Notes
+    -----
+    Log level of NONE is considered CRITICAL + 1 which you may see in various places such as in this function as logging.CRITICAL + 1
     """
     # remove any loggers set previously
     global logger
@@ -49,8 +62,8 @@ def use_logging(level: str = "INFO", output: str = "stdout", log_path: str = "./
     # make log_path folder
     os.makedirs(log_path, exist_ok=True)
     # get logfile path
-    run_time = datetime.datetime.now()
-    now_string = f"{run_time:%Y-%m-%d_%Hh-%Mm-%Ss}"
+    start_time = datetime.datetime.now()
+    now_string = f"{start_time:%Y-%m-%d_%Hh-%Mm-%Ss}"
     logfile = os.path.join(log_path, f"{now_string}.log")
 
     if not os.path.exists(logfile):
@@ -67,7 +80,7 @@ def use_logging(level: str = "INFO", output: str = "stdout", log_path: str = "./
     file_handler.setLevel(log_level)
 
     # check output
-    if output.lower().startswith("std") or output.lower().startswith("console"):
+    if output.lower().startswith("console"):
         logger.addHandler(stream_handler)
     elif output.lower().startswith("file"):
         logger.addHandler(file_handler)

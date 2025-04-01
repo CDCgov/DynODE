@@ -5,7 +5,6 @@ Compare the likelihood of the output to some observed metrics.
 
 import datetime
 import json
-import logging
 from typing import Union
 
 import bayeux as bx
@@ -18,13 +17,11 @@ from jax.random import PRNGKey
 from numpyro import distributions as Dist
 from numpyro.infer import MCMC, NUTS  # type: ignore
 
-from . import SEIC_Compartments
+from . import SEIC_Compartments, logger
 from .abstract_parameters import AbstractParameters
 from .config import Config
 from .mechanistic_runner import MechanisticRunner
 from .utils import date_to_sim_day
-
-logger = logging.getLogger("dynode")
 
 
 class MechanisticInferer(AbstractParameters):

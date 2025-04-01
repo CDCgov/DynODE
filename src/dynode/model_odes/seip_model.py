@@ -7,8 +7,6 @@ from jaxtyping import ArrayLike, PyTree
 
 from dynode.utils import Parameters, get_foi_suscept, new_immune_state
 
-logger = logging.getLogger("dynode")
-
 
 def seip_ode(state: PyTree, t: ArrayLike, parameters: dict):
     """Set of flows defining a SEIP (Susceptible, Exposed, Infectious, Partial) ODE model.

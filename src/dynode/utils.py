@@ -18,6 +18,7 @@ import numpyro.distributions as Dist  # type: ignore
 import pandas as pd  # type: ignore
 from jax import Array
 from scipy.stats import gamma
+from . import logger
 
 pd.options.mode.chained_assignment = None
 

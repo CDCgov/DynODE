@@ -1,12 +1,8 @@
 """Provides static parameters to ODEs to solve."""
 
-import logging
-
-from . import SEIC_Compartments
+from . import SEIC_Compartments, logger
 from .abstract_parameters import AbstractParameters
 from .config import Config
-
-logger = logging.getLogger("dynode")
 
 
 class StaticValueParameters(AbstractParameters):

@@ -1,6 +1,4 @@
 """A set of utility functions for generating visualizations for the model."""
-
-import logging
 from typing import Any
 
 import jax.numpy as jnp
@@ -12,14 +10,13 @@ from jax import Array
 from jax.random import PRNGKey
 from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap
+from . import logger
 
 from .utils import (
     drop_keys_with_substring,
     flatten_list_parameters,
     identify_distribution_indexes,
 )
-
-logger = logging.getLogger("dynode")
 
 
 class VisualizationError(Exception):

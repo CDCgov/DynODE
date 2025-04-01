@@ -7,9 +7,38 @@ import logging
 
 
 def log_decorator(_func=None):
+    """Outermost log decorator function
+
+    log_decorator is the function used to wrap a function the user wishes to log.
+    This outermost function allows the user to either use @log_decorator() convention
+    or call log_decorator() and pass the function they wish to wrap.
+
+    Parameters
+    ----------
+    _func : function, optional
+        log_decorator can be called as a function and passed the function it wraps. Defaults to None.
+    """
     def log_decorator_info(func):
+        """Middle log decorator function
+
+        log_decorator_info exists mostly for the @wraps(func) call which allows us to pass the func metadata into the log_decorator_wrapper.
+        Allowing for log_decorator_wrapper to grab the func's *args, **kwargs, and other info such as func.__name__.
+        Also allowing for the decorator to do work before and after the func is called.
+
+        Parameters
+        ----------
+        func : function
+            The function that is wrapped by the decorator.
+        """
         @wraps(func)
         def log_decorator_wrapper(self, *args, **kwargs):
+            """Innermost log decorator function
+
+            Gets decorated functions name, file name, arguments passed, and starts an execution timer.
+            Then creates a log using all of that information. Next we try executing the function, stop the timer, and store return value if any exists.
+            A log is created for using all the after execution information. If any exceptions occur during execution we log and raise.
+            Finally returning any value that was returned from the function.
+            """
             logger = logging.getLogger("dynode")
 
             args_passed_in_function = [repr(a) for a in args]

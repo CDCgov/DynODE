@@ -7,7 +7,6 @@ It also handles the saving of stderr and stdout copies as the job executes.
 """
 
 import json
-import logging
 import os
 import warnings
 from abc import ABC, abstractmethod
@@ -18,12 +17,10 @@ import pandas as pd  # type: ignore
 from diffrax import Solution  # type: ignore
 from jax import Array
 
-from . import SEIC_Compartments, utils, vis_utils
+from . import SEIC_Compartments, utils, vis_utils, logger
 from .abstract_parameters import AbstractParameters
 from .mechanistic_inferer import MechanisticInferer
 from .static_value_parameters import StaticValueParameters
-
-logger = logging.getLogger("dynode")
 
 
 class AbstractDynodeRunner(ABC):
