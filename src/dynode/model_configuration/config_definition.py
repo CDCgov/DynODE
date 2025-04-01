@@ -436,3 +436,6 @@ class _IntWithAttributes(int):
         for key, val in attributes.items():
             setattr(obj, key, val)
         return obj
+
+    def __str__(self):
+        return str(self.__dict__)
