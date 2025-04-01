@@ -17,7 +17,7 @@ import pandas as pd  # type: ignore
 from diffrax import Solution
 from jax.scipy.stats.norm import pdf
 from jax.typing import ArrayLike
-from . import utils, logger
+from . import utils
 from .config import Config
 from .mechanistic_runner import MechanisticRunner
 from .typing import SEIC_Compartments

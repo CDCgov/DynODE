@@ -10,7 +10,6 @@ refactored in the near future!
 
 from . import typing as typing
 from . import utils, vis_utils
-from .utility import logger
 
 # keep imports relative to avoid circular importing
 from .abstract_initializer import AbstractInitializer
@@ -34,6 +33,5 @@ __all__ = [
     "Config",
     "vis_utils",
     "AbstractDynodeRunner",
-    "logger",
     "typing",
 ]

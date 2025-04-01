@@ -107,7 +107,6 @@ def some_function():
 The global logger instance is created in the utility packages __init__.py file. \
 The dynode logger can be fetched in the dynode package using the below import statement.
 ```python
-from . import logger
 from .utility import logger
 
 # If needed dynode logger can be fetched using the below line

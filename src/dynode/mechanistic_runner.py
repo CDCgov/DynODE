@@ -18,7 +18,6 @@ from diffrax import (  # type: ignore
     diffeqsolve,
 )
 from jaxtyping import PyTree
-from . import logger
 from .typing import SEIC_Compartments
 from .utils import date_to_sim_day
 

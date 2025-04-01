@@ -10,7 +10,6 @@ from jax import Array
 from jax.random import PRNGKey
 from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap
-from . import logger
 
 from .utils import (
     drop_keys_with_substring,

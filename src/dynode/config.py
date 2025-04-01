@@ -20,7 +20,6 @@ import numpy as np
 import numpyro.distributions as distributions  # type: ignore
 import numpyro.distributions.transforms as transforms  # type: ignore
 from jax.random import PRNGKey
-from . import logger
 
 
 class Config:

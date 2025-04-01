@@ -7,9 +7,9 @@ to produce an initial state representing some analyzed population
 from abc import ABC, abstractmethod
 from typing import Any
 from numpy import ndarray
-from . import utils, logger
+from . import utils
 from .typing import SEIC_Compartments
-from .utility import log_decorator
+from .utility import log_decorator, logger
 
 
 class AbstractInitializer(ABC):

@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 import pandas as pd
 from jax import Array
-from . import utils, logger
+from . import utils
 from .abstract_initializer import AbstractInitializer
 from .config import Config
 from .typing import SEIC_Compartments

@@ -1,6 +1,5 @@
 """Provides static parameters to ODEs to solve."""
 
-from . import logger
 from .abstract_parameters import AbstractParameters
 from .config import Config
 from .typing import SEIC_Compartments
