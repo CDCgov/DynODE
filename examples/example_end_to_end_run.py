@@ -118,6 +118,9 @@ class ExampleDynodeRunner(AbstractDynodeRunner):
             # for an example inference, lets jumble our solution up a bit and attempt to fit back to it
             # apply an age specific IHR to the infection incidence to get hospitalization incidence
             ihr = [0.002, 0.004, 0.008, 0.06]
+            assert (
+                solution.ys is not None
+            ), "solution.ys returned None, odes failed."
             model_incidence = np.sum(solution.ys[3], axis=(2, 3, 4))
             model_incidence = np.diff(model_incidence, axis=0)
             # noise our "hospitalization" data with a negative binomial distribution

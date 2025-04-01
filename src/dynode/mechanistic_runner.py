@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpyro  # type: ignore
 from diffrax import (  # type: ignore
+    AbstractStepSizeController,
     ConstantStepSize,
     ODETerm,
     PIDController,
@@ -17,8 +18,8 @@ from diffrax import (  # type: ignore
     diffeqsolve,
 )
 from jaxtyping import PyTree
-
-from . import SEIC_Compartments, logger
+from . import logger
+from .typing import SEIC_Compartments
 from .utils import date_to_sim_day
 
 numpyro.set_host_device_count(4)
@@ -104,6 +105,7 @@ class MechanisticRunner:
         # jump_ts describe points in time where the model is not fully differentiable
         # this is often due to piecewise changes in parameter values like Beta
         # this is why many functions in the runner/params are required to be continuously differentiable.
+        stepsize_controller: AbstractStepSizeController
         if "CONSTANT_STEP_SIZE" in args.keys() and args["CONSTANT_STEP_SIZE"]:
             dt0 = args["CONSTANT_STEP_SIZE"]
             # if user specifies they want constant step size, set it here
@@ -111,7 +113,7 @@ class MechanisticRunner:
             print("using Constant Step Size ODES with size %s" % (str(dt0)))
         else:  # otherwise use adaptive step size.
             jump_ts = (
-                list(args["BETA_TIMES"])
+                jnp.array(list(args["BETA_TIMES"]))
                 if "BETA_TIMES" in args.keys()
                 else None
             )

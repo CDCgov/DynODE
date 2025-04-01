@@ -39,11 +39,13 @@ ODES = seip_ode
 
 def test_invalid_paths_raise():
     with pytest.raises(FileNotFoundError):
-        StaticValueParameters(
-            fake_initial_state,
-            "random_broken_path",
-            CONFIG_GLOBAL_PATH,
-        ),
+        (
+            StaticValueParameters(
+                fake_initial_state,
+                "random_broken_path",
+                CONFIG_GLOBAL_PATH,
+            ),
+        )
     with pytest.raises(FileNotFoundError):
         StaticValueParameters(
             fake_initial_state,
