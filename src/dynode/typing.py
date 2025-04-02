@@ -114,7 +114,25 @@ class DeterministicParameter:
             if parameter_state[self.depends_on] is of type list, but `self.index` is
             a tuple, you cant index a list with a tuple, only a slice.
         """
-        if self.index is None:
-            return self.transform(parameter_state[self.depends_on])
-        else:
-            return self.transform(parameter_state[self.depends_on][self.index])
+        try:
+            if self.index is None:
+                return self.transform(parameter_state[self.depends_on])
+            else:
+                return self.transform(
+                    parameter_state[self.depends_on][self.index]
+                )
+        except Exception as e:
+            if self.index is None:
+                msg = (
+                    f"Was unable to find {self.depends_on} within the following "
+                    f"scope, make sure DeterministicParameter dependencies are "
+                    f"at the top level of the configuration object. Scope: {parameter_state}"
+                )
+            else:
+                msg = (
+                    f"Was unable to find {self.depends_on}[{self.index}] within the following "
+                    f"scope, make sure DeterministicParameter dependency indexes are "
+                    f"correct or you are querying a list/dict-like object. "
+                    f"Scope: {parameter_state}"
+                )
+            raise Exception(msg) from e
