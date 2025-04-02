@@ -3,6 +3,7 @@
 from datetime import date
 from typing import Annotated, List, Optional, Union
 
+from jax import Array
 from numpyro.distributions import Distribution
 from pydantic import (
     BaseModel,
@@ -30,7 +31,7 @@ class Strain(BaseModel):
     r0: Union[NonNegativeFloat, Distribution, DeterministicParameter] = Field(
         description="""Strain reproduction number used to calculate transmission rate."""
     )
-    infectious_period: PositiveFloat = Field(
+    infectious_period: Union[PositiveFloat, Array, Distribution] = Field(
         description="""Average number of days a freshly infectious population
         stays infectious for."""
     )

@@ -1,11 +1,11 @@
 """Top level classes for DynODE configs."""
 
 from datetime import date
-from typing import List, Optional, Union
+from typing import List, Optional, Type, Union
 
 from jax import Array
 from jax import numpy as jnp
-from numpyro.infer import MCMC, SVI
+from numpyro.infer import MCMC, NUTS, SVI
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -14,7 +14,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from typing_extensions import Self
+from typing_extensions import Callable, Self
 
 from dynode.typing import CompartmentState
 
@@ -25,7 +25,7 @@ from .dimension import (
     ImmuneHistoryDimension,
     LastStrainImmuneHistoryDimension,
 )
-from .params import InferenceParams, Params
+from .params import InferenceParams, MCMCParams, Params, SVIParams
 
 
 class Compartment(BaseModel):
@@ -368,11 +368,14 @@ class InferenceProcess(BaseModel):
     """Inference process for fitting a CompartmentalModel to data."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    simulation_config: SimulationConfig = Field(
-        description="SimulationConfig on which inference is performed."
+    # TODO change this naming and the word model
+    simulator: Callable[[SimulationConfig, Optional[Array]], Array] = Field(
+        description="""Model that initializes state, samples and resolves
+        parameters, generates timeseries, and optionally compares it to
+        observed data, returning generated data."""
     )
     # includes observation method, specified at runtime.
-    inference_method: Optional[MCMC | SVI] = Field(
+    inference_method: Optional[Type[MCMC] | Type[SVI]] = Field(
         default=None,
         description="""Inference method to execute,
         currently only MCMC and SVI supported""",
@@ -381,3 +384,32 @@ class InferenceProcess(BaseModel):
         description="""Inference related parameters, not to be confused with
         CompartmentalModel parameters for solving ODEs."""
     )
+
+    def infer(self, **kwargs) -> MCMC | SVI:
+        if self.inference_method is MCMC:
+            assert isinstance(self.inference_parameters, MCMCParams)
+            inferer = MCMC(
+                NUTS(
+                    self.simulator,
+                    dense_mass=True,
+                    max_tree_depth=self.inference_parameters.nuts_max_tree_depth,
+                    init_strategy=self.inference_parameters.nuts_init_strategy,
+                ),
+                num_warmup=self.inference_parameters.num_warmup,
+                num_samples=self.inference_parameters.num_samples,
+                num_chains=self.inference_parameters.num_chains,
+                progress_bar=self.inference_parameters.progress_bar,
+            )
+            inferer.run(
+                rng_key=self.inference_parameters.inference_prngkey, **kwargs
+            )
+            return inferer
+        elif isinstance(self.inference_method, SVI):
+            assert isinstance(self.inference_parameters, SVIParams), (
+                f"Trying to run SVI but not passing SVIParams object, got "
+                f"{type(self.inference_parameters)}"
+            )
+            # TODO get this working
+            inferer = SVI(model=self.simulator)
+            return inferer
+        pass

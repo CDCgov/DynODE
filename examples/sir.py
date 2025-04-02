@@ -7,13 +7,16 @@ import chex
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+import numpyro
 from diffrax import Solution, is_okay
 
 from dynode.model_configuration import (
     Bin,
     Compartment,
     Dimension,
+    InferenceProcess,
     Initializer,
+    MCMCParams,
     Params,
     SimulationConfig,
     SolverParams,
@@ -21,6 +24,7 @@ from dynode.model_configuration import (
     TransmissionParams,
 )
 from dynode.odes import AbstractODEParams, simulate
+from dynode.sample import sample_then_resolve
 from dynode.typing import CompartmentGradients, CompartmentState
 
 
@@ -36,14 +40,9 @@ class SIRInitializer(Initializer):
         )
 
     def get_initial_state(self, **kwargs):
-        config: SimulationConfig = kwargs["SIRConfig"]
-        s = config.get_compartment("s")
-        i = config.get_compartment("i")
-        r = config.get_compartment("r")
-        s.values = jnp.array([0.99])  # need jnp.array for ode solver
-        i.values = jnp.array([0.01])
-        r.values = jnp.array([0.00])
-        return [s, i, r]
+        _: SimulationConfig = kwargs["SIRConfig"]
+        # SimulationConfig has no impact on initial state in this example
+        return (jnp.array([0.99]), jnp.array([0.01]), jnp.array([0.00]))
 
 
 class SIRConfig(SimulationConfig):
@@ -83,6 +82,7 @@ class SIR_ODEParams(AbstractODEParams):
 
 def get_odeparams(transmission_params: TransmissionParams) -> SIR_ODEParams:
     """Transform and vectorize transmission parameters into ODE parameters."""
+    transmission_params = sample_then_resolve(transmission_params)
     strain = transmission_params.strains[0]
     assert isinstance(strain.r0, float)
     beta = strain.r0 / strain.infectious_period
@@ -107,41 +107,68 @@ def sir_ode(
 
 # set up config
 config = SIRConfig()
-ode_params = get_odeparams(config.parameters.transmission_params)
 
-# we need just the jax arrays for the initial state to the ODEs
-initial_state = tuple(
-    [
-        compartment.values
-        for compartment in config.initializer.get_initial_state(
-            SIRConfig=config
+
+def model(config: SimulationConfig, obs_data: jax.Array = None):
+    ode_params = get_odeparams(config.parameters.transmission_params)
+
+    # we need just the jax arrays for the initial state to the ODEs
+    initial_state = config.initializer.get_initial_state(SIRConfig=config)
+    # solve the odes for 100 days
+
+    solution: Solution = simulate(
+        ode=sir_ode,
+        duration_days=100,
+        initial_state=initial_state,
+        ode_parameters=ode_params,
+        solver_parameters=config.parameters.solver_params,
+    )
+    # step c compare to obs data
+    if obs_data is not None:
+        incidence = jnp.diff(solution.ys[1].flatten())
+        incidence = jnp.maximum(incidence, 1e-6)
+        numpyro.sample(
+            "inf_incidence",
+            numpyro.distributions.Poisson(incidence),
+            obs=obs_data,
         )
-    ]
-)
-# solve the odes for 100 days
+    return solution
 
-solution: Solution = simulate(
-    ode=sir_ode,
-    duration_days=100,
-    initial_state=initial_state,
-    ode_parameters=ode_params,
-    solver_parameters=config.parameters.solver_params,
-)
+
+solution = model(config)
+
 if is_okay(solution.result):
     print("solution is okay")
-    print(solution.ts)
     assert solution.ys is not None
     plt.plot(solution.ys[0], label="s")
     plt.plot(solution.ys[1], label="i")
     plt.plot(solution.ys[2], label="r")
     plt.legend()
     plt.show()
-else:
-    print("solution is not okay")
-    print(solution.result)
-    print(solution.ts)
-    print(initial_state)
-    print(ode_params)
-    raise Exception(str(solution.result))
 
+# now lets replace this strain with one with a prior at infectious_period instead
+config.parameters.transmission_params.strains = [
+    Strain(
+        strain_name="example_strain",
+        r0=2.0,
+        infectious_period=numpyro.distributions.TruncatedNormal(
+            loc=7, scale=2, low=2, high=15
+        ),
+    )
+]
+
+inference_process = InferenceProcess(
+    simulator=model,
+    inference_method=numpyro.infer.MCMC,
+    inference_parameters=MCMCParams(
+        num_warmup=1000, num_samples=1000, num_chains=1, nuts_max_tree_depth=10
+    ),
+)
+incidence = jnp.diff(solution.ys[1].flatten())
+print(incidence.shape)
+inferer = inference_process.infer(config=config, obs_data=incidence)
+posterior_samples = inferer.get_samples()
+print(
+    f"Recovered infectious period: {jnp.mean(posterior_samples['strains_0_infectious_period'])}"
+)
 # %%

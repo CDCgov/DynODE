@@ -6,6 +6,7 @@ from diffrax import AbstractSolver, Tsit5
 from jax import Array
 from jax.random import PRNGKey
 from numpyro.distributions import Distribution
+from numpyro.infer import init_to_median
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -16,7 +17,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from typing_extensions import Self
+from typing_extensions import Callable, Self
 
 from ..typing import DeterministicParameter
 from .strains import Strain
@@ -152,8 +153,12 @@ class MCMCParams(InferenceParams):
     """Inference parameters specific to Markov Chain Monte Carlo (MCMC) fitting methods."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    inference_mcmc_samples: PositiveInt
-    inference_mcmc_warmup: PositiveInt
+    num_samples: PositiveInt
+    num_warmup: PositiveInt
+    num_chains: PositiveInt
+    progress_bar: bool = True
+    nuts_max_tree_depth: PositiveInt
+    nuts_init_strategy: Callable = init_to_median
 
 
 class SVIParams(InferenceParams):
