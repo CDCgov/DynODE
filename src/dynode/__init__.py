@@ -8,8 +8,6 @@ DynODE is currently under active development and will be substantially
 refactored in the near future!
 """
 
-import utility
-
 from . import typing as typing
 from . import utils, vis_utils
 
@@ -36,5 +34,4 @@ __all__ = [
     "vis_utils",
     "AbstractDynodeRunner",
     "typing",
-    "utility",
 ]
