@@ -1,13 +1,15 @@
+"""CustomLogFormatter uses the standard python logging library to create a custom concrete implementation of logging.Formatter.
+
+CustomLogFormatter overrides the expected format function in order to check if the log record
+contains either the func_name_override or file_name_override attribute. If the record contains one or either of those
+attributes it sets the records funcName and/or filename attribute.
+"""
+
 import logging
 
 
 class CustomLogFormatter(logging.Formatter):
-    """Custom Log Formatter class that inherits Python's logging.Formatter class
-
-    Uses standard python logging library to inherit logging.Formatter class.
-    CustomLogFormatter overrides the expected format function in order to check if the log record
-    contains either the func_name_override or file_name_override attribute. If the record contains one or either of those
-    attributes it sets the records funcName and/or filename attribute.
+    """Custom Log Formatter class that inherits Python's logging.Formatter class.
 
     CustomLogFormatter was created and intended for when a function is decorated with log_decorator().
     It captures the decorated functions name and file name to include in the log.
@@ -37,6 +39,16 @@ class CustomLogFormatter(logging.Formatter):
     """
 
     def format(self, record):
+        """Overrides logging Formatter format function
+
+        Parameters
+        ----------
+        record : LogRecord
+            LogRecord object which is part of the Python logging library
+        Returns : str
+            Returns a string which is the formatted record
+
+        """
         if hasattr(record, "func_name_override"):
             record.funcName = record.func_name_override
         if hasattr(record, "file_name_override"):

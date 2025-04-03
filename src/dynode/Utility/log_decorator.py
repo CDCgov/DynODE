@@ -1,3 +1,5 @@
+"""A module that defines a decorator for DynODEs global logger"""
+
 import logging
 import os
 from datetime import datetime
@@ -6,7 +8,7 @@ from inspect import getframeinfo, stack
 
 
 def log_decorator(_func=None):
-    """Outermost log decorator function
+    """Outermost log decorator function.
 
     log_decorator is the function used to wrap a function the user wishes to log.
     This outermost function allows the user to either use @log_decorator() convention
@@ -19,7 +21,7 @@ def log_decorator(_func=None):
     """
 
     def log_decorator_info(func):
-        """Middle log decorator function
+        """Middle log decorator function.
 
         log_decorator_info exists mostly for the @wraps(func) call which allows us to pass the func metadata into the log_decorator_wrapper.
         Allowing for log_decorator_wrapper to grab the func's *args, **kwargs, and other info such as func.__name__.
@@ -33,7 +35,7 @@ def log_decorator(_func=None):
 
         @wraps(func)
         def log_decorator_wrapper(self, *args, **kwargs):
-            """Innermost log decorator function
+            """Innermost log decorator function.
 
             Gets decorated functions name, file name, arguments passed, and starts an execution timer.
             Then creates a log using all of that information. Next we try executing the function, stop the timer, and store return value if any exists.

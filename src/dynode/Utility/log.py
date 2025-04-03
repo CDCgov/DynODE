@@ -1,3 +1,8 @@
+"""Module that contains relevant functions for logging in DynODE.
+
+use_logging is the primary function that sets up and configures the global dynode logger.
+"""
+
 import datetime
 import logging
 import os
@@ -16,7 +21,7 @@ def use_logging(
     output: Literal["file", "console", "both"] = "file",
     log_path: str = "./logs",
 ) -> None:
-    """Sets or disables logging with the dynode package
+    """Set or disable logging within the dynode package.
 
     Uses standard python logging library to set up and customize a logger for DynODE. Logger instance can be retrieved
     from anywhere using logging.getLogger("dynode").

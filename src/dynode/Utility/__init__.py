@@ -1,3 +1,5 @@
+"""Utility package to contain all utility modules"""
+
 import logging
 
 from . import log
