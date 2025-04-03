@@ -48,9 +48,7 @@ class AbstractInitializer(ABC):
             tuple of matricies representing initial state of each compartment
             in the model.
         """
-        assert self.INITIAL_STATE is not None, logger.error(
-            "INITIAL_STATE is None."
-        )
+        assert self.INITIAL_STATE is not None
         return self.INITIAL_STATE
 
     def load_initial_population_fractions(self) -> ndarray:
