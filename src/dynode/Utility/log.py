@@ -1,14 +1,21 @@
-import sys, os, datetime
+import datetime
 import logging
+import os
+import sys
 from typing import Literal
+
 from dynode.utility.custom_log_formatter import CustomLogFormatter
 
 logger = logging.getLogger("dynode")
 
 
-def use_logging(level: Literal["none", "debug", "info", "warn", "error", "critical"] = "info",
-                output: Literal["file", "console", "both"] = "file",
-                log_path: str = "./logs") -> None:
+def use_logging(
+    level: Literal[
+        "none", "debug", "info", "warn", "error", "critical"
+    ] = "info",
+    output: Literal["file", "console", "both"] = "file",
+    log_path: str = "./logs",
+) -> None:
     """Sets or disables logging with the dynode package
 
     Uses standard python logging library to set up and customize a logger for DynODE. Logger instance can be retrieved
@@ -52,12 +59,17 @@ def use_logging(level: Literal["none", "debug", "info", "warn", "error", "critic
             log_level = logging.CRITICAL
             level_name = "CRITICAL"
         case _:
-            print(f"Did not recognize {level} as a valid log level. Using INFO.")
+            print(
+                f"Did not recognize {level} as a valid log level. Using INFO."
+            )
             log_level = logging.INFO
 
     # logger.setLevel(log_level)
     logger.setLevel(log_level)
-    formatter = CustomLogFormatter("[%(levelname)s] %(asctime)s - %(filename)s - %(funcName)s: %(message)s", datefmt="%Y-%m-%d_%H:%M:%S")
+    formatter = CustomLogFormatter(
+        "[%(levelname)s] %(asctime)s - %(filename)s - %(funcName)s: %(message)s",
+        datefmt="%Y-%m-%d_%H:%M:%S",
+    )
 
     # make log_path folder
     os.makedirs(log_path, exist_ok=True)
@@ -67,8 +79,8 @@ def use_logging(level: Literal["none", "debug", "info", "warn", "error", "critic
     logfile = os.path.join(log_path, f"{now_string}.log")
 
     if not os.path.exists(logfile):
-        with open(logfile, 'w') as file:
-            file.write('')
+        with open(logfile, "w") as file:
+            file.write("")
 
     # setting up console and file handlers
     stream_handler = logging.StreamHandler(sys.stdout)
@@ -92,4 +104,3 @@ def use_logging(level: Literal["none", "debug", "info", "warn", "error", "critic
         logger.addHandler(stream_handler)
         print("Did not recognize {output}. Saving to stdout.")
     print(f"Setting log level {level_name}.")
-

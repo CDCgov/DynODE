@@ -1,7 +1,7 @@
 # Logging Functions & Decorator - Documentation
 
 ### Overview
-This document is intended to provide user with information on logging in DynODE. 
+This document is intended to provide user with information on logging in DynODE.
 As well as, document the various features, functions, and decorators that may be available.
 Additionally, you will find useful examples regarding inline logging, decorating your functions, turning on/off logging, and where to expect output.
 
@@ -60,7 +60,7 @@ if args.subcommand == 'log':
 #### log subparser cli command
 --help command will display a list of commands and their options
 ```bash
-dynode_main.py log --help 
+dynode_main.py log --help
 
 usage: example_end_to_end_run.py log [-h]
                                      [-l {debug,info,warning,error,critical}]
@@ -83,7 +83,7 @@ Each log level will include logs from every level above it. Debug being the lowe
 ```bash
 dynode_main.py log --level debug
 ```
-log --output (same as log -o) sets the logger output to one of three options file, console, or both. If the output is set to file or both 
+log --output (same as log -o) sets the logger output to one of three options file, console, or both. If the output is set to file or both
 then log file will be written to the above directory located under Directory ./src/logs.
 ```bash
 dynode_main.py log --output both
@@ -137,7 +137,7 @@ Example output below. Run at level debug so logs of all levels are present.
 [DEBUG] 2025-03-04_14:19:27 - abstract_initializer.py - load_initial_population_fractions: Returning values from utils.load_age_demographics()
 [INFO] 2025-03-04_14:19:29 - example_end_to_end_run.py - get_initial_state: Arguments:  - Begin function
 [INFO] 2025-03-04_14:19:29 - example_end_to_end_run.py - get_initial_state: Execution Time: 0:00:00.000240
-[INFO] 2025-03-04_14:19:29 - example_end_to_end_run.py - get_initial_state: Returned: - End function 
+[INFO] 2025-03-04_14:19:29 - example_end_to_end_run.py - get_initial_state: Returned: - End function
 [[[[0.00000000e+00 0.00000000e+00 0.00000000e+00 0.00000000e+00
     5.23313424e+04]
    [2.44241556e+02 2.03953596e+03 4.87913342e+02 2.29051125e+03

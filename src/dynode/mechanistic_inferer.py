@@ -15,6 +15,7 @@ from diffrax import Solution  # type: ignore
 from jax.random import PRNGKey
 from numpyro import distributions as Dist
 from numpyro.infer import MCMC, NUTS  # type: ignore
+
 from .abstract_parameters import AbstractParameters
 from .config import Config
 from .mechanistic_runner import MechanisticRunner

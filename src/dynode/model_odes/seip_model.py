@@ -1,5 +1,4 @@
 """Defines a SEIP dt function for solving Ordinary Differential Equations."""
-import logging
 
 import jax
 import jax.numpy as jnp

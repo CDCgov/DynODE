@@ -37,8 +37,8 @@ class CustomLogFormatter(logging.Formatter):
     """
 
     def format(self, record):
-        if hasattr(record, 'func_name_override'):
+        if hasattr(record, "func_name_override"):
             record.funcName = record.func_name_override
-        if hasattr(record, 'file_name_override'):
+        if hasattr(record, "file_name_override"):
             record.filename = record.file_name_override
         return super(CustomLogFormatter, self).format(record)

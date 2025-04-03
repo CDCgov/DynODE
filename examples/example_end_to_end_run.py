@@ -42,20 +42,20 @@ parser.add_argument(
 
 subparsers = parser.add_subparsers(title="subcommands", dest="subcommand")
 
-log_parser = subparsers.add_parser('log', help="Subcommands for logging")
+log_parser = subparsers.add_parser("log", help="Subcommands for logging")
 log_parser.add_argument(
-    '-l',
-    '--level',
-    default='info',
-    choices=['debug', 'info', 'warning', 'error', 'critical'],
-    help="set the logging level the default if info"
+    "-l",
+    "--level",
+    default="info",
+    choices=["debug", "info", "warning", "error", "critical"],
+    help="set the logging level the default if info",
 )
 log_parser.add_argument(
-    '-o',
-    '--output',
-    default='file',
-    choices=['file', 'console', 'both'],
-    help="print logs to console, file, or both the default is file"
+    "-o",
+    "--output",
+    default="file",
+    choices=["file", "console", "both"],
+    help="print logs to console, file, or both the default is file",
 )
 
 
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     if not os.path.exists("output"):
         os.mkdir("output")
 
-    if args.subcommand == 'log':
+    if args.subcommand == "log":
         log.use_logging(level=args.level, output=args.output)
 
     runner = ExampleDynodeRunner("output/")

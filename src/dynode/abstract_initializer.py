@@ -4,12 +4,15 @@ An initializer objects primary purpose is initialize the state on which ODEs wil
 AbstractInitializers will often be tasked with reading, parsing, and combining data sources
 to produce an initial state representing some analyzed population
 """
+
 from abc import ABC, abstractmethod
 from typing import Any
+
 from numpy import ndarray
+from utility import log_decorator, logger
+
 from . import utils
 from .typing import SEIC_Compartments
-from utility import log_decorator, logger
 
 
 class AbstractInitializer(ABC):
@@ -45,7 +48,9 @@ class AbstractInitializer(ABC):
             tuple of matricies representing initial state of each compartment
             in the model.
         """
-        assert self.INITIAL_STATE is not None, logger.error("INITIAL_STATE is None.")
+        assert self.INITIAL_STATE is not None, logger.error(
+            "INITIAL_STATE is None."
+        )
         return self.INITIAL_STATE
 
     def load_initial_population_fractions(self) -> ndarray:
@@ -58,7 +63,9 @@ class AbstractInitializer(ABC):
             `len(self.load_initial_population_fractions()) == self.config.NUM_AGE_GROUPS`
             `np.sum(self.load_initial_population_fractions()) == 1.0
         """
-        logger.debug("Creating populations_path based on DEMOGRAPHIC_DATA_PATH in config.")
+        logger.debug(
+            "Creating populations_path based on DEMOGRAPHIC_DATA_PATH in config."
+        )
 
         populations_path = (
             self.config.DEMOGRAPHIC_DATA_PATH

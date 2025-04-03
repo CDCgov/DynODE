@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd  # type: ignore
 from diffrax import Solution  # type: ignore
 from jax import Array
+
 from . import utils, vis_utils
 from .abstract_parameters import AbstractParameters
 from .mechanistic_inferer import MechanisticInferer
