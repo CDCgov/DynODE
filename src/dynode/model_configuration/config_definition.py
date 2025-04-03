@@ -5,7 +5,7 @@ from typing import List, Optional, Type, Union
 
 from jax import Array
 from jax import numpy as jnp
-from numpyro.infer import MCMC, NUTS, SVI
+from numpyro.infer import MCMC, NUTS, SVI, Trace_ELBO
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -386,6 +386,19 @@ class InferenceProcess(BaseModel):
     )
 
     def infer(self, **kwargs) -> MCMC | SVI:
+        """Build and fit inference method.
+
+        Parameters
+        ----------
+        **kwargs
+            keyword arguments passed to `self.simulator`, usually a
+            `SimulationConfig` and observed data to fit to.
+
+        Returns
+        -------
+        MCMC | SVI
+            instance of the inference method specified by `self.inference_method`
+        """
         if self.inference_method is MCMC:
             assert isinstance(self.inference_parameters, MCMCParams)
             inferer = MCMC(
@@ -404,12 +417,22 @@ class InferenceProcess(BaseModel):
                 rng_key=self.inference_parameters.inference_prngkey, **kwargs
             )
             return inferer
-        elif isinstance(self.inference_method, SVI):
+        elif self.inference_method is SVI:
             assert isinstance(self.inference_parameters, SVIParams), (
                 f"Trying to run SVI but not passing SVIParams object, got "
                 f"{type(self.inference_parameters)}"
             )
-            # TODO get this working
-            inferer = SVI(model=self.simulator)
+            guide = self.inference_parameters.guide_class(
+                self.simulator,
+                init_loc_fn=self.inference_parameters.guide_init_strategy,
+            )
+
+            inferer = SVI(
+                guide,
+                self.inference_parameters.optimizer,
+                loss=Trace_ELBO(),
+            )
             return inferer
-        pass
+        raise NotImplementedError(
+            f"Infer() behavior for {self.inference_method} is not defined"
+        )

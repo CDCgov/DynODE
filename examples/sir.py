@@ -21,6 +21,7 @@ from dynode.model_configuration import (
     SimulationConfig,
     SolverParams,
     Strain,
+    SVIParams,
     TransmissionParams,
 )
 from dynode.odes import AbstractODEParams, simulate
@@ -152,7 +153,7 @@ config.parameters.transmission_params.strains = [
         strain_name="example_strain",
         r0=2.0,
         infectious_period=numpyro.distributions.TruncatedNormal(
-            loc=7, scale=2, low=2, high=15
+            loc=8, scale=2, low=2, high=15
         ),
     )
 ]
@@ -163,6 +164,11 @@ inference_process = InferenceProcess(
     inference_parameters=MCMCParams(
         num_warmup=1000, num_samples=1000, num_chains=1, nuts_max_tree_depth=10
     ),
+)
+inference_process_svi = InferenceProcess(
+    simulator=model,
+    inference_method=numpyro.infer.MCMC,
+    inference_parameters=SVIParams(),
 )
 incidence = jnp.diff(solution.ys[1].flatten())
 print(incidence.shape)

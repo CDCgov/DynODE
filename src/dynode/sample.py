@@ -160,7 +160,7 @@ def resolve_deterministic(
 def sample_then_resolve(
     parameters: Any, rng_key: Array = None
 ) -> TransmissionParams:
-    """Copies, samples and resolves parameters, returning a jax-compliant copy.
+    """Copy, sample and resolve parameters, returning a jax-compliant copy.
 
     Parameters
     ----------

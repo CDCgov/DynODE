@@ -1,12 +1,14 @@
 """Module containing Parameter classes for storing DynODE parameters."""
 
-from typing import List
+from typing import List, Type
 
 from diffrax import AbstractSolver, Tsit5
 from jax import Array
 from jax.random import PRNGKey
 from numpyro.distributions import Distribution
 from numpyro.infer import init_to_median
+from numpyro.infer.autoguide import AutoContinuous, AutoMultivariateNormal
+from numpyro.optim import Adam, _NumPyroOptim
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -165,6 +167,12 @@ class SVIParams(InferenceParams):
     """Inference parameters specific to Stochastic Variational Inference (SVI) fitting methods."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    guide_init_strategy: Callable = init_to_median
+    guide_class: Type[AutoContinuous] = AutoMultivariateNormal
+    optimizer: _NumPyroOptim = Field(
+        default_factory=Adam(step_size=0.1),
+        description="SVI optimizer, usually Adam",
+    )
 
 
 class Params(BaseModel):
