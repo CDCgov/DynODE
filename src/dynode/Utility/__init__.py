@@ -1,4 +1,4 @@
-"""Utility package to contain all utility modules"""
+"""Utility package to contain all utility modules."""
 
 import logging
 

@@ -1,4 +1,4 @@
-"""A module that defines a decorator for DynODEs global logger"""
+"""A module that defines a decorator for DynODEs global logger."""
 
 import logging
 import os

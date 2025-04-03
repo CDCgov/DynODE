@@ -39,7 +39,7 @@ class CustomLogFormatter(logging.Formatter):
     """
 
     def format(self, record):
-        """Overrides logging Formatter format function
+        """Override for logging Formatter format function.
 
         Parameters
         ----------
