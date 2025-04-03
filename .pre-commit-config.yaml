@@ -20,7 +20,7 @@ repos:
       args: ['check', '--select', 'I', '--fix']
     # Run the linter
     - id: ruff
-      args: ['--line-length', '79', '--verbose']
+      args: ['--line-length', '79']
     # Run the formatter
     - id: ruff-format
       args: ['--line-length', '79']
