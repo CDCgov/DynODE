@@ -22,7 +22,7 @@ from . import utils
 from .config import Config
 from .mechanistic_runner import MechanisticRunner
 from .typing import SEIC_Compartments
-from .utility import logger
+from .Utility import logger
 
 
 class AbstractParameters:

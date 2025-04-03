@@ -92,8 +92,9 @@ dynode_main.py log --output both
 ## Inline Logging and Logging Decorator
 ### Logging Decorator
 First you will want to import the decorator in which ever file you want to use it.
+
 ```python
-from utility.log_decorator import log_decorator
+from Utility.log_decorator import log_decorator
 ```
 Next all you need to do is decorate any function you would like to log. \
 Note: Your function can take arguments or not and it can return a value or not. Function arguments and return values will be logged if they are present.

@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from numpy import ndarray
-from utility import log_decorator, logger
+from Utility import log_decorator, logger
 
 from . import utils
 from .typing import SEIC_Compartments
