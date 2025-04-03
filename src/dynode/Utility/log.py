@@ -4,7 +4,7 @@ import os
 import sys
 from typing import Literal
 
-from dynode.utility.custom_log_formatter import CustomLogFormatter
+from custom_log_formatter import CustomLogFormatter
 
 logger = logging.getLogger("dynode")
 
