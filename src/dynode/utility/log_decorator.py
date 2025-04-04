@@ -1,11 +1,12 @@
 """A module that defines a decorator for DynODEs global logger."""
 
+import logging
 import os
 from datetime import datetime
 from functools import wraps
 from inspect import getframeinfo, stack
 
-from . import logger
+logger = logging.getLogger("dynode")
 
 
 def log_decorator(_func=None):
@@ -43,7 +44,6 @@ def log_decorator(_func=None):
             A log is created for using all the after execution information. If any exceptions occur during execution we log and raise.
             Finally returning any value that was returned from the function.
             """
-
             args_passed_in_function = [repr(a) for a in args]
             kwargs_passed_in_function = [
                 f"{k}={v!r}" for k, v in kwargs.items()
