@@ -12,8 +12,7 @@ from numpy import ndarray
 
 from . import utils
 from .typing import SEIC_Compartments
-
-# from .utility import log_decorator, logger
+from .utility import log_decorator, logger
 
 
 class AbstractInitializer(ABC):
@@ -37,7 +36,7 @@ class AbstractInitializer(ABC):
         self.config: Any = {}
         pass
 
-    # @log_decorator()
+    @log_decorator()
     def get_initial_state(
         self,
     ) -> SEIC_Compartments:
@@ -62,17 +61,17 @@ class AbstractInitializer(ABC):
             `len(self.load_initial_population_fractions()) == self.config.NUM_AGE_GROUPS`
             `np.sum(self.load_initial_population_fractions()) == 1.0
         """
-        # logger.debug(
-        #     "Creating populations_path based on DEMOGRAPHIC_DATA_PATH in config."
-        # )
+        logger.debug(
+            "Creating populations_path based on DEMOGRAPHIC_DATA_PATH in config."
+        )
 
         populations_path = (
             self.config.DEMOGRAPHIC_DATA_PATH
             + "population_rescaled_age_distributions/"
         )
 
-        # logger.debug(f"Set populations path as {populations_path}.")
-        # logger.debug("Returning values from utils.load_age_demographics()")
+        logger.debug(f"Set populations path as {populations_path}.")
+        logger.debug("Returning values from utils.load_age_demographics()")
 
         # TODO support getting more regions than just 1
         return utils.load_age_demographics(
