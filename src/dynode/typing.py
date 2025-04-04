@@ -6,7 +6,7 @@ import jax
 import numpyro.distributions as dist
 from annotated_types import Ge, Le
 from jaxtyping import PyTree
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Union
 
 CompartmentState = Tuple[jax.Array, ...]
 CompartmentGradients = Tuple[jax.Array, ...]
@@ -33,6 +33,8 @@ ODE_Eqns = Callable[
     [jax.typing.ArrayLike, CompartmentState, PyTree],
     CompartmentGradients,
 ]
+
+ObservedData = Union[Tuple[jax.Array, ...], jax.Array]
 
 
 class SamplePlaceholderError(Exception):

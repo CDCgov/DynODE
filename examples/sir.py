@@ -9,21 +9,20 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpyro
 from diffrax import Solution, is_okay
+from numpyro.infer import Predictive
 
 from dynode.model_configuration import (
     Bin,
     Compartment,
     Dimension,
-    InferenceProcess,
     Initializer,
-    MCMCParams,
     Params,
     SimulationConfig,
     SolverParams,
     Strain,
-    SVIParams,
     TransmissionParams,
 )
+from dynode.model_configuration.inference import MCMCProcess, SVIProcess
 from dynode.odes import AbstractODEParams, simulate
 from dynode.sample import sample_then_resolve
 from dynode.typing import CompartmentGradients, CompartmentState
@@ -110,7 +109,7 @@ def sir_ode(
 config = SIRConfig()
 
 
-def model(config: SimulationConfig, obs_data: jax.Array = None):
+def model(config: SimulationConfig, tf=100, obs_data: jax.Array = None):
     ode_params = get_odeparams(config.parameters.transmission_params)
 
     # we need just the jax arrays for the initial state to the ODEs
@@ -119,7 +118,7 @@ def model(config: SimulationConfig, obs_data: jax.Array = None):
 
     solution: Solution = simulate(
         ode=sir_ode,
-        duration_days=100,
+        duration_days=tf,
         initial_state=initial_state,
         ode_parameters=ode_params,
         solver_parameters=config.parameters.solver_params,
@@ -139,13 +138,13 @@ def model(config: SimulationConfig, obs_data: jax.Array = None):
 solution = model(config)
 
 if is_okay(solution.result):
-    print("solution is okay")
     assert solution.ys is not None
     plt.plot(solution.ys[0], label="s")
     plt.plot(solution.ys[1], label="i")
     plt.plot(solution.ys[2], label="r")
     plt.legend()
     plt.show()
+incidence = jnp.diff(solution.ys[1].flatten())
 
 # now lets replace this strain with one with a prior at infectious_period instead
 config.parameters.transmission_params.strains = [
@@ -157,24 +156,49 @@ config.parameters.transmission_params.strains = [
         ),
     )
 ]
+# %%
+# creating two InferenceProcesses, one for MCMC and one for SVI
+inference_process_mcmc = MCMCProcess(
+    simulator=model,
+    num_warmup=1000,
+    num_samples=1000,
+    num_chains=1,
+    nuts_max_tree_depth=10,
+)
+inference_process_svi = SVIProcess(
+    simulator=model,
+    num_iterations=2000,
+)
+# %%
+# now lets run the inference, notice the method calls are exactly the same
+# regardless of if you are using MCMC or SVI.
+print("fitting MCMC")
+inferer = inference_process_mcmc.infer(config=config, obs_data=incidence)
+posterior_samples_mcmc = inference_process_mcmc.get_samples()
+print("fitting SVI")
+inferer_svi = inference_process_svi.infer(config=config, obs_data=incidence)
+posterior_samples_svi = inference_process_svi.get_samples()
 
-inference_process = InferenceProcess(
-    simulator=model,
-    inference_method=numpyro.infer.MCMC,
-    inference_parameters=MCMCParams(
-        num_warmup=1000, num_samples=1000, num_chains=1, nuts_max_tree_depth=10
-    ),
-)
-inference_process_svi = InferenceProcess(
-    simulator=model,
-    inference_method=numpyro.infer.MCMC,
-    inference_parameters=SVIParams(),
-)
-incidence = jnp.diff(solution.ys[1].flatten())
-print(incidence.shape)
-inferer = inference_process.infer(config=config, obs_data=incidence)
-posterior_samples = inferer.get_samples()
 print(
-    f"Recovered infectious period: {jnp.mean(posterior_samples['strains_0_infectious_period'])}"
+    f"Recovered infectious period from MCMC: {jnp.mean(posterior_samples_mcmc['strains_0_infectious_period'])}"
 )
+print(
+    f"Recovered infectious period from SVI: {jnp.mean(posterior_samples_svi['strains_0_infectious_period'])}"
+)
+# %%
+# now lets turn on Predictive mode and do some projections forward without observed data
+
+predictive_mcmc = Predictive(model, posterior_samples_mcmc)
+test = predictive_mcmc(
+    rng_key=inference_process_mcmc.inference_prngkey,
+    # pass in the keyword arguments for `model`
+    config=config,
+    tf=200,
+    obs_data=incidence,
+)
+print(test)
+
+# %%
+print(test["inf_incidence"].shape)
+
 # %%
