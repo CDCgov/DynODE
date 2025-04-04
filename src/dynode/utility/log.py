@@ -9,8 +9,9 @@ import os
 import sys
 from typing import Literal
 
-from . import logger
 from .custom_log_formatter import CustomLogFormatter
+
+logger = logging.getLogger("dynode")
 
 
 def use_logging(
