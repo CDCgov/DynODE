@@ -12,7 +12,7 @@ from numpy import ndarray
 
 from . import utils
 from .typing import SEIC_Compartments
-from .Utility import log_decorator, logger
+from .utility import log_decorator, logger
 
 
 class AbstractInitializer(ABC):
