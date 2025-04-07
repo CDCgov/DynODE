@@ -132,10 +132,7 @@ class SEIPCovidConfig(SimulationConfig):
         )
         return Params(
             transmission_params=transmission_params,
-            solver_params=SolverParams(
-                ode_solver_rel_tolerance=1e-5,
-                ode_solver_abs_tolerance=1e-6,
-            ),
+            solver_params=SolverParams(),
         )
 
     def _create_strains(self) -> list[Strain]:

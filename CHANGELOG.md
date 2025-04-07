@@ -20,6 +20,30 @@ no suffix when releases and the staging branch is pulled into the release branch
 names with spaces or begining with a number as this breaks enum functionality.
 ---
 
+## [2024.03.25.2a] - Adding `sir.py` example run
+### Added
+- added `examples/sir.py` to show new users how to create a basic SIR ODE compartmental model
+and simulate it for some number of days. This will act as a building block for
+future examples that get increasingly complex.
+
+---
+## [2024.03.013.1a] - Adding ODE support
+### Added
+- Added `dynode.ode` module containing the `ODEBase` class, allowing users to
+subclass their ODEs, provide their d/dt function and pass ODEs to other
+Dynode classes and functions for inference / solving.
+
+- Added `AbstractODEParams` within `dynode.ode` to pass a `chex.dataclass`
+to `diffrax.diffeqsolve()` method instead of a dictionary. Improving clarity
+in what parameters are available from within the ODEs as well as reducing
+memory usage from passing large dictionaries of mostly unused parameters.
+
+- Added `dynode.model_odes.seip_ode` module containing an example of how
+a user may implement odes by subclassing the `ODEBase` and `AbstractODEParams`
+classes to define their own behavior, reusing the odes defined in
+`dynode.model_odes.seip_model`.
+---
+
 ## [2024.03.24.1a] - Adding more `CompartmentalConfig` validations
 ### Added
 - Require that each `Compartment` object contains dimensions with unique names.
