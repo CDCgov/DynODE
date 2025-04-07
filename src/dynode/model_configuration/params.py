@@ -3,6 +3,7 @@
 from typing import List
 
 from diffrax import AbstractSolver, Tsit5
+from jax.typing import ArrayLike
 from numpyro.distributions import Distribution
 from pydantic import (
     BaseModel,
@@ -72,7 +73,13 @@ class TransmissionParams(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
     strain_interactions: dict[
         str,
-        dict[str, NonNegativeFloat | Distribution | DeterministicParameter],
+        dict[
+            str,
+            NonNegativeFloat
+            | ArrayLike
+            | Distribution
+            | DeterministicParameter,
+        ],
     ]
     strains: List[Strain]
 
@@ -146,19 +153,3 @@ class Params(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     solver_params: SolverParams
     transmission_params: TransmissionParams
-
-    def realize_distributions(self) -> Self:
-        """Go through parameters and sample all distribution objects.
-
-        Returns
-        -------
-        Self
-            Params with all distribution objects replaced by
-            jax.Array containing samples from that distribution.
-
-        Raises
-        ------
-        NotImplementedError
-            Not yet implemented
-        """
-        raise NotImplementedError()

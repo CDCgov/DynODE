@@ -3,7 +3,7 @@
 from datetime import date
 from typing import Annotated, List, Optional, Union
 
-from jax import Array
+from jax.typing import ArrayLike
 from numpyro.distributions import Distribution
 from pydantic import (
     BaseModel,
@@ -28,10 +28,12 @@ class Strain(BaseModel):
         str,
         StringConstraints(strip_whitespace=True, min_length=1, to_lower=True),
     ] = Field(description="Strain name, lower case.")
-    r0: Union[NonNegativeFloat, Distribution, DeterministicParameter] = Field(
+    r0: Union[
+        NonNegativeFloat, ArrayLike, Distribution, DeterministicParameter
+    ] = Field(
         description="""Strain reproduction number used to calculate transmission rate."""
     )
-    infectious_period: Union[PositiveFloat, Array, Distribution] = Field(
+    infectious_period: Union[PositiveFloat, ArrayLike, Distribution] = Field(
         description="""Average number of days a freshly infectious population
         stays infectious for."""
     )
@@ -55,7 +57,13 @@ class Strain(BaseModel):
         New strains are introduced to the tracked population this way.""",
     )
     introduction_time: Optional[
-        Union[date, NonNegativeFloat, Distribution, DeterministicParameter]
+        Union[
+            date,
+            NonNegativeFloat,
+            ArrayLike,
+            Distribution,
+            DeterministicParameter,
+        ]
     ] = Field(
         default=None,
         description="""Date of peak external infectious population mixing.
@@ -64,7 +72,7 @@ class Strain(BaseModel):
         Only utilized if `is_introduced` is True. """,
     )
     introduction_percentage: Optional[
-        Union[PositiveFloat, Distribution, DeterministicParameter]
+        Union[PositiveFloat, ArrayLike, Distribution, DeterministicParameter]
     ] = Field(
         default=None,
         description="""Size of the untracked external population relative
@@ -75,7 +83,7 @@ class Strain(BaseModel):
             Only utilized if `is_introduced` is True. """,
     )
     introduction_scale: Optional[
-        Union[PositiveFloat, Distribution, DeterministicParameter]
+        Union[PositiveFloat, ArrayLike, Distribution, DeterministicParameter]
     ] = Field(
         default=None,
         description="""How rapidly external infectious population mixes with

@@ -1,78 +1,28 @@
 # An Example of how to simulate a basic SIR compartmental model using the dynode package
 # Including all the class setup
-# %% imports, mostly for class creation
-from datetime import date
-
+# %% imports and definitions
+# most of these imports are for type hinting
 import chex
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpyro
-from diffrax import Solution, is_okay
+from diffrax import Solution
 from numpyro.infer import Predictive
 
 from dynode.model_configuration import (
-    Bin,
-    Compartment,
-    Dimension,
-    Initializer,
-    Params,
     SimulationConfig,
-    SolverParams,
     Strain,
     TransmissionParams,
 )
 from dynode.model_configuration.inference import MCMCProcess, SVIProcess
+from dynode.model_configuration.pre_packaged import SIRConfig
 from dynode.odes import AbstractODEParams, simulate
 from dynode.sample import sample_then_resolve
 from dynode.typing import CompartmentGradients, CompartmentState
 
 
-# %% class definitions
-class SIRInitializer(Initializer):
-    """Initializer for SIR model, setting initial conditions for compartments."""
-
-    def __init__(self):
-        super().__init__(
-            description="An SIR initalizer",
-            initialize_date=date(2025, 3, 13),
-            population_size=1,
-        )
-
-    def get_initial_state(self, **kwargs):
-        _: SimulationConfig = kwargs["SIRConfig"]
-        # SimulationConfig has no impact on initial state in this example
-        return (jnp.array([0.99]), jnp.array([0.01]), jnp.array([0.00]))
-
-
-class SIRConfig(SimulationConfig):
-    def __init__(self):
-        """Set parameters for an SIR compartmental model.
-
-        This includes compartment shape, initializer, and solver/transmission parameters."""
-        dimension = Dimension(name="value", bins=[Bin(name="value")])
-        s = Compartment(name="s", dimensions=[dimension])
-        i = Compartment(name="i", dimensions=[dimension])
-        r = Compartment(name="r", dimensions=[dimension])
-        strain = [
-            Strain(strain_name="example_strain", r0=2.0, infectious_period=7.0)
-        ]
-        parameters = Params(
-            solver_params=SolverParams(),
-            transmission_params=TransmissionParams(
-                strains=strain,
-                strain_interactions={
-                    "example_strain": {"example_strain": 1.0}
-                },
-            ),
-        )
-        super().__init__(
-            compartments=[s, i, r],
-            initializer=SIRInitializer(),
-            parameters=parameters,
-        )
-
-
+# define the behavior of the ODEs and the parameters they take
 @chex.dataclass
 class SIR_ODEParams(AbstractODEParams):
     beta: chex.ArrayDevice  # r0/infectious period
@@ -80,22 +30,26 @@ class SIR_ODEParams(AbstractODEParams):
     pass
 
 
+# define a function to easily translate the object oriented TransmissionParams
+# into the vectorized ODEParams.
 def get_odeparams(transmission_params: TransmissionParams) -> SIR_ODEParams:
     """Transform and vectorize transmission parameters into ODE parameters."""
     transmission_params = sample_then_resolve(transmission_params)
     strain = transmission_params.strains[0]
-    assert isinstance(strain.r0, float)
     beta = strain.r0 / strain.infectious_period
     gamma = 1 / strain.infectious_period
     return SIR_ODEParams(beta=jnp.array(beta), gamma=jnp.array(gamma))
 
 
+# define your Jit compiled ODE function
 @jax.jit
 def sir_ode(
     t: float, state: CompartmentState, p: SIR_ODEParams
 ) -> CompartmentGradients:
-    s, i, _ = state
-    s_to_i = p.beta * s * i
+    """A simple SIR ODE model with no time-varying components."""
+    s, i, r = state
+    pop_size = s + i + r
+    s_to_i = (p.beta * s * i) / pop_size
     i_to_r = i * p.gamma
     ds = -s_to_i
     di = s_to_i - i_to_r
@@ -103,13 +57,19 @@ def sir_ode(
     return tuple([ds, di, dr])
 
 
-# %% simulation
+# %% setup simulation process.
+# instantiate the config
+config_static = SIRConfig()
 
-# set up config
-config = SIRConfig()
 
-
-def model(config: SimulationConfig, tf=100, obs_data: jax.Array = None):
+# define the entire process of simulating incidence
+def model(
+    config: SimulationConfig,
+    tf,
+    obs_data: jax.Array = None,
+    infer_mode=False,
+):
+    """Numpyro model for simulating infection incidence of an SIR model."""
     ode_params = get_odeparams(config.parameters.transmission_params)
 
     # we need just the jax arrays for the initial state to the ODEs
@@ -123,9 +83,9 @@ def model(config: SimulationConfig, tf=100, obs_data: jax.Array = None):
         ode_parameters=ode_params,
         solver_parameters=config.parameters.solver_params,
     )
-    # step c compare to obs data
-    if obs_data is not None:
-        incidence = jnp.diff(solution.ys[1].flatten())
+    # compare to observed data if we have it
+    if infer_mode:
+        incidence = jnp.diff(solution.ys[2].flatten())
         incidence = jnp.maximum(incidence, 1e-6)
         numpyro.sample(
             "inf_incidence",
@@ -135,28 +95,36 @@ def model(config: SimulationConfig, tf=100, obs_data: jax.Array = None):
     return solution
 
 
-solution = model(config)
+# produce synthetic data with fixed r0 and infectious period
+solution = model(config_static, tf=100)
+# plot the soliution
+assert solution.ys is not None
+plt.plot(solution.ys[0], label="s")
+plt.plot(solution.ys[1], label="i")
+plt.plot(solution.ys[2], label="r")
+plt.legend()
+plt.show()
+# diff recovered individuals to recover lagged incidence.
+incidence = jnp.diff(solution.ys[2].flatten())
 
-if is_okay(solution.result):
-    assert solution.ys is not None
-    plt.plot(solution.ys[0], label="s")
-    plt.plot(solution.ys[1], label="i")
-    plt.plot(solution.ys[2], label="r")
-    plt.legend()
-    plt.show()
-incidence = jnp.diff(solution.ys[1].flatten())
-
-# now lets replace this strain with one with a prior at infectious_period instead
-config.parameters.transmission_params.strains = [
+# %%
+# set up inference process
+# now lets infer the parameters of this strain instead
+config_infer = SIRConfig()
+# this is bad practice, you would likely have a second config with
+# these prior distributions within.
+config_infer.parameters.transmission_params.strains = [
     Strain(
         strain_name="example_strain",
-        r0=2.0,
+        r0=numpyro.distributions.TransformedDistribution(
+            numpyro.distributions.Beta(0.5, 0.5),
+            numpyro.distributions.transforms.AffineTransform(1.5, 1),
+        ),
         infectious_period=numpyro.distributions.TruncatedNormal(
             loc=8, scale=2, low=2, high=15
         ),
     )
 ]
-# %%
 # creating two InferenceProcesses, one for MCMC and one for SVI
 inference_process_mcmc = MCMCProcess(
     simulator=model,
@@ -170,35 +138,86 @@ inference_process_svi = SVIProcess(
     num_iterations=2000,
 )
 # %%
-# now lets run the inference, notice the method calls are exactly the same
-# regardless of if you are using MCMC or SVI.
+# running inference
 print("fitting MCMC")
-inferer = inference_process_mcmc.infer(config=config, obs_data=incidence)
+inferer = inference_process_mcmc.infer(
+    config=config_infer, tf=100, obs_data=incidence, infer_mode=True
+)
 posterior_samples_mcmc = inference_process_mcmc.get_samples()
 print("fitting SVI")
-inferer_svi = inference_process_svi.infer(config=config, obs_data=incidence)
+inferer_svi = inference_process_svi.infer(
+    config=config_infer, tf=100, obs_data=incidence, infer_mode=True
+)
 posterior_samples_svi = inference_process_svi.get_samples()
 
-print(
-    f"Recovered infectious period from MCMC: {jnp.mean(posterior_samples_mcmc['strains_0_infectious_period'])}"
-)
-print(
-    f"Recovered infectious period from SVI: {jnp.mean(posterior_samples_svi['strains_0_infectious_period'])}"
-)
 # %%
+# printing results of inference
+print(
+    f"True value or R0: {config_static.parameters.transmission_params.strains[0].r0} "
+    f"Infectious Period: {config_static.parameters.transmission_params.strains[0].infectious_period}"
+)
+# notice the name of the posterior sample mimics the index of `transmission_params.strains`
+# this will help you find parameters later on.
+print(
+    f"MCMC posteriors R0: {jnp.mean(posterior_samples_mcmc['strains_0_r0'])}, "
+    f"Infectious Period: {jnp.mean(posterior_samples_mcmc['strains_0_infectious_period'])}"
+)
+print(
+    f"SVI posteriors R0: {jnp.mean(posterior_samples_svi['strains_0_r0'])}, "
+    f"Infectious Period: {jnp.mean(posterior_samples_svi['strains_0_infectious_period'])}"
+)
+
+# %%
+# projecting forward
 # now lets turn on Predictive mode and do some projections forward without observed data
-
-predictive_mcmc = Predictive(model, posterior_samples_mcmc)
-test = predictive_mcmc(
-    rng_key=inference_process_mcmc.inference_prngkey,
-    # pass in the keyword arguments for `model`
-    config=config,
-    tf=200,
-    obs_data=incidence,
+predictive_mcmc = Predictive(
+    model,
+    posterior_samples=posterior_samples_mcmc,
+    exclude_deterministic=False,
 )
-print(test)
+posterior_incidence_mcmc = predictive_mcmc(
+    rng_key=inference_process_mcmc.inference_prngkey,
+    config=config_infer,  # arguments passed to `model`
+    tf=200,
+    obs_data=None,
+    infer_mode=True,
+)
+
+predictive_svi = Predictive(
+    model,
+    guide=inference_process_svi._inferer.guide,
+    params=inference_process_svi._inference_state.params,
+    num_samples=1000,
+)
+posterior_incidence_svi = predictive_svi(
+    rng_key=inference_process_mcmc.inference_prngkey,
+    config=config_infer,  # arguments passed to `model`
+    tf=200,
+    obs_data=None,
+    infer_mode=True,
+)
+print(posterior_incidence_mcmc.keys())
+print(posterior_incidence_svi.keys())
 
 # %%
-print(test["inf_incidence"].shape)
+# pick a random subset of 50 samples and plot the incidence, plot the true incidence from earilier as well
+random_samples = jax.random.choice(
+    inference_process_mcmc.inference_prngkey,
+    posterior_incidence_mcmc["inf_incidence"].shape[0],
+    shape=(50,),
+)
+for sample in random_samples:
+    plt.plot(posterior_incidence_mcmc["inf_incidence"][sample], label=None)
+plt.plot(incidence, label="true incidence")
+plt.legend()
+plt.title("MCMC posterior predictive")
+plt.show()
+
+for sample in random_samples:
+    plt.plot(posterior_incidence_svi["inf_incidence"][sample], label=None)
+plt.plot(incidence, label="true incidence")
+plt.legend()
+plt.title("SVI posterior predictive")
+plt.show()
 
 # %%
