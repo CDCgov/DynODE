@@ -9,6 +9,17 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2024.04.07.1a] - Added `enum` property to dynode objects.
+### Added
+- enum property to `SimulationConfig`, `Compartment`, and `Dimension` classes.
+- enums are linked recursively, meaning you can chain calls like `config.enum.s.vax.v0`
+  to get the index of the first vax bin within the s compartment's vax dimension.
+
+### Changed
+- `Compartment`, `Dimension`, and `Bin` classes are no longer allowed to have
+names with spaces or begining with a number as this breaks enum functionality.
+---
+
 ## [2024.03.24.1a] - Adding more `CompartmentalConfig` validations
 ### Added
 - Require that each `Compartment` object contains dimensions with unique names.

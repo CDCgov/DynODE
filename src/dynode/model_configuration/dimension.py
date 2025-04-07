@@ -16,6 +16,7 @@ from typing_extensions import Self
 
 from dynode.typing import UnitIntervalFloat
 
+from ._typing import DynodeName
 from .bins import Bin, DiscretizedPositiveIntBin, WaneBin
 from .strains import Strain
 
@@ -23,7 +24,7 @@ from .strains import Strain
 class Dimension(BaseModel):
     """A dimension of an compartment."""
 
-    name: str = Field(
+    name: DynodeName = Field(
         description="""Dimension name, must be unique within a Compartment"""
     )
     bins: List[Bin] = Field(
@@ -36,6 +37,7 @@ class Dimension(BaseModel):
 
     @property
     def enum(self):
+        """Dimension enum for indexing the bins within this dimension."""
         bin_namespace = SimpleNamespace()
         for bin_idx, single_bin in enumerate(self.bins):
             # build up the bins namespace for this compartment
@@ -116,7 +118,9 @@ class VaccinationDimension(Dimension):
         if seasonal_vaccination:
             max_ordinal_vaccinations += 1
         bins: list[Bin] = [
-            DiscretizedPositiveIntBin(min_value=vax_count, max_value=vax_count)
+            DiscretizedPositiveIntBin(
+                name=f"V{vax_count}", min_value=vax_count, max_value=vax_count
+            )
             for vax_count in range(max_ordinal_vaccinations + 1)
         ]
         super().__init__(name="vax", bins=bins)
