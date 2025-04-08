@@ -10,6 +10,7 @@ refactored in the near future!
 
 from . import typing as typing
 from . import utils, vis_utils
+from ._simulation_date import SimulationDate
 
 # keep imports relative to avoid circular importing
 from .abstract_initializer import AbstractInitializer
@@ -34,4 +35,5 @@ __all__ = [
     "vis_utils",
     "AbstractDynodeRunner",
     "typing",
+    "SimulationDate",
 ]

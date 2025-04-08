@@ -14,9 +14,10 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from typing_extensions import Self
+from typing_extensions import Any, Self
 
 from dynode.typing import CompartmentState
+from dynode.utils import set_dynode_init_date_flag
 
 from .bins import AgeBin, Bin
 from .dimension import (
@@ -190,6 +191,11 @@ class SimulationConfig(BaseModel):
     parameters: Params = Field(
         description="""Model parameters, includes epidemiological and miscellaneous."""
     )
+
+    def model_post_init(self, __context: Any) -> None:
+        """Initialize context for model run."""
+        init_date = self.initializer.initialize_date
+        set_dynode_init_date_flag(init_date)
 
     @model_validator(mode="after")
     def _validate_shared_compartment_dimensions(self) -> Self:
