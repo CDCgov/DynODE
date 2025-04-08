@@ -1827,3 +1827,30 @@ def save_samples(samples: dict[str, Array], save_path: str, indent=None):
     # convert np arrays to lists
     s = {param: samples[param].tolist() for param in samples.keys()}
     json.dump(s, open(save_path, "w"), indent=indent)
+
+
+def get_dynode_init_date_flag() -> datetime.date | None:
+    """Get the dynode initialization date from the envionment variable.
+
+    Returns
+    -------
+    datetime.date | None
+        the date object representing the initialization date of the model in
+        the current process. Or None if the environment variable is not set.
+
+    Note
+    ----
+    This function uses the current process ID to ensure that the date is set
+    for each run of the model. Use set_dynode_init_date_flag() to set the date.
+    """
+    init_date = os.getenv(f"DYNODE_INITIALIZATION_DATE({os.getpid()})", None)
+    if init_date is not None:
+        return datetime.datetime.strptime(init_date, "%Y-%m-%d").date()
+    return None
+
+
+def set_dynode_init_date_flag(init_date: datetime.date) -> None:
+    """Set the dynode initialization date in the environment variable."""
+    os.environ[f"DYNODE_INITIALIZATION_DATE({os.getpid()})"] = (
+        init_date.strftime("%Y-%m-%d")
+    )

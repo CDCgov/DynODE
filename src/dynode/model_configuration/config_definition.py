@@ -1,6 +1,5 @@
 """Top level classes for DynODE configs."""
 
-import os
 from datetime import date
 from typing import List, Optional, Union
 
@@ -18,6 +17,7 @@ from pydantic import (
 from typing_extensions import Any, Self
 
 from dynode.typing import CompartmentState
+from dynode.utils import set_dynode_init_date_flag
 
 from .bins import AgeBin, Bin
 from .dimension import (
@@ -195,9 +195,7 @@ class SimulationConfig(BaseModel):
     def model_post_init(self, __context: Any) -> None:
         """Initialize context for model run."""
         init_date = self.initializer.initialize_date
-        os.environ[f"DYNODE_INITIALIZATION_DATE({os.getpid()})"] = (
-            init_date.strftime("%Y-%m-%d")
-        )
+        set_dynode_init_date_flag(init_date)
 
     @model_validator(mode="after")
     def _validate_shared_compartment_dimensions(self) -> Self:

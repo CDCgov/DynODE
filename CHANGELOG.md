@@ -9,15 +9,39 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
-## [2024.03.25.1a] - Adding `SimulationDate` object
+## [2024.04.08.1a] - Adding `SimulationDate` object
 ### Added
 - Added a new `SimulationDate` helper object to allow users to specify datetime-like
 objects in place of integers when specifying behaviors like prior distributions over
 date ranges (E.g. introduction date of a strain centered around some date).
-- Added a new enviornment variable `DYNODE_INITIALIZATION_DATE` so all parts
+- Added a new enviornment variable `DYNODE_INITIALIZATION_DATE({pid})` so all parts
 of the program can read in the model's start date regardless of where they
 are in the code.
 
+---
+
+## [2024.03.25.2a] - Adding `sir.py` example run
+### Added
+- added `examples/sir.py` to show new users how to create a basic SIR ODE compartmental model
+and simulate it for some number of days. This will act as a building block for
+future examples that get increasingly complex.
+
+---
+## [2024.03.013.1a] - Adding ODE support
+### Added
+- Added `dynode.ode` module containing the `ODEBase` class, allowing users to
+subclass their ODEs, provide their d/dt function and pass ODEs to other
+Dynode classes and functions for inference / solving.
+
+- Added `AbstractODEParams` within `dynode.ode` to pass a `chex.dataclass`
+to `diffrax.diffeqsolve()` method instead of a dictionary. Improving clarity
+in what parameters are available from within the ODEs as well as reducing
+memory usage from passing large dictionaries of mostly unused parameters.
+
+- Added `dynode.model_odes.seip_ode` module containing an example of how
+a user may implement odes by subclassing the `ODEBase` and `AbstractODEParams`
+classes to define their own behavior, reusing the odes defined in
+`dynode.model_odes.seip_model`.
 ---
 
 ## [2024.03.24.1a] - Adding more `CompartmentalConfig` validations
