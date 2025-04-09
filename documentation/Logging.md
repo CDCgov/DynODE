@@ -8,7 +8,7 @@ Additionally, you will find useful examples regarding inline logging, decorating
 ## Logging Components
 ### Directory
 ```
-./src/dynode/utility
+./src/dynode/logging
 ./src/logs
 ```
 ### Files
@@ -20,7 +20,7 @@ custom_log_formatter.py
 ###  Use Logging and CLI Subparsers
 ```python
 import argparse
-from dynode.utility import log
+from dynode.logging import log
 
 parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers(title="subcommands", dest="subcommand")
@@ -49,7 +49,7 @@ if __name__ == "__main__":
 ```
 #### import log
 ```python
-from dynode.utility import log
+from dynode.logging import log
 ```
 #### use_logging
 Notice the function above use_logging located in log.py initializes a global logger called "dynode".
@@ -94,7 +94,7 @@ dynode_main.py log --output both
 First you will want to import the decorator in which ever file you want to use it.
 
 ```python
-from utility.log_decorator import log_decorator
+from logging.log_decorator import log_decorator
 ```
 Next all you need to do is decorate any function you would like to log. \
 Note: Your function can take arguments or not and it can return a value or not. Function arguments and return values will be logged if they are present.
@@ -108,7 +108,7 @@ def some_function():
 The global logger instance is created in the utility packages __init__.py file. \
 The dynode logger can be fetched in the dynode package using the below import statement.
 ```python
-from .utility import logger
+from .logging import logger
 
 # If needed dynode logger can be fetched using the below line
 logging.getLogger("dynode")

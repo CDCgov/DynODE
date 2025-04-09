@@ -11,8 +11,8 @@ from typing import Any
 from numpy import ndarray
 
 from . import utils
+from .logging import log_decorator, logger
 from .typing import SEIC_Compartments
-from .utility import log_decorator, logger
 
 
 class AbstractInitializer(ABC):

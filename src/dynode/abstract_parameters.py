@@ -20,9 +20,9 @@ from jax.typing import ArrayLike
 
 from . import utils
 from .config import Config
+from .logging import logger
 from .mechanistic_runner import MechanisticRunner
 from .typing import SEIC_Compartments
-from .utility import logger
 
 
 class AbstractParameters:
