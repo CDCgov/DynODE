@@ -16,7 +16,9 @@ from .model_configuration.params import TransmissionParams
 from .typing import DeterministicParameter
 
 
-def sample_distributions(obj: Any, rng_key: Array = None, _prefix: str = ""):
+def sample_distributions(
+    obj: Any, rng_key: Array | None = None, _prefix: str = ""
+):
     """Recurisvely scans data structures and samples numpyro.Distribution objects.
 
     Parameters
@@ -158,7 +160,7 @@ def resolve_deterministic(
 
 
 def sample_then_resolve(
-    parameters: Any, rng_key: Array = None
+    parameters: Any, rng_key: Array | None = None
 ) -> TransmissionParams:
     """Copy, sample and resolve parameters, returning a jax-compliant copy.
 

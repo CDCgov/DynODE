@@ -140,10 +140,11 @@ inference_process_svi = SVIProcess(
 # %%
 # running inference
 print("fitting MCMC")
-inferer = inference_process_mcmc.infer(
+inferer_mcmc = inference_process_mcmc.infer(
     config=config_infer, tf=100, obs_data=incidence, infer_mode=True
 )
 posterior_samples_mcmc = inference_process_mcmc.get_samples()
+# %%
 print("fitting SVI")
 inferer_svi = inference_process_svi.infer(
     config=config_infer, tf=100, obs_data=incidence, infer_mode=True
@@ -166,7 +167,13 @@ print(
     f"SVI posteriors R0: {jnp.mean(posterior_samples_svi['strains_0_r0'])}, "
     f"Infectious Period: {jnp.mean(posterior_samples_svi['strains_0_infectious_period'])}"
 )
-
+# %%
+mcmc_arviz = inference_process_mcmc.to_arviz()
+svi_arviz = inference_process_svi.to_arviz()
+# %%
+mcmc_arviz
+# %%
+svi_arviz
 # %%
 # projecting forward
 # now lets turn on Predictive mode and do some projections forward without observed data

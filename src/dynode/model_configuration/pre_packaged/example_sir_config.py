@@ -15,6 +15,7 @@ from dynode.model_configuration import (
     Strain,
     TransmissionParams,
 )
+from dynode.typing import CompartmentState
 
 
 class SIRInitializer(Initializer):
@@ -27,7 +28,7 @@ class SIRInitializer(Initializer):
             population_size=1000,
         )
 
-    def get_initial_state(self, **kwargs):
+    def get_initial_state(self, **kwargs) -> CompartmentState:
         _: SimulationConfig = kwargs["SIRConfig"]
         # SimulationConfig has no impact on initial state in this example
         return (
