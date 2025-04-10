@@ -2,6 +2,7 @@
 # Including all the class setup
 # %% imports and definitions
 # most of these imports are for type hinting
+import arviz as az
 import chex
 import jax
 import jax.numpy as jnp
@@ -62,14 +63,7 @@ def sir_ode(
 config_static = SIRConfig()
 
 
-# define the entire process of simulating incidence
-def model(
-    config: SimulationConfig,
-    tf,
-    obs_data: jax.Array = None,
-    infer_mode=False,
-):
-    """Numpyro model for simulating infection incidence of an SIR model."""
+def run_simulation(config: SimulationConfig, tf) -> Solution:
     ode_params = get_odeparams(config.parameters.transmission_params)
 
     # we need just the jax arrays for the initial state to the ODEs
@@ -83,6 +77,23 @@ def model(
         ode_parameters=ode_params,
         solver_parameters=config.parameters.solver_params,
     )
+    return solution
+
+
+# TODO implement helper method to do this
+def save_checkpoints(solution):
+    numpyro.determinstic("final_timestep_0", solution.ys[0][-1, ...])
+
+
+# define the entire process of simulating incidence
+def model(
+    config: SimulationConfig,
+    tf,
+    obs_data: jax.Array = None,
+    infer_mode=False,
+):
+    """Numpyro model for simulating infection incidence of an SIR model."""
+    solution = run_simulation(config, tf)
     # compare to observed data if we have it
     if infer_mode:
         incidence = jnp.diff(solution.ys[2].flatten())
@@ -96,7 +107,7 @@ def model(
 
 
 # produce synthetic data with fixed r0 and infectious period
-solution = model(config_static, tf=100)
+solution = run_simulation(config_static, tf=100)
 # plot the soliution
 assert solution.ys is not None
 plt.plot(solution.ys[0], label="s")
@@ -126,6 +137,8 @@ config_infer.parameters.transmission_params.strains = [
     )
 ]
 # creating two InferenceProcesses, one for MCMC and one for SVI
+# TODO sometimes we may want to simulate without doing inference, e.g sensitivity analysis.
+# fix all parameters except one, then vary that one. maybe make a helper method for this?
 inference_process_mcmc = MCMCProcess(
     simulator=model,
     num_warmup=1000,
@@ -171,6 +184,17 @@ print(
 mcmc_arviz = inference_process_mcmc.to_arviz()
 svi_arviz = inference_process_svi.to_arviz()
 # %%
+axes = az.plot_density(
+    [mcmc_arviz],
+    data_labels=["R0"],
+    var_names=["strains_0_r0"],
+    shade=0.2,
+)
+
+fig = axes.flatten()[0].get_figure()
+fig.suptitle("94% High Density Intervals for Theta")
+
+plt.show()
 mcmc_arviz
 # %%
 svi_arviz
@@ -226,5 +250,11 @@ plt.plot(incidence, label="true incidence")
 plt.legend()
 plt.title("SVI posterior predictive")
 plt.show()
+
+# TODO how do we project after fitting, e.g. final_timesteps -> initial state sampling (high prio)
+# TODO chain inference into epochs?
+# potentional for flu.
+# TODO initialize an MCMC from an SVI fit (low prio)
+# mass matrix? Talk to Sam/Elisha on how to do this transition.
 
 # %%
