@@ -20,6 +20,7 @@ from jax.typing import ArrayLike
 
 from . import utils
 from .config import Config
+from .logging import logger
 from .mechanistic_runner import MechanisticRunner
 from .typing import SEIC_Compartments
 
@@ -92,17 +93,23 @@ class AbstractParameters:
         Solution
             Diffrax solution object returned from `runner.run()`.
         """
+        logger.debug("Checking INITIAL_INFECTIONS_SCALE in parameter keys.")
         if "INITIAL_INFECTIONS_SCALE" in parameters.keys():
             initial_state = self.scale_initial_infections(
                 parameters["INITIAL_INFECTIONS_SCALE"]
             )
+            logger.debug("Initial state retrieved.")
         else:
+            logger.debug("Setting initial state from self.")
             initial_state = self.INITIAL_STATE
+            logger.debug("Initial state set.")
+        logger.debug("Running the runner...")
         solution = runner.run(
             initial_state,
             args=parameters,
             tf=tf,
         )
+        logger.debug("Returning runner solution.")
         return solution
 
     def _get_upstream_parameters(self) -> dict:

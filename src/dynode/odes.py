@@ -16,9 +16,8 @@ from diffrax import (  # type: ignore
 )
 from jax import Array
 
-from dynode.typing import CompartmentState, ODE_Eqns
-
 from .model_configuration.params import SolverParams
+from .typing import CompartmentState, ODE_Eqns
 
 
 @chex.dataclass

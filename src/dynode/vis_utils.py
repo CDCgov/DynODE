@@ -128,7 +128,10 @@ def plot_model_overview_subplot_matplotlib(
         ]
     ), (
         "missing a necessary column within timeseries_df, require %s but got %s"
-        % (str(necessary_cols), str(timeseries_df.columns))
+        % (
+            str(necessary_cols),
+            str(timeseries_df.columns),
+        )
     )
     num_states = len(timeseries_df["state"].unique())
     # we are counting the number of plot_types that are within timeseries.columns
