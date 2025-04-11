@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpyro
 from diffrax import Solution
 from numpyro.infer import Predictive
+from numpyro.infer.svi import SVIRunResult
 
 from dynode.model_configuration import (
     SimulationConfig,
@@ -40,7 +41,7 @@ def get_odeparams(transmission_params: TransmissionParams) -> SIR_ODEParams:
     """Transform and vectorize transmission parameters into ODE parameters."""
     transmission_params = sample_then_resolve(transmission_params)
     strain = transmission_params.strains[0]
-    beta = strain.r0 / strain.infectious_period
+    beta = strain.r0 / strain.infectious_period  # type: ignore
     gamma = 1 / strain.infectious_period
     return SIR_ODEParams(
         beta=jnp.array(beta),
@@ -95,13 +96,14 @@ def run_simulation(config: SimulationConfig, tf) -> Solution:
 def model(
     config: SimulationConfig,
     tf,
-    obs_data: jax.Array = None,
+    obs_data: jax.Array | None = None,
     infer_mode=False,
 ):
     """Numpyro model for simulating infection incidence of an SIR model."""
-    solution = run_simulation(config, tf)
+    solution: Solution = run_simulation(config, tf)
     # compare to observed data if we have it
     if infer_mode:
+        assert solution.ys is not None, "mypy assert"
         incidence = jnp.diff(solution.ys[2], axis=0)
         incidence = jnp.maximum(incidence, 1e-6)
         numpyro.sample(
@@ -202,7 +204,8 @@ posterior_incidence_mcmc = predictive_mcmc(
     obs_data=None,
     infer_mode=True,
 )
-
+assert inference_process_svi._inferer is not None, "mypy assert"
+assert isinstance(inference_process_svi._inference_state, SVIRunResult)
 predictive_svi = Predictive(
     model,
     guide=inference_process_svi._inferer.guide,
