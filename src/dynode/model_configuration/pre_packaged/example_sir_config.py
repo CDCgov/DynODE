@@ -23,6 +23,7 @@ class SIRInitializer(Initializer):
     """Initializer for SIR model, setting initial conditions for compartments."""
 
     def __init__(self):
+        """Create an SIR Initializer."""
         super().__init__(
             description="An SIR initalizer",
             initialize_date=date(2025, 3, 13),
@@ -30,6 +31,7 @@ class SIRInitializer(Initializer):
         )
 
     def get_initial_state(self, **kwargs) -> CompartmentState:
+        """Get initial compartment values for an SIR model stratified by age."""
         _: SimulationConfig = kwargs["SIRConfig"]
         # proportion of young to old in the population
         age_demographics = jnp.array([0.75, 0.25])
@@ -48,10 +50,13 @@ class SIRInitializer(Initializer):
 # TODO add young/old age structure.
 # TODO add trivial contact matrix.
 class SIRConfig(SimulationConfig):
+    """A static SIR config class for use in the `examples/sir.py` script."""
+
     def __init__(self):
         """Set parameters for a static SIR compartmental model.
 
-        This includes compartment shape, initializer, and solver/transmission parameters."""
+        This includes compartment shape, initializer, and solver/transmission parameters.
+        """
         dimension = Dimension(
             name="age", bins=[Bin(name="young"), Bin(name="old")]
         )
@@ -80,10 +85,13 @@ class SIRConfig(SimulationConfig):
 
 
 class SIRInferedConfig(SIRConfig):
+    """An SIR config class with priors for use in the `examples/sir.py` script."""
+
     def __init__(self):
         """Set parameters for a infered SIR compartmental model.
 
-        This includes compartment shape, initializer, and solver/transmission parameters."""
+        This includes compartment shape, initializer, and solver/transmission parameters.
+        """
         # build the static version then replace the strain with
         # one modeled by some proposed priors instead.
         super().__init__()
