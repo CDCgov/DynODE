@@ -13,11 +13,13 @@ from numpyro.infer import Predictive
 
 from dynode.model_configuration import (
     SimulationConfig,
-    Strain,
     TransmissionParams,
 )
 from dynode.model_configuration.inference import MCMCProcess, SVIProcess
-from dynode.model_configuration.pre_packaged import SIRConfig
+from dynode.model_configuration.pre_packaged.example_sir_config import (
+    SIRConfig,
+    SIRInferedConfig,
+)
 from dynode.odes import AbstractODEParams, simulate
 from dynode.sample import sample_then_resolve
 from dynode.typing import CompartmentGradients, CompartmentState
@@ -69,7 +71,7 @@ def run_simulation(config: SimulationConfig, tf) -> Solution:
     # we need just the jax arrays for the initial state to the ODEs
     initial_state = config.initializer.get_initial_state(SIRConfig=config)
     # solve the odes for 100 days
-
+    # TODO, what if you dont jit the ode method?
     solution: Solution = simulate(
         ode=sir_ode,
         duration_days=tf,
@@ -78,11 +80,6 @@ def run_simulation(config: SimulationConfig, tf) -> Solution:
         solver_parameters=config.parameters.solver_params,
     )
     return solution
-
-
-# TODO implement helper method to do this
-def save_checkpoints(solution):
-    numpyro.determinstic("final_timestep_0", solution.ys[0][-1, ...])
 
 
 # define the entire process of simulating incidence
@@ -121,24 +118,8 @@ incidence = jnp.diff(solution.ys[2].flatten())
 # %%
 # set up inference process
 # now lets infer the parameters of this strain instead
-config_infer = SIRConfig()
-# this is bad practice, you would likely have a second config with
-# these prior distributions within.
-config_infer.parameters.transmission_params.strains = [
-    Strain(
-        strain_name="example_strain",
-        r0=numpyro.distributions.TransformedDistribution(
-            numpyro.distributions.Beta(0.5, 0.5),
-            numpyro.distributions.transforms.AffineTransform(1.5, 1),
-        ),
-        infectious_period=numpyro.distributions.TruncatedNormal(
-            loc=8, scale=2, low=2, high=15
-        ),
-    )
-]
+config_infer = SIRInferedConfig()
 # creating two InferenceProcesses, one for MCMC and one for SVI
-# TODO sometimes we may want to simulate without doing inference, e.g sensitivity analysis.
-# fix all parameters except one, then vary that one. maybe make a helper method for this?
 inference_process_mcmc = MCMCProcess(
     simulator=model,
     num_warmup=1000,
@@ -192,7 +173,7 @@ axes = az.plot_density(
 )
 
 fig = axes.flatten()[0].get_figure()
-fig.suptitle("94% High Density Intervals for Theta")
+fig.suptitle("Density Intervals for R0")
 
 plt.show()
 mcmc_arviz
@@ -250,11 +231,4 @@ plt.plot(incidence, label="true incidence")
 plt.legend()
 plt.title("SVI posterior predictive")
 plt.show()
-
-# TODO how do we project after fitting, e.g. final_timesteps -> initial state sampling (high prio)
-# TODO chain inference into epochs?
-# potentional for flu.
-# TODO initialize an MCMC from an SVI fit (low prio)
-# mass matrix? Talk to Sam/Elisha on how to do this transition.
-
 # %%

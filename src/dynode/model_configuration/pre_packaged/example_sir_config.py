@@ -3,6 +3,7 @@
 from datetime import date
 
 import jax.numpy as jnp
+import numpyro.distributions as dist
 
 from dynode.model_configuration import (
     Bin,
@@ -38,9 +39,11 @@ class SIRInitializer(Initializer):
         )
 
 
+# TODO add young/old age structure.
+# TODO add trivial contact matrix.
 class SIRConfig(SimulationConfig):
     def __init__(self):
-        """Set parameters for an SIR compartmental model.
+        """Set parameters for a static SIR compartmental model.
 
         This includes compartment shape, initializer, and solver/transmission parameters."""
         dimension = Dimension(name="value", bins=[Bin(name="value")])
@@ -64,3 +67,26 @@ class SIRConfig(SimulationConfig):
             initializer=SIRInitializer(),
             parameters=parameters,
         )
+
+
+class SIRInferedConfig(SIRConfig):
+    def __init__(self):
+        """Set parameters for a infered SIR compartmental model.
+
+        This includes compartment shape, initializer, and solver/transmission parameters."""
+        # build the static version then replace the strain with
+        # one modeled by some proposed priors instead.
+        super().__init__()
+
+        self.parameters.transmission_params.strains = [
+            Strain(
+                strain_name="example_strain",
+                r0=dist.TransformedDistribution(
+                    dist.Beta(0.5, 0.5),
+                    dist.transforms.AffineTransform(1.5, 1),
+                ),
+                infectious_period=dist.TruncatedNormal(
+                    loc=8, scale=2, low=2, high=15
+                ),
+            )
+        ]
