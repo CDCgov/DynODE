@@ -474,7 +474,7 @@ def date_to_sim_day(date: datetime.date, init_date: datetime.date):
     --------
     >>> import datetime
     >>> init_date=datetime.date(2022, 10, 15)
-    >>> date=datetime.date(2022, 11, 05)
+    >>> date=datetime.date(2022, 11, 5)
     >>> date_to_sim_day(date, init_date)
     21
     """
