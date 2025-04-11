@@ -30,6 +30,7 @@ from dynode.typing import CompartmentGradients, CompartmentState
 class SIR_ODEParams(AbstractODEParams):
     beta: chex.ArrayDevice  # r0/infectious period
     gamma: chex.ArrayDevice  # 1/infectious period
+    contact_matrix: chex.ArrayDevice  # contact matrix
     pass
 
 
@@ -41,9 +42,14 @@ def get_odeparams(transmission_params: TransmissionParams) -> SIR_ODEParams:
     strain = transmission_params.strains[0]
     beta = strain.r0 / strain.infectious_period
     gamma = 1 / strain.infectious_period
-    return SIR_ODEParams(beta=jnp.array(beta), gamma=jnp.array(gamma))
+    return SIR_ODEParams(
+        beta=jnp.array(beta),
+        gamma=jnp.array(gamma),
+        contact_matrix=transmission_params.contact_matrix,
+    )
 
 
+# TODO add enums to SIR.py where applicable.
 # define your Jit compiled ODE function
 @jax.jit
 def sir_ode(
@@ -52,7 +58,10 @@ def sir_ode(
     """A simple SIR ODE model with no time-varying components."""
     s, i, r = state
     pop_size = s + i + r
-    s_to_i = (p.beta * s * i) / pop_size
+    force_of_infection = p.beta * jnp.sum(
+        (p.contact_matrix * i) / pop_size, axis=1
+    )
+    s_to_i = s * force_of_infection
     i_to_r = i * p.gamma
     ds = -s_to_i
     di = s_to_i - i_to_r
@@ -93,7 +102,7 @@ def model(
     solution = run_simulation(config, tf)
     # compare to observed data if we have it
     if infer_mode:
-        incidence = jnp.diff(solution.ys[2].flatten())
+        incidence = jnp.diff(solution.ys[2], axis=0)
         incidence = jnp.maximum(incidence, 1e-6)
         numpyro.sample(
             "inf_incidence",
@@ -107,14 +116,13 @@ def model(
 solution = run_simulation(config_static, tf=100)
 # plot the soliution
 assert solution.ys is not None
-plt.plot(solution.ys[0], label="s")
-plt.plot(solution.ys[1], label="i")
-plt.plot(solution.ys[2], label="r")
+plt.plot(jnp.sum(solution.ys[0], axis=1), label="s")
+plt.plot(jnp.sum(solution.ys[1], axis=1), label="i")
+plt.plot(jnp.sum(solution.ys[2], axis=1), label="r")
 plt.legend()
 plt.show()
-# diff recovered individuals to recover lagged incidence.
-incidence = jnp.diff(solution.ys[2].flatten())
-
+# diff recovered individuals to recover lagged incidence for each age group
+incidence = jnp.diff(solution.ys[2], axis=0)
 # %%
 # set up inference process
 # now lets infer the parameters of this strain instead
@@ -219,15 +227,21 @@ random_samples = jax.random.choice(
     shape=(50,),
 )
 for sample in random_samples:
-    plt.plot(posterior_incidence_mcmc["inf_incidence"][sample], label=None)
-plt.plot(incidence, label="true incidence")
+    plt.plot(
+        jnp.sum(posterior_incidence_mcmc["inf_incidence"][sample], axis=1),
+        label=None,
+    )
+plt.plot(jnp.sum(incidence, axis=1), label="true incidence")
 plt.legend()
 plt.title("MCMC posterior predictive")
 plt.show()
 
 for sample in random_samples:
-    plt.plot(posterior_incidence_svi["inf_incidence"][sample], label=None)
-plt.plot(incidence, label="true incidence")
+    plt.plot(
+        jnp.sum(posterior_incidence_svi["inf_incidence"][sample], axis=1),
+        label=None,
+    )
+plt.plot(jnp.sum(incidence, axis=1), label="true incidence")
 plt.legend()
 plt.title("SVI posterior predictive")
 plt.show()
