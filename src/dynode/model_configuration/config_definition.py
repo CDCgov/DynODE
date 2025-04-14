@@ -15,9 +15,10 @@ from pydantic import (
     PositiveInt,
     model_validator,
 )
-from typing_extensions import Self
+from typing_extensions import Any, Self
 
 from dynode.typing import CompartmentState
+from dynode.utils import set_dynode_init_date_flag
 
 from ._typing import DynodeName
 from .bins import AgeBin, Bin
@@ -201,6 +202,11 @@ class SimulationConfig(BaseModel):
     parameters: Params = Field(
         description="""Model parameters, includes epidemiological and miscellaneous."""
     )
+
+    def model_post_init(self, __context: Any) -> None:
+        """Initialize context for model run."""
+        init_date = self.initializer.initialize_date
+        set_dynode_init_date_flag(init_date)
 
     @cached_property
     def idx(self):

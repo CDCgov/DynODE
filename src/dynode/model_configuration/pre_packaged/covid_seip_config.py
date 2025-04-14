@@ -7,7 +7,7 @@ import numpyro.distributions as dist
 import numpyro.distributions.constraints as constraints
 import numpyro.distributions.transforms as transforms
 
-from ...typing import DeterministicParameter
+from ...typing import DeterministicParameter, SimulationDate
 from ..bins import AgeBin, Bin
 from ..config_definition import (
     Compartment,
@@ -164,7 +164,9 @@ class SEIPCovidConfig(SimulationConfig):
                 vaccine_efficacy={0: 0, 1: 0.30, 2: 0.60},
                 is_introduced=True,
                 introduction_time=dist.TruncatedNormal(
-                    loc=20, scale=5, low=10
+                    loc=SimulationDate(2022, 3, 3),
+                    scale=5,
+                    low=SimulationDate(2022, 2, 21),
                 ),
                 introduction_scale=15,
                 introduction_percentage=0.02,
@@ -183,7 +185,9 @@ class SEIPCovidConfig(SimulationConfig):
                 vaccine_efficacy={0: 0, 1: 0.30, 2: 0.60},
                 is_introduced=True,
                 introduction_time=dist.TruncatedNormal(
-                    loc=230, scale=5, low=190
+                    loc=SimulationDate(2022, 9, 29),
+                    scale=5,
+                    low=SimulationDate(2022, 8, 20),
                 ),
                 introduction_scale=15,
                 introduction_percentage=0.02,
@@ -202,7 +206,9 @@ class SEIPCovidConfig(SimulationConfig):
                 vaccine_efficacy={0: 0, 1: 0.095, 2: 0.19},
                 is_introduced=True,
                 introduction_time=dist.TruncatedNormal(
-                    loc=640, scale=5, low=600
+                    loc=SimulationDate(2023, 11, 13),
+                    scale=5,
+                    low=SimulationDate(2023, 10, 4),
                 ),
                 introduction_scale=15,
                 introduction_percentage=0.02,
