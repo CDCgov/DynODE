@@ -11,6 +11,8 @@ def _verify_name(name: str) -> str:
         raise ValueError("Name can not start with a number.")
     elif " " in name:
         raise ValueError("Name can not have spaces.")
+    elif not all([char.isalnum() or char == "_" for char in name]):
+        raise ValueError("Name can only contain alphanumerics or underscores.")
     return name
 
 

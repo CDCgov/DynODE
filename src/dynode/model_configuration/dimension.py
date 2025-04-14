@@ -36,8 +36,8 @@ class Dimension(BaseModel):
         return len(self.bins)
 
     @property
-    def enum(self):
-        """Dimension enum for indexing the bins within this dimension."""
+    def idx(self):
+        """Dimension idxs for indexing the bins within this dimension."""
         bin_namespace = SimpleNamespace()
         for bin_idx, single_bin in enumerate(self.bins):
             # build up the bins namespace for this compartment
@@ -119,7 +119,7 @@ class VaccinationDimension(Dimension):
             max_ordinal_vaccinations += 1
         bins: list[Bin] = [
             DiscretizedPositiveIntBin(
-                name=f"V{vax_count}", min_value=vax_count, max_value=vax_count
+                name=f"v{vax_count}", min_value=vax_count, max_value=vax_count
             )
             for vax_count in range(max_ordinal_vaccinations + 1)
         ]

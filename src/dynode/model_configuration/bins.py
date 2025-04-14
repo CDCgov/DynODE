@@ -70,7 +70,7 @@ class AgeBin(DiscretizedPositiveIntBin):
             name of the bin, by default f"A{min_value}_{max_value}" if None
         """
         if name is None:
-            name = f"A{min_value}_{max_value}"
+            name = f"a{min_value}_{max_value}"
         super().__init__(name=name, min_value=min_value, max_value=max_value)
 
 

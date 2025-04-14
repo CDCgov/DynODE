@@ -74,13 +74,13 @@ class Compartment(BaseModel):
         return tuple([len(d_i) for d_i in self.dimensions])
 
     @cached_property
-    def enum(self):
+    def idx(self):
         """An enum-like structure for dimensions and their bins.
 
         Note
         ----
         This is a cache property, so it will only be computed once, modifications
-        to the compartment will not change the enum after it is created.
+        to the compartment will not change the idx after it is created.
 
         Returns
         -------
@@ -89,7 +89,7 @@ class Compartment(BaseModel):
         dims_namespace = SimpleNamespace()
         for dim_idx, dimension in enumerate(self.dimensions):
             # save the dimension index along with the indexes of all the bins.
-            dim_obj = _IntWithAttributes(dim_idx, **dimension.enum.__dict__)
+            dim_obj = _IntWithAttributes(dim_idx, **dimension.idx.__dict__)
             setattr(dims_namespace, dimension.name, dim_obj)
         return dims_namespace
 
@@ -203,7 +203,7 @@ class SimulationConfig(BaseModel):
     )
 
     @cached_property
-    def enum(self):
+    def idx(self):
         """An enum-like structure for compartments and their dimensions.
 
         Note
@@ -219,7 +219,7 @@ class SimulationConfig(BaseModel):
         for compartment_idx, compartment in enumerate(self.compartments):
             # build up the bins namespace for this compartment
             compartment_obj = _IntWithAttributes(
-                compartment_idx, **compartment.enum.__dict__
+                compartment_idx, **compartment.idx.__dict__
             )
             setattr(compartments_namespace, compartment.name, compartment_obj)
         return compartments_namespace
