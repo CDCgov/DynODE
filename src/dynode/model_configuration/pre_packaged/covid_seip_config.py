@@ -7,7 +7,8 @@ import numpyro.distributions as dist
 import numpyro.distributions.constraints as constraints
 import numpyro.distributions.transforms as transforms
 
-from ...typing import DeterministicParameter, SimulationDate
+from ..._simulation_date import SimulationDate
+from ...typing import DeterministicParameter
 from ..bins import AgeBin, Bin
 from ..config_definition import (
     Compartment,

@@ -3,11 +3,10 @@
 from datetime import date
 from functools import cached_property
 from types import SimpleNamespace
-from typing import List, Optional, Union
+from typing import List, Union
 
 from jax import Array
 from jax import numpy as jnp
-from numpyro.infer import MCMC, SVI
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -28,7 +27,7 @@ from .dimension import (
     ImmuneHistoryDimension,
     LastStrainImmuneHistoryDimension,
 )
-from .params import InferenceParams, Params
+from .params import Params
 
 
 class Compartment(BaseModel):
@@ -150,6 +149,8 @@ class Compartment(BaseModel):
         return self.values.at[index].get()
 
 
+# TODO, do we really need this to be a class, and does the SimulationConfig need a reference to it
+# how does this play when we are "sampling" initial state from a posterior particle in a previous fit
 class Initializer(BaseModel):
     """Initalize compartment state of an ODE model."""
 
@@ -401,25 +402,6 @@ class SimulationConfig(BaseModel):
         for compartment in self.compartments:
             flattened_lst.extend(compartment.dimensions)
         return flattened_lst
-
-
-class InferenceProcess(BaseModel):
-    """Inference process for fitting a CompartmentalModel to data."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    simulation_config: SimulationConfig = Field(
-        description="SimulationConfig on which inference is performed."
-    )
-    # includes observation method, specified at runtime.
-    inference_method: Optional[MCMC | SVI] = Field(
-        default=None,
-        description="""Inference method to execute,
-        currently only MCMC and SVI supported""",
-    )
-    inference_parameters: InferenceParams = Field(
-        description="""Inference related parameters, not to be confused with
-        CompartmentalModel parameters for solving ODEs."""
-    )
 
 
 class _IntWithAttributes(int):

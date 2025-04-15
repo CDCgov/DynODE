@@ -7,6 +7,7 @@ import numpy as np
 import numpyro.distributions as dist
 
 from dynode import utils
+from dynode.sample import identify_distribution_indexes
 
 # strain indexes {"a": 0, "b": 1, "c": 2}
 
@@ -242,7 +243,7 @@ def test_identify_distribution_indexes():
         "example": dist.Normal(),
         "no-sample": 5,
     }
-    indexes = utils.identify_distribution_indexes(parameters)
+    indexes = identify_distribution_indexes(parameters)
 
     assert "test_1" in indexes.keys() and indexes["test_1"] == {
         "sample_name": "test",

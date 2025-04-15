@@ -13,13 +13,10 @@ from typing import Any
 import epiweeks
 import jax.numpy as jnp
 import numpy as np
-import numpyro  # type: ignore
-import numpyro.distributions as Dist  # type: ignore
+import numpyro
 import pandas as pd  # type: ignore
 from jax import Array
 from scipy.stats import gamma
-
-from .typing import DeterministicParameter
 
 pd.options.mode.chained_assignment = None
 
@@ -29,6 +26,8 @@ pd.options.mode.chained_assignment = None
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 def sample_if_distribution(parameters):
     """Search through a dictionary and sample any `numpyro.distribution` objects found.
+
+    NOW DEPRECATED, USE `dynode.sample.sample_distributions()`
 
     Replaces the distribution object within `parameters` with a sample from
     that distribution and converts all lists to `jnp.ndarray`.
@@ -60,7 +59,7 @@ def sample_if_distribution(parameters):
     """
     for key, param in parameters.items():
         # if distribution, sample and replace
-        if issubclass(type(param), Dist.Distribution):
+        if issubclass(type(param), numpyro.distributions.Distribution):
             param = numpyro.sample(key, param)
         # if list, check for distributions within and replace them
         elif isinstance(param, (np.ndarray, list)):
@@ -69,7 +68,9 @@ def sample_if_distribution(parameters):
             # check for distributions inside of the flattened parameter list
             if any(
                 [
-                    issubclass(type(param_lst), Dist.Distribution)
+                    issubclass(
+                        type(param_lst), numpyro.distributions.Distribution
+                    )
                     for param_lst in flat_param
                 ]
             ):
@@ -90,7 +91,10 @@ def sample_if_distribution(parameters):
                                 ),
                                 param_lst,
                             )
-                            if issubclass(type(param_lst), Dist.Distribution)
+                            if issubclass(
+                                type(param_lst),
+                                numpyro.distributions.Distribution,
+                            )
                             else param_lst
                         )
                         for i, param_lst in enumerate(flat_param)
@@ -100,164 +104,6 @@ def sample_if_distribution(parameters):
         # else static param, do nothing
         parameters[key] = param
     return parameters
-
-
-def resolve_if_deterministic(parameters):
-    """Find and resolve all DeterministicParameter types.
-
-    Parameters
-    ----------
-    parameters : dict[str: Any]
-        A dictionary mapping parameter names to any object.
-        `dynode.model_configuration.DeterministicParameter` objects are resolved,
-        with new values replacing the objects within `parameters`.
-
-    Returns
-    -------
-    dict
-        The parameters dictionary with any `DeterministicParameter` objects replaced by
-        the values they depend on. All lists and `np.ndarray` are replaced by `jnp.array`.
-
-    Examples
-    --------
-    >>> import numpyro.distributions as dist
-    ... from dynode.model_configuration.types import DeterministicParameter
-    ... from dynode.utils import sample_if_distribution, resolve_if_dependent
-    ... import numpyro.handlers as handlers
-
-    >>> parameters = {"x": dist.Normal(),
-    ...               "y": DeterministicParameter("x"),
-    ...               "x_lst": [0, dist.Normal(), 2],
-    ...               "y_lst": [0, DeterministicParameter("x_lst", index=1), 2]}
-
-    >>> with handlers.seed(rng_seed=1):
-    ...     samples = sample_if_distribution(parameters)
-    ...     resolved = resolve_if_dependent(samples)
-    >>> resolved
-        {'x': Array(-0.80760655, dtype=float64),
-        'y': Array(-0.80760655, dtype=float64),
-        'x_lst': Array([0.        , 0.57522288, 2.        ], dtype=float64),
-        'y_lst': Array([0.        , 0.57522288, 2.        ], dtype=float64)}
-    """
-    for key, param in parameters.items():
-        # if distribution, sample and replace
-        if isinstance(param, DeterministicParameter):
-            param = numpyro.deterministic(key, param.resolve(parameters))
-        # if list, check for distributions within and replace them
-        elif isinstance(param, (np.ndarray, list)):
-            param = np.array(param)  # cast np.array so we get .shape
-            flat_param = np.ravel(param)  # Flatten the parameter array
-            # check for distributions inside of the flattened parameter list
-            if any(
-                [
-                    isinstance(param_lst, DeterministicParameter)
-                    for param_lst in flat_param
-                ]
-            ):
-                dim_idxs = np.unravel_index(
-                    np.arange(flat_param.size), param.shape
-                )
-                # if we find distributions, sample them, then reshape back to the original shape
-                # all this code with dim_idxs and joining strings is to properly display the
-                # row/col indexes in any number of dimensions, not just 1 and 2D matrix
-                flat_param = jnp.array(
-                    [
-                        (
-                            numpyro.deterministic(
-                                key
-                                + "_"
-                                + "_".join(
-                                    [str(dim_idx[i]) for dim_idx in dim_idxs]
-                                ),
-                                param_lst.resolve(parameters),
-                            )
-                            if isinstance(param_lst, DeterministicParameter)
-                            else param_lst
-                        )
-                        for i, param_lst in enumerate(flat_param)
-                    ]
-                )
-                param = jnp.reshape(flat_param, param.shape)
-        # else static param, do nothing
-        parameters[key] = param
-    return parameters
-
-
-def identify_distribution_indexes(
-    parameters: dict[str, Any],
-) -> dict[str, dict[str, str | tuple | None]]:
-    """Identify the locations and site names of numpyro samples.
-
-    The inverse of `sample_if_distribution()`, identifies which parameters
-    are numpyro distributions and returns a mapping between the sample site
-    names and its actual parameter name and index.
-
-    Parameters
-    ----------
-    parameters : dict[str, Any]
-        A dictionary containing keys of different parameter
-        names and values of any type.
-
-    Returns
-    -------
-    dict[str, dict[str, str | tuple[int] | None]]
-        A dictionary mapping the sample name to the dict key within `parameters`.
-        If the sampled parameter is within a larger list, returns a tuple of indexes as well,
-        otherwise None.
-
-        - key: `str`
-            Sampled parameter name as produced by `sample_if_distribution()`.
-        - value: `dict[str, str | tuple | None]`
-            "sample_name" maps to key within `parameters` and "sample_idx" provides
-            the indexes of the distribution if it is found in a list, otherwise None.
-
-    Examples
-    --------
-    >>> import numpyro.distributions as dist
-    >>> parameters = {"test": [0, dist.Normal(), 2], "example": dist.Normal()}
-    >>> identify_distribution_indexes(parameters)
-    {'test_1': {'sample_name': 'test', 'sample_idx': (1,)},
-    'example': {'sample_name': 'example', 'sample_idx': None}}
-    """
-
-    def get_index(indexes):
-        return tuple(indexes)
-
-    index_locations: dict[str, dict[str, str | tuple | None]] = {}
-    for key, param in parameters.items():
-        # if distribution, it does not have an index, so None
-        if issubclass(type(param), Dist.Distribution):
-            index_locations[key] = {"sample_name": key, "sample_idx": None}
-        # if list, check for distributions within and mark their indexes
-        elif isinstance(param, (np.ndarray, list)):
-            param = np.array(param)  # cast np.array so we get .shape
-            flat_param = np.ravel(param)  # Flatten the parameter array
-            # check for distributions inside of the flattened parameter list
-            if any(
-                [
-                    issubclass(type(param_lst), Dist.Distribution)
-                    for param_lst in flat_param
-                ]
-            ):
-                dim_idxs = np.unravel_index(
-                    np.arange(flat_param.size), param.shape
-                )
-                for i, param_lst in enumerate(flat_param):
-                    if issubclass(type(param_lst), Dist.Distribution):
-                        param_idxs = [dim_idx[i] for dim_idx in dim_idxs]
-                        index_locations[
-                            str(
-                                key
-                                + "_"
-                                + "_".join(
-                                    [str(dim_idx[i]) for dim_idx in dim_idxs]
-                                )
-                            )
-                        ] = {
-                            "sample_name": key,
-                            "sample_idx": get_index(param_idxs),
-                        }
-    return index_locations
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@

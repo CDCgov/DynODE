@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dynode"
-version = "2024.04.14.1a"
+version = "2024.04.11.1a"
 description = "CDC CFA Predict Scenarios model development"
 authors = ["CFA"]
 license = "Apache License, Version 2.0, January 2004"
@@ -8,10 +8,10 @@ readme = "README.md"
 package-mode = true
 
 [tool.poetry.dependencies]
-python = "3.10.*"
+python = ">=3.10,<3.11"
 diffrax = "0.5.*"
-jax = "0.4.*"
-jaxlib = "0.4.*"
+jax = "0.4.30"
+jaxlib = "0.4.30"
 matplotlib = "3.9.*"
 numpy = "2.0.*"
 numpyro = "0.15.*"
@@ -22,6 +22,7 @@ epiweeks = "2.3.*"
 docker = "7.1.*"
 pydantic = "^2.10.6"
 chex = "^0.1.89"
+arviz = "^0.21.0"
 
 
 [tool.poetry.group.dev.dependencies]

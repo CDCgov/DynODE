@@ -9,6 +9,22 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2024.04.11.1a] - Dynode Evolution Inference Processes
+### Added
+- Added the `InferenceProcess` class as well as two concrete instances of `InferenceProcess` named `MCMCProcess` and `SVIProcess` within `dynode.model_configuration.inference.py`. These classes provide functionality for fitting to observed data using MCMC or SVI. Both also can easily retrieve their posterior samples, and convert themselves to arviz `InferenceData` objects for visualization.
+- Added `dynode.sample`, a module containing helper functions to recurssively search for and sample `numpyro.distributions.Distribution` objects, as well as search and resolve `dynode.typing.DeterministicParameter` objects. Both necessary steps for inference.
+- Some more descriptive error text on `dynode.typing.SamplePlaceholderError`
+- The `dynode.typing.ObservedData` type hint.
+- Two simple SIR pre-packaged configs within `src.dynode.model_configration.pre_packaged`, one with static strain R0 and infectious_period, another with priors to infer.
+
+### Changed
+- Modified `examples/sir.py` to showcase simulation of synthetic data, followed by refitting to it. Displaying the various usecases of both `MCMCProcess` and `SVIProcess`.
+- Moved sampling helper code out of `utils.py` and into `dynode.sample`.
+- Allowed `dynode.model_configuration.Strain` objects to contain `ArrayLike` types, meaning when a strain samples its R0 value, the resulting value (which may be a jax tracer in certain contexts), will still be accepted by Pydantic.
+- Moved the `InferenceProcess` class out of `dynode.model_configuration.config_definition` and into `dynode.model_configuration.inference`.
+- Added arviz to `pyproject.toml` as a dependency.
+---
+
 ## [2024.04.14.1a] - Added `idx` property to dynode objects.
 ### Added
 - enum property to `SimulationConfig`, `Compartment`, and `Dimension` classes.

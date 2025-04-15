@@ -3,8 +3,7 @@
 from typing import List
 
 from diffrax import AbstractSolver, Tsit5
-from jax import Array
-from jax.random import PRNGKey
+from jax.typing import ArrayLike
 from numpyro.distributions import Distribution
 from pydantic import (
     BaseModel,
@@ -74,7 +73,13 @@ class TransmissionParams(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
     strain_interactions: dict[
         str,
-        dict[str, NonNegativeFloat | Distribution | DeterministicParameter],
+        dict[
+            str,
+            NonNegativeFloat
+            | ArrayLike
+            | Distribution
+            | DeterministicParameter,
+        ],
     ]
     strains: List[Strain]
 
@@ -141,27 +146,6 @@ class TransmissionParams(BaseModel):
         return strains
 
 
-class InferenceParams(BaseModel):
-    """Parameters necessary for inference."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    inference_prngkey: Array = PRNGKey(8675314)
-
-
-class MCMCParams(InferenceParams):
-    """Inference parameters specific to Markov Chain Monte Carlo (MCMC) fitting methods."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    inference_mcmc_samples: PositiveInt
-    inference_mcmc_warmup: PositiveInt
-
-
-class SVIParams(InferenceParams):
-    """Inference parameters specific to Stochastic Variational Inference (SVI) fitting methods."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
 class Params(BaseModel):
     """Miscellaneous parameters of an ODE model."""
 
@@ -169,19 +153,3 @@ class Params(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     solver_params: SolverParams
     transmission_params: TransmissionParams
-
-    def realize_distributions(self) -> Self:
-        """Go through parameters and sample all distribution objects.
-
-        Returns
-        -------
-        Self
-            Params with all distribution objects replaced by
-            jax.Array containing samples from that distribution.
-
-        Raises
-        ------
-        NotImplementedError
-            Not yet implemented
-        """
-        raise NotImplementedError()

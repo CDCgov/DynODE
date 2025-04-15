@@ -3,7 +3,6 @@
 from .bins import AgeBin, Bin, DiscretizedPositiveIntBin, WaneBin
 from .config_definition import (
     Compartment,
-    InferenceProcess,
     Initializer,
     SimulationConfig,
 )
@@ -13,11 +12,10 @@ from .dimension import (
     LastStrainImmuneHistoryDimension,
     VaccinationDimension,
 )
+from .inference import InferenceProcess, MCMCProcess, SVIProcess
 from .params import (
-    MCMCParams,
     Params,
     SolverParams,
-    SVIParams,
     TransmissionParams,
 )
 from .strains import Strain
@@ -39,6 +37,6 @@ __all__ = [
     "SolverParams",
     "TransmissionParams",
     "InferenceProcess",
-    "MCMCParams",
-    "SVIParams",
+    "MCMCProcess",
+    "SVIProcess",
 ]
