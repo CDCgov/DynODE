@@ -10,11 +10,15 @@ from pydantic import (
 )
 from typing_extensions import Self
 
+from ._typing import DynodeName
+
 
 class Bin(BaseModel):
     """A catch-all bin class meant to represent an individual cell of an ODE compartment."""
 
-    name: str = Field(description="bin name, must be unique to the dimension.")
+    name: DynodeName = Field(
+        description="bin name, must be unique to the dimension. Can not begin with a numeric"
+    )
 
 
 class DiscretizedPositiveIntBin(Bin):
@@ -40,7 +44,7 @@ class DiscretizedPositiveIntBin(Bin):
             name of the bin, by default f"{min_value}_{max_value}" if None
         """
         if name is None:
-            name = f"{min_value}_{max_value}"
+            name = f"range_{min_value}_{max_value}"
         super().__init__(name=name, min_value=min_value, max_value=max_value)
 
     @model_validator(mode="after")
@@ -63,8 +67,10 @@ class AgeBin(DiscretizedPositiveIntBin):
         max_value : int
             maximum value contained by the bin (inclusive)
         name : str, optional
-            name of the bin, by default f"{min_value}_{max_value}" if None
+            name of the bin, by default f"A{min_value}_{max_value}" if None
         """
+        if name is None:
+            name = f"a{min_value}_{max_value}"
         super().__init__(name=name, min_value=min_value, max_value=max_value)
 
 

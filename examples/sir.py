@@ -104,7 +104,9 @@ def model(
     # compare to observed data if we have it
     if infer_mode:
         assert solution.ys is not None, "mypy assert"
-        incidence = jnp.diff(solution.ys[2], axis=0)
+        incidence = jnp.diff(
+            solution.ys[config.idx.r], axis=0
+        )  # leading time axis
         incidence = jnp.maximum(incidence, 1e-6)
         numpyro.sample(
             "inf_incidence",
@@ -118,13 +120,24 @@ def model(
 solution = run_simulation(config_static, tf=100)
 # plot the soliution
 assert solution.ys is not None
-plt.plot(jnp.sum(solution.ys[0], axis=1), label="s")
-plt.plot(jnp.sum(solution.ys[1], axis=1), label="i")
-plt.plot(jnp.sum(solution.ys[2], axis=1), label="r")
+idx = config_static.idx
+# add 1 to each axis to account for the leading time dimension in `solution`
+plt.plot(
+    jnp.sum(solution.ys[config_static.idx.s], axis=idx.s.age + 1),
+    label="s",
+)
+plt.plot(
+    jnp.sum(solution.ys[config_static.idx.i], axis=idx.i.age + 1),
+    label="i",
+)
+plt.plot(
+    jnp.sum(solution.ys[config_static.idx.r], axis=idx.r.age + 1),
+    label="r",
+)
 plt.legend()
 plt.show()
 # diff recovered individuals to recover lagged incidence for each age group
-incidence = jnp.diff(solution.ys[2], axis=0)
+incidence = jnp.diff(solution.ys[idx.r], axis=0)
 # %%
 # set up inference process
 # now lets infer the parameters of this strain instead
