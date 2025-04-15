@@ -1,7 +1,7 @@
 """Strain types for ODE compartment models."""
 
 from datetime import date
-from typing import Annotated, List, Optional, Union
+from typing import List, Optional, Union
 
 from jax.typing import ArrayLike
 from numpyro.distributions import Distribution
@@ -11,10 +11,10 @@ from pydantic import (
     Field,
     NonNegativeFloat,
     PositiveFloat,
-    StringConstraints,
 )
 
 from ..typing import DeterministicParameter
+from ._typing import DynodeName
 from .bins import AgeBin
 
 
@@ -24,10 +24,9 @@ class Strain(BaseModel):
     # allow Distribution objects within Strains
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    strain_name: Annotated[
-        str,
-        StringConstraints(strip_whitespace=True, min_length=1, to_lower=True),
-    ] = Field(description="Strain name, lower case.")
+    strain_name: DynodeName = Field(
+        description="Strain name, no leading numbers or special characters."
+    )
     r0: Union[
         NonNegativeFloat, ArrayLike, Distribution, DeterministicParameter
     ] = Field(
