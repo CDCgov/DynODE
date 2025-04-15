@@ -39,16 +39,15 @@ class SIRInitializer(Initializer):
         s_0 = num_susceptibles * age_demographics
         num_infectious = self.population_size * jnp.array([0.01])
         i_0 = num_infectious * age_demographics
+        r_0 = jnp.array([0.0, 0.0])
         # SimulationConfig has no impact on initial state in this example
         return (
             s_0,
             i_0,
-            jnp.array([0.0, 0.0]),
+            r_0,
         )
 
 
-# TODO add young/old age structure.
-# TODO add trivial contact matrix.
 class SIRConfig(SimulationConfig):
     """A static SIR config class for use in the `examples/sir.py` script."""
 
@@ -63,18 +62,19 @@ class SIRConfig(SimulationConfig):
         s = Compartment(name="s", dimensions=[dimension])
         i = Compartment(name="i", dimensions=[dimension])
         r = Compartment(name="r", dimensions=[dimension])
-        strain = [
-            Strain(strain_name="example_strain", r0=2, infectious_period=7.0)
-        ]
+        strain = [Strain(strain_name="swo9", r0=2, infectious_period=7.0)]
+        contact_matrix = jnp.array([[0.7, 0.3], [0.3, 0.7]])
+        # normalize contact matrix by the spectral radius
+        contact_matrix = contact_matrix / jnp.max(
+            jnp.real(jnp.linalg.eigvals(contact_matrix))
+        )
         parameters = Params(
             solver_params=SolverParams(),
             transmission_params=TransmissionParams(
                 strains=strain,
-                strain_interactions={
-                    "example_strain": {"example_strain": 1.0}
-                },
+                strain_interactions={"swo9": {"swo9": 1.0}},
                 # contact matrix for young/old interactions
-                contact_matrix=jnp.array([[0.7, 0.3], [0.3, 0.7]]),
+                contact_matrix=contact_matrix,
             ),
         )
         super().__init__(
@@ -98,7 +98,7 @@ class SIRInferedConfig(SIRConfig):
 
         self.parameters.transmission_params.strains = [
             Strain(
-                strain_name="example_strain",
+                strain_name="swo9",
                 r0=dist.TransformedDistribution(
                     dist.Beta(0.5, 0.5),
                     dist.transforms.AffineTransform(1.5, 1),

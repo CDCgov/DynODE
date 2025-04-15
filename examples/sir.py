@@ -131,15 +131,16 @@ incidence = jnp.diff(solution.ys[2], axis=0)
 config_infer = SIRInferedConfig()
 # creating two InferenceProcesses, one for MCMC and one for SVI
 inference_process_mcmc = MCMCProcess(
-    simulator=model,
+    numpyro_model=model,
     num_warmup=1000,
     num_samples=1000,
     num_chains=1,
     nuts_max_tree_depth=10,
 )
 inference_process_svi = SVIProcess(
-    simulator=model,
+    numpyro_model=model,
     num_iterations=2000,
+    num_samples=1000,  # for posterior generation
 )
 # %%
 # running inference
@@ -158,17 +159,17 @@ posterior_samples_svi = inference_process_svi.get_samples()
 # %%
 # printing results of inference
 print(
-    f"True value or R0: {config_static.parameters.transmission_params.strains[0].r0} "
+    f"Parameterized value of R0: {config_static.parameters.transmission_params.strains[0].r0} "
     f"Infectious Period: {config_static.parameters.transmission_params.strains[0].infectious_period}"
 )
 # notice the name of the posterior sample mimics the index of `transmission_params.strains`
 # this will help you find parameters later on.
 print(
-    f"MCMC posteriors R0: {jnp.mean(posterior_samples_mcmc['strains_0_r0'])}, "
+    f"MCMC posterior's R0: {jnp.mean(posterior_samples_mcmc['strains_0_r0'])}, "
     f"Infectious Period: {jnp.mean(posterior_samples_mcmc['strains_0_infectious_period'])}"
 )
 print(
-    f"SVI posteriors R0: {jnp.mean(posterior_samples_svi['strains_0_r0'])}, "
+    f"SVI posterior's R0: {jnp.mean(posterior_samples_svi['strains_0_r0'])}, "
     f"Infectious Period: {jnp.mean(posterior_samples_svi['strains_0_infectious_period'])}"
 )
 # %%
@@ -183,7 +184,7 @@ axes = az.plot_density(
 )
 
 fig = axes.flatten()[0].get_figure()
-fig.suptitle("Density Intervals for R0")
+fig.suptitle("Density Interval for R0")
 
 plt.show()
 mcmc_arviz
@@ -223,7 +224,7 @@ print(posterior_incidence_mcmc.keys())
 print(posterior_incidence_svi.keys())
 
 # %%
-# pick a random subset of 50 samples and plot the incidence, plot the true incidence from earilier as well
+# pick a random subset of 50 samples and plot the incidence, plot the true incidence from earlier as well
 random_samples = jax.random.choice(
     inference_process_mcmc.inference_prngkey,
     posterior_incidence_mcmc["inf_incidence"].shape[0],

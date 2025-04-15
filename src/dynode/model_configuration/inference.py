@@ -34,10 +34,10 @@ class InferenceProcess(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
     # TODO change this naming and the word model
-    simulator: Callable[
+    numpyro_model: Callable[
         [SimulationConfig, Optional[ObservedData]], Solution
     ] = Field(
-        description="""Model that initializes state, samples and resolves
+        description="""Numpyro model that initializes state, samples and resolves
         parameters, generates timeseries, and optionally compares it to
         observed data, returning generated data."""
     )
@@ -56,9 +56,9 @@ class InferenceProcess(BaseModel):
     )
 
     def infer(self, **kwargs) -> MCMC | SVI:
-        """Fit the simulator to data using the inference process.
+        """Fit the numpyro_model to data using the inference process.
 
-        Additional keyword arguments are passed to the simulator.
+        Additional keyword arguments are passed to the numpyro_model.
 
         Returns
         -------
@@ -116,7 +116,7 @@ class InferenceProcess(BaseModel):
 
 
 class MCMCProcess(InferenceProcess):
-    """Inference process for fitting a simulator to data using MCMC."""
+    """Inference process for fitting a numpyro_model to data using MCMC."""
 
     num_samples: PositiveInt
     num_warmup: PositiveInt
@@ -136,9 +136,9 @@ class MCMCProcess(InferenceProcess):
     progress_bar: bool = True
 
     def infer(self, **kwargs) -> MCMC:
-        """Fit the simulator to data using MCMC.
+        """Fit the numpyro_model to data using MCMC.
 
-        Additional keyword arguments are passed to the simulator.
+        Additional keyword arguments are passed to the numpyro_model.
 
         Returns
         -------
@@ -147,7 +147,7 @@ class MCMCProcess(InferenceProcess):
         """
         inferer = MCMC(
             NUTS(
-                self.simulator,
+                self.numpyro_model,
                 dense_mass=True,
                 max_tree_depth=self.nuts_max_tree_depth,
                 init_strategy=self.nuts_init_strategy,
@@ -222,15 +222,15 @@ class MCMCProcess(InferenceProcess):
                 "Inference process not completed, please call infer() first."
             )
         posterior_predictive = Predictive(
-            self.simulator,
+            self.numpyro_model,
             posterior_samples=self.get_samples(),
         )(
             rng_key=self.inference_prngkey,
-            **self._inferer_kwargs,  # arguments passed to `simulator`
+            **self._inferer_kwargs,  # arguments passed to `numpyro_model`
         )
-        prior = Predictive(self.simulator, num_samples=self.num_samples)(
+        prior = Predictive(self.numpyro_model, num_samples=self.num_samples)(
             rng_key=self.inference_prngkey,
-            **self._inferer_kwargs,  # arguments passed to `simulator`
+            **self._inferer_kwargs,  # arguments passed to `numpyro_model`
         )
 
         return az.from_numpyro(
@@ -241,10 +241,16 @@ class MCMCProcess(InferenceProcess):
 
 
 class SVIProcess(InferenceProcess):
-    """Inference process for fitting a simulator to data using SVI."""
+    """Inference process for fitting a numpyro_model to data using SVI."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    num_iterations: PositiveInt
+    num_iterations: PositiveInt = Field(
+        description="""The number of iterations to fit. """
+    )
+    num_samples: PositiveInt = Field(
+        description="""The number of samples to generate when calling
+        get_samples() on this process after a fit."""
+    )
     guide_class: Type[AutoContinuous] = AutoMultivariateNormal
     guide_init_strategy: Callable = init_to_median
     optimizer: _NumPyroOptim = Field(
@@ -260,9 +266,9 @@ class SVIProcess(InferenceProcess):
     )
 
     def infer(self, **kwargs) -> SVI:
-        """Fit the simulator to data using SVI.
+        """Fit the numpyro_model to data using SVI.
 
-        Additional keyword arguments are passed to the simulator.
+        Additional keyword arguments are passed to the numpyro_model.
 
         Returns
         -------
@@ -270,13 +276,13 @@ class SVIProcess(InferenceProcess):
             The SVI object used for inference.
         """
         guide = self.guide_class(
-            self.simulator,
+            self.numpyro_model,
             init_loc_fn=self.guide_init_strategy,
             **self.guide_kwargs,
         )
 
         inferer = SVI(
-            model=self.simulator,
+            model=self.numpyro_model,
             guide=guide,
             optim=self.optimizer,
             loss=Trace_ELBO(),
@@ -332,7 +338,7 @@ class SVIProcess(InferenceProcess):
         predictive = Predictive(
             self._inferer.guide,
             params=self._inference_state.params,
-            num_samples=self.num_iterations,
+            num_samples=self.num_samples,
         )
         samples = predictive(self.inference_prngkey)
         if not exclude_deterministic:
@@ -340,13 +346,11 @@ class SVIProcess(InferenceProcess):
                 model=self._inferer.model,
                 guide=self._inferer.guide,
                 params=self._inference_state.params,
-                num_samples=self.num_iterations,
+                num_samples=self.num_samples,
             )
-            # TODO revist this, is this what we want to be doing with rng here?
-            rng_key_deterministic = self.inference_prngkey + 1
 
             deterministic_samples = deterministic_predictive(
-                rng_key_deterministic, **self._inferer_kwargs
+                self.inference_prngkey, **self._inferer_kwargs
             )
             samples = {**samples, **deterministic_samples}
 
@@ -377,18 +381,20 @@ class SVIProcess(InferenceProcess):
                 "Inference process not completed, please call infer() first."
             )
         posterior_predictive = Predictive(
-            self.simulator,
+            self.numpyro_model,
             posterior_samples=self.get_samples(),
         )(
             rng_key=self.inference_prngkey,
-            **self._inferer_kwargs,  # arguments passed to `simulator`
+            **self._inferer_kwargs,  # arguments passed to `numpyro_model`
         )
-        prior = Predictive(self.simulator, num_samples=self.num_iterations)(
+        prior = Predictive(
+            self.numpyro_model, num_samples=self.num_iterations
+        )(
             rng_key=self.inference_prngkey,
-            **self._inferer_kwargs,  # arguments passed to `simulator`
+            **self._inferer_kwargs,  # arguments passed to `numpyro_model`
         )
         ll = log_likelihood(
-            self.simulator, self.get_samples(), **self._inferer_kwargs
+            self.numpyro_model, self.get_samples(), **self._inferer_kwargs
         )
         # TODO figure out how to return more than just prior and posterior_predictive for svi
         return az.from_numpyro(
