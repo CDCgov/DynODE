@@ -1,6 +1,8 @@
 """Top level classes for DynODE configs."""
 
 from datetime import date
+from functools import cached_property
+from types import SimpleNamespace
 from typing import List, Optional, Union
 
 from jax import Array
@@ -11,7 +13,6 @@ from pydantic import (
     ConfigDict,
     Field,
     PositiveInt,
-    field_validator,
     model_validator,
 )
 from typing_extensions import Any, Self
@@ -19,6 +20,7 @@ from typing_extensions import Any, Self
 from dynode.typing import CompartmentState
 from dynode.utils import set_dynode_init_date_flag
 
+from ._typing import DynodeName
 from .bins import AgeBin, Bin
 from .dimension import (
     Dimension,
@@ -34,7 +36,7 @@ class Compartment(BaseModel):
 
     # allow jax array objects within Compartments
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    name: str = Field(
+    name: DynodeName = Field(
         description="""Compartment name, must be unique within a CompartmentModel."""
     )
     dimensions: List[Dimension] = Field(
@@ -44,17 +46,6 @@ class Compartment(BaseModel):
         default_factory=lambda: jnp.array([]),
         description="Compartment matrix values.",
     )
-
-    @field_validator("name", mode="before")
-    @classmethod
-    def _verify_names(cls, value: str) -> str:
-        """Validate to ensure names are always lowercase and underscored."""
-        if value.replace("_", "").isalpha():
-            return value.lower()
-        else:
-            raise ValueError(
-                "the name field must not contain non-alpha chars with the exception of underscores"
-            )
 
     @model_validator(mode="after")
     def _shape_match(self) -> Self:
@@ -82,6 +73,26 @@ class Compartment(BaseModel):
     def shape(self) -> tuple[int, ...]:
         """Get shape of the compartment."""
         return tuple([len(d_i) for d_i in self.dimensions])
+
+    @cached_property
+    def idx(self):
+        """An enum-like structure for dimensions and their bins.
+
+        Note
+        ----
+        This is a cache property, so it will only be computed once, modifications
+        to the compartment will not change the idx after it is created.
+
+        Returns
+        -------
+            SimpleNamespace: A namespace containing dimensions and their bins.
+        """
+        dims_namespace = SimpleNamespace()
+        for dim_idx, dimension in enumerate(self.dimensions):
+            # save the dimension index along with the indexes of all the bins.
+            dim_obj = _IntWithAttributes(dim_idx, **dimension.idx.__dict__)
+            setattr(dims_namespace, dimension.name, dim_obj)
+        return dims_namespace
 
     def __eq__(self, value) -> bool:
         """Check for equality definitions between two Compartments.
@@ -196,6 +207,28 @@ class SimulationConfig(BaseModel):
         """Initialize context for model run."""
         init_date = self.initializer.initialize_date
         set_dynode_init_date_flag(init_date)
+
+    @cached_property
+    def idx(self):
+        """An enum-like structure for compartments and their dimensions.
+
+        Note
+        ----
+        This is a cache property, so it will only be computed once, modifications
+        to the compartments will not change the enum after it is created.
+
+        Returns
+        -------
+            SimpleNamespace: A namespace containing compartments and their dimensions.
+        """
+        compartments_namespace = SimpleNamespace()
+        for compartment_idx, compartment in enumerate(self.compartments):
+            # build up the bins namespace for this compartment
+            compartment_obj = _IntWithAttributes(
+                compartment_idx, **compartment.idx.__dict__
+            )
+            setattr(compartments_namespace, compartment.name, compartment_obj)
+        return compartments_namespace
 
     @model_validator(mode="after")
     def _validate_shared_compartment_dimensions(self) -> Self:
@@ -387,3 +420,16 @@ class InferenceProcess(BaseModel):
         description="""Inference related parameters, not to be confused with
         CompartmentalModel parameters for solving ODEs."""
     )
+
+
+class _IntWithAttributes(int):
+    """A subclass of int that allows setting attributes."""
+
+    def __new__(cls, value, **attributes):
+        obj = super().__new__(cls, value)
+        for key, val in attributes.items():
+            setattr(obj, key, val)
+        return obj
+
+    def __str__(self):
+        return str(self.__dict__)

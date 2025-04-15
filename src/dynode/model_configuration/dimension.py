@@ -2,6 +2,7 @@
 
 from itertools import combinations
 from math import isinf
+from types import SimpleNamespace
 from typing import List
 
 from pydantic import (
@@ -15,6 +16,7 @@ from typing_extensions import Self
 
 from dynode.typing import UnitIntervalFloat
 
+from ._typing import DynodeName
 from .bins import Bin, DiscretizedPositiveIntBin, WaneBin
 from .strains import Strain
 
@@ -22,7 +24,7 @@ from .strains import Strain
 class Dimension(BaseModel):
     """A dimension of an compartment."""
 
-    name: str = Field(
+    name: DynodeName = Field(
         description="""Dimension name, must be unique within a Compartment"""
     )
     bins: List[Bin] = Field(
@@ -32,6 +34,15 @@ class Dimension(BaseModel):
     def __len__(self):
         """Get len of a Dimension."""
         return len(self.bins)
+
+    @property
+    def idx(self):
+        """Dimension idxs for indexing the bins within this dimension."""
+        bin_namespace = SimpleNamespace()
+        for bin_idx, single_bin in enumerate(self.bins):
+            # build up the bins namespace for this compartment
+            setattr(bin_namespace, single_bin.name, bin_idx)
+        return bin_namespace
 
     @field_validator("bins", mode="after")
     @classmethod
@@ -107,7 +118,9 @@ class VaccinationDimension(Dimension):
         if seasonal_vaccination:
             max_ordinal_vaccinations += 1
         bins: list[Bin] = [
-            DiscretizedPositiveIntBin(min_value=vax_count, max_value=vax_count)
+            DiscretizedPositiveIntBin(
+                name=f"v{vax_count}", min_value=vax_count, max_value=vax_count
+            )
             for vax_count in range(max_ordinal_vaccinations + 1)
         ]
         super().__init__(name="vax", bins=bins)
