@@ -2,6 +2,8 @@
 # Including all the class setup
 # %% imports and definitions
 # most of these imports are for type hinting
+from types import SimpleNamespace
+
 import arviz as az
 import chex
 import jax
@@ -14,7 +16,6 @@ from numpyro.infer.svi import SVIRunResult
 
 from dynode.model_configuration import (
     SimulationConfig,
-    TransmissionParams,
 )
 from dynode.model_configuration.inference import MCMCProcess, SVIProcess
 from dynode.model_configuration.pre_packaged.example_sir_config import (
@@ -27,19 +28,22 @@ from dynode.typing import CompartmentGradients, CompartmentState
 
 
 # define the behavior of the ODEs and the parameters they take
-@chex.dataclass
+@chex.dataclass(static_keynames=["idx"])
 class SIR_ODEParams(AbstractODEParams):
     beta: chex.ArrayDevice  # r0/infectious period
     gamma: chex.ArrayDevice  # 1/infectious period
     contact_matrix: chex.ArrayDevice  # contact matrix
+    idx: SimpleNamespace  # indexing object for the compartments
     pass
 
 
 # define a function to easily translate the object oriented TransmissionParams
 # into the vectorized ODEParams.
-def get_odeparams(transmission_params: TransmissionParams) -> SIR_ODEParams:
+def get_odeparams(config: SimulationConfig) -> SIR_ODEParams:
     """Transform and vectorize transmission parameters into ODE parameters."""
-    transmission_params = sample_then_resolve(transmission_params)
+    transmission_params = sample_then_resolve(
+        config.parameters.transmission_params
+    )
     strain = transmission_params.strains[0]
     beta = strain.r0 / strain.infectious_period  # type: ignore
     gamma = 1 / strain.infectious_period
@@ -47,6 +51,7 @@ def get_odeparams(transmission_params: TransmissionParams) -> SIR_ODEParams:
         beta=jnp.array(beta),
         gamma=jnp.array(gamma),
         contact_matrix=transmission_params.contact_matrix,
+        idx=config.idx,
     )
 
 
@@ -76,7 +81,7 @@ config_static = SIRConfig()
 
 
 def run_simulation(config: SimulationConfig, tf) -> Solution:
-    ode_params = get_odeparams(config.parameters.transmission_params)
+    ode_params = get_odeparams(config)
 
     # we need just the jax arrays for the initial state to the ODEs
     initial_state = config.initializer.get_initial_state(SIRConfig=config)

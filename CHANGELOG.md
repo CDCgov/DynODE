@@ -9,6 +9,12 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2024.04.17.1a] - Static args support in `chex.Dataclass`
+### Changed
+- Changed chex version to a custom fork that allows for static arguments within a chex dataclass. See branch [here](https://github.com/mishmish66/chex/tree/static_keynames) and PR describing functionality [here](https://github.com/google-deepmind/chex/pull/327). This is meant to be temporary until Chex merges the commit into main. They are however slow to update and I think this feature is important enough to justify merging the fork.
+
+- Updated `SIR.py` to use the new `static_keynames` functionality for an example.
+
 ## [2024.04.11.1a] - Dynode Evolution Inference Processes
 ### Added
 - Added the `InferenceProcess` class as well as two concrete instances of `InferenceProcess` named `MCMCProcess` and `SVIProcess` within `dynode.model_configuration.inference.py`. These classes provide functionality for fitting to observed data using MCMC or SVI. Both also can easily retrieve their posterior samples, and convert themselves to arviz `InferenceData` objects for visualization.
