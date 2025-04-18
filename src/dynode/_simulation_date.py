@@ -93,3 +93,7 @@ class SimulationDate(date):
     def __repr__(self):
         """Return a string representation of the SimulationDate."""
         return f"SimulationDate: ({self.year}-{self.month}-{self.day})({self.sim_day}) "
+
+    def __deepcopy__(self, memo):
+        """Return a deep copy of the SimulationDate."""
+        return SimulationDate(self.year, self.month, self.day)
