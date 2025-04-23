@@ -12,6 +12,7 @@ from diffrax import (  # type: ignore
     PIDController,
     SaveAt,
     Solution,
+    SubSaveAt,
     diffeqsolve,
 )
 from jax import Array
@@ -90,8 +91,11 @@ def simulate(
     assert isinstance(
         duration_days, (int, float)
     ), "tf must be of type int or float"
-
-    saveat = SaveAt(ts=jnp.linspace(t0, duration_days, int(duration_days) + 1))
+    weekly_times = jnp.arange(t0, duration_days, 7)
+    print(initial_state)
+    subsaveat = SubSaveAt(ts=weekly_times, fn=lambda t, y, args: y[1])
+    saveat = SaveAt(subs=[subsaveat])
+    # saveat = SaveAt(ts=jnp.linspace(t0, duration_days, int(duration_days) + 1))
     stepsize_controller: AbstractStepSizeController
     if solver_parameters.constant_step_size > 0.0:
         # if user specifies they want constant step size, set it here

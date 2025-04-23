@@ -122,18 +122,24 @@ solution = run_simulation(config_static, tf=100)
 assert solution.ys is not None
 idx = config_static.idx
 # add 1 to each axis to account for the leading time dimension in `solution`
+"""
 plt.plot(
     jnp.sum(solution.ys[config_static.idx.s], axis=idx.s.age + 1),
     label="s",
 )
+"""
+print(solution.ys)
+print(config_static.idx.i)
 plt.plot(
-    jnp.sum(solution.ys[config_static.idx.i], axis=idx.i.age + 1),
+    jnp.sum(solution.ys[0], axis=idx.i.age + 1),
     label="i",
 )
+"""
 plt.plot(
     jnp.sum(solution.ys[config_static.idx.r], axis=idx.r.age + 1),
     label="r",
 )
+"""
 plt.legend()
 plt.show()
 # diff recovered individuals to recover lagged incidence for each age group
