@@ -110,6 +110,33 @@ def test_scale_initial_infections():
             scale_factor,
             str(num_initial_infections_modified),
         )
+        # test that the age distributions are preserved
+        age_distributions_initial = jnp.sum(
+            jnp.array(
+                [
+                    jnp.sum(compartment, axis=(1, 2, 3))
+                    for compartment in static_params.INITIAL_STATE[:-1]
+                ]
+            ),
+            axis=0,
+        )
+        age_distributions_modified = jnp.sum(
+            jnp.array(
+                [
+                    jnp.sum(compartment, axis=(1, 2, 3))
+                    for compartment in modified_initial_state[:-1]
+                ]
+            ),
+            axis=0,
+        )
+        assert jnp.allclose(
+            age_distributions_initial, age_distributions_modified
+        ), (
+            f"the age distributions of the population were not preserved after "
+            f"scaling initial infections. Began with {age_distributions_initial} "
+            f"ended with {age_distributions_modified}"
+        )
+
         # test that the E and I ratios are preserved.
         for ratio_start, ratio_end in zip(
             [ratio_infections_exposed, ratio_infections_infectious],

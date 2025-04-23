@@ -752,43 +752,31 @@ class AbstractParameters:
         The function ensures that the relative sizes of
         Exposed and Infectious compartments are preserved during scaling.
         """
-        pop_counts_by_compartment = jnp.array(
-            [
-                jnp.sum(compartment)
-                for compartment in self.INITIAL_STATE[
-                    : self.config.COMPARTMENT_IDX.C
-                ]
-            ]
-        )
-        initial_infections = (
-            pop_counts_by_compartment[self.config.COMPARTMENT_IDX.E]
-            + pop_counts_by_compartment[self.config.COMPARTMENT_IDX.I]
-        )
-        initial_susceptibles = pop_counts_by_compartment[
-            self.config.COMPARTMENT_IDX.S
-        ]
-        # total_pop_size = initial_susceptibles + initial_infections
-        new_infections_size = scale_factor * initial_infections
         # negative if scale_factor < 1.0
-        gained_infections = new_infections_size - initial_infections
-        scale_factor_susceptible_compartment = 1 - (
-            gained_infections / initial_susceptibles
+        e_new = self.INITIAL_STATE[1] * scale_factor
+        i_new = self.INITIAL_STATE[2] * scale_factor
+        age_stratified_infections_delta = jnp.sum(
+            e_new + i_new,
+            axis=(1, 2, 3),
+        ) - jnp.sum(
+            self.INITIAL_STATE[1] + self.INITIAL_STATE[2],
+            axis=(1, 2, 3),
+        )
+        age_stratified_infections_scaling = 1 - (
+            age_stratified_infections_delta
+            / jnp.sum(
+                self.INITIAL_STATE[0],
+                axis=(1, 2, 3),
+            )
         )
         # multiplying E and I by the same scale_factor preserves their relative ratio
-        scale_factors = [
-            scale_factor_susceptible_compartment,
-            scale_factor,
-            scale_factor,
-            1.0,  # for the C compartment, unchanged.
-        ]
-        # scale each compartment and return
-        initial_state = tuple(
-            [
-                compartment * factor
-                for compartment, factor in zip(
-                    self.INITIAL_STATE, scale_factors
-                )
-            ]
+        s_new = (
+            age_stratified_infections_scaling[:, None, None, None]
+            * self.INITIAL_STATE[0]
         )
-        assert len(initial_state) == 4
-        return initial_state
+        return (
+            s_new,
+            e_new,
+            i_new,
+            self.INITIAL_STATE[-1],
+        )
