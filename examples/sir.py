@@ -89,6 +89,8 @@ def run_simulation(config: SimulationConfig, tf) -> Solution:
         initial_state=initial_state,
         ode_parameters=ode_params,
         solver_parameters=config.parameters.solver_params,
+        sub_save_indices=(0, 1),
+        save_step=7,
     )
     return solution
 
@@ -127,19 +129,19 @@ idx = config_static.idx
 # add 1 to each axis to account for the leading time dimension in `solution`
 
 plt.plot(
-    jnp.sum(solution.ys[config_static.idx.s], axis=idx.s.age + 1),
+    jnp.sum(solution.ys[1], axis=idx.s.age + 1),
     label="s",
 )
-# print(solution.ys)
-# print(config_static.idx.i)
 plt.plot(
-    jnp.sum(solution.ys[config_static.idx.i], axis=idx.i.age + 1),
+    jnp.sum(solution.ys[2], axis=idx.i.age + 1),
     label="i",
 )
+"""
 plt.plot(
     jnp.sum(solution.ys[config_static.idx.r], axis=idx.r.age + 1),
     label="r",
 )
+"""
 
 plt.legend()
 plt.show()
