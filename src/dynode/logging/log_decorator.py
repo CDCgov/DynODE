@@ -2,6 +2,7 @@
 
 import logging
 import os
+from collections.abc import Iterable
 from datetime import datetime
 from functools import wraps
 from inspect import getframeinfo, stack
@@ -36,7 +37,7 @@ def log_decorator(_func=None):
         """
 
         @wraps(func)
-        def log_decorator_wrapper(self, *args, **kwargs):
+        def log_decorator_wrapper(*args, **kwargs):
             """Innermost log decorator function.
 
             Gets decorated functions name, file name, arguments passed, and starts an execution timer.
@@ -70,12 +71,15 @@ def log_decorator(_func=None):
             )
             try:
                 """log return value from the function"""
-                value = func(self, *args, **kwargs)
+                value = func(*args, **kwargs)
 
                 end_time = datetime.now()
                 execution_time = end_time - start_time
 
-                log_value = "\n".join(map(str, value))
+                log_value = value
+                if isinstance(value, Iterable):
+                    log_value = "\n".join(map(str, value))
+
                 logger.info(
                     f"Execution Time: {execution_time}", extra=extra_args
                 )

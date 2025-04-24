@@ -36,7 +36,7 @@ class AbstractInitializer(ABC):
         self.config: Any = {}
         pass
 
-    @log_decorator()
+    @log_decorator
     def get_initial_state(
         self,
     ) -> SEIC_Compartments:
