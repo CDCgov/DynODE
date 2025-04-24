@@ -12,6 +12,7 @@ from diffrax import Solution
 from numpyro.infer import Predictive
 from numpyro.infer.svi import SVIRunResult
 
+from dynode.logging import log, log_decorator
 from dynode.model_configuration import (
     SimulationConfig,
     TransmissionParams,
@@ -93,6 +94,7 @@ def run_simulation(config: SimulationConfig, tf) -> Solution:
 
 
 # define the entire process of simulating incidence
+@log_decorator
 def model(
     config: SimulationConfig,
     tf,
@@ -116,30 +118,29 @@ def model(
     return solution
 
 
+log.use_logging(level="debug", output="both")
 # produce synthetic data with fixed r0 and infectious period
 solution = run_simulation(config_static, tf=100)
 # plot the soliution
 assert solution.ys is not None
 idx = config_static.idx
 # add 1 to each axis to account for the leading time dimension in `solution`
-"""
+
 plt.plot(
     jnp.sum(solution.ys[config_static.idx.s], axis=idx.s.age + 1),
     label="s",
 )
-"""
-print(solution.ys)
-print(config_static.idx.i)
+# print(solution.ys)
+# print(config_static.idx.i)
 plt.plot(
-    jnp.sum(solution.ys[0], axis=idx.i.age + 1),
+    jnp.sum(solution.ys[config_static.idx.i], axis=idx.i.age + 1),
     label="i",
 )
-"""
 plt.plot(
     jnp.sum(solution.ys[config_static.idx.r], axis=idx.r.age + 1),
     label="r",
 )
-"""
+
 plt.legend()
 plt.show()
 # diff recovered individuals to recover lagged incidence for each age group
