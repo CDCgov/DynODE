@@ -26,35 +26,37 @@ class VisualizationError(Exception):
 
 
 def _cleanup_and_normalize_timeseries(
-    all_state_timeseries: pd.DataFrame,
+    all_region_timeseries: pd.DataFrame,
     plot_types: np.ndarray,
     plot_normalizations: np.ndarray,
-    state_pop_sizes: dict[str, int],
+    region_pop_sizes: dict[str, int],
 ):
     # Select columns with 'float64' dtype
-    float_cols = list(all_state_timeseries.select_dtypes(include="float64"))
+    float_cols = list(all_region_timeseries.select_dtypes(include="float64"))
     # round down near-zero values to zero to make plots cleaner
-    all_state_timeseries[float_cols] = all_state_timeseries[float_cols].mask(
-        np.isclose(all_state_timeseries[float_cols], 0, atol=1e-4), 0
+    all_region_timeseries[float_cols] = all_region_timeseries[float_cols].mask(
+        np.isclose(all_region_timeseries[float_cols], 0, atol=1e-4), 0
     )
     for plot_type, plot_normalization in zip(plot_types, plot_normalizations):
-        for state_name, state_pop in state_pop_sizes.items():
+        for region_name, region_pop in region_pop_sizes.items():
             # if normalization is set to 1, we dont normalize at all.
             normalization_factor = (
-                plot_normalization / state_pop
+                plot_normalization / region_pop
                 if plot_normalization > 1
                 else 1.0
             )
             # select all columns from that column type
             cols = [
-                col for col in all_state_timeseries.columns if plot_type in col
+                col
+                for col in all_region_timeseries.columns
+                if plot_type in col
             ]
-            # update that states columns by the normalization factor
-            all_state_timeseries.loc[
-                all_state_timeseries["state"] == state_name,
+            # update that region columns by the normalization factor
+            all_region_timeseries.loc[
+                all_region_timeseries["state"] == region_name,
                 cols,
             ] *= normalization_factor
-    return all_state_timeseries
+    return all_region_timeseries
 
 
 def plot_model_overview_subplot_matplotlib(

@@ -43,7 +43,7 @@ parser.add_argument(
 class ExampleDynodeRunner(AbstractDynodeRunner):
     """An Example DynODE Runner used to launch this illustration."""
 
-    def process_state(self, state: str, **kwargs):
+    def process_region(self, region: str, **kwargs):
         """Every DynODE runner must have an entry point.
 
         In this case the example configs are built around US data, so we are
@@ -51,7 +51,7 @@ class ExampleDynodeRunner(AbstractDynodeRunner):
 
         Parameters
         ----------
-        state : str
+        region : str
             State USPS, ignored in this specific example as it only runs USA.
         infer : bool, optional
             Whether or not the user of this example script wants to run inference,
@@ -172,4 +172,4 @@ if __name__ == "__main__":
         os.mkdir("output")
 
     runner = ExampleDynodeRunner("output/")
-    runner.process_state("USA", infer=infer)
+    runner.process_region("USA", infer=infer)

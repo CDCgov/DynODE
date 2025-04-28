@@ -53,7 +53,7 @@ class AbstractDynodeRunner(ABC):
         )
 
     @abstractmethod
-    def process_state(self, state, **kwargs):
+    def process_region(self, region, **kwargs):
         """Abstract function meant to be implemented by instance of the runner.
 
         Entry point that handles all of the logic of getting a solution object.
@@ -63,7 +63,7 @@ class AbstractDynodeRunner(ABC):
 
         Parameters
         ----------
-        state : str
+        region : str
             USPS state code for an individual state or territory.
         kwargs : any
             any other parameters needed to identify an individual simulation.

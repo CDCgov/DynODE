@@ -562,21 +562,21 @@ class AbstractParameters:
         `self.config.VACCINATION_MODEL_DATA/spline_fits_{region_name}`
         """
         # if the user passes a directory instead of a file path
-        # check to see if the state exists in the directory and use that
+        # check to see if the region exists in the directory and use that
         if os.path.isdir(self.config.VACCINATION_MODEL_DATA):
             vax_spline_filename = "spline_fits_%s.csv" % (
                 self.config.REGIONS[0].lower().replace(" ", "_")
             )
-            state_path = os.path.join(
+            region_path = os.path.join(
                 self.config.VACCINATION_MODEL_DATA, vax_spline_filename
             )
-            if os.path.exists(state_path):
-                parameters = pd.read_csv(state_path)
+            if os.path.exists(region_path):
+                parameters = pd.read_csv(region_path)
             else:
                 raise FileNotFoundError(
                     "Directory passed to VACCINATION_MODEL_DATA parameter, "
                     "this directory does not contain %s which is the "
-                    "expected state-specific vax filename"
+                    "expected region-specific vax filename"
                     % vax_spline_filename
                 )
         # given a specific file to spline fits, use those
