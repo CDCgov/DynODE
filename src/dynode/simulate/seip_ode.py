@@ -6,8 +6,8 @@ import chex
 import jax
 import jax.numpy as jnp
 
-from dynode.odes import AbstractODEParams
-from dynode.typing import CompartmentGradients, SEIC_Compartments
+from dynode.simulate.odes import AbstractODEParams
+from dynode.typing.typing import CompartmentGradients, CompartmentState
 from dynode.utils import get_foi_suscept, new_immune_state
 
 
@@ -34,7 +34,7 @@ class SEIPCovid_ODEParams(AbstractODEParams):
 
 def seip_ode(
     t: float,
-    state: SEIC_Compartments,  # type: ignore[override]
+    state: CompartmentState,  # type: ignore[override]
     p: SEIPCovid_ODEParams,  # type: ignore[override]
 ) -> CompartmentGradients:
     """Set of flows defining a SEIP (Susceptible, Exposed, Infectious, Partial) ODE.

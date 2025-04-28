@@ -22,8 +22,8 @@ from numpyro.optim import Adam, _NumPyroOptim
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, PrivateAttr
 from typing_extensions import Callable
 
+from ..config.simulation_config import SimulationConfig
 from ..typing import ObservedData
-from .config_definition import SimulationConfig
 
 
 class InferenceProcess(BaseModel):

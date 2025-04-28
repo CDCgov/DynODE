@@ -12,7 +12,7 @@ from jax.random import PRNGKey
 from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap
 
-from .sample import identify_distribution_indexes
+from .infer import identify_distribution_indexes
 from .utils import (
     drop_keys_with_substring,
     flatten_list_parameters,

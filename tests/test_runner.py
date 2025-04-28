@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import pytest
 
 from dynode import Config, MechanisticRunner, StaticValueParameters, utils
-from dynode.model_odes import seip_ode
+from dynode.simulate import seip_ode
 
 CONFIG_GLOBAL_PATH = "tests/test_config_global.json"
 RUNNER_CONFIG_PATH = "tests/test_config_runner.json"

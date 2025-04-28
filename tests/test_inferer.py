@@ -9,7 +9,7 @@ from dynode import (
     MechanisticRunner,
     StaticValueParameters,
 )
-from dynode.model_odes import seip_ode
+from dynode.simulate import seip_ode
 
 runner = MechanisticRunner(seip_ode)
 GLOBAL_CONFIG_PATH = "tests/test_config_global.json"

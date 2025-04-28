@@ -19,7 +19,7 @@ from numpyro.infer import MCMC, NUTS  # type: ignore
 from .abstract_parameters import AbstractParameters
 from .config import Config
 from .mechanistic_runner import MechanisticRunner
-from .typing import SEIC_Compartments
+from .typing import CompartmentState
 from .utils import date_to_sim_day
 
 
@@ -36,7 +36,7 @@ class MechanisticInferer(AbstractParameters):
         global_variables_path: str,
         distributions_path: str,
         runner: MechanisticRunner,
-        initial_state: SEIC_Compartments,
+        initial_state: CompartmentState,
     ):
         """Initialize an inferer object with config JSONS, a set of ODEs, and an initial state.
 

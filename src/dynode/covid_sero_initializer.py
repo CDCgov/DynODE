@@ -10,7 +10,7 @@ from jax import Array
 from . import utils
 from .abstract_initializer import AbstractInitializer
 from .config import Config
-from .typing import SEIC_Compartments
+from .typing import CompartmentState
 
 
 class CovidSeroInitializer(AbstractInitializer):
@@ -79,7 +79,7 @@ class CovidSeroInitializer(AbstractInitializer):
 
     def load_initial_state(
         self, initial_infections: float
-    ) -> SEIC_Compartments:
+    ) -> CompartmentState:
         """Disperse initial infections across infectious and exposed compartments.
 
         Parameters

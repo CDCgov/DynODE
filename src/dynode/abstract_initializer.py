@@ -12,7 +12,7 @@ from numpy import ndarray
 
 from . import utils
 from .logging import log_decorator, logger
-from .typing import SEIC_Compartments
+from .typing import CompartmentState
 
 
 class AbstractInitializer(ABC):
@@ -32,19 +32,19 @@ class AbstractInitializer(ABC):
             str path to config json holding necessary initializer parameters.
         """
         # add these for mypy
-        self.INITIAL_STATE: SEIC_Compartments | None = None
+        self.INITIAL_STATE: CompartmentState | None = None
         self.config: Any = {}
         pass
 
     @log_decorator
     def get_initial_state(
         self,
-    ) -> SEIC_Compartments:
+    ) -> CompartmentState:
         """Get the initial state of the model as defined by the child class in __init__.
 
         Returns
         -------
-        SEIC_Compartments
+        CompartmentState
             tuple of matricies representing initial state of each compartment
             in the model.
         """

@@ -12,8 +12,8 @@ import numpyro.distributions as Dist  # type: ignore
 from jax import Array
 from pydantic import BaseModel
 
-from .model_configuration.params import TransmissionParams
-from .typing import DeterministicParameter
+from ..config.params import TransmissionParams
+from . import DeterministicParameter
 
 
 def sample_distributions(

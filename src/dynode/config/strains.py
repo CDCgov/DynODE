@@ -13,8 +13,8 @@ from pydantic import (
     PositiveFloat,
 )
 
-from ..typing import DeterministicParameter
-from ._typing import DynodeName
+from ..typing._typing import DynodeName
+from ..typing.typing import DeterministicParameter
 from .bins import AgeBin
 
 

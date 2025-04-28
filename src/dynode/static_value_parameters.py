@@ -2,7 +2,7 @@
 
 from .abstract_parameters import AbstractParameters
 from .config import Config
-from .typing import SEIC_Compartments
+from .typing import CompartmentState
 
 
 class StaticValueParameters(AbstractParameters):
@@ -10,7 +10,7 @@ class StaticValueParameters(AbstractParameters):
 
     def __init__(
         self,
-        INITIAL_STATE: SEIC_Compartments,
+        INITIAL_STATE: CompartmentState,
         runner_config_path: str,
         global_variables_path: str,
     ) -> None:

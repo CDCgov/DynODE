@@ -29,7 +29,7 @@ from dynode import (  # type: ignore
     vis_utils,
 )
 from dynode.logging import log
-from dynode.model_odes import seip_ode  # type: ignore
+from dynode.simulate import seip_ode  # type: ignore
 
 parser = argparse.ArgumentParser()
 parser.add_argument(

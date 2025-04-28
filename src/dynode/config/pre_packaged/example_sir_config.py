@@ -5,7 +5,7 @@ from datetime import date
 import jax.numpy as jnp
 import numpyro.distributions as dist
 
-from dynode.model_configuration import (
+from dynode.config import (
     Bin,
     Compartment,
     Dimension,
@@ -16,7 +16,7 @@ from dynode.model_configuration import (
     Strain,
     TransmissionParams,
 )
-from dynode.typing import CompartmentState
+from dynode.typing.typing import CompartmentState
 
 
 class SIRInitializer(Initializer):

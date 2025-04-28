@@ -21,7 +21,7 @@ from . import utils, vis_utils
 from .abstract_parameters import AbstractParameters
 from .mechanistic_inferer import MechanisticInferer
 from .static_value_parameters import StaticValueParameters
-from .typing import SEIC_Compartments
+from .typing import CompartmentState
 
 
 class AbstractDynodeRunner(ABC):
@@ -645,7 +645,7 @@ class AbstractDynodeRunner(ABC):
 
     def _get_sero_proportion_timeseries(
         self,
-        compartment_timeseries: SEIC_Compartments,
+        compartment_timeseries: CompartmentState,
         population: Array,
         model,
     ) -> np.ndarray:

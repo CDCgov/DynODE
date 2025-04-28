@@ -10,7 +10,7 @@ from pydantic import (
 )
 from typing_extensions import Self
 
-from ._typing import DynodeName
+from ..typing import DynodeName
 
 
 class Bin(BaseModel):

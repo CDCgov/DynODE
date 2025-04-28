@@ -1,7 +1,26 @@
-from typing import Annotated
+"""Module for declaring types to be used within DynODE config files."""
 
+from typing import Annotated, Callable, Tuple
+
+import jax
+from annotated_types import Ge, Le
+from jaxtyping import PyTree
 from pydantic import BeforeValidator
+from typing_extensions import Union
 
+CompartmentState = Tuple[jax.Array, ...]
+CompartmentGradients = Tuple[jax.Array, ...]
+CompartmentTimeseries = CompartmentState
+
+UnitIntervalFloat = Annotated[float, Ge(0.0), Le(1.0)]
+
+
+ODE_Eqns = Callable[
+    [jax.typing.ArrayLike, CompartmentState, PyTree],
+    CompartmentGradients,
+]
+
+ObservedData = Union[Tuple[jax.Array, ...], jax.Array]
 # an str with no spaces and no leading numbers.
 
 

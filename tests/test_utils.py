@@ -7,7 +7,7 @@ import numpy as np
 import numpyro.distributions as dist
 
 from dynode import utils
-from dynode.sample import identify_distribution_indexes
+from dynode.infer.sample import identify_distribution_indexes
 
 # strain indexes {"a": 0, "b": 1, "c": 2}
 

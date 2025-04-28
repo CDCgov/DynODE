@@ -14,16 +14,13 @@ from diffrax import Solution
 from numpyro.infer import Predictive
 from numpyro.infer.svi import SVIRunResult
 
-from dynode.model_configuration import (
+from dynode.config import (
     SimulationConfig,
-)
-from dynode.model_configuration.inference import MCMCProcess, SVIProcess
-from dynode.model_configuration.pre_packaged.example_sir_config import (
     SIRConfig,
     SIRInferedConfig,
 )
-from dynode.odes import AbstractODEParams, simulate
-from dynode.sample import sample_then_resolve
+from dynode.infer import MCMCProcess, SVIProcess, sample_then_resolve
+from dynode.simulate import AbstractODEParams, simulate
 from dynode.typing import CompartmentGradients, CompartmentState
 
 

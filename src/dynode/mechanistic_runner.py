@@ -19,7 +19,7 @@ from diffrax import (  # type: ignore
 )
 from jaxtyping import PyTree
 
-from .typing import SEIC_Compartments
+from .typing import CompartmentState
 from .utils import date_to_sim_day
 
 numpyro.set_host_device_count(4)
@@ -33,7 +33,7 @@ class MechanisticRunner:
         self,
         model: Callable[
             [jax.typing.ArrayLike, PyTree, dict],
-            SEIC_Compartments,
+            CompartmentState,
         ],
     ):
         """Initialize MechanisticRunner for solving Ordinary Differential Equations.
@@ -48,7 +48,7 @@ class MechanisticRunner:
 
     def run(
         self,
-        initial_state: SEIC_Compartments,
+        initial_state: CompartmentState,
         args: dict,
         tf: Union[int, datetime.date] = 100,
     ) -> Solution:

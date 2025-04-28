@@ -22,7 +22,7 @@ from . import utils
 from .config import Config
 from .logging import logger
 from .mechanistic_runner import MechanisticRunner
-from .typing import SEIC_Compartments
+from .typing import CompartmentState
 
 
 class AbstractParameters:
@@ -71,7 +71,7 @@ class AbstractParameters:
             [jnp.arange(0), jnp.arange(0), jnp.arange(0), jnp.arange(0)]
         )
         assert len(initial_state) == 4
-        self.INITIAL_STATE: SEIC_Compartments = initial_state
+        self.INITIAL_STATE: CompartmentState = initial_state
 
     def _solve_runner(
         self, parameters: dict, tf: int, runner: MechanisticRunner
@@ -724,7 +724,7 @@ class AbstractParameters:
 
     def scale_initial_infections(
         self, scale_factor: ArrayLike
-    ) -> SEIC_Compartments:
+    ) -> CompartmentState:
         """
         Scale the number of initial infections by a specified factor.
 
