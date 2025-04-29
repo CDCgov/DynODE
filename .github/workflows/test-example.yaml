@@ -2,6 +2,7 @@ name: Run example
 
 on:
   pull_request:
+  workflow_dispatch:
   push:
     branches: [main]
 
