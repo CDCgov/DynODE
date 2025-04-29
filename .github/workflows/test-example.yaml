@@ -2,9 +2,9 @@ name: Run example
 
 on:
   pull_request:
-  workflow_dispatch:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   example:
