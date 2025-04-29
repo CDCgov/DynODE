@@ -154,8 +154,8 @@ class ExampleDynodeRunner(AbstractDynodeRunner):
             df = self.save_static_run_timeseries(
                 static_params, solution, "local_run_timeseries.csv"
             )
-            # attach a `state` column so plot cols have titles
-            df["state"] = "USA"
+            # attach a `region` column so plot cols have titles
+            df["region"] = "USA"
             # for normalization of metrics per 100k
             usa_pop = {"USA": initializer.config.POP_SIZE}
             fig = vis_utils.plot_model_overview_subplot_matplotlib(df, usa_pop)
