@@ -53,7 +53,7 @@ def _cleanup_and_normalize_timeseries(
             ]
             # update that region columns by the normalization factor
             all_region_timeseries.loc[
-                all_region_timeseries["state"] == region_name,
+                all_region_timeseries["region"] == region_name,
                 cols,
             ] *= normalization_factor
     return all_region_timeseries
@@ -97,12 +97,12 @@ def plot_model_overview_subplot_matplotlib(
     Parameters
     ----------
     timeseries_df : pd.DataFrame
-        DataFrame containing at least ["date", "chain_particle", "state"]
+        DataFrame containing at least ["date", "chain_particle", "region"]
         followed by columns for different time series to be plotted.
 
     pop_sizes : dict[str, int]
-        Population sizes for each state as a dictionary. Keys must match
-        the values in the "state" column of `timeseries_df`.
+        Population sizes for each region as a dictionary. Keys must match
+        the values in the "region" column of `timeseries_df`.
 
     plot_types : np.ndarray[str], optional
         Types of plots to be generated.
@@ -120,10 +120,10 @@ def plot_model_overview_subplot_matplotlib(
     Returns
     -------
     plt.Figure
-        Matplotlib Figure containing subplots with one column per state
+        Matplotlib Figure containing subplots with one column per region
         and one row per plot type.
     """
-    necessary_cols = ["date", "chain_particle", "state"]
+    necessary_cols = ["date", "chain_particle", "region"]
     assert all(
         [
             necessary_col in timeseries_df.columns
@@ -133,7 +133,7 @@ def plot_model_overview_subplot_matplotlib(
         "missing a necessary column within timeseries_df, require %s but got %s"
         % (str(necessary_cols), str(timeseries_df.columns))
     )
-    num_states = len(timeseries_df["state"].unique())
+    num_regions = len(timeseries_df["region"].unique())
     # we are counting the number of plot_types that are within timeseries.columns
     # this way we dont try to plot something that timeseries does not have
     plots_in_timeseries = [
@@ -155,18 +155,18 @@ def plot_model_overview_subplot_matplotlib(
     with plt.style.context(matplotlib_style):
         fig, ax = plt.subplots(
             nrows=num_unique_plots_in_timeseries,
-            ncols=num_states,
+            ncols=num_regions,
             sharex=True,
             sharey="row",
             squeeze=False,
-            figsize=(6 * num_states, 3 * num_unique_plots_in_timeseries),
+            figsize=(6 * num_regions, 3 * num_unique_plots_in_timeseries),
         )
     # melt this df down to have an ID column "column" and a value column "val"
-    id_vars = ["date", "state", "chain_particle"]
+    id_vars = ["date", "region", "chain_particle"]
     rest = [x for x in timeseries_df.columns if x not in id_vars]
     timeseries_melt = pd.melt(
         timeseries_df,
-        id_vars=["date", "state", "chain_particle"],
+        id_vars=["date", "region", "chain_particle"],
         value_vars=rest,
         var_name="column",
         value_name="val",
@@ -176,16 +176,16 @@ def plot_model_overview_subplot_matplotlib(
 
     # go through each plot type, look for matching columns and plot
     # that plot_type for each chain_particle pair.
-    for state_num, state in enumerate(timeseries_df["state"].unique()):
-        state_df = timeseries_melt[timeseries_melt["state"] == state]
-        print("Plotting State : " + state)
+    for region_num, region in enumerate(timeseries_df["region"].unique()):
+        region_df = timeseries_melt[timeseries_melt["region"] == region]
+        print("Plotting Region : " + region)
         for plot_num, (plot_title, plot_type) in enumerate(
             zip(plot_titles, plot_types)
         ):
-            plot_ax = ax[plot_num][state_num]
+            plot_ax = ax[plot_num][region_num]
             # for example "vaccination_" in "vaccination_0_17" is true
             # so we include this column in the plot under that plot_type
-            plot_df = state_df[[plot_type in x for x in state_df["column"]]]
+            plot_df = region_df[[plot_type in x for x in region_df["column"]]]
             columns_to_plot = plot_df["column"].unique()
             # if we are plotting multiple lines, lets modify the legend to
             # only display the differences between each line
@@ -234,7 +234,7 @@ def plot_model_overview_subplot_matplotlib(
             # make all legends except those on far right invisible
             plot_ax.get_legend().set_visible(False)
             # create legend for the right most plot only
-            if state_num == num_states - 1:
+            if region_num == num_regions - 1:
                 with plt.style.context(matplotlib_style):
                     for lh in plot_ax.get_legend().legend_handles:
                         lh.set_alpha(1)
@@ -242,10 +242,10 @@ def plot_model_overview_subplot_matplotlib(
                         bbox_to_anchor=(1.0, 0.5),
                         loc="center left",
                     )
-    # add column titles on the top of each col for the states
-    for ax, state in zip(ax[0], timeseries_df["state"].unique()):
+    # add column titles on the top of each col for the regions
+    for ax, region in zip(ax[0], timeseries_df["region"].unique()):
         plot_title = ax.get_title()
-        ax.set_title(plot_title + "\n" + state)
+        ax.set_title(plot_title + "\n" + region)
     fig.tight_layout()
 
     return fig
