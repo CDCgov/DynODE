@@ -37,7 +37,7 @@ def simulate(
     initial_state: CompartmentState,
     ode_parameters: AbstractODEParams,
     solver_parameters: SolverParams,
-    sub_save_indices: Tuple[int, ...] = None,
+    sub_save_compartments: Tuple[int, ...] = None,
     save_step: int = 1,
 ) -> Solution:
     """Solve `model` ODEs for `tf` days using `initial_state` and `args` parameters.
@@ -93,11 +93,7 @@ def simulate(
     assert isinstance(
         duration_days, (int, float)
     ), "tf must be of type int or float"
-    # weekly_times = jnp.arange(t0, duration_days, 7)
-    # print(initial_state)
-    # subsaveat = SubSaveAt(ts=weekly_times, fn=lambda t, y, args: y[1])
-    # saveat = SaveAt(subs=[subsaveat])
-    # saveat = SaveAt(ts=jnp.linspace(t0, duration_days, int(duration_days//7) + 1))
+
     stepsize_controller: AbstractStepSizeController
     if solver_parameters.constant_step_size > 0.0:
         # if user specifies they want constant step size, set it here
@@ -124,7 +120,9 @@ def simulate(
         initial_state,
         args=ode_parameters,
         stepsize_controller=stepsize_controller,
-        saveat=build_saveat(t0, duration_days, save_step, sub_save_indices),
+        saveat=build_saveat(
+            t0, duration_days, save_step, sub_save_compartments
+        ),
         max_steps=solver_parameters.max_steps,
     )
     return solution
@@ -134,21 +132,26 @@ def build_saveat(
     start: float,
     stop: int,
     step: int = 1,
-    sub_save_indices: Tuple[int, ...] = None,
+    sub_save_compartments: Tuple[int, ...] = None,
 ) -> SaveAt:
     if step <= 0:
         step = 1
     save_times = jnp.linspace(start, stop, int(stop // step) + 1)
 
-    if sub_save_indices is None:
+    if sub_save_compartments is None:
         return SaveAt(ts=save_times)
 
     try:
         subsaveat = SubSaveAt(
             ts=save_times,
-            fn=lambda t, y, args: tuple(y[i] for i in sub_save_indices),
+            fn=lambda t, y, args: tuple(
+                y[i]
+                if i in sub_save_compartments
+                else jnp.array([], dtype=y[i].dtype)
+                for i in range(len(y))
+            ),
         )
-        return SaveAt(subs=[subsaveat])
+        return SaveAt(subs=subsaveat)
     except IndexError as ex:
         print(
             f"An index passed to sub_save_indices was out of range for initial_state values. Exception: {ex}"

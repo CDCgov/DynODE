@@ -89,7 +89,7 @@ def run_simulation(config: SimulationConfig, tf) -> Solution:
         initial_state=initial_state,
         ode_parameters=ode_params,
         solver_parameters=config.parameters.solver_params,
-        sub_save_indices=(0, 1),
+        sub_save_compartments=(config.idx.s, config.idx.r),
         save_step=7,
     )
     return solution
@@ -127,24 +127,22 @@ solution = run_simulation(config_static, tf=100)
 assert solution.ys is not None
 idx = config_static.idx
 # add 1 to each axis to account for the leading time dimension in `solution`
-
 plt.plot(
-    jnp.sum(solution.ys[1], axis=idx.s.age + 1),
+    jnp.sum(solution.ys[idx.s], axis=idx.s.age + 1),
     label="s",
 )
 plt.plot(
-    jnp.sum(solution.ys[2], axis=idx.i.age + 1),
+    jnp.sum(solution.ys[idx.i], axis=idx.i.age + 1),
     label="i",
 )
-"""
 plt.plot(
-    jnp.sum(solution.ys[config_static.idx.r], axis=idx.r.age + 1),
+    jnp.sum(solution.ys[idx.r], axis=idx.r.age + 1),
     label="r",
 )
-"""
 
 plt.legend()
 plt.show()
+
 # diff recovered individuals to recover lagged incidence for each age group
 incidence = jnp.diff(solution.ys[idx.r], axis=0)
 # %%
