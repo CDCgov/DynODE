@@ -1,7 +1,7 @@
 """DynODE configuration module."""
 
 from .bins import AgeBin, Bin, DiscretizedPositiveIntBin, WaneBin
-from .compartment import Compartment
+from .deterministic_parameter import DeterministicParameter
 from .dimension import (
     Dimension,
     FullStratifiedImmuneHistoryDimension,
@@ -14,10 +14,8 @@ from .params import (
     SolverParams,
     TransmissionParams,
 )
-from .pre_packaged import SIRConfig, SIRInferedConfig
-from .simulation_config import (
-    SimulationConfig,
-)
+from .placeholder_sample import PlaceholderSample, SamplePlaceholderError
+from .simulation_config import Compartment, SimulationConfig
 from .simulation_date import SimulationDate
 from .strains import Strain
 
@@ -37,7 +35,8 @@ __all__ = [
     "Params",
     "SolverParams",
     "TransmissionParams",
-    "SIRConfig",
-    "SIRInferedConfig",
     "SimulationDate",
+    "PlaceholderSample",
+    "SamplePlaceholderError",
+    "DeterministicParameter",
 ]

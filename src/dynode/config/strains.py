@@ -13,9 +13,10 @@ from pydantic import (
     PositiveFloat,
 )
 
-from ..typing._typing import DynodeName
-from ..typing.typing import DeterministicParameter
+from dynode.typing import DynodeName
+
 from .bins import AgeBin
+from .deterministic_parameter import DeterministicParameter
 
 
 class Strain(BaseModel):

@@ -11,14 +11,11 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpyro
 from diffrax import Solution
+from example_sir_config import SIRConfig, SIRInferedConfig
 from numpyro.infer import Predictive
 from numpyro.infer.svi import SVIRunResult
 
-from dynode.config import (
-    SimulationConfig,
-    SIRConfig,
-    SIRInferedConfig,
-)
+from dynode.config import SimulationConfig
 from dynode.infer import MCMCProcess, SVIProcess, sample_then_resolve
 from dynode.simulate import AbstractODEParams, simulate
 from dynode.typing import CompartmentGradients, CompartmentState
@@ -52,8 +49,6 @@ def get_odeparams(config: SimulationConfig) -> SIR_ODEParams:
     )
 
 
-# TODO add enums to SIR.py where applicable.
-# define your Jit compiled ODE function
 @jax.jit
 def sir_ode(
     t: float, state: CompartmentState, p: SIR_ODEParams
@@ -125,15 +120,15 @@ assert solution.ys is not None
 idx = config_static.idx
 # add 1 to each axis to account for the leading time dimension in `solution`
 plt.plot(
-    jnp.sum(solution.ys[config_static.idx.s], axis=idx.s.age + 1),
+    jnp.sum(solution.ys[idx.s], axis=idx.s.age + 1),
     label="s",
 )
 plt.plot(
-    jnp.sum(solution.ys[config_static.idx.i], axis=idx.i.age + 1),
+    jnp.sum(solution.ys[idx.i], axis=idx.i.age + 1),
     label="i",
 )
 plt.plot(
-    jnp.sum(solution.ys[config_static.idx.r], axis=idx.r.age + 1),
+    jnp.sum(solution.ys[idx.r], axis=idx.r.age + 1),
     label="r",
 )
 plt.legend()

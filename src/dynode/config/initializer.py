@@ -2,7 +2,7 @@ from datetime import date
 
 from pydantic import BaseModel, Field, PositiveInt
 
-from ..typing import CompartmentState
+from dynode.typing import CompartmentState
 
 
 # TODO, do we really need this to be a class, and does the SimulationConfig need a reference to it

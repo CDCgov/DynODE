@@ -1,6 +1,5 @@
-from .deterministic_parameter import DeterministicParameter
+from .checkpointing import checkpoint_compartment_sizes
 from .inference import InferenceProcess, MCMCProcess, SVIProcess
-from .placeholder_sample import PlaceholderSample, SamplePlaceholderError
 from .sample import (
     identify_distribution_indexes,
     resolve_deterministic,
@@ -9,9 +8,6 @@ from .sample import (
 )
 
 __all__ = [
-    "DeterministicParameter",
-    "PlaceholderSample",
-    "SamplePlaceholderError",
     "sample_then_resolve",
     "resolve_deterministic",
     "sample_distributions",
@@ -19,4 +15,5 @@ __all__ = [
     "InferenceProcess",
     "MCMCProcess",
     "SVIProcess",
+    "checkpoint_compartment_sizes",
 ]

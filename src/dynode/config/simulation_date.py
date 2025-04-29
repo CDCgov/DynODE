@@ -5,7 +5,7 @@ from functools import cached_property
 
 from jax.typing import ArrayLike
 
-from ..utils import get_dynode_init_date_flag
+from dynode.utils import get_dynode_init_date_flag
 
 
 class SimulationDate(date):

@@ -8,12 +8,12 @@ import pandas as pd
 from jax import Array
 
 from . import utils
-from .abstract_initializer import AbstractInitializer
-from .config import Config
+from .config_deprecated import Config
+from .logging import log_decorator, logger
 from .typing import CompartmentState
 
 
-class CovidSeroInitializer(AbstractInitializer):
+class CovidSeroInitializer:
     """A Covid specific initializer class using serology input data to stratify immunity."""
 
     def __init__(self, config_initializer_path, global_variables_path):
@@ -76,6 +76,49 @@ class CovidSeroInitializer(AbstractInitializer):
         self.INITIAL_STATE = self.load_initial_state(
             self.config.INITIAL_INFECTIONS
         )
+
+    @log_decorator
+    def get_initial_state(
+        self,
+    ) -> CompartmentState:
+        """Get the initial state of the model as defined by the child class in __init__.
+
+        Returns
+        -------
+        CompartmentState
+            tuple of matricies representing initial state of each compartment
+            in the model.
+        """
+        assert self.INITIAL_STATE is not None
+        return self.INITIAL_STATE
+
+    @log_decorator
+    def load_initial_population_fractions(self) -> np.ndarray:
+        """Load age demographics for the specified region.
+
+        Returns
+        -------
+        numpy.ndarray
+            Proportion of the total population that falls into each age group.
+            `len(self.load_initial_population_fractions()) == self.config.NUM_AGE_GROUPS`
+            `np.sum(self.load_initial_population_fractions()) == 1.0
+        """
+        logger.debug(
+            "Creating populations_path based on DEMOGRAPHIC_DATA_PATH in config."
+        )
+
+        populations_path = (
+            self.config.DEMOGRAPHIC_DATA_PATH
+            + "population_rescaled_age_distributions/"
+        )
+
+        logger.debug(f"Set populations path as {populations_path}.")
+        logger.debug("Returning values from utils.load_age_demographics()")
+
+        # TODO support getting more regions than just 1
+        return utils.load_age_demographics(
+            populations_path, self.config.REGIONS, self.config.AGE_LIMITS
+        )[self.config.REGIONS[0]]
 
     def load_initial_state(
         self, initial_infections: float

@@ -14,9 +14,9 @@ from pydantic import (
 )
 from typing_extensions import Self
 
+from dynode.typing import DynodeName
 from dynode.typing.typing import UnitIntervalFloat
 
-from ..typing._typing import DynodeName
 from .bins import Bin, DiscretizedPositiveIntBin, WaneBin
 from .strains import Strain
 

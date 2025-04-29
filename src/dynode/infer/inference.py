@@ -22,8 +22,8 @@ from numpyro.optim import Adam, _NumPyroOptim
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, PrivateAttr
 from typing_extensions import Callable
 
-from ..config.simulation_config import SimulationConfig
-from ..typing import ObservedData
+import dynode.config
+import dynode.typing
 
 
 class InferenceProcess(BaseModel):
@@ -35,7 +35,8 @@ class InferenceProcess(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     # TODO change this naming and the word model
     numpyro_model: Callable[
-        [SimulationConfig, Optional[ObservedData]], Solution
+        [dynode.config.SimulationConfig, Optional[dynode.typing.ObservedData]],
+        Solution,
     ] = Field(
         description="""Numpyro model that initializes state, samples and resolves
         parameters, generates timeseries, and optionally compares it to

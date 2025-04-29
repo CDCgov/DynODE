@@ -1,7 +1,20 @@
 """Module to hold all DynODE ODE flows."""
 
-from .odes import AbstractODEParams as AbstractODEParams
-from .odes import simulate as simulate
-from .seip_model import seip_ode as seip_ode
+from .odes import AbstractODEParams, simulate
+from .seasonality import seasonality
+from .seip_model import seip_ode
+from .vaccination import (
+    seasonal_vaccine_reset,
+    vaccination_rate_hill,
+    vaccination_rate_spline,
+)
 
-_all_ = ["seip_ode", "simulate", "AbstractODEParams"]
+__all__ = [
+    "seip_ode",
+    "simulate",
+    "AbstractODEParams",
+    "seasonality",
+    "seasonal_vaccine_reset",
+    "vaccination_rate_hill",
+    "vaccination_rate_spline",
+]

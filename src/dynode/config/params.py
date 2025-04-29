@@ -17,7 +17,7 @@ from pydantic import (
 )
 from typing_extensions import Self
 
-from ..typing.typing import DeterministicParameter
+from .deterministic_parameter import DeterministicParameter
 from .strains import Strain
 
 

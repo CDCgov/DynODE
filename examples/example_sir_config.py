@@ -16,7 +16,7 @@ from dynode.config import (
     Strain,
     TransmissionParams,
 )
-from dynode.typing.typing import CompartmentState
+from dynode.typing import CompartmentState
 
 
 class SIRInitializer(Initializer):

@@ -7,7 +7,11 @@ import json
 import numpyro.distributions as dist
 import pytest
 
-from dynode.config import Config, ConfigParserError, ConfigValidationError
+from dynode.config_deprecated import (
+    Config,
+    ConfigParserError,
+    ConfigValidationError,
+)
 
 GLOBAL_TEST_CONFIG = "tests/test_config_global.json"
 PATH_VARIABLES = [
