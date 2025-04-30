@@ -7,6 +7,7 @@ import numpy as np
 import numpyro.distributions as dist
 
 from dynode import utils
+from dynode.sample import identify_distribution_indexes
 
 # strain indexes {"a": 0, "b": 1, "c": 2}
 
@@ -22,9 +23,9 @@ def test_base_equation():
     coefficients = jnp.array([5, 1, 2, 3])
     tested_times = list(range(-2, 15)) + [100]
     for time in tested_times:
-        assert utils.base_equation(time, coefficients) == equation(
-            time
-        ), "base equation failed to evaluate with input : %s" % str(time)
+        assert utils.base_equation(time, coefficients) == equation(time), (
+            "base equation failed to evaluate with input : %s" % str(time)
+        )
 
 
 def test_conditional_knots_no_coefficients():
@@ -93,10 +94,9 @@ def test_cubic_spline():
             knot_locations,
             base_equation_coefficients,
             knot_coefficients,
-        ) == equation(
-            time
-        ), "evaluate_cubic_spline failed to evaluate with input : %s" % str(
-            time
+        ) == equation(time), (
+            "evaluate_cubic_spline failed to evaluate with input : %s"
+            % str(time)
         )
 
 
@@ -243,7 +243,7 @@ def test_identify_distribution_indexes():
         "example": dist.Normal(),
         "no-sample": 5,
     }
-    indexes = utils.identify_distribution_indexes(parameters)
+    indexes = identify_distribution_indexes(parameters)
 
     assert "test_1" in indexes.keys() and indexes["test_1"] == {
         "sample_name": "test",

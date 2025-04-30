@@ -10,7 +10,9 @@ from typing import Any
 
 from numpy import ndarray
 
-from . import SEIC_Compartments, utils
+from . import utils
+from .logging import log_decorator, logger
+from .typing import SEIC_Compartments
 
 
 class AbstractInitializer(ABC):
@@ -34,6 +36,7 @@ class AbstractInitializer(ABC):
         self.config: Any = {}
         pass
 
+    @log_decorator
     def get_initial_state(
         self,
     ) -> SEIC_Compartments:
@@ -58,10 +61,18 @@ class AbstractInitializer(ABC):
             `len(self.load_initial_population_fractions()) == self.config.NUM_AGE_GROUPS`
             `np.sum(self.load_initial_population_fractions()) == 1.0
         """
+        logger.debug(
+            "Creating populations_path based on DEMOGRAPHIC_DATA_PATH in config."
+        )
+
         populations_path = (
             self.config.DEMOGRAPHIC_DATA_PATH
             + "population_rescaled_age_distributions/"
         )
+
+        logger.debug(f"Set populations path as {populations_path}.")
+        logger.debug("Returning values from utils.load_age_demographics()")
+
         # TODO support getting more regions than just 1
         return utils.load_age_demographics(
             populations_path, self.config.REGIONS, self.config.AGE_LIMITS

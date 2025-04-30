@@ -18,9 +18,11 @@ from diffrax import Solution
 from jax.scipy.stats.norm import pdf
 from jax.typing import ArrayLike
 
-from . import SEIC_Compartments, utils
+from . import utils
 from .config import Config
+from .logging import logger
 from .mechanistic_runner import MechanisticRunner
+from .typing import SEIC_Compartments
 
 
 class AbstractParameters:
@@ -91,17 +93,23 @@ class AbstractParameters:
         Solution
             Diffrax solution object returned from `runner.run()`.
         """
+        logger.debug("Checking INITIAL_INFECTIONS_SCALE in parameter keys.")
         if "INITIAL_INFECTIONS_SCALE" in parameters.keys():
             initial_state = self.scale_initial_infections(
                 parameters["INITIAL_INFECTIONS_SCALE"]
             )
+            logger.debug("Initial state retrieved.")
         else:
+            logger.debug("Setting initial state from self.")
             initial_state = self.INITIAL_STATE
+            logger.debug("Initial state set.")
+        logger.debug("Running the runner...")
         solution = runner.run(
             initial_state,
             args=parameters,
             tf=tf,
         )
+        logger.debug("Returning runner solution.")
         return solution
 
     def _get_upstream_parameters(self) -> dict:
@@ -160,11 +168,11 @@ class AbstractParameters:
         """
         try:
             # create or re-recreate parameters based on other possibly sampled parameters
-            parameters[
-                "CROSSIMMUNITY_MATRIX"
-            ] = utils.strain_interaction_to_cross_immunity(
-                parameters["NUM_STRAINS"],
-                parameters["STRAIN_INTERACTIONS"],
+            parameters["CROSSIMMUNITY_MATRIX"] = (
+                utils.strain_interaction_to_cross_immunity(
+                    parameters["NUM_STRAINS"],
+                    parameters["STRAIN_INTERACTIONS"],
+                )
             )
             beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
             gamma = 1 / parameters["INFECTIOUS_PERIOD"]
@@ -200,7 +208,7 @@ class AbstractParameters:
                 "BETA_COEF": self.beta_coef,
                 "SEASONAL_VACCINATION_RESET": self.seasonal_vaccination_reset,
                 "SEASONALITY": seasonality_function_prefilled,
-            }
+            },
         )
 
         return parameters
@@ -625,8 +633,8 @@ class AbstractParameters:
                 [col for col in parameters.columns if "location" in col]
             ].values
             # check that same number of knots as coefficients
-            assert len(knot_coefficients) == len(
-                knot_locations
+            assert (
+                len(knot_coefficients) == len(knot_locations)
             ), "number of knot_coefficients and number of knot locations found do not match"
             age_group_idx = self.config.AGE_GROUP_IDX[age_group]
             # splines `dose` dictate the `to_dose`, but we store them as outward flows
@@ -744,43 +752,31 @@ class AbstractParameters:
         The function ensures that the relative sizes of
         Exposed and Infectious compartments are preserved during scaling.
         """
-        pop_counts_by_compartment = jnp.array(
-            [
-                jnp.sum(compartment)
-                for compartment in self.INITIAL_STATE[
-                    : self.config.COMPARTMENT_IDX.C
-                ]
-            ]
-        )
-        initial_infections = (
-            pop_counts_by_compartment[self.config.COMPARTMENT_IDX.E]
-            + pop_counts_by_compartment[self.config.COMPARTMENT_IDX.I]
-        )
-        initial_susceptibles = pop_counts_by_compartment[
-            self.config.COMPARTMENT_IDX.S
-        ]
-        # total_pop_size = initial_susceptibles + initial_infections
-        new_infections_size = scale_factor * initial_infections
         # negative if scale_factor < 1.0
-        gained_infections = new_infections_size - initial_infections
-        scale_factor_susceptible_compartment = 1 - (
-            gained_infections / initial_susceptibles
+        e_new = self.INITIAL_STATE[1] * scale_factor
+        i_new = self.INITIAL_STATE[2] * scale_factor
+        age_stratified_infections_delta = jnp.sum(
+            e_new + i_new,
+            axis=(1, 2, 3),
+        ) - jnp.sum(
+            self.INITIAL_STATE[1] + self.INITIAL_STATE[2],
+            axis=(1, 2, 3),
+        )
+        age_stratified_infections_scaling = 1 - (
+            age_stratified_infections_delta
+            / jnp.sum(
+                self.INITIAL_STATE[0],
+                axis=(1, 2, 3),
+            )
         )
         # multiplying E and I by the same scale_factor preserves their relative ratio
-        scale_factors = [
-            scale_factor_susceptible_compartment,
-            scale_factor,
-            scale_factor,
-            1.0,  # for the C compartment, unchanged.
-        ]
-        # scale each compartment and return
-        initial_state = tuple(
-            [
-                compartment * factor
-                for compartment, factor in zip(
-                    self.INITIAL_STATE, scale_factors
-                )
-            ]
+        s_new = (
+            age_stratified_infections_scaling[:, None, None, None]
+            * self.INITIAL_STATE[0]
         )
-        assert len(initial_state) == 4
-        return initial_state
+        return (
+            s_new,
+            e_new,
+            i_new,
+            self.INITIAL_STATE[-1],
+        )

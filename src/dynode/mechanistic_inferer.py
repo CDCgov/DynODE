@@ -7,7 +7,6 @@ import datetime
 import json
 from typing import Union
 
-import bayeux as bx
 import jax.numpy as jnp
 import jax.typing
 import numpy as np
@@ -17,10 +16,10 @@ from jax.random import PRNGKey
 from numpyro import distributions as Dist
 from numpyro.infer import MCMC, NUTS  # type: ignore
 
-from . import SEIC_Compartments
 from .abstract_parameters import AbstractParameters
 from .config import Config
 from .mechanistic_runner import MechanisticRunner
+from .typing import SEIC_Compartments
 from .utils import date_to_sim_day
 
 
@@ -139,6 +138,9 @@ class MechanisticInferer(AbstractParameters):
         """
         # add 1 to idxs because we are stratified by time in the solution object
         # sum down to just time x age bins
+        assert (
+            solution.ys is not None
+        ), "solution.ys returned None, odes failed."
         model_incidence = jnp.sum(
             solution.ys[self.config.COMPARTMENT_IDX.C],
             axis=(
@@ -245,28 +247,6 @@ class MechanisticInferer(AbstractParameters):
         self.infer_complete = True
         return self.inference_algo
 
-    def _debug_likelihood(self, **kwargs) -> bx.Model:
-        """EXPERIMENTAL function recreates `self.likelihood` for basic sanity checking.
-
-        Passes all parameters given to it to `self.likelihood`,
-        initializes with `self.INITIAL_STATE`
-        and passes `self.config.INFERENCE_PRNGKEY` as seed for randomness.
-
-        Returns
-        -------
-        Bayeux.Model
-            Model object used to debug.
-        """
-        bx_model = bx.Model.from_numpyro(
-            jax.tree_util.Partial(self.likelihood, **kwargs),
-            # this does not work for non-one/sampled self.INITIAL_INFECTIONS_SCALE
-            initial_state=self.INITIAL_STATE,
-        )
-        bx_model.mcmc.numpyro_nuts.debug(
-            seed=PRNGKey(self.config.INFERENCE_PRNGKEY)
-        )
-        return bx_model
-
     def _checkpoint_compartment_sizes(self, solution: Solution):
         """Take note of compartment sizes at end of `solution` and on key dates.
 
@@ -283,6 +263,9 @@ class MechanisticInferer(AbstractParameters):
             a diffrax Solution object returned by solving ODEs, most often
             retrieved by `self.run_simulation()`
         """
+        assert (
+            solution.ys is not None
+        ), "solution.ys returned None, odes failed."
         for compartment in self.config.COMPARTMENT_IDX:
             numpyro.deterministic(
                 "final_timestep_%s" % compartment.name,

@@ -17,10 +17,11 @@ import pandas as pd  # type: ignore
 from diffrax import Solution  # type: ignore
 from jax import Array
 
-from . import SEIC_Compartments, utils, vis_utils
+from . import utils, vis_utils
 from .abstract_parameters import AbstractParameters
 from .mechanistic_inferer import MechanisticInferer
 from .static_value_parameters import StaticValueParameters
+from .typing import SEIC_Compartments
 
 
 class AbstractDynodeRunner(ABC):
@@ -350,13 +351,14 @@ class AbstractDynodeRunner(ABC):
         )
         for (chain, particle), sol_dct in posteriors.items():
             # content of `sol_dct` depends on return value of inferer.run_simulation func
+            assert isinstance(sol_dct["solution"], Solution)
             infection_timeseries: Solution = sol_dct["solution"]
-            hospitalizations_tmp = sol_dct["hospitalizations"]
-            assert isinstance(hospitalizations_tmp, Array)
-            hospitalizations: Array = hospitalizations_tmp
-            posterior_parameters_tmp = sol_dct["parameters"]
-            assert isinstance(posterior_parameters_tmp, dict)
-            posterior_parameters: dict[str, Array] = posterior_parameters_tmp
+
+            assert isinstance(sol_dct["hospitalizations"], Array)
+            hospitalizations: Array = sol_dct["hospitalizations"]
+
+            assert isinstance(sol_dct["parameters"], dict)
+            posterior_parameters: dict[str, Array] = sol_dct["parameters"]
             # spoof the inferer to return our posterior parameters
             # when calling `get_parameters()` instead of trying to sample.
             # TODO fix this flow to not use spoofing.
@@ -461,6 +463,9 @@ class AbstractDynodeRunner(ABC):
             timeseries of interest involving model output.
         """
         compartment_timeseries = solution.ys
+        assert (
+            compartment_timeseries is not None
+        ), "solution.ys returned None, odes failed."
         num_days_predicted = compartment_timeseries[
             model.config.COMPARTMENT_IDX.S
         ].shape[0]
@@ -547,9 +552,9 @@ class AbstractDynodeRunner(ABC):
             df["%s_strain_proportion" % strain_name] = strain_proportions[
                 s_idx
             ]
-            df[
-                "%s_external_introductions" % strain_name
-            ] = external_i_timeseries[:, s_idx]
+            df["%s_external_introductions" % strain_name] = (
+                external_i_timeseries[:, s_idx]
+            )
             df["%s_average_immunity" % strain_name] = population_immunity[
                 s_idx, :
             ]
