@@ -9,6 +9,7 @@ import jax.numpy as jnp
 import numpyro  # type: ignore
 from diffrax import (  # type: ignore
     AbstractStepSizeController,
+    ClipStepSizeController,
     ConstantStepSize,
     ODETerm,
     PIDController,
@@ -117,9 +118,11 @@ class MechanisticRunner:
                 if "BETA_TIMES" in args.keys()
                 else None
             )
-            stepsize_controller = PIDController(
-                rtol=args.get("SOLVER_RELATIVE_TOLERANCE", 1e-5),
-                atol=args.get("SOLVER_ABSOLUTE_TOLERANCE", 1e-6),
+            stepsize_controller = ClipStepSizeController(
+                PIDController(
+                    rtol=args.get("SOLVER_RELATIVE_TOLERANCE", 1e-5),
+                    atol=args.get("SOLVER_ABSOLUTE_TOLERANCE", 1e-6),
+                ),
                 jump_ts=jump_ts,
             )
 
