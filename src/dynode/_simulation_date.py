@@ -2,8 +2,11 @@
 
 from datetime import date
 from functools import cached_property
+from typing import Any
 
-from jax.typing import ArrayLike
+from numpy import ndarray
+from numpyro.distributions import Distribution
+from pydantic import BaseModel
 
 from .utils import get_dynode_init_date_flag
 
@@ -50,50 +53,23 @@ class SimulationDate(date):
         difference = (self - self.initialization_date).days
         return difference
 
-    def __add__(self, value):
-        """Add a numeric value to the simulation date."""
-        if isinstance(value, ArrayLike):  # type: ignore
-            return self.sim_day + value
-        elif isinstance(value, SimulationDate):
-            return self.sim_day + value.sim_day
-        return super().__add__(value)
 
-    def __sub__(self, value):
-        """Subtract a numeric value from the simulation date."""
-        if isinstance(value, ArrayLike):  # type: ignore
-            return self.sim_day - value
-        elif isinstance(value, SimulationDate):
-            return self.sim_day - value.sim_day
-        return super().__sub__(value)
-
-    def __rsub__(self, value):
-        """Subtract a numeric value from the simulation date."""
-        return self.__sub__(value)
-
-    def __mul__(self, value):
-        """Multiply a numeric value with the simulation date."""
-        if isinstance(value, ArrayLike):  # type: ignore
-            return self.sim_day * value
-        elif isinstance(value, SimulationDate):
-            return self.sim_day * value.sim_day
-        return super().__mul__(value)
-
-    def __rmul__(self, value):
-        """Multiply a numeric value with the simulation date."""
-        return self.__mul__(value)
-
-    def __ge__(self, value):
-        """Greater than or equal to comparison for simulation date."""
-        if isinstance(value, ArrayLike):  # type: ignore
-            return self.sim_day.__ge__(value)
-        elif isinstance(value, SimulationDate):
-            return self.sim_day > value.sim_day
-        return super().__ge__(value)
-
-    def __repr__(self):
-        """Return a string representation of the SimulationDate."""
-        return f"SimulationDate: ({self.year}-{self.month}-{self.day})({self.sim_day}) "
-
-    def __deepcopy__(self, memo):
-        """Return a deep copy of the SimulationDate."""
-        return SimulationDate(self.year, self.month, self.day)
+def replace_simulation_dates(obj: Any):
+    if isinstance(obj, SimulationDate):
+        return obj.sim_day
+    elif isinstance(obj, (list, ndarray)):
+        for i in range(len(obj)):
+            obj[i] = replace_simulation_dates(obj[i])
+    elif isinstance(obj, dict):
+        for key, value in obj.items():
+            obj[key] = replace_simulation_dates(value)
+    elif isinstance(obj, BaseModel):
+        obj_dict = dict(obj)
+        for key, value in obj_dict.items():
+            setattr(obj, key, replace_simulation_dates(value))
+            obj_dict[key] = replace_simulation_dates(value)
+    elif issubclass(type(obj), Distribution):
+        # sometimes distributions use simulation date as their mean.
+        obj_dict = replace_simulation_dates(obj.__dict__)
+        obj.__dict__ = obj_dict
+    return obj

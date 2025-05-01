@@ -16,6 +16,7 @@ from pydantic import (
 )
 from typing_extensions import Any, Self
 
+from dynode._simulation_date import replace_simulation_dates
 from dynode.typing import CompartmentState
 from dynode.utils import set_dynode_init_date_flag
 
@@ -208,6 +209,7 @@ class SimulationConfig(BaseModel):
         """Initialize context for model run."""
         init_date = self.initializer.initialize_date
         set_dynode_init_date_flag(init_date)
+        self = replace_simulation_dates(self)
 
     @cached_property
     def idx(self):
