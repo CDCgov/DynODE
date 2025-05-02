@@ -50,11 +50,32 @@ class SimulationDate(date):
     @property
     def sim_day(self) -> int:
         """Return the current simulation date relative to the init date."""
-        difference = (self - self.initialization_date).days
+        # mypy complains on this line since `self` uses super().__sub__()
+        difference = (self - self.initialization_date).days  # type: ignore
         return difference
 
 
 def replace_simulation_dates(obj: Any):
+    """Replace instances of SimulationDate with integer sim day.
+
+    Parameters
+    ----------
+    obj : Any
+        Object that may or may not be an instance of SimulationDate or list
+        type containing SimulationDates
+
+    Returns
+    -------
+    Any | int
+        obj untouched unless is instance of SimulationDate or contains
+        SimulationDate, in which case replaced by int sim day.
+
+    Raises
+    ------
+    ValueError
+        if this method is called outside of a SimulationConfig class which
+        calls set_dynode_init_date_flag().
+    """
     if isinstance(obj, SimulationDate):
         return obj.sim_day
     elif isinstance(obj, (list, ndarray)):
