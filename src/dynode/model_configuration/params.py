@@ -59,10 +59,10 @@ class SolverParams(BaseModel):
         equal to the value set. If 0 solver will use adaptive step size with
         ode_solver_rel/abs_tolerance""",
     )
-    discontinuity_points: list[int] = Field(
+    discontinuity_points: list[float] = Field(
         default_factory=lambda: [],
         description="""Points in the ode's solve that a discontinuity occurs,
-        meaning the higher order gradiants are not smooth. Int values
+        meaning the higher order gradiants are not smooth. Float values
         represent the simulation day, or days since init date of the model.""",
     )
 

@@ -1,6 +1,6 @@
 """A module that creates an abstract class for an initializer object.
 
-An initializer objects primary purpose is initialize the state on which ODEs will be run.
+An initializer object's primary purpose is initialize the state on which ODEs will be run.
 AbstractInitializers will often be tasked with reading, parsing, and combining data sources
 to produce an initial state representing some analyzed population
 """
@@ -36,7 +36,7 @@ class AbstractInitializer(ABC):
         self.config: Any = {}
         pass
 
-    @log_decorator()
+    @log_decorator
     def get_initial_state(
         self,
     ) -> SEIC_Compartments:
