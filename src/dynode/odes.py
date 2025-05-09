@@ -18,7 +18,7 @@ from diffrax import (  # type: ignore
 from jax import Array
 
 from .model_configuration.params import SolverParams
-from .typing import CompartmentState, ODE_Eqns
+from .typing import CompartmentSaveSpec, CompartmentState, ODE_Eqns
 
 
 @chex.dataclass
@@ -37,7 +37,7 @@ def simulate(
     initial_state: CompartmentState,
     ode_parameters: AbstractODEParams,
     solver_parameters: SolverParams,
-    sub_save_compartments: Tuple[int, ...] = None,
+    sub_save_specs: Tuple[CompartmentSaveSpec, ...] = None,
     save_step: int = 1,
 ) -> Solution:
     """Solve `model` ODEs for `tf` days using `initial_state` and `args` parameters.
@@ -120,9 +120,7 @@ def simulate(
         initial_state,
         args=ode_parameters,
         stepsize_controller=stepsize_controller,
-        saveat=build_saveat(
-            t0, duration_days, save_step, sub_save_compartments
-        ),
+        saveat=build_saveat(t0, duration_days, save_step, sub_save_specs),
         max_steps=solver_parameters.max_steps,
     )
     return solution
@@ -132,27 +130,51 @@ def build_saveat(
     start: float,
     stop: int,
     step: int = 1,
-    sub_save_compartments: Tuple[int, ...] = None,
+    sub_save_specs: Tuple[CompartmentSaveSpec, ...] = None,
 ) -> SaveAt:
     if step <= 0:
         step = 1
     save_times = jnp.linspace(start, stop, int(stop // step) + 1)
 
-    if sub_save_compartments is None:
+    if sub_save_specs is None:
         return SaveAt(ts=save_times)
 
     try:
-        subsaveat = SubSaveAt(
-            ts=save_times,
-            fn=lambda t, y, args: tuple(
-                y[i]
-                if i in sub_save_compartments
-                else jnp.array([], dtype=y[i].dtype)
-                for i in range(len(y))
-            ),
-        )
-        return SaveAt(subs=subsaveat)
+        sub_saves = []
+        save_specs = [spec for spec in sub_save_specs if not spec.final_only]
+        final_specs = [spec for spec in sub_save_specs if spec.final_only]
+
+        # question: are compartment enums/indices guaranteed to be in range (0, n-1)?
+        if save_specs:
+            save_specs_indices = tuple(spec.index for spec in save_specs)
+            sub_saves.append(
+                SubSaveAt(
+                    ts=save_times,
+                    fn=lambda t, y, args: tuple(
+                        y[i]
+                        if i in save_specs_indices
+                        else jnp.array([], dtype=y[i].dtype)
+                        for i in range(len(y))
+                    ),
+                )
+            )
+
+        if final_specs:
+            final_specs_indices = tuple(spec.index for spec in final_specs)
+            sub_saves.append(
+                SubSaveAt(
+                    t1=True,
+                    fn=lambda t, y, args: tuple(
+                        y[i]
+                        if i in final_specs_indices
+                        else jnp.array([], dtype=y[i].dtype)
+                        for i in range(len(y))
+                    ),
+                )
+            )
+
+        return SaveAt(subs=sub_saves)
     except IndexError as ex:
         print(
-            f"An index passed to sub_save_indices was out of range for initial_state values. Exception: {ex}"
+            f"An index passed to sub_save_specs was out of range for initial_state values. Exception: {ex}"
         )

@@ -24,7 +24,11 @@ from dynode.model_configuration.pre_packaged.example_sir_config import (
 )
 from dynode.odes import AbstractODEParams, simulate
 from dynode.sample import sample_then_resolve
-from dynode.typing import CompartmentGradients, CompartmentState
+from dynode.typing import (
+    CompartmentGradients,
+    CompartmentSaveSpec,
+    CompartmentState,
+)
 
 
 # define the behavior of the ODEs and the parameters they take
@@ -89,7 +93,28 @@ def run_simulation(config: SimulationConfig, tf) -> Solution:
         initial_state=initial_state,
         ode_parameters=ode_params,
         solver_parameters=config.parameters.solver_params,
-        sub_save_compartments=(config.idx.s, config.idx.r),
+    )
+    return solution
+
+
+def run_simulation_sub_save_example(config: SimulationConfig, tf) -> Solution:
+    ode_params = get_odeparams(config.parameters.transmission_params)
+
+    # we need just the jax arrays for the initial state to the ODEs
+    initial_state = config.initializer.get_initial_state(SIRConfig=config)
+    # solve the odes for 100 days
+    # TODO, what if you dont jit the ode method?
+    solution: Solution = simulate(
+        ode=sir_ode,
+        duration_days=tf,
+        initial_state=initial_state,
+        ode_parameters=ode_params,
+        solver_parameters=config.parameters.solver_params,
+        sub_save_specs=(
+            CompartmentSaveSpec(index=config.idx.s),
+            CompartmentSaveSpec(index=config.idx.i, final_only=True),
+            CompartmentSaveSpec(index=config.idx.r, final_only=True),
+        ),
         save_step=7,
     )
     return solution
@@ -137,6 +162,31 @@ plt.plot(
 )
 plt.plot(
     jnp.sum(solution.ys[idx.r], axis=idx.r.age + 1),
+    label="r",
+)
+
+plt.legend()
+plt.show()
+
+# example of using sub save for compartments
+# produce synthetic data with fixed r0 and infectious period
+solution_sub_save = run_simulation_sub_save_example(config_static, tf=100)
+sub_save, final_save = solution_sub_save.ys
+print(sub_save)
+print(final_save)
+# plot the soliution
+idx = config_static.idx
+# add 1 to each axis to account for the leading time dimension in `solution`
+plt.plot(
+    jnp.sum(sub_save[idx.s], axis=idx.s.age + 1),
+    label="s",
+)
+plt.plot(
+    jnp.sum(final_save[idx.i], axis=idx.i.age + 1),
+    label="i",
+)
+plt.plot(
+    jnp.sum(final_save[idx.r], axis=idx.r.age + 1),
     label="r",
 )
 
