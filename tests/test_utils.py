@@ -7,7 +7,11 @@ import numpy as np
 import numpyro.distributions as dist
 
 from dynode import utils
-from dynode.infer.sample import identify_distribution_indexes
+from dynode.simulate import (
+    base_equation,
+    conditional_knots,
+    evaluate_cubic_spline,
+)
 
 # strain indexes {"a": 0, "b": 1, "c": 2}
 
@@ -23,7 +27,7 @@ def test_base_equation():
     coefficients = jnp.array([5, 1, 2, 3])
     tested_times = list(range(-2, 15)) + [100]
     for time in tested_times:
-        assert utils.base_equation(time, coefficients) == equation(time), (
+        assert base_equation(time, coefficients) == equation(time), (
             "base equation failed to evaluate with input : %s" % str(time)
         )
 
@@ -44,7 +48,7 @@ def test_conditional_knots_no_coefficients():
     knots = jnp.array([0, 5, 10])
     tested_times = list(range(-2, 15)) + [100]
     for time in tested_times:
-        assert utils.conditional_knots(time, knots, coefficients) == equation(
+        assert conditional_knots(time, knots, coefficients) == equation(
             time
         ), "conditional_knots failed to evaluate with input : %s" % str(time)
 
@@ -65,7 +69,7 @@ def test_conditional_knots_with_coefficients():
     coefficients = jnp.array([1, 2, 3])
     tested_times = list(range(-2, 15)) + [100]
     for time in tested_times:
-        assert utils.conditional_knots(time, knots, coefficients) == equation(
+        assert conditional_knots(time, knots, coefficients) == equation(
             time
         ), "conditional_knots failed to evaluate with input : %s" % str(time)
 
@@ -89,7 +93,7 @@ def test_cubic_spline():
     knot_coefficients = jnp.array([5, 6, 7])
     tested_times = list(range(-2, 15)) + [100]
     for time in tested_times:
-        assert utils.evaluate_cubic_spline(
+        assert evaluate_cubic_spline(
             time,
             knot_locations,
             base_equation_coefficients,
@@ -212,7 +216,7 @@ def test_evaluate_cubic_spline():
         return base_equation + splines
 
     for t in range(-5, 5, 1):
-        utils_splines = utils.evaluate_cubic_spline(
+        utils_splines = evaluate_cubic_spline(
             t, test_spline_locations, test_base_equations, test_spline_coefs
         ).flatten()
         assert utils_splines[0] == test_spline_1(t), (
@@ -243,7 +247,7 @@ def test_identify_distribution_indexes():
         "example": dist.Normal(),
         "no-sample": 5,
     }
-    indexes = identify_distribution_indexes(parameters)
+    indexes = utils.identify_distribution_indexes(parameters)
 
     assert "test_1" in indexes.keys() and indexes["test_1"] == {
         "sample_name": "test",
@@ -334,91 +338,6 @@ def _get_sol():
             for _ in range(4)
         ]
     )
-
-
-def test_get_timeseries_from_solution_with_command_compartment_name():
-    # Test case 1: Command is a compartment name
-    sol = _get_sol()
-    compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeseries, label = utils.get_timeseries_from_solution_with_command(
-        sol, compartment_idx, wane_idx, strain_idx, "S"
-    )
-    assert timeseries.shape == (100,)
-    assert label == "S"
-    assert jnp.all(
-        timeseries == 256
-    )  # Each element in sol is 1, summed over 4*4*4*4 = 256
-
-
-def test_get_timeseries_from_solution_with_command_strain_name():
-    # Test case 2: Command is a strain name
-    sol = _get_sol()
-    compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeseries, label = utils.get_timeseries_from_solution_with_command(
-        sol, compartment_idx, wane_idx, strain_idx, "S2"
-    )
-    assert timeseries.shape == (100,)
-    assert label == "E + I : S2"
-    assert jnp.all(
-        timeseries == 128
-    )  # Exposed + Infected, both are 64 each and of course 64*2==128
-
-
-def test_get_timeseries_from_solution_with_command_wane_name():
-    # Test case 3: Command is a waning compartment name
-    sol = _get_sol()
-    compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeseries, label = utils.get_timeseries_from_solution_with_command(
-        sol, compartment_idx, wane_idx, strain_idx, "W0"
-    )
-    assert timeseries.shape == (100,)
-    assert label == "W0"
-    assert jnp.all(
-        timeseries == 64
-    )  # Each element in sol is 1, summed over 4*4*4*1 = 64
-
-
-def test_get_timeseries_from_solution_with_command_incidence():
-    # Test case 4: Command is 'incidence'
-    sol = _get_sol()
-    compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeseries, label = utils.get_timeseries_from_solution_with_command(
-        sol, compartment_idx, wane_idx, strain_idx, "incidence"
-    )
-    assert timeseries.shape == (99,)
-    assert label == "E : incidence"
-    assert jnp.all(
-        timeseries == 0
-    )  # Since the input arrays are all ones, the diff should be zeros
-
-
-def test_get_timeseries_from_solution_with_command_strain_prevalence():
-    # Test case 5: Command is 'strain_prevalence'
-    sol = _get_sol()
-    compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeseries, labels = utils.get_timeseries_from_solution_with_command(
-        sol, compartment_idx, wane_idx, strain_idx, "strain_prevalence"
-    )
-    assert len(timeseries) == 4
-    assert len(labels) == 4
-    assert jnp.all(
-        jnp.array([jnp.array(j).shape == (100,) for j in timeseries])
-    )
-    assert set(labels) == set(strain_idx._member_names_)
-
-
-def test_get_timeseries_from_solution_with_command_compartment_slice():
-    # Test case 6: Command is a slice of a compartment
-    sol = _get_sol()
-    compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeseries, label = utils.get_timeseries_from_solution_with_command(
-        sol, compartment_idx, wane_idx, strain_idx, "S[:, 0, 0, :]"
-    )
-    assert timeseries.shape == (100,)
-    assert label == "S[:, 0, 0, :]"
-    assert jnp.all(
-        timeseries == 16
-    )  # Each element in sol is 1, summed over 4*1*1*4 = 16
 
 
 def test_flatten_list_params_numpy():

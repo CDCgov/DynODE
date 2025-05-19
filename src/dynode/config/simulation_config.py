@@ -15,7 +15,6 @@ from pydantic import (
 from typing_extensions import Any, Self
 
 from dynode.typing import DynodeName
-from dynode.utils import set_dynode_init_date_flag
 
 from .bins import AgeBin, Bin
 from .dimension import (
@@ -26,6 +25,7 @@ from .dimension import (
 )
 from .initializer import Initializer
 from .params import Params
+from .simulation_date import set_dynode_init_date_flag
 
 
 class Compartment(BaseModel):

@@ -9,8 +9,8 @@ from jax import Array
 
 from . import utils
 from .config_deprecated import Config
-from .logging import log_decorator, logger
 from .typing import CompartmentState
+from .utils import log_decorator, logger
 
 
 class CovidSeroInitializer:

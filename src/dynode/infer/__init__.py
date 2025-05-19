@@ -1,7 +1,6 @@
 from .checkpointing import checkpoint_compartment_sizes
 from .inference import InferenceProcess, MCMCProcess, SVIProcess
 from .sample import (
-    identify_distribution_indexes,
     resolve_deterministic,
     sample_distributions,
     sample_then_resolve,

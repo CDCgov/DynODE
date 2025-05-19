@@ -13,7 +13,6 @@ from dynode.config_deprecated import (
     ConfigValidationError,
 )
 
-GLOBAL_TEST_CONFIG = "tests/test_config_global.json"
 PATH_VARIABLES = [
     "SAVE_PATH",
     "DEMOGRAPHIC_DATA_PATH",
@@ -28,15 +27,6 @@ def test_invalid_json():
     example_invalid_json_input = """{ "INFECTIOUS_PERIOD": 5"""
     with pytest.raises(json.decoder.JSONDecodeError):
         Config(example_invalid_json_input)
-
-
-def test_valid_path_variables():
-    # testing valid paths
-    for path_var in PATH_VARIABLES:
-        example_input_json = """{"%s":"%s"}""" % (path_var, GLOBAL_TEST_CONFIG)
-        assert (
-            Config(example_input_json).__dict__[path_var] == GLOBAL_TEST_CONFIG
-        )
 
 
 def test_invalid_type_path_variables():

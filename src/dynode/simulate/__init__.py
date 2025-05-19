@@ -2,7 +2,7 @@
 
 from .odes import AbstractODEParams, simulate
 from .seasonality import seasonality
-from .seip_model import seip_ode
+from .splines import base_equation, conditional_knots, evaluate_cubic_spline
 from .vaccination import (
     seasonal_vaccine_reset,
     vaccination_rate_hill,
@@ -10,11 +10,13 @@ from .vaccination import (
 )
 
 __all__ = [
-    "seip_ode",
     "simulate",
     "AbstractODEParams",
     "seasonality",
     "seasonal_vaccine_reset",
     "vaccination_rate_hill",
     "vaccination_rate_spline",
+    "evaluate_cubic_spline",
+    "base_equation",
+    "conditional_knots",
 ]

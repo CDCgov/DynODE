@@ -5,6 +5,7 @@ from .typing import (
     DynodeName,
     ObservedData,
     ODE_Eqns,
+    UnitIntervalFloat,
 )
 
 __all__ = [
@@ -12,6 +13,7 @@ __all__ = [
     "CompartmentGradients",
     "DynodeName",
     "CompartmentTimeseries",
+    "UnitIntervalFloat",
     "ObservedData",
     "ODE_Eqns",
 ]

@@ -3,107 +3,19 @@
 import datetime
 import glob
 import os
-import sys
 
 # importing under a different name because mypy static type hinter
 # strongly dislikes the IntEnum class.
-from enum import EnumMeta as IntEnum
 from typing import Any
 
 import epiweeks
 import jax.numpy as jnp
 import numpy as np
-import numpyro
+import numpyro.distributions as dist
 import pandas as pd  # type: ignore
 from jax import Array
-from scipy.stats import gamma
 
 pd.options.mode.chained_assignment = None
-
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# SAMPLING FUNCTIONS
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-def sample_if_distribution(parameters):
-    """Search through a dictionary and sample any `numpyro.distribution` objects found.
-
-    NOW DEPRECATED, USE `dynode.sample.sample_distributions()`
-
-    Replaces the distribution object within `parameters` with a sample from
-    that distribution and converts all lists to `jnp.ndarray`.
-
-    Numpyro sample site names will match the key of the `parameters` dict unless
-    the distribution is part of a list. Lists containing distributions will have
-    site name suffixes according to their index in the matrix.
-
-    Parameters
-    ----------
-    parameters : dict[str: Any]
-        A dictionary mapping parameter names to any object.
-        `numpyro.distribution` objects are sampled, and their sampled values replace
-        the distribution objects within `parameters`.
-
-    Returns
-    -------
-    dict
-        The parameters dictionary with any `numpyro.distribution` objects replaced by
-        samples of those distributions from `numpyro.sample`. All lists and
-        `np.ndarray` are replaced by `jnp.array`.
-
-    Examples
-    --------
-    >>> import numpyro.distributions as dist
-    >>> params = {'a': dist.Normal(0, 1), 'b': [dist.Normal(0, 1), dist.Normal(0, 1)]}
-    >>> new_params = sample_if_distribution(params)
-    # This would replace 'a' with a sample from Normal(0, 1) and each element in 'b' with samples from Normal(0, 1).
-    """
-    for key, param in parameters.items():
-        # if distribution, sample and replace
-        if issubclass(type(param), numpyro.distributions.Distribution):
-            param = numpyro.sample(key, param)
-        # if list, check for distributions within and replace them
-        elif isinstance(param, (np.ndarray, list)):
-            param = np.array(param)  # cast np.array so we get .shape
-            flat_param = np.ravel(param)  # Flatten the parameter array
-            # check for distributions inside of the flattened parameter list
-            if any(
-                [
-                    issubclass(
-                        type(param_lst), numpyro.distributions.Distribution
-                    )
-                    for param_lst in flat_param
-                ]
-            ):
-                dim_idxs = np.unravel_index(
-                    np.arange(flat_param.size), param.shape
-                )
-                # if we find distributions, sample them, then reshape back to the original shape
-                # all this code with dim_idxs and joining strings is to properly display the
-                # row/col indexes in any number of dimensions, not just 1 and 2D matrix
-                flat_param = jnp.array(
-                    [
-                        (
-                            numpyro.sample(
-                                key
-                                + "_"
-                                + "_".join(
-                                    [str(dim_idx[i]) for dim_idx in dim_idxs]
-                                ),
-                                param_lst,
-                            )
-                            if issubclass(
-                                type(param_lst),
-                                numpyro.distributions.Distribution,
-                            )
-                            else param_lst
-                        )
-                        for i, param_lst in enumerate(flat_param)
-                    ]
-                )
-                param = jnp.reshape(flat_param, param.shape)
-        # else static param, do nothing
-        parameters[key] = param
-    return parameters
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -686,104 +598,6 @@ def drop_keys_with_substring(dct: dict[str, Any], drop_s: str):
     return dct
 
 
-def match_index_len(
-    series: Array | np.ndarray, index_len: int, pad: str = "l"
-) -> np.ndarray:
-    """Pad `series` to the left or right until it reaches desired length.
-
-    Parameters
-    ----------
-    series : jax.Array[float] | np.ndarray[float]
-        Array to pad, must be dtype float so `nan` is a valid value.
-    index_len : int
-        desired len of `series`, modifies only first dimension.
-    pad : str, optional
-        which side of `series` to pad, "l" or "r", by default "l"
-
-    Returns
-    -------
-    jax.Array
-        `series` padded with nans.
-    """
-
-    def _pad_fn(series, index_len, pad):
-        if "l" in pad:
-            return np.pad(
-                series,
-                (index_len - len(series), 0),
-                "constant",
-                constant_values=None,
-            )
-        elif "r" in pad:
-            return np.pad(
-                series,
-                (0, index_len - len(series)),
-                "constant",
-                constant_values=None,
-            )
-
-    if len(series) < index_len:
-        return _pad_fn(series, index_len, pad)
-    return np.array(series)
-
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# DEATH CALCULATION CODE
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-
-def convolve_hosp_to_death(hosp, hfr, shape, scale, padding="nan"):
-    """Model deaths based on hospitalizations.
-
-    The function calculates expected deaths based on input weekly age-specific
-    `hospitalization` and hospitalization fatality risk
-    (`hfr`), then delay the deaths (relative to hospitalization) based on a gamma
-    distribution of parameters `shape` and `scale`. The gamma specification is _daily_,
-    which then gets discretized into 5 weeks for convolution.
-
-    Parameters
-    ----------
-    `hosp` : numpy.array
-        Age-specific weekly hospitalization with shape of (num_weeks, NUM_AGE_GROUPS)
-    `hfr`: numpy.array
-        Age-specific hospitalization fatality risk with shape of (NUM_AGE_GROUPS)
-    shape : float
-        Shape parameter of the gamma delay distribution, is > 0
-    scale : float
-        Scale parameter of the gamma delay distribution, is > 0 and 1/rate
-    padding : str {"nan", "nearest", "no"}
-        Boolean flag determining if the output array is of same length as `hosp` with
-        first 4 weeks padded with nan or not. Note: the "valid" modelled deaths would always
-        be 4 weeks less than input hospitalization.
-
-    Returns
-    -------
-    numpy.array
-        List of `num_day` vaccination rates arrays, each by the shape of (NUM_AGE_GROUPS,
-        MAX_VAX_COUNT + 1)
-    """
-    expected_deaths = hosp * hfr[None, :]
-    disc_gamma = gamma.cdf(np.arange(0, 36, 7), shape, scale=scale)
-    disc_gamma = np.diff(disc_gamma)
-    daily_deaths = np.array(
-        [np.convolve(d, disc_gamma, "valid") for d in expected_deaths.T]
-    ).T
-    if padding == "nan":
-        daily_deaths = np.append(
-            np.array([[np.nan] * 4] * (len(disc_gamma) - 1)),
-            daily_deaths,
-            axis=0,
-        )
-    elif padding == "nearest":
-        daily_deaths = np.append(
-            np.repeat([daily_deaths[0]], len(disc_gamma) - 1, axis=0),
-            daily_deaths,
-            axis=0,
-        )
-
-    return daily_deaths
-
-
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 # DEMOGRAPHICS CODE
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -893,260 +707,6 @@ def load_age_demographics(
                 f"Something went wrong with {region} and produced the following error:\n\t{e}"
             )
     return demographic_data
-
-
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# Plotting CODE
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-
-def get_timeseries_from_solution_with_command(
-    sol: tuple[Array, Array, Array, Array],
-    compartment_idx: IntEnum,
-    w_idx: IntEnum,
-    strain_idx: IntEnum,
-    command: str,
-):
-    """Execute `command` over a Solution object to obtain a view on the timeseries.
-
-    Possible values of `command` include:
-
-    - a compartment title, as specified in the `compartment_idx` IntEnum. Eg:"S", "E", "I"
-    - a strain title, as specified in `strain_idx` IntEnum. Eg "omicron", "delta"
-    - a wane index, as specified by `w_idx`. Eg: "W0" "W1"
-    - a numpy slice of a compartment title, as specified in the `compartment_idx`
-    IntEnum. Eg: "S[:, 0, 0, :]" or "E[:, 1:3, [0,1], 1]"
-    Format must include compartment title, followed by square brackets and comma separated slices.
-    Do NOT include extra time dimension found in the sol object. Assume dimensionality of the compartment as in initialization.
-
-    Parameters
-    ----------
-    `sol` : tuple(jnp.array)
-        Generally .ys object containing ODE run as described by
-        https://docs.kidger.site/diffrax/api/solution/
-        a tuple containing the ys of the ODE run.
-    `compartment_idx`: IntEnum:
-        An enum containing the name of each compartment and its associated compartment index,
-        as initialized by the config file of the model that generated `sol`.
-    `w_idx`: IntEnum:
-        An enum containing the name of each waning compartment and its associated compartment index,
-        as initialized by the config file of the model that generated `sol`.
-    `strain_idx`: intEnum
-        An enum containing the name of each strain and its associated strain index,
-        as initialized by the config file of the model that generated `sol`.
-    `command`: str
-        A string command of the format specified in the function description.
-
-    Returns
-    -------
-    tuple(jnp.array, str)
-        a slice of the `sol` object collapsed into the first dimension
-        a string with the label of the new line, helps with
-        interpretability as commands sometimes lack necessary context.
-    """
-
-    def is_close(x):
-        return 0 if np.isclose(x, 0.0) else x
-
-    is_close_v = np.vectorize(is_close)
-    label = command
-    # plot whole compartment
-    if command in compartment_idx._member_names_:
-        compartment = np.array(sol[compartment_idx[command]])
-    # plot infections from that strain
-    elif command in strain_idx._member_names_:
-        exposed = np.array(sol[compartment_idx["E"]])
-        infected = np.array(sol[compartment_idx["I"]])
-        compartment = (
-            exposed[:, :, :, :, strain_idx[command]]
-            + infected[:, :, :, :, strain_idx[command]]
-        )
-        label = "E + I : " + label
-    # plot members of a wane compartment
-    elif command in w_idx._member_names_:
-        compartment = np.array(sol[compartment_idx["S"]])[
-            :, :, :, :, w_idx[command]
-        ]
-    # plot incidence, which is the diff of the C compartment.
-    elif command.lower().strip() == "incidence":
-        compartment = np.array(sol[compartment_idx["C"]])
-        compartment = np.sum(
-            compartment, axis=tuple(range(1, compartment.ndim))
-        )
-        compartment = np.diff(compartment)
-        compartment_daily = is_close_v(
-            np.add.reduceat(compartment, np.arange(0, len(compartment), 1))
-        )
-        label = "E : " + label
-        return compartment_daily, label
-    # plot strain prevalence, proportion of all current infections by strain over time.
-    elif command.lower().strip() == "strain_prevalence":
-        exposed = np.array(sol[compartment_idx["E"]])
-        infected = np.array(sol[compartment_idx["I"]])
-        all_cur_infected = is_close_v(exposed + infected)
-        strain_proportions = []
-        # normalize each strain, getting its proportion of all infected at that time point
-        # strains sum to 1 for each given time point
-        for strain in strain_idx._member_names_:
-            strain_proportions.append(
-                np.nan_to_num(all_cur_infected[:, :, :, :, strain_idx[strain]])
-            )
-        # sum all three strains together for normalization purposes
-        all_cur_infected = np.sum(all_cur_infected, axis=-1)
-        dimensions_to_sum_over = tuple(range(1, strain_proportions[0].ndim))
-        strain_proportions_summed = [
-            np.sum(strain_proportion_timeline, axis=dimensions_to_sum_over)
-            / np.sum(all_cur_infected, axis=dimensions_to_sum_over)
-            for strain_proportion_timeline in strain_proportions
-        ]
-        labels = [str(strain) for strain in strain_idx._member_names_]
-        return strain_proportions_summed, labels
-
-    # assuming explicit compartment, will explode if passed incorrect input
-    else:
-        compartment_slice = command[1:].strip()
-        # add an extra dimension : for time
-        compartment_slice = compartment_slice[0] + ":," + compartment_slice[1:]
-        try:
-            compartment_slice = eval("np.s_{}".format(compartment_slice))
-            compartment = np.array(
-                sol[compartment_idx[command[0].upper()]][compartment_slice]
-            )
-        except NameError:
-            print(
-                "There was an error in the plotting command: {}, returning null timeline".format(
-                    command
-                )
-            )
-            print(
-                "Please review `utils/get_timeseries_from_solution_with_command()` documentation"
-            )
-            return np.zeros(sol[compartment_idx["S"]].shape[0]), "Error"
-    dimensions_to_sum_over = tuple(range(1, compartment.ndim))
-    # compartment = np.nan_to_num(compartment, copy=True, nan=0.0)
-    return is_close_v(np.sum(compartment, axis=dimensions_to_sum_over)), label
-
-
-def get_var_proportions(inferer, solution):
-    """
-    Calculate _daily_ variant proportions on a simulation run.
-
-    Parameters
-    ----------
-    inferer : AbstractParameters
-        An AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) used to produce `solution`.
-    solution : tuple[jnp.ndarray]
-        Solution object from an ODE run (specifically through `diffrax.diffeqsolve`).
-
-    Returns
-    -------
-    jnp.array:
-        An array of strain prevalence by the shape of (num_days, NUM_STRAINS)
-    """
-    strain_incidence = jnp.sum(
-        solution.ys[inferer.config.COMPARTMENT_IDX.C],
-        axis=(
-            inferer.config.I_AXIS_IDX.age + 1,  # offset for day dimension
-            inferer.config.I_AXIS_IDX.hist + 1,
-            inferer.config.I_AXIS_IDX.vax + 1,
-        ),
-    )
-    strain_incidence = jnp.diff(strain_incidence, axis=0)
-    sim_vars = strain_incidence / jnp.sum(strain_incidence, axis=-1)[:, None]
-    return sim_vars
-
-
-def get_foi_suscept(p, force_of_infection):
-    """Calculate the force of infections experienced by susceptibles after factoring their immunity.
-
-    Parameters
-    ----------
-    p : Parameters
-        A Parameters object that is a spoofed dictionary for easy referencing,
-        output of `.get_parameters()` from AbstractParameter.
-    force_of_infection : jnp.ndarray
-        Array of shape (NUM_AGE_GROUPS, NUM_STRAINS) quantifying
-        the force of infection by age group and strain.
-
-    Returns
-    -------
-    jnp.ndarray
-        Array of immunity protection with shape (NUM_STRAINS, num_days, NUM_AGE_GROUPS).
-    """
-    foi_suscept = []
-    for strain in range(p.NUM_STRAINS):
-        force_of_infection_strain = force_of_infection[
-            :, strain
-        ]  # (num_age_groups,)
-
-        crossimmunity_matrix = p.CROSSIMMUNITY_MATRIX[strain, :]
-        vax_efficacy_strain = p.VACCINE_EFF_MATRIX[strain, :]
-        initial_immunity = 1 - jnp.einsum(
-            "j, k",
-            1 - crossimmunity_matrix,
-            1 - vax_efficacy_strain,
-        )
-        # renormalize the waning curve to have minimum of `final_immunity` after full waning
-        # and maximum of `initial_immunity` right after recovery
-        final_immunity = jnp.zeros(shape=initial_immunity.shape)
-        final_immunity = final_immunity.at[
-            all_immune_states_with(strain, p.NUM_STRAINS), :
-        ].set(p.MIN_HOMOLOGOUS_IMMUNITY)
-        waned_immunity_baseline = jnp.einsum(
-            "jk,l",
-            initial_immunity,
-            p.WANING_PROTECTIONS,
-        )
-        # find the lower bound of immunity for a homologous exposure against this challenging strain
-        waned_immunity_min = (1 - waned_immunity_baseline) * final_immunity[
-            :, :, jnp.newaxis
-        ]
-        waned_immunity = waned_immunity_baseline + waned_immunity_min
-        foi_suscept_strain = jnp.einsum(
-            "i, jkl", force_of_infection_strain, 1 - waned_immunity
-        )
-        foi_suscept.append(foi_suscept_strain)
-
-    return foi_suscept
-
-
-def get_immunity(inferer, solution):
-    """Calculate the age-strain-specific population immunity.
-
-    Specifically, the expected immunity of a randomly selected person of
-    certain age towards certain strain.
-
-    Parameters
-    ----------
-    `inferer` : AbstractParameters
-        an AbstractParameters (e.g., MechanisticInferer or StaticValueParameters) that
-        is used to produce `solution`.
-    `solution`: tuple(jnp.array)
-        solution object that comes out from an ODE run (specifically through
-        `diffrax.diffeqsolve`)
-
-    Returns
-    -------
-    jnp.array:
-        an array of immunity protection by the shape of (NUM_STRAINS, num_days,
-        NUM_AGE_GROUPS)
-    """
-    p = Parameters(inferer.get_parameters())
-    foi_suscept = get_foi_suscept(
-        p, jnp.ones((p.NUM_AGE_GROUPS, p.NUM_STRAINS))
-    )
-    immunity_strain = [
-        [
-            1
-            - jnp.sum(foi_suscept[strain] * s, axis=(1, 2, 3))
-            / jnp.sum(s, axis=(1, 2, 3))
-            for s in solution.ys[inferer.config.COMPARTMENT_IDX.S]
-        ]
-        for strain in range(p.NUM_STRAINS)
-    ]
-
-    immunity_strain = jnp.array(immunity_strain)
-    return immunity_strain
 
 
 # @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
@@ -1421,107 +981,6 @@ def load_demographic_data(
     return demographic_data
 
 
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-# SPOOFING CODE
-# @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-
-
-class Parameters(object):
-    """A dummy container that converts a dictionary into attributes."""
-
-    def __init__(self, dict: dict):
-        """Initialize an empty spoof parameters object.
-
-        Parameters
-        ----------
-        dict : dict
-            parameters and data for spoof class to hold.
-        """
-        self.__dict__ = dict
-
-
-class dual_logger_out(object):
-    """Split stdout, flushing its contents to a file as well as to stdout.
-
-    Useful for experiments to save logs but also see the output live.
-    """
-
-    def __init__(self, name, mode):
-        """Spoofs stdout __init__ but redirects flow to a file as well.
-
-        Parameters
-        ----------
-        name : str
-            File name to pipe output to.
-        mode : str
-            file open mode, usually "w" or "x".
-        """
-        self.file = open(name, mode)
-        self.stdout = sys.stdout
-        sys.stdout = self
-
-    def close(self):
-        """Finish writing to file and direct stdout back to sys.stdout."""
-        sys.stdout = self.stdout
-        self.file.close()
-
-    def write(self, data):
-        """Write `data` to file and to sys.stdout.
-
-        Parameters
-        ----------
-        data : str
-            data to write to file and to sys.stdout
-        """
-        self.file.write(data)
-        self.stdout.write(data)
-
-    def flush(self):
-        """Flush file contents."""
-        self.file.flush()
-
-
-class dual_logger_err(object):
-    """Splits stderror, flushing its contents to a file as well as to terminal.
-
-    Useful for experiments to save logs but also see the output live.
-    """
-
-    def __init__(self, name, mode):
-        """Spoofs stderr __init__ but redirects flow to a file as well.
-
-        Parameters
-        ----------
-        name : str
-            File name to pipe output to.
-        mode : str
-            file open mode, usually "w" or "x".
-        """
-        self.file = open(name, mode)
-        self.stderr = sys.stderr
-        sys.stderr = self
-
-    def close(self):
-        """Finish writing to file and direct stderr back to sys.stderr."""
-        sys.stderr = self.stderr
-        self.file.close()
-
-    def write(self, data):
-        """Write `data` to file and to sys.stderr.
-
-        Parameters
-        ----------
-        data : str
-            data to write to file and to sys.stderr
-        """
-        self.file.write(data)
-        self.stderr.write(data)
-
-    def flush(self):
-        """Flush file contents."""
-        self.file.flush()
-
-
 def save_samples(samples: dict[str, Array], save_path: str, indent=None):
     """
     Save model samples to `save_path`, with JSON serializability.
@@ -1544,28 +1003,78 @@ def save_samples(samples: dict[str, Array], save_path: str, indent=None):
     json.dump(s, open(save_path, "w"), indent=indent)
 
 
-def get_dynode_init_date_flag() -> datetime.date | None:
-    """Get the dynode initialization date from the envionment variable.
+def identify_distribution_indexes(
+    parameters: dict[str, Any],
+) -> dict[str, dict[str, str | tuple | None]]:
+    """Identify the locations and site names of numpyro samples.
+
+    The inverse of `sample_if_distribution()`, identifies which parameters
+    are numpyro distributions and returns a mapping between the sample site
+    names and its actual parameter name and index.
+
+    Parameters
+    ----------
+    parameters : dict[str, Any]
+        A dictionary containing keys of different parameter
+        names and values of any type.
 
     Returns
     -------
-    datetime.date | None
-        the date object representing the initialization date of the model in
-        the current process. Or None if the environment variable is not set.
+    dict[str, dict[str, str | tuple[int] | None]]
+        A dictionary mapping the sample name to the dict key within `parameters`.
+        If the sampled parameter is within a larger list, returns a tuple of indexes as well,
+        otherwise None.
 
-    Note
-    ----
-    This function uses the current process ID to ensure that the date is set
-    for each run of the model. Use set_dynode_init_date_flag() to set the date.
+        - key: `str`
+            Sampled parameter name as produced by `sample_if_distribution()`.
+        - value: `dict[str, str | tuple | None]`
+            "sample_name" maps to key within `parameters` and "sample_idx" provides
+            the indexes of the distribution if it is found in a list, otherwise None.
+
+    Examples
+    --------
+    >>> import numpyro.distributions as dist
+    >>> parameters = {"test": [0, dist.Normal(), 2], "example": dist.Normal()}
+    >>> identify_distribution_indexes(parameters)
+    {'test_1': {'sample_name': 'test', 'sample_idx': (1,)},
+    'example': {'sample_name': 'example', 'sample_idx': None}}
     """
-    init_date = os.getenv(f"DYNODE_INITIALIZATION_DATE({os.getpid()})", None)
-    if init_date is not None:
-        return datetime.datetime.strptime(init_date, "%Y-%m-%d").date()
-    return None
 
+    def get_index(indexes):
+        return tuple(indexes)
 
-def set_dynode_init_date_flag(init_date: datetime.date) -> None:
-    """Set the dynode initialization date in the environment variable."""
-    os.environ[f"DYNODE_INITIALIZATION_DATE({os.getpid()})"] = (
-        init_date.strftime("%Y-%m-%d")
-    )
+    index_locations: dict[str, dict[str, str | tuple | None]] = {}
+    for key, param in parameters.items():
+        # if distribution, it does not have an index, so None
+        if issubclass(type(param), dist.Distribution):
+            index_locations[key] = {"sample_name": key, "sample_idx": None}
+        # if list, check for distributions within and mark their indexes
+        elif isinstance(param, (np.ndarray, list)):
+            param = np.array(param)  # cast np.array so we get .shape
+            flat_param = np.ravel(param)  # Flatten the parameter array
+            # check for distributions inside of the flattened parameter list
+            if any(
+                [
+                    issubclass(type(param_lst), dist.Distribution)
+                    for param_lst in flat_param
+                ]
+            ):
+                dim_idxs = np.unravel_index(
+                    np.arange(flat_param.size), param.shape
+                )
+                for i, param_lst in enumerate(flat_param):
+                    if issubclass(type(param_lst), dist.Distribution):
+                        param_idxs = [dim_idx[i] for dim_idx in dim_idxs]
+                        index_locations[
+                            str(
+                                key
+                                + "_"
+                                + "_".join(
+                                    [str(dim_idx[i]) for dim_idx in dim_idxs]
+                                )
+                            )
+                        ] = {
+                            "sample_name": key,
+                            "sample_idx": get_index(param_idxs),
+                        }
+    return index_locations
