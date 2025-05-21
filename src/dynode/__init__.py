@@ -8,18 +8,104 @@ DynODE is currently under active development and will be substantially
 refactored in the near future!
 """
 
-import importlib
+from . import config, infer, simulation, typing, utils
 
-from . import config, infer, simulate, typing, utils
+# import everything from the submodules
+from .config import (
+    AgeBin,
+    Bin,
+    Compartment,
+    DeterministicParameter,
+    Dimension,
+    DiscretizedPositiveIntBin,
+    FullStratifiedImmuneHistoryDimension,
+    Initializer,
+    LastStrainImmuneHistoryDimension,
+    Params,
+    PlaceholderSample,
+    SamplePlaceholderError,
+    SimulationConfig,
+    SimulationDate,
+    SolverParams,
+    Strain,
+    TransmissionParams,
+    VaccinationDimension,
+    WaneBin,
+)
+from .infer import (
+    InferenceProcess,
+    MCMCProcess,
+    SVIProcess,
+    checkpoint_compartment_sizes,
+    resolve_deterministic,
+    sample_distributions,
+    sample_then_resolve,
+)
+from .simulation import (
+    AbstractODEParams,
+    base_equation,
+    conditional_knots,
+    evaluate_cubic_spline,
+    simulate,
+)
+from .typing import (
+    CompartmentGradients,
+    CompartmentState,
+    CompartmentTimeseries,
+    DynodeName,
+    ObservedData,
+    ODE_Eqns,
+    UnitIntervalFloat,
+)
+from .utils import CustomLogFormatter, log, log_decorator, logger
 
 # Defines all the different modules able to be imported from src
-__all__ = ["config", "infer", "utils", "simulate", "typing"]
-submodules = ["config", "infer", "utils", "simulate", "typing"]
-# Append the __all__ of all submodules to the main __all__
-for submodule in submodules:
-    module = importlib.import_module(f".{submodule}", package="dynode")
-    if hasattr(module, "__all__"):
-        for attr in module.__all__:
-            globals()[attr] = getattr(module, attr)
-            __all__.append(attr)
-# effictively flattens all submodules into dynode namespace.
+__all__ = [
+    "config",
+    "infer",
+    "utils",
+    "simulation",
+    "typing",
+    "SimulationConfig",
+    "Initializer",
+    "Compartment",
+    "Strain",
+    "Dimension",
+    "VaccinationDimension",
+    "FullStratifiedImmuneHistoryDimension",
+    "LastStrainImmuneHistoryDimension",
+    "Bin",
+    "WaneBin",
+    "DiscretizedPositiveIntBin",
+    "AgeBin",
+    "Params",
+    "SolverParams",
+    "TransmissionParams",
+    "SimulationDate",
+    "PlaceholderSample",
+    "SamplePlaceholderError",
+    "DeterministicParameter",
+    "sample_then_resolve",
+    "resolve_deterministic",
+    "sample_distributions",
+    "InferenceProcess",
+    "MCMCProcess",
+    "SVIProcess",
+    "checkpoint_compartment_sizes",
+    "simulate",
+    "AbstractODEParams",
+    "evaluate_cubic_spline",
+    "base_equation",
+    "conditional_knots",
+    "CompartmentState",
+    "CompartmentGradients",
+    "DynodeName",
+    "CompartmentTimeseries",
+    "UnitIntervalFloat",
+    "ObservedData",
+    "ODE_Eqns",
+    "log",
+    "log_decorator",
+    "CustomLogFormatter",
+    "logger",
+]

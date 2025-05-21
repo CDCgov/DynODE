@@ -17,7 +17,7 @@ from numpyro.infer.svi import SVIRunResult
 
 from dynode.config import SimulationConfig
 from dynode.infer import MCMCProcess, SVIProcess, sample_then_resolve
-from dynode.simulate import AbstractODEParams, simulate
+from dynode.simulation import AbstractODEParams, simulate
 from dynode.typing import CompartmentGradients, CompartmentState
 
 
