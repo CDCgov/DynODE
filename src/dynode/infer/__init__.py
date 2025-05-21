@@ -10,7 +10,6 @@ __all__ = [
     "sample_then_resolve",
     "resolve_deterministic",
     "sample_distributions",
-    "identify_distribution_indexes",
     "InferenceProcess",
     "MCMCProcess",
     "SVIProcess",

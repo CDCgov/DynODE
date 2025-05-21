@@ -1,5 +1,4 @@
 import datetime
-import itertools
 from enum import IntEnum
 
 import jax.numpy as jnp
@@ -104,93 +103,6 @@ def test_cubic_spline():
         )
 
 
-def test_new_immune_state():
-    num_strains_tested = [1, 2, 3, 4, 10]
-    for num_strains in num_strains_tested:
-        possible_immune_states = list(range(0, 2**num_strains))
-        exposing_strains = list(range(0, num_strains))
-        for old_state, exposing_strain in itertools.product(
-            possible_immune_states, exposing_strains
-        ):
-            new_state = utils.new_immune_state(old_state, exposing_strain)
-            # exposing_strain in binary has 1 in the index of exposing strain, with index 0 being right most
-            exposing_strain_binary = ["0"] * num_strains
-            exposing_strain_binary[exposing_strain] = "1"
-            # invert order so index 0 is right most of string.
-            exposing_strain_binary = "".join(exposing_strain_binary[::-1])
-            # bitwise OR for new state
-            expected_new_state = int(format(old_state, "b"), 2) | int(
-                exposing_strain_binary, 2
-            )
-
-            assert new_state == expected_new_state, (
-                "the new immune state when state %d is exposed to strain %d with a max number of strains %d is incorrect"
-                % (old_state, exposing_strain, num_strains)
-            )
-
-
-def test_all_immune_states_with():
-    num_strains_tested = [1, 2, 3, 4, 10]
-    # testing a number of num_strain variables
-    for num_strains in num_strains_tested:
-        possible_immune_states = list(range(0, 2**num_strains))
-        exposing_strains = list(range(0, num_strains))
-        # testing each of the strains
-        for strain in exposing_strains:
-            states_with_strain = utils.all_immune_states_with(
-                strain, num_strains
-            )
-            for immune_state in possible_immune_states:
-                state_binary = format(immune_state, "b")
-                # prepend some zeros if needed to avoid index errors
-                # invert so we can index `strain`, as opposed to `strain` indexes from the end in a list
-                state_binary = (
-                    "0" * (num_strains - len(state_binary)) + state_binary
-                )[::-1]
-                # should contain strain, 1 in the `strain` index of the binary
-                if immune_state in states_with_strain:
-                    assert state_binary[strain] == "1", (
-                        "state %d should have an exposure to strain %d but does not when num_strains is %d"
-                        % (immune_state, strain, num_strains)
-                    )
-                else:  # does not contain strain
-                    assert state_binary[strain] == "0", (
-                        "state %d should NOT have an exposure to strain %d but does when num_strains is %d"
-                        % (immune_state, strain, num_strains)
-                    )
-
-
-def test_all_immune_states_without():
-    num_strains_tested = [1, 2, 3, 4, 10]
-    # testing a number of num_strain variables
-    for num_strains in num_strains_tested:
-        possible_immune_states = list(range(0, 2**num_strains))
-        exposing_strains = list(range(0, num_strains))
-        # testing each of the strains
-        for strain in exposing_strains:
-            states_without_strain = utils.all_immune_states_without(
-                strain, num_strains
-            )
-            for immune_state in possible_immune_states:
-                state_binary = format(immune_state, "b")
-                # prepend some zeros if needed to avoid index errors
-                # invert so we can index `strain`, as opposed to `strain` indexes from the end in a list
-                state_binary = (
-                    "0" * (num_strains - len(state_binary)) + state_binary
-                )[::-1]
-                # should contain strain, 1 in the `strain` index of the binary
-                if immune_state in states_without_strain:
-                    assert state_binary[strain] == "0", (
-                        "state %d should NOT have an exposure to strain %d but does when num_strains is %d"
-                        % (immune_state, strain, num_strains)
-                    )
-                else:  # does not contain strain
-                    assert state_binary[strain] == "1", (
-                        "state %d should have an exposure to strain %d but does not when num_strains is %d"
-                        % (immune_state, strain, num_strains)
-                    )
-
-
 def test_evaluate_cubic_spline():
     test_base_equations = jnp.array([[1, 2, 3, 4], [1, 2, 3, 4]])
     test_spline_locations = jnp.array([[0, 2, 4, 6], [0, 2, 4, 6]])
@@ -260,63 +172,6 @@ def test_identify_distribution_indexes():
     assert (
         "no-sample" not in indexes.keys()
     ), "identify_distribution_indexes should not return indexes for unsampled parameters"
-
-
-def test_combined_strain_mapping():
-    pass
-    # lets test two hardcoded scenarios, since this code can get a bit crazy
-    # 2 strain scenario:
-    # 0 -> no exposures,
-    # 1-> exposure to strain 0,
-    # 2 -> exposure to strain 1,
-    # 3 -> exposure to both
-    # num_strains_tested = [2, 3, 4, 10]
-    # # testing a number of num_strain variables
-    # for num_strains in num_strains_tested:
-    #     possible_immune_states = list(range(0, 2**num_strains))
-    #     exposing_strains = list(range(0, num_strains))
-    #     for from_strain, to_strain in itertools.product(
-    #         exposing_strains, exposing_strains
-    #     ):
-    #         combined_state_dict, strain_mapping = (
-    #             utils.combined_strains_mapping(
-    #                 from_strain, to_strain, num_strains
-    #             )
-    #         )
-    #         print(combined_state_dict)
-    #         print(strain_mapping)
-    #         for old_state, new_state in combined_state_dict.items():
-    #             # we assert that we can go back to the old state by re-exposing new_state to the strain that was combined.
-    #             assert utils.new_immune_state(
-    #                 new_state, from_strain, num_strains
-    #             ) == utils.new_immune_state(
-    #                 new_state, to_strain, num_strains
-    #             ), (
-    #                 "after combining strains %d and %d together, exposing %d to %d did not yield state %d as expected"
-    #                 % (
-    #                     from_strain,
-    #                     to_strain,
-    #                     new_state,
-    #                     from_strain,
-    #                     old_state,
-    #                 )
-    #             )
-
-
-def test_get_strains_exposed_to():
-    num_strains_tested = [1, 2, 3, 4, 10]
-    for num_strains in num_strains_tested:
-        possible_immune_states = list(range(0, 2**num_strains))
-        for state in possible_immune_states:
-            exposed_strains = utils.get_strains_exposed_to(state, num_strains)
-            # Calculate the expected strains exposed by converting the state to binary
-            expected_exposed_strains = [
-                i for i in range(num_strains) if (state & (1 << i)) != 0
-            ]
-            assert exposed_strains == expected_exposed_strains, (
-                f"The exposed strains for state {state} with {num_strains} strains is incorrect. "
-                f"Expected {expected_exposed_strains}, got {exposed_strains}."
-            )
 
 
 # get the function to test
