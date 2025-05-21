@@ -108,4 +108,12 @@ __all__ = [
     "log_decorator",
     "CustomLogFormatter",
     "logger",
+    "sim_day_to_date",
+    "sim_day_to_epiweek",
+    "date_to_sim_day",
+    "date_to_epi_week",
+    "vectorize_objects",
+    "flatten_list_parameters",
+    "drop_keys_with_substring",
+    "identify_distribution_indexes",
 ]
