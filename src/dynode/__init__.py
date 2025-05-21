@@ -57,7 +57,20 @@ from .typing import (
     ODE_Eqns,
     UnitIntervalFloat,
 )
-from .utils import CustomLogFormatter, log, log_decorator, logger
+from .utils import (
+    CustomLogFormatter,
+    date_to_epi_week,
+    date_to_sim_day,
+    drop_keys_with_substring,
+    flatten_list_parameters,
+    identify_distribution_indexes,
+    log,
+    log_decorator,
+    logger,
+    sim_day_to_date,
+    sim_day_to_epiweek,
+    vectorize_objects,
+)
 
 # Defines all the different modules able to be imported from src
 __all__ = [
