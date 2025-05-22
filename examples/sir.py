@@ -39,7 +39,7 @@ class SIR_ODEParams(AbstractODEParams):
 
 # define a function to easily translate the object oriented TransmissionParams
 # into the vectorized ODEParams.
-def get_odeparams(config: SIRConfig) -> SIR_ODEParams:
+def get_odeparams(config: SimulationConfig) -> SIR_ODEParams:
     """Transform and vectorize transmission parameters into ODE parameters."""
     transmission_params = sample_then_resolve(
         config.parameters.transmission_params
