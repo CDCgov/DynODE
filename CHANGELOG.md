@@ -9,6 +9,17 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2025.05.22.1a] - Dynode Module Reorg
+### Meta Changes
+- Realized that all our versions were tagged with 2024 up until now ! Versions should now have the correct year, whoops.
+
+### Changed
+- Reorganized `Dynode` into 5 major modules `config`,`infer`,`simulation`,`typing`, and `utils`.
+- Exposed all methods and classes from within the modules to the top level `__all__`, meaning users, if they so wish, can import things out of Dynode without traversing the modules.
+- Removed all disease specific code out to a currently private repository named `DynODE-Models`, keeping `Dynode` as a repo for the framework only.
+- Removed now-unnecessary imports to clean up dependency tree of this repo.
+
+
 ## [2024.04.23.1a] - Fixing `scale_initial_infections`
 ### Changed
 - Changed `abstract_parameters.scale_initial_infections()` to preserve age distributions before and after scaling the number of initial infections. Before we were scaling E and I compartments and then scaling S down by the gained infections in E and I, without realizing that S/E/I had different age distributions individually.

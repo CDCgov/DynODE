@@ -19,6 +19,8 @@ from . import (
 )
 
 
+# TODO, this file is quite outdated and needs to be removed after a better
+# visualization library is created.
 class VisualizationError(Exception):
     """An exception class for Visualization Errors."""
 

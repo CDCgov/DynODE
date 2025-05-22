@@ -4,10 +4,7 @@ from typing import Any, Callable, List
 
 import numpy as np
 import numpyro.distributions as dist  # type: ignore
-import pandas as pd  # type: ignore
 from jax import Array
-
-pd.options.mode.chained_assignment = None
 
 
 def vectorize_objects(
