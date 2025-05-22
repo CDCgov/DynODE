@@ -1,3 +1,5 @@
+"""A module for typing utilities in Dynode."""
+
 from .typing import (
     CompartmentGradients,
     CompartmentState,

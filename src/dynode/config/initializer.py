@@ -1,3 +1,5 @@
+"""A module for an abstract initializer in Dynode."""
+
 from datetime import date
 
 from pydantic import BaseModel, Field, PositiveInt

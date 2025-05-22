@@ -2,6 +2,7 @@
 # Including all the class setup
 # %% imports and definitions
 # most of these imports are for type hinting
+import argparse
 from types import SimpleNamespace
 
 import arviz as az
@@ -19,6 +20,12 @@ from dynode.config import SimulationConfig
 from dynode.infer import MCMCProcess, SVIProcess, sample_then_resolve
 from dynode.simulation import AbstractODEParams, simulate
 from dynode.typing import CompartmentGradients, CompartmentState
+
+# allow git hooks to skip the plt.show() command, default to show
+parser = argparse.ArgumentParser()
+parser.add_argument("--skip-plt", type=bool, default=False)
+args = parser.parse_args()
+skip_plt = args.skip_plt
 
 
 # define the behavior of the ODEs and the parameters they take
@@ -119,20 +126,21 @@ solution = run_simulation(config_static, tf=100)
 assert solution.ys is not None
 idx = config_static.idx
 # add 1 to each axis to account for the leading time dimension in `solution`
-plt.plot(
-    jnp.sum(solution.ys[idx.s], axis=idx.s.age + 1),
-    label="s",
-)
-plt.plot(
-    jnp.sum(solution.ys[idx.i], axis=idx.i.age + 1),
-    label="i",
-)
-plt.plot(
-    jnp.sum(solution.ys[idx.r], axis=idx.r.age + 1),
-    label="r",
-)
-plt.legend()
-plt.show()
+if not skip_plt:
+    plt.plot(
+        jnp.sum(solution.ys[idx.s], axis=idx.s.age + 1),
+        label="s",
+    )
+    plt.plot(
+        jnp.sum(solution.ys[idx.i], axis=idx.i.age + 1),
+        label="i",
+    )
+    plt.plot(
+        jnp.sum(solution.ys[idx.r], axis=idx.r.age + 1),
+        label="r",
+    )
+    plt.legend()
+    plt.show()
 # diff recovered individuals to recover lagged incidence for each age group
 incidence = jnp.diff(solution.ys[idx.r], axis=0)
 # %%
@@ -142,14 +150,14 @@ config_infer = SIRInferedConfig()
 # creating two InferenceProcesses, one for MCMC and one for SVI
 inference_process_mcmc = MCMCProcess(
     numpyro_model=model,
-    num_warmup=1000,
-    num_samples=1000,
+    num_warmup=500,
+    num_samples=500,
     num_chains=1,
     nuts_max_tree_depth=10,
 )
 inference_process_svi = SVIProcess(
     numpyro_model=model,
-    num_iterations=2000,
+    num_iterations=1000,
     num_samples=1000,  # for posterior generation
 )
 # %%
@@ -186,17 +194,18 @@ print(
 mcmc_arviz = inference_process_mcmc.to_arviz()
 svi_arviz = inference_process_svi.to_arviz()
 # %%
-axes = az.plot_density(
-    [mcmc_arviz],
-    data_labels=["R0"],
-    var_names=["strains_0_r0"],
-    shade=0.2,
-)
+if not skip_plt:
+    axes = az.plot_density(
+        [mcmc_arviz],
+        data_labels=["R0"],
+        var_names=["strains_0_r0"],
+        shade=0.2,
+    )
 
-fig = axes.flatten()[0].get_figure()
-fig.suptitle("Density Interval for R0")
+    fig = axes.flatten()[0].get_figure()
+    fig.suptitle("Density Interval for R0")
 
-plt.show()
+    plt.show()
 mcmc_arviz
 # %%
 svi_arviz
@@ -230,8 +239,6 @@ posterior_incidence_svi = predictive_svi(
     obs_data=None,
     infer_mode=True,
 )
-print(posterior_incidence_mcmc.keys())
-print(posterior_incidence_svi.keys())
 
 # %%
 # pick a random subset of 50 samples and plot the incidence, plot the true incidence from earlier as well
@@ -240,23 +247,24 @@ random_samples = jax.random.choice(
     posterior_incidence_mcmc["inf_incidence"].shape[0],
     shape=(50,),
 )
-for sample in random_samples:
-    plt.plot(
-        jnp.sum(posterior_incidence_mcmc["inf_incidence"][sample], axis=1),
-        label=None,
-    )
-plt.plot(jnp.sum(incidence, axis=1), label="true incidence")
-plt.legend()
-plt.title("MCMC posterior predictive")
-plt.show()
+if not skip_plt:
+    for sample in random_samples:
+        plt.plot(
+            jnp.sum(posterior_incidence_mcmc["inf_incidence"][sample], axis=1),
+            label=None,
+        )
+    plt.plot(jnp.sum(incidence, axis=1), label="true incidence")
+    plt.legend()
+    plt.title("MCMC posterior predictive")
+    plt.show()
 
-for sample in random_samples:
-    plt.plot(
-        jnp.sum(posterior_incidence_svi["inf_incidence"][sample], axis=1),
-        label=None,
-    )
-plt.plot(jnp.sum(incidence, axis=1), label="true incidence")
-plt.legend()
-plt.title("SVI posterior predictive")
-plt.show()
+    for sample in random_samples:
+        plt.plot(
+            jnp.sum(posterior_incidence_svi["inf_incidence"][sample], axis=1),
+            label=None,
+        )
+    plt.plot(jnp.sum(incidence, axis=1), label="true incidence")
+    plt.legend()
+    plt.title("SVI posterior predictive")
+    plt.show()
 # %%

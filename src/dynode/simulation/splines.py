@@ -1,3 +1,5 @@
+"""Defines functions for evaluating cubic splines."""
+
 import jax.numpy as jnp
 from jax import Array
 from jax.typing import ArrayLike

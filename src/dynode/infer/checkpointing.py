@@ -1,3 +1,5 @@
+"""A module for checkpointing compartments in Dynode."""
+
 import datetime
 
 import numpyro

@@ -1,3 +1,5 @@
+"""A module for datetime utilities in Dynode."""
+
 import datetime
 
 import epiweeks
