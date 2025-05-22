@@ -35,12 +35,11 @@ class SIR_ODEParams(AbstractODEParams):
     gamma: chex.ArrayDevice  # 1/infectious period
     contact_matrix: chex.ArrayDevice  # contact matrix
     idx: SimpleNamespace  # indexing object for the compartments
-    pass
 
 
 # define a function to easily translate the object oriented TransmissionParams
 # into the vectorized ODEParams.
-def get_odeparams(config: SimulationConfig) -> SIR_ODEParams:
+def get_odeparams(config: SIRConfig) -> SIR_ODEParams:
     """Transform and vectorize transmission parameters into ODE parameters."""
     transmission_params = sample_then_resolve(
         config.parameters.transmission_params
@@ -85,7 +84,6 @@ def run_simulation(config: SimulationConfig, tf) -> Solution:
     # we need just the jax arrays for the initial state to the ODEs
     initial_state = config.initializer.get_initial_state(SIRConfig=config)
     # solve the odes for 100 days
-    # TODO, what if you dont jit the ode method?
     solution: Solution = simulate(
         ode=sir_ode,
         duration_days=tf,
