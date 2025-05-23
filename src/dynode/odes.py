@@ -172,7 +172,7 @@ def build_saveat(
 
     if sub_save_indices is not None:
         try:
-            built_saveat = SubSaveAt(
+            sub_save = SubSaveAt(
                 ts=save_times,
                 fn=lambda t, y, args: tuple(
                     y[i]
@@ -181,6 +181,7 @@ def build_saveat(
                     for i in range(len(y))
                 ),
             )
+            built_saveat = SaveAt(subs=sub_save)
         except IndexError as ex:
             print(
                 f"An index passed to sub_save_indices was out of range for initial_state values. Exception: {ex}"
