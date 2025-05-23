@@ -139,7 +139,7 @@ def build_saveat(
     step: int = 1,
     sub_save_indices: Tuple[int, ...] = None,
 ) -> SaveAt:
-    """Builds the SaveAt object if sub_save_indices are not None then SaveAt is built using SubSaveAt
+    """Build the SaveAt object if sub_save_indices are not None then SaveAt is built using SubSaveAt.
 
     Parameters
     ----------
