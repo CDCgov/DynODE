@@ -2,7 +2,7 @@
 
 import logging
 
-from . import log, vis_utils
+from . import log
 from .custom_log_formatter import CustomLogFormatter
 from .datetime_utils import (
     date_to_epi_week,
@@ -18,13 +18,19 @@ from .utils import (
     identify_distribution_indexes,
     vectorize_objects,
 )
+from .vis_utils import (
+    plot_checkpoint_inference_correlation_pairs,
+    plot_mcmc_chains,
+    plot_model_overview_subplot_matplotlib,
+    plot_prior_distributions,
+    plot_violin_plots,
+)
 
 # Fetching the global logger called dynode
 logger = logging.getLogger("dynode")
 
 __all__ = [
     "log",
-    "vis_utils",
     "log_decorator",
     "CustomLogFormatter",
     "logger",
@@ -39,4 +45,9 @@ __all__ = [
     "base_equation",
     "conditional_knots",
     "evaluate_cubic_spline",
+    "plot_violin_plots",
+    "plot_prior_distributions",
+    "plot_mcmc_chains",
+    "plot_checkpoint_inference_correlation_pairs",
+    "plot_model_overview_subplot_matplotlib",
 ]

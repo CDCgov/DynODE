@@ -6,7 +6,7 @@ import numpy as np
 import numpyro.distributions as dist
 
 from dynode import utils
-from dynode.simulation import (
+from dynode.utils import (
     base_equation,
     conditional_knots,
     evaluate_cubic_spline,

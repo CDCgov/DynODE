@@ -43,9 +43,6 @@ from .infer import (
 )
 from .simulation import (
     AbstractODEParams,
-    base_equation,
-    conditional_knots,
-    evaluate_cubic_spline,
     simulate,
 )
 from .typing import (
@@ -59,14 +56,22 @@ from .typing import (
 )
 from .utils import (
     CustomLogFormatter,
+    base_equation,
+    conditional_knots,
     date_to_epi_week,
     date_to_sim_day,
     drop_keys_with_substring,
+    evaluate_cubic_spline,
     flatten_list_parameters,
     identify_distribution_indexes,
     log,
     log_decorator,
     logger,
+    plot_checkpoint_inference_correlation_pairs,
+    plot_mcmc_chains,
+    plot_model_overview_subplot_matplotlib,
+    plot_prior_distributions,
+    plot_violin_plots,
     sim_day_to_date,
     sim_day_to_epiweek,
     vectorize_objects,
@@ -107,9 +112,6 @@ __all__ = [
     "checkpoint_compartment_sizes",
     "simulate",
     "AbstractODEParams",
-    "evaluate_cubic_spline",
-    "base_equation",
-    "conditional_knots",
     "CompartmentState",
     "CompartmentGradients",
     "DynodeName",
@@ -129,4 +131,12 @@ __all__ = [
     "flatten_list_parameters",
     "drop_keys_with_substring",
     "identify_distribution_indexes",
+    "evaluate_cubic_spline",
+    "base_equation",
+    "conditional_knots",
+    "plot_violin_plots",
+    "plot_prior_distributions",
+    "plot_mcmc_chains",
+    "plot_checkpoint_inference_correlation_pairs",
+    "plot_model_overview_subplot_matplotlib",
 ]
