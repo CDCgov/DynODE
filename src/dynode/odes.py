@@ -1,7 +1,7 @@
 """Define the ODEBase class."""
 
 from inspect import getfullargspec
-from typing import Tuple, get_type_hints
+from typing import Optional, Tuple, get_type_hints
 
 import chex
 import jax.numpy as jnp
@@ -38,7 +38,7 @@ def simulate(
     initial_state: CompartmentState,
     ode_parameters: AbstractODEParams,
     solver_parameters: SolverParams,
-    sub_save_indices: Tuple[int, ...] = None,
+    sub_save_indices: Optional[Tuple[int, ...]] = None,
     save_step: int = 1,
 ) -> Solution:
     """Solve `model` ODEs for `tf` days using `initial_state` and `args` parameters.
@@ -140,7 +140,7 @@ def build_saveat(
     start: float,
     stop: int,
     step: int = 1,
-    sub_save_indices: Tuple[int, ...] = None,
+    sub_save_indices: Optional[Tuple[int, ...]] = None,
 ) -> SaveAt:
     """Build the SaveAt object if sub_save_indices are not None then SaveAt is built using SubSaveAt.
 
