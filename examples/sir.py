@@ -26,7 +26,6 @@ from dynode.odes import AbstractODEParams, simulate
 from dynode.sample import sample_then_resolve
 from dynode.typing import (
     CompartmentGradients,
-    CompartmentSaveSpec,
     CompartmentState,
 )
 
@@ -110,11 +109,7 @@ def run_simulation_sub_save_example(config: SimulationConfig, tf) -> Solution:
         initial_state=initial_state,
         ode_parameters=ode_params,
         solver_parameters=config.parameters.solver_params,
-        sub_save_specs=(
-            CompartmentSaveSpec(index=config.idx.s),
-            CompartmentSaveSpec(index=config.idx.i, final_only=True),
-            CompartmentSaveSpec(index=config.idx.r, final_only=True),
-        ),
+        sub_save_indices=(config.idx.s, config.idx.r),
         save_step=7,
     )
     return solution
@@ -171,22 +166,15 @@ plt.show()
 # example of using sub save for compartments
 # produce synthetic data with fixed r0 and infectious period
 solution_sub_save = run_simulation_sub_save_example(config_static, tf=100)
-sub_save, final_save = solution_sub_save.ys
-print(sub_save)
-print(final_save)
-# plot the soliution
-idx = config_static.idx
+sub_save = solution_sub_save.ys
+assert sub_save is not None
 # add 1 to each axis to account for the leading time dimension in `solution`
 plt.plot(
     jnp.sum(sub_save[idx.s], axis=idx.s.age + 1),
     label="s",
 )
 plt.plot(
-    jnp.sum(final_save[idx.i], axis=idx.i.age + 1),
-    label="i",
-)
-plt.plot(
-    jnp.sum(final_save[idx.r], axis=idx.r.age + 1),
+    jnp.sum(sub_save[idx.r], axis=idx.r.age + 1),
     label="r",
 )
 

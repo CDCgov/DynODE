@@ -1,6 +1,5 @@
 """Module for declaring types to be used within DynODE config files."""
 
-from dataclasses import dataclass
 from typing import Any, Callable, Optional, Tuple
 
 import jax
@@ -139,9 +138,3 @@ class DeterministicParameter:
                     f"Scope: {parameter_state}"
                 )
             raise Exception(msg) from e
-
-
-@dataclass(frozen=True)
-class CompartmentSaveSpec:
-    index: int
-    final_only: bool = False
