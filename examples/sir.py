@@ -102,7 +102,7 @@ def run_simulation(config: SimulationConfig, tf) -> Solution:
 
 
 def run_simulation_sub_save_example(config: SimulationConfig, tf) -> Solution:
-    ode_params = get_odeparams(config.parameters.transmission_params)
+    ode_params = get_odeparams(config)
 
     # we need just the jax arrays for the initial state to the ODEs
     initial_state = config.initializer.get_initial_state(SIRConfig=config)
