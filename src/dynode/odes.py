@@ -7,6 +7,7 @@ import chex
 import jax.numpy as jnp
 from diffrax import (  # type: ignore
     AbstractStepSizeController,
+    ClipStepSizeController,
     ConstantStepSize,
     ODETerm,
     PIDController,
@@ -112,9 +113,11 @@ def simulate(
             if len(solver_parameters.discontinuity_points) > 0
             else None
         )
-        stepsize_controller = PIDController(
-            rtol=solver_parameters.ode_solver_rel_tolerance,
-            atol=solver_parameters.ode_solver_abs_tolerance,
+        stepsize_controller = ClipStepSizeController(
+            controller=PIDController(
+                rtol=solver_parameters.ode_solver_rel_tolerance,
+                atol=solver_parameters.ode_solver_abs_tolerance,
+            ),
             jump_ts=jump_ts,
         )
 
