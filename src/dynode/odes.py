@@ -168,23 +168,21 @@ def build_saveat(
     if step <= 0:
         step = 1
     save_times = jnp.linspace(start, stop, int(stop // step) + 1)
+    built_saveat = SaveAt(ts=save_times)
 
-    if sub_save_indices is None:
-        return SaveAt(ts=save_times)
-
-    try:
-        sub_save = SubSaveAt(
-            ts=save_times,
-            fn=lambda t, y, args: tuple(
-                y[i]
-                if i in sub_save_indices
-                else jnp.array([], dtype=y[i].dtype)
-                for i in range(len(y))
-            ),
-        )
-
-        return SaveAt(subs=sub_save)
-    except IndexError as ex:
-        print(
-            f"An index passed to sub_save_indices was out of range for initial_state values. Exception: {ex}"
-        )
+    if sub_save_indices is not None:
+        try:
+            built_saveat = SubSaveAt(
+                ts=save_times,
+                fn=lambda t, y, args: tuple(
+                    y[i]
+                    if i in sub_save_indices
+                    else jnp.array([], dtype=y[i].dtype)
+                    for i in range(len(y))
+                ),
+            )
+        except IndexError as ex:
+            print(
+                f"An index passed to sub_save_indices was out of range for initial_state values. Exception: {ex}"
+            )
+    return built_saveat
