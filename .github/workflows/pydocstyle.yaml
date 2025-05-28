@@ -1,4 +1,4 @@
-name: pytest
+name: Run pydocstyle
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  pytest:
+  pydocstyle:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,7 +22,7 @@ jobs:
       run: |
         pip install poetry
 
-    - name: Test
+    - name: Test docstring conventions
       run: |
         poetry install
-        poetry run pytest -v
+        poetry run pydocstyle convention=numpy src/

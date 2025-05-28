@@ -1,3 +1,5 @@
+"""Defines a SEIP dt function for solving Ordinary Differential Equations."""
+
 import jax
 import jax.numpy as jnp
 from jaxtyping import ArrayLike, PyTree
@@ -6,41 +8,37 @@ from dynode.utils import Parameters, get_foi_suscept, new_immune_state
 
 
 def seip_ode(state: PyTree, t: ArrayLike, parameters: dict):
-    """
-    A immune state ode model which aims to represent an SEIP model, with better representation of immune state and partial suseptibility.
+    """Set of flows defining a SEIP (Susceptible, Exposed, Infectious, Partial) ODE model.
 
-    In previous version of the model those in the suseptible compartment were considered fully suseptible,
-    and those with prior immune exposure would be placed in other compartments and wane in those compartments.
+    In practice, S and P compartments are both defined within S, and the
+    fourth compartment is instead used to track cumulative incidence (C)
 
-    This ODE model aims to represent suseptible people by a complex immune state,
-    fully suseptible people are included in the suseptible compartment but are a smaller subset of it.
-
-    the S compartment is now stratified by the following dimensions:
-    age, immune history, number of vaccinations, and most recent immune event waning.
-
-    Immune history is represented as an integer whose binary representation can be interpreted
-    as their infection history by strain. EG: 7 = 111 -> exposure to 3 strains, strain 0, 1, and 2.
-    EG: 3 -> 011 -> exposure to 2 strains, strain 0 and 1, no exposure to strain 2.
-    This representation allows us to use bitwise operations to determine new immune states post-infection
-
-
-    Parameters:
+    Parameters
     ----------
-    state : array-like pytree
-    a tuple or any array-like object capable of unpacking, holding the current state of the model,
-    in this case holding population values of the S, E, I, and C compartments. (note: C =
-    cumulative incidence, often 0 at t=0).
+    state : pytree
+        a tuple or any array-like object capable of unpacking, holding the current
+        state of the model. In this case holding population values of the
+        S, E, I, and C compartments.
 
-    t : int or ArrayLike (in case of inference)
-    used to denote current time of the model in days
+    t : ArrayLike
+        current time of the model in days
 
-    parameters : a dictionary
-    a dictionary holding the values of parameters needed by the SEIP model.
+    parameters : dict[str, Any]
+        parameters needed by the SEIP model.
 
-    Returns:
-    a tuple containing the rates of change of all compartments given in the `state` parameter.
-    each element in the return tuple will match the dimensions of the parallel element in `state`.
+    Returns
+    -------
+    tuple[jax.Array, jax.Array, jax.Array, jax.Array]
+        A tuple containing the rates of change of all compartments given in
+        the `state` parameter. Each element in the return tuple will match the
+        dimensions of the parallel element in `state`.
 
+    Notes
+    -----
+    Fully suseptible people are a subset of the suseptible compartment.
+
+    Lots of Jax optimization done here as this is the most run bit of code in
+    all of DynODE.
     """
     # strain dimension = 0-3 with some ENUM 0=no_prev_inf, 1 = prev_non_omicron, 2 = prev_omicron, 3=prev_both
     # s.shape = (NUM_AGE_GROUPS, hist, prev_vax_count, waned_state)

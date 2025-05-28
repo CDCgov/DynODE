@@ -1,4 +1,4 @@
-"""A series of utility functions for generating visualizations for the model"""
+"""A set of utility functions for generating visualizations for the model."""
 
 from typing import Any
 
@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from jax import Array
 from jax.random import PRNGKey
 from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap
@@ -19,20 +20,22 @@ from .utils import (
 
 
 class VisualizationError(Exception):
+    """An exception class for Visualization Errors."""
+
     pass
 
 
-def _cleanup_and_normalize_timelines(
-    all_state_timelines: pd.DataFrame,
+def _cleanup_and_normalize_timeseries(
+    all_state_timeseries: pd.DataFrame,
     plot_types: np.ndarray,
     plot_normalizations: np.ndarray,
     state_pop_sizes: dict[str, int],
 ):
     # Select columns with 'float64' dtype
-    float_cols = list(all_state_timelines.select_dtypes(include="float64"))
+    float_cols = list(all_state_timeseries.select_dtypes(include="float64"))
     # round down near-zero values to zero to make plots cleaner
-    all_state_timelines[float_cols] = all_state_timelines[float_cols].mask(
-        np.isclose(all_state_timelines[float_cols], 0, atol=1e-4), 0
+    all_state_timeseries[float_cols] = all_state_timeseries[float_cols].mask(
+        np.isclose(all_state_timeseries[float_cols], 0, atol=1e-4), 0
     )
     for plot_type, plot_normalization in zip(plot_types, plot_normalizations):
         for state_name, state_pop in state_pop_sizes.items():
@@ -44,14 +47,14 @@ def _cleanup_and_normalize_timelines(
             )
             # select all columns from that column type
             cols = [
-                col for col in all_state_timelines.columns if plot_type in col
+                col for col in all_state_timeseries.columns if plot_type in col
             ]
             # update that states columns by the normalization factor
-            all_state_timelines.loc[
-                all_state_timelines["state"] == state_name,
+            all_state_timeseries.loc[
+                all_state_timeseries["state"] == state_name,
                 cols,
             ] *= normalization_factor
-    return all_state_timelines
+    return all_state_timeseries
 
 
 def plot_model_overview_subplot_matplotlib(
@@ -87,51 +90,36 @@ def plot_model_overview_subplot_matplotlib(
         "seaborn-v0_8-colorblind",
     ],
 ) -> plt.Figure:
-    """Given a dataframe resembling the azure_visualizer_timeline csv,
-    if it exists, returns an overview figure. The figure will contain 1 column
-    per state in `timeseries_df["state"]` if the column exists. The
-    figure will contain one row per plot_type
+    """Generate an overview figure containing subplots for various model metrics.
 
     Parameters
     ----------
-    timeseries_df : pandas.DataFrame
-        a dataframe containing at least the following columns:
-        ["date", "chain_particle", "state"] followed by columns identifying
-        different timeseries of interest to be plotted.
-        E.g. vaccination_0_17, vaccination_18_49, total_infection_incidence.
-        columns that share the same plot_type will be plotted on the same plot,
-        with their differences in the legend.
-        All chain_particle replicates are plotted as low
-        opacity lines for each plot_type
+    timeseries_df : pd.DataFrame
+        DataFrame containing at least ["date", "chain_particle", "state"]
+        followed by columns for different time series to be plotted.
+
     pop_sizes : dict[str, int]
-        population sizes of each state as a dictionary.
-        Keys must match the "state" column within timeseries_df
+        Population sizes for each state as a dictionary. Keys must match
+        the values in the "state" column of `timeseries_df`.
+
     plot_types : np.ndarray[str], optional
-        each of the plot types to be plotted.
-        plot_types not found in `timeseries_df` are skipped.
-        columns are identified using the "in" operation,
-        so plot_type must be found in each of its identified columns
-        by default ["seasonality_coef", "vaccination_",
-        "_external_introductions", "_strain_proportion", "_average_immunity",
-        "total_infection_incidence", "pred_hosp_"]
+        Types of plots to be generated.
+        Elements not found in `timeseries_df` are skipped.
+
     plot_titles : np.ndarray[str], optional
-        titles for each plot_type as displayed on each subplot,
-        by default [ "Seasonality Coefficient", "Vaccination Rate By Age",
-        "External Introductions by Strain (per 100k)",
-        "Strain Proportion of New Infections",
-        "Average Population Immunity Against Strains",
-        "Total Infection Incidence (per 100k)",
-        "Predicted Hospitalizations (per 100k)"]
+        Titles for each subplot corresponding to `plot_types`.
+
     plot_normalizations : np.ndarray[int]
-        normalization factor for each plot type
+        Normalization factors for each plot type.
+
     matplotlib_style: list[str] | str
-        matplotlib style to plot in, by default ["seaborn-v0_8-colorblind"]
+        Matplotlib style to use for plotting.
 
     Returns
     -------
-    matplotlib.pyplot.Figure
-        matplotlib Figure containing subplots with a column for each state
-        and a row for each plot_type
+    plt.Figure
+        Matplotlib Figure containing subplots with one column per state
+        and one row per plot type.
     """
     necessary_cols = ["date", "chain_particle", "state"]
     assert all(
@@ -144,19 +132,19 @@ def plot_model_overview_subplot_matplotlib(
         % (str(necessary_cols), str(timeseries_df.columns))
     )
     num_states = len(timeseries_df["state"].unique())
-    # we are counting the number of plot_types that are within timelines.columns
-    # this way we dont try to plot something that timelines does not have
-    plots_in_timelines = [
+    # we are counting the number of plot_types that are within timeseries.columns
+    # this way we dont try to plot something that timeseries does not have
+    plots_in_timeseries = [
         any([plot_type in col for col in timeseries_df.columns])
         for plot_type in plot_types
     ]
-    num_unique_plots_in_timelines = sum(plots_in_timelines)
-    # select only the plots we actually find within `timelines`
-    plot_types = plot_types[plots_in_timelines]
-    plot_titles = plot_titles[plots_in_timelines]
-    plot_normalizations = plot_normalizations[plots_in_timelines]
+    num_unique_plots_in_timeseries = sum(plots_in_timeseries)
+    # select only the plots we actually find within `timeseries`
+    plot_types = plot_types[plots_in_timeseries]
+    plot_titles = plot_titles[plots_in_timeseries]
+    plot_normalizations = plot_normalizations[plots_in_timeseries]
     # normalize our dataframe by the given y axis normalization schemes
-    timeseries_df = _cleanup_and_normalize_timelines(
+    timeseries_df = _cleanup_and_normalize_timeseries(
         timeseries_df,
         plot_types,
         plot_normalizations,
@@ -164,17 +152,17 @@ def plot_model_overview_subplot_matplotlib(
     )
     with plt.style.context(matplotlib_style):
         fig, ax = plt.subplots(
-            nrows=num_unique_plots_in_timelines,
+            nrows=num_unique_plots_in_timeseries,
             ncols=num_states,
             sharex=True,
             sharey="row",
             squeeze=False,
-            figsize=(6 * num_states, 3 * num_unique_plots_in_timelines),
+            figsize=(6 * num_states, 3 * num_unique_plots_in_timeseries),
         )
     # melt this df down to have an ID column "column" and a value column "val"
     id_vars = ["date", "state", "chain_particle"]
     rest = [x for x in timeseries_df.columns if x not in id_vars]
-    timelines_melt = pd.melt(
+    timeseries_melt = pd.melt(
         timeseries_df,
         id_vars=["date", "state", "chain_particle"],
         value_vars=rest,
@@ -182,12 +170,12 @@ def plot_model_overview_subplot_matplotlib(
         value_name="val",
     )
     # convert to datetime if not already
-    timelines_melt["date"] = pd.to_datetime(timelines_melt["date"])
+    timeseries_melt["date"] = pd.to_datetime(timeseries_melt["date"])
 
     # go through each plot type, look for matching columns and plot
     # that plot_type for each chain_particle pair.
     for state_num, state in enumerate(timeseries_df["state"].unique()):
-        state_df = timelines_melt[timelines_melt["state"] == state]
+        state_df = timeseries_melt[timeseries_melt["state"] == state]
         print("Plotting State : " + state)
         for plot_num, (plot_title, plot_type) in enumerate(
             zip(plot_titles, plot_types)
@@ -269,39 +257,30 @@ def plot_checkpoint_inference_correlation_pairs(
         "seaborn-v0_8-colorblind",
     ],
 ):
-    """Given a dictionary mapping a sampled parameter's name to its
-    posteriors samples, returns a figure plotting
-    the correlation of each sampled parameter with all other sampled parameters
-    on the upper half of the plot the correlation values, on the diagonal a
-    historgram of the posterior values, and on the bottom half a scatter
-    plot of the parameters against eachother along with a matching trend line.
-
+    """Plot correlation pairs of sampled parameters with histograms and trend lines.
 
     Parameters
     ----------
-    posteriors_in: dict[str , np.ndarray | list]
-        a dictionary (usually loaded from the checkpoint.json file) containing
-        the sampled posteriors for each chain in the shape
-        (num_chains, num_samples). All parameters generated with numpyro.plate
-        and thus have a third dimension (num_chains, num_samples, num_plates)
-        are flattened to the desired shape and displayed as
-        separate parameters with _i suffix for each i in num_plates.
-    max_samples_calculated: int
-        a max cap of posterior samples per chain on which
-        calculations such as correlations and plotting will be performed
-        set for efficiency of plot generation,
-        set to -1 to disable cap, by default 100
-    matplotlib_style: list[str] | str
-        matplotlib style to plot in, by default ["seaborn-v0_8-colorblind"]
+    posteriors_in : dict[str, np.ndarray | list]
+        Dictionary mapping parameter names to their posterior samples
+        (shape: num_chains, num_samples). Parameters generated with
+        numpyro.plate are flattened and displayed as separate parameters
+        with _i suffix for each i in num_plates.
+
+    max_samples_calculated : int
+        Maximum number of posterior samples per chain for calculations
+        such as correlations and plotting. Set to -1 to disable cap; default is 100.
+
+    matplotlib_style : list[str] | str
+        Matplotlib style to use for plotting; default is ["seaborn-v0_8-colorblind"].
 
     Returns
     -------
-    matplotlib.pyplot.Figure
-        Figure with `n` rows and `n` columns where
-        `n` is the number of sampled parameters
+    plt.Figure
+        Figure with n rows and n columns where n is the number of sampled parameters.
     """
     # convert lists to np.arrays
-    posteriors: dict[str, np.ndarray] = flatten_list_parameters(
+    posteriors: dict[str, np.ndarray | Array] = flatten_list_parameters(
         {
             key: np.array(val) if isinstance(val, list) else val
             for key, val in posteriors_in.items()
@@ -410,30 +389,26 @@ def plot_mcmc_chains(
         "seaborn-v0_8-colorblind",
     ],
 ) -> plt.Figure:
-    """given a `samples` dictionary containing posterior samples
-    often returned from numpyro.get_samples(group_by_chain=True)
-    or from the checkpoint.json saved file, plots each MCMC chain
-    for each sampled parameter in a roughly square subplot.
+    """Plot MCMC chains for each sampled parameter in a grid of subplots.
 
     Parameters
     ----------
-    posteriors: dict[str , np.ndarray | list]
-        a dictionary (usually loaded from the checkpoint.json file) containing
-        the sampled posteriors for each chain in the shape
-        (num_chains, num_samples). All parameters generated with numpyro.plate
-        and thus have a third dimension (num_chains, num_samples, num_plates)
-        are flattened to the desired and displayed as
+    samples_in : dict[str, np.ndarray | list]
+        Dictionary containing posterior samples (shape: num_chains, num_samples).
+        Parameters generated with numpyro.plate are flattened and displayed as
         separate parameters with _i suffix for each i in num_plates.
+
     matplotlib_style : list[str] | str, optional
-        matplotlib style to plot in by default ["seaborn-v0_8-colorblind"]
+        Matplotlib style to use for plotting;
+        default is ["seaborn-v0_8-colorblind"].
 
     Returns
     -------
-    matplotlib.pyplot.Figure
-        matplotlib figure containing the plots
+    plt.Figure
+        Matplotlib figure containing the plots.
     """
     # Determine the number of parameters and chains
-    samples: dict[str, np.ndarray] = flatten_list_parameters(
+    samples: dict[str, np.ndarray | Array] = flatten_list_parameters(
         {
             key: np.array(val) if isinstance(val, list) else val
             for key, val in samples_in.items()
@@ -476,39 +451,28 @@ def plot_mcmc_chains(
     return fig
 
 
-def plot_prior_distributions(
-    priors: dict[str, Any],
-    matplotlib_style: list[str]
-    | str = [
-        "seaborn-v0_8-colorblind",
-    ],
-    num_samples=5000,
-    hist_kwargs={"bins": 50, "density": True},
-) -> plt.Figure:
-    """Given a dictionary of parameter keys and possibly values of
-    numpyro.distribution objects, samples them a number of times
-    and returns a plot of those samples to help
-    visualize the range of values taken by that prior distribution.
+def _sample_prior_distributions(priors, num_samples) -> dict[str, Array]:
+    """Sample numpyro.distributions `num_samples` times.
 
     Parameters
     ----------
     priors : dict[str, Any]
-        a dictionary with str keys possibly containing distribution
-        objects as values. Each key with a distribution object type
-        key will be included in the plot
-    matplotlib_style : list[str] | str, optional
-        matplotlib style to plot in by default ["seaborn-v0_8-colorblind"]
-    num_samples: int, optional
-        the number of times to sample each distribution, mild impact on
-        figure performance. By default 50000
-    hist_kwargs: dict[str: Any]
-        additional kwargs passed to plt.hist(), by default {"bins": 50}
+        A dictionary containing keys of different parameter
+        names and values of any type.
+    num_samples : int
+        number of times to sample numpyro.distribution objects.
 
     Returns
     -------
-    plt.Figure
-        matplotlib figure that is roughly square containing all distribution
-        keys found within priors.
+    dict[str, jax.Array]
+        Numpyro sample site name with jax.Array(shape=(num_samples,)) for each
+        numpyro.distribution found within `priors`.
+
+    Notes
+    -----
+    Return dict key names follow the same naming convention as when sampling.
+    Meaning that distributions within lists or matricies have their
+    index stored as a list of _i suffix at the end of their name.
     """
     dist_only = {}
     d = identify_distribution_indexes(priors)
@@ -518,18 +482,65 @@ def plot_prior_distributions(
         assert isinstance(parameter_name, str)
         parameter_idx = locator_dct["sample_idx"]
         assert isinstance(parameter_idx, tuple) or parameter_idx is None
-
         # if the sample is on its own, not nested in a list, sample_idx is none
         if parameter_idx is None:
             dist_only[parameter_name] = priors[parameter_name]
         # otherwise this sample is nested in a list and should be retrieved
         else:
-            # go in index by index to access multi-dimensional lists
             temp = priors[parameter_name]
+            # go into multi-dimensional matricies one index at a time
             for i in parameter_idx:
                 temp = temp[i]
             dist_only[dist_name] = temp
-    param_names = list(dist_only.keys())
+    sampled_priors = {}
+    for param, dist in dist_only.items():
+        sampled_priors[param] = dist.sample(
+            PRNGKey(0), sample_shape=(num_samples,)
+        )
+    return sampled_priors
+
+
+def plot_prior_distributions(
+    priors: dict[str, Any],
+    matplotlib_style: list[str]
+    | str = [
+        "seaborn-v0_8-colorblind",
+    ],
+    num_samples=5000,
+    hist_kwargs={"bins": 50, "density": True},
+    median_line_kwargs={
+        "linestyle": "dotted",
+        "linewidth": 3,
+        "label": "prior median",
+    },
+) -> plt.Figure:
+    """Visualize prior distributions by sampling from them and plotting the results.
+
+    Parameters
+    ----------
+    priors : dict[str, Any]
+        Dictionary with string keys and distribution
+        objects as values. Each key with a distribution object will be
+        included in the plot.
+
+    matplotlib_style : list[str] | str, optional
+        Matplotlib style to use for plotting;
+        default is ["seaborn-v0_8-colorblind"].
+
+    num_samples : int, optional
+        Number of times to sample each distribution;
+        default is 5000.
+
+    hist_kwargs : dict[str: Any]
+        Additional kwargs passed to `plt.hist()`; default is {"bins": 50}.
+
+    Returns
+    -------
+    plt.Figure
+        Matplotlib figure containing all distribution keys found within `priors`.
+    """
+    sampled_priors = _sample_prior_distributions(priors, num_samples)
+    param_names = list(sampled_priors.keys())
     num_params = len(param_names)
     if num_params == 0:
         raise VisualizationError(
@@ -551,21 +562,10 @@ def plot_prior_distributions(
     for i, param_name in enumerate(param_names):
         ax: Axes = axs_flat[i]
         ax.set_title(param_name)
-        dist = dist_only[param_name]
-        samples = dist.sample(PRNGKey(0), sample_shape=(num_samples,))
+        samples = sampled_priors[param_name]
         ax.hist(samples, **hist_kwargs)
-        ax.axvline(
-            samples.mean(),
-            linestyle="dashed",
-            linewidth=1,
-            label="mean",
-        )
-        ax.axvline(
-            jnp.median(samples).item(0),  # This was an Array
-            linestyle="dotted",
-            linewidth=3,
-            label="median",
-        )
+        ax.axvline(float(jnp.median(samples)), **median_line_kwargs)
+        # testing
     # Turn off any unused subplots
     for j in range(i + 1, len(axs_flat)):
         axs_flat[j].axis("off")
@@ -573,4 +573,125 @@ def plot_prior_distributions(
     fig.legend(handles, labels, loc="outside upper right")
     fig.suptitle("Prior Distributions Visualized, n=%s" % num_samples)
     plt.tight_layout()
+    return fig
+
+
+def plot_violin_plots(
+    priors: dict[str, list] | None = None,
+    posteriors: dict[str, list] | None = None,
+    matplotlib_style: list[str]
+    | str = [
+        "seaborn-v0_8-colorblind",
+    ],
+):
+    """Save violin plot of priors and posteriors together.
+
+    Parameters
+    ----------
+    priors : dict[str, list], optional
+        samples from a parameter's prior distribution, by default None
+    posteriors : dict[str, list], optional
+        samples from a parameter's posterior distribution, by default None
+    matplotlib_style : list[str] | str, optional
+        matplotlib style(s) to apply, by default [ "seaborn-v0_8-colorblind",]
+
+    Returns
+    -------
+    matplotlib.Figure
+        matplotlib Figure containing violin plots of the priors and posteriors.
+
+    Raises
+    ------
+    VisualizationError
+        if both `priors` and `posteriors` is None there is nothing to plot.
+
+    Notes
+    -----
+    Returned figure will be roughly square containing N subplots for N
+    parameters.
+
+    If some parameters are missing in either dictionary, an open space in
+    that subplot will be left in the figure.
+    """
+    if priors is None and posteriors is None:
+        raise VisualizationError(
+            "must provide either a dictionary of priors or posteriors"
+        )
+    # we are given that both are not none, so get num_params from one of them
+    if posteriors is not None:
+        num_params = len(posteriors.keys())
+    elif priors is not None:
+        num_params = len(priors.keys())
+    # Calculate the number of rows and columns for a square-ish layout
+    num_cols = int(np.ceil(np.sqrt(num_params)))
+    num_rows = int(np.ceil(num_params / num_cols))
+
+    with plt.style.context(matplotlib_style):
+        fig, axs = plt.subplots(
+            num_rows,
+            num_cols,
+            figsize=(3 * num_cols, 3 * num_rows),
+            squeeze=False,
+        )
+        axs = axs.flatten()
+
+    df = pd.DataFrame()
+    if priors is not None:
+        for param, values in priors.items():
+            df_param = pd.DataFrame()
+            # flatten any chains if they leaked in
+            df_param["values"] = np.array(values).flatten()
+            df_param["type"] = "prior"
+            df_param["param"] = param
+            df = pd.concat([df, df_param], ignore_index=True, axis=0)
+    if posteriors is not None:
+        for param, values in posteriors.items():
+            df_param = pd.DataFrame()
+            # flatten any chains if they leaked in
+            df_param["values"] = np.array(values).flatten()
+            df_param["type"] = "posterior"
+            df_param["param"] = param
+            # this is necessary to make sure there are always two columns
+            # of violin plots, including when a posterior does not have an
+            # associated prior
+            if priors is not None and param not in priors.keys():
+                filler_row = pd.DataFrame(
+                    {"values": [np.nan], "type": "prior", "param": param}
+                )
+                df_param = pd.concat(
+                    [filler_row, df_param], ignore_index=True, axis=0
+                )
+            df = pd.concat([df, df_param], ignore_index=True, axis=0)
+
+    # parameters that share a first word will be colored the same for interpretability
+    unique_first_words = set(
+        [param.split("_")[0] for param in df["param"].unique()]
+    )
+    color_palette = sns.color_palette("Set2", n_colors=len(unique_first_words))
+    color_dict = dict(zip(unique_first_words, color_palette))
+
+    # Iterate over the parameters and create violin plots
+    for i, param in enumerate(df["param"].unique()):
+        ax: Axes = axs[i]
+        # if priors is not None and param in priors.keys():
+        # sns.violinplot(y=priors[param], ax=ax, alpha=0.5, label="prior")
+        sns.violinplot(
+            data=df.loc[df["param"] == param],
+            x="type",
+            y="values",
+            ax=ax,
+            color=color_dict[param.split("_")[0]],
+        )
+        ax.set_title(param)
+        ax.set_ylabel("")
+        ax.set_xlabel("")
+
+    # Remove empty subplots if necessary
+    if num_params < num_rows * num_cols:
+        for i in range(num_params, num_rows * num_cols):
+            fig.delaxes(axs[i])
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc="outside upper right")
+    fig.suptitle("Violin Plot of Parameters")
+    fig.tight_layout()
     return fig

@@ -2,7 +2,7 @@
 name = "dynode"
 version = "0.1.0"
 description = "CDC CFA Predict Scenarios model development"
-authors = ["Your Name <you@example.com>"]
+authors = ["CDC/CFA/Predict/Scenarios"]
 license = "Apache License, Version 2.0, January 2004"
 readme = "README.md"
 package-mode = true
@@ -25,6 +25,7 @@ mypy = "^1.10.0"
 requests = "^2.32.3"
 docker = "^7.1.0"
 bayeux-ml = "^0.1.14"
+pydocstyle = "^6.3.0"
 
 
 [tool.poetry.group.dev.dependencies]

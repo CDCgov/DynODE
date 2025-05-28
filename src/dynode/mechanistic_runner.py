@@ -1,6 +1,4 @@
-"""
-The following is a class which runs a series of ODE equations, and returns Solution objects for analysis or fitting.
-"""
+"""Solve a system of ODEs and return a Solution object."""
 
 import datetime
 from collections.abc import Callable
@@ -14,6 +12,7 @@ from diffrax import (  # type: ignore
     ODETerm,
     PIDController,
     SaveAt,
+    Solution,
     Tsit5,
     diffeqsolve,
 )
@@ -27,8 +26,7 @@ jax.config.update("jax_enable_x64", True)
 
 
 class MechanisticRunner:
-    """A class responsible for solving Ordinary Differential Equations (ODEs)
-    given some initial state, parameters, and the equations themselves"""
+    """Solves ODEs using Diffrax and produces Solution objects."""
 
     def __init__(
         self,
@@ -37,6 +35,14 @@ class MechanisticRunner:
             SEIC_Compartments,
         ],
     ):
+        """Initialize MechanisticRunner for solving Ordinary Differential Equations.
+
+        Parameters
+        ----------
+        model : Callable[[jax.typing.ArrayLike, PyTree, dict], SEIC_Compartments]
+            Set of ODEs, taking time, initial state, and dictionary of
+            parameters.
+        """
         self.model = model
 
     def run(
@@ -44,19 +50,40 @@ class MechanisticRunner:
         initial_state: SEIC_Compartments,
         args: dict,
         tf: Union[int, datetime.date] = 100,
-    ):
-        """
-        run `self.model` using `initial_state` as y@t=0 and parameters provided by the `args` dictionary.
-        `self.model` will run for `tf` days if isinstance(tf, int)
-        or until specified datetime if isintance(tf, datetime).
+    ) -> Solution:
+        """Solve ODEs for `tf` days using `initial_state` and `args` parameters.
 
-        NOTE
-        --------------
-        - No partial date (or time) calculations partial days are truncated down.
-        - Uses date object within `args['INIT_DATE']` to calculate time between `t=0` and `t=tf`
-        - if `args["CONSTANT_STEP_SIZE"] > 0` uses constant stepsizer of that size, else uses adaptive step sizing
-            - discontinuous timepoints can not be specified with constant step sizer
-        - implemented with `diffrax.Tsit5()` solver
+        Uses diffrax.Tsit5() solver.
+
+
+        Parameters
+        ----------
+        initial_state : SEIC_Compartments
+            tuple of jax arrays representing the compartments modeled by
+            ODEs in their initial states at t=0.
+        args : dict[str,Any]
+            arguments to pass to ODEs containing necessary parameters to
+            solve.
+        tf : int | datetime.date, Optional
+            number of days to solve ODEs for, if date is passed, runs
+            up to that date, by default 100 days
+
+        Returns
+        -------
+        diffrax.Solution
+            Solution object, sol.ys containing compartment states for each day
+            including t=0 and t=tf. For more information on whats included
+            within diffrax.Solution see:
+            https://docs.kidger.site/diffrax/api/solution/
+
+        Notes
+        -----
+        - No partial date (or time) calculations partial days are truncated
+        - if `args["CONSTANT_STEP_SIZE"] > 0` uses constant stepsizer of
+        that size, else uses adaptive step sizing with
+        `args["SOLVER_RELATIVE_TOLERANCE"]` and
+        `args["SOLVER_ABSOLUTE_TOLERANCE"]`
+        - discontinuous timepoints can not be specified with constant step sizer
         """
         term = ODETerm(
             lambda t, state, parameters: self.model(state, t, parameters)

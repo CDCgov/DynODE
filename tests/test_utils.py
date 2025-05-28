@@ -3,6 +3,7 @@ import itertools
 from enum import IntEnum
 
 import jax.numpy as jnp
+import numpy as np
 import numpyro.distributions as dist
 
 from dynode import utils
@@ -11,14 +12,6 @@ from dynode import utils
 
 example_strain_idxs = IntEnum("example_strain_idxs", ["a", "b", "c"], start=0)
 num_strains = 3
-
-
-def test_convert_strain():
-    assert utils.convert_strain("a", example_strain_idxs) == 0
-    assert utils.convert_strain("b", example_strain_idxs) == 1
-    assert utils.convert_strain("c", example_strain_idxs) == 2
-    assert utils.convert_strain("C", example_strain_idxs) == 2
-    assert utils.convert_strain("not_in_idxs", example_strain_idxs) == 0
 
 
 def test_base_equation():
@@ -343,86 +336,140 @@ def _get_sol():
     )
 
 
-def test_get_timeline_from_solution_with_command_compartment_name():
+def test_get_timeseries_from_solution_with_command_compartment_name():
     # Test case 1: Command is a compartment name
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = utils.get_timeline_from_solution_with_command(
+    timeseries, label = utils.get_timeseries_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "S"
     )
-    assert timeline.shape == (100,)
+    assert timeseries.shape == (100,)
     assert label == "S"
     assert jnp.all(
-        timeline == 256
+        timeseries == 256
     )  # Each element in sol is 1, summed over 4*4*4*4 = 256
 
 
-def test_get_timeline_from_solution_with_command_strain_name():
+def test_get_timeseries_from_solution_with_command_strain_name():
     # Test case 2: Command is a strain name
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = utils.get_timeline_from_solution_with_command(
+    timeseries, label = utils.get_timeseries_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "S2"
     )
-    assert timeline.shape == (100,)
+    assert timeseries.shape == (100,)
     assert label == "E + I : S2"
     assert jnp.all(
-        timeline == 128
+        timeseries == 128
     )  # Exposed + Infected, both are 64 each and of course 64*2==128
 
 
-def test_get_timeline_from_solution_with_command_wane_name():
+def test_get_timeseries_from_solution_with_command_wane_name():
     # Test case 3: Command is a waning compartment name
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = utils.get_timeline_from_solution_with_command(
+    timeseries, label = utils.get_timeseries_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "W0"
     )
-    assert timeline.shape == (100,)
+    assert timeseries.shape == (100,)
     assert label == "W0"
     assert jnp.all(
-        timeline == 64
+        timeseries == 64
     )  # Each element in sol is 1, summed over 4*4*4*1 = 64
 
 
-def test_get_timeline_from_solution_with_command_incidence():
+def test_get_timeseries_from_solution_with_command_incidence():
     # Test case 4: Command is 'incidence'
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = utils.get_timeline_from_solution_with_command(
+    timeseries, label = utils.get_timeseries_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "incidence"
     )
-    assert timeline.shape == (99,)
+    assert timeseries.shape == (99,)
     assert label == "E : incidence"
     assert jnp.all(
-        timeline == 0
+        timeseries == 0
     )  # Since the input arrays are all ones, the diff should be zeros
 
 
-def test_get_timeline_from_solution_with_command_strain_prevalence():
+def test_get_timeseries_from_solution_with_command_strain_prevalence():
     # Test case 5: Command is 'strain_prevalence'
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timelines, labels = utils.get_timeline_from_solution_with_command(
+    timeseries, labels = utils.get_timeseries_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "strain_prevalence"
     )
-    assert len(timelines) == 4
+    assert len(timeseries) == 4
     assert len(labels) == 4
     assert jnp.all(
-        jnp.array([jnp.array(j).shape == (100,) for j in timelines])
+        jnp.array([jnp.array(j).shape == (100,) for j in timeseries])
     )
     assert set(labels) == set(strain_idx._member_names_)
 
 
-def test_get_timeline_from_solution_with_command_compartment_slice():
+def test_get_timeseries_from_solution_with_command_compartment_slice():
     # Test case 6: Command is a slice of a compartment
     sol = _get_sol()
     compartment_idx, wane_idx, strain_idx = _get_index_enums()
-    timeline, label = utils.get_timeline_from_solution_with_command(
+    timeseries, label = utils.get_timeseries_from_solution_with_command(
         sol, compartment_idx, wane_idx, strain_idx, "S[:, 0, 0, :]"
     )
-    assert timeline.shape == (100,)
+    assert timeseries.shape == (100,)
     assert label == "S[:, 0, 0, :]"
     assert jnp.all(
-        timeline == 16
+        timeseries == 16
     )  # Each element in sol is 1, summed over 4*1*1*4 = 16
+
+
+def test_flatten_list_params_numpy():
+    # simulate 4 chains and 20 samples each with 4 plated parameters
+    testing = {"test": np.ones((4, 20, 5))}
+    flattened = utils.flatten_list_parameters(testing)
+    assert "test" not in flattened.keys()
+    for suffix in range(5):
+        key = "test_%s" % str(suffix)
+        assert (
+            key in flattened.keys()
+        ), "flatten_list_parameters not naming split params correctly."
+        assert flattened[key].shape == (
+            4,
+            20,
+        ), "flatten_list_parameters breaking up wrong axis"
+
+
+def test_flatten_list_params_jax_numpy():
+    # simulate 4 chains and 20 samples each with 4 plated parameters
+    # this time with jax numpy instead of numpy
+    testing = {"test": jnp.ones((4, 20, 5))}
+    flattened = utils.flatten_list_parameters(testing)
+    assert "test" not in flattened.keys()
+    for suffix in range(5):
+        key = "test_%s" % str(suffix)
+        assert (
+            key in flattened.keys()
+        ), "flatten_list_parameters not naming split params correctly."
+        assert flattened[key].shape == (
+            4,
+            20,
+        ), "flatten_list_parameters breaking up wrong axis"
+
+
+def test_flatten_list_params_multi_dim():
+    # simulate 4 chains and 20 samples each with 10 plated parameters
+    # this time with jax numpy instead of numpy
+    testing = {"test": jnp.ones((4, 20, 5, 2))}
+    flattened = utils.flatten_list_parameters(testing)
+    assert "test" not in flattened.keys()
+    for suffix_first_dim in range(5):
+        for suffix_second_dim in range(2):
+            key = "test_%s_%s" % (
+                str(suffix_first_dim),
+                str(suffix_second_dim),
+            )
+            assert (
+                key in flattened.keys()
+            ), "flatten_list_parameters not naming split params correctly."
+            assert flattened[key].shape == (
+                4,
+                20,
+            ), "flatten_list_parameters breaking up wrong axis when passed >3"
