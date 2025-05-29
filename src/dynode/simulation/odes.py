@@ -1,7 +1,7 @@
 """Define the ODEBase class."""
 
 from inspect import getfullargspec
-from typing import get_type_hints
+from typing import Optional, Tuple, get_type_hints
 
 import chex
 import jax.numpy as jnp
@@ -13,6 +13,7 @@ from diffrax import (  # type: ignore
     PIDController,
     SaveAt,
     Solution,
+    SubSaveAt,
     diffeqsolve,
 )
 from jax import Array
@@ -37,6 +38,8 @@ def simulate(
     initial_state: CompartmentState,
     ode_parameters: AbstractODEParams,
     solver_parameters: SolverParams,
+    sub_save_indices: Optional[Tuple[int, ...]] = None,
+    save_step: int = 1,
 ) -> Solution:
     """Solve `model` ODEs for `tf` days using `initial_state` and `args` parameters.
 
@@ -57,6 +60,13 @@ def simulate(
         require subclasses of AbstractODEParams for their usecase.
     duration_days : int, Optional
         number of days to solve ODEs for, by default 100 days
+    sub_save_indices : Tuple[int, ...]
+        tuple of initial_state indices specifying which compartments to save states for in sol.ys.
+        sub_save_indices is optional and by default set to None.
+    save_step: int
+        value that lets you increment your time step at which a state is saved. If for example you would like to run
+        your solution for duration_days = 100 but only save a state weekly you would pass save_step = 7.
+        save_step is optional by default it is set to 1 which will have no effect.
 
     Returns
     -------
@@ -70,6 +80,15 @@ def simulate(
     ------
     TypeError
         `initial_state` must only contain jax.Array types.
+
+    Examples
+    ------
+    sub_save_indices and save_step example:
+        solution: Solution = simulate(
+            ...,
+            sub_save_indices=(config.idx.s, config.idx.r),
+            save_step=7,
+        )
     """
     if any(
         [not isinstance(compartment, Array) for compartment in initial_state]
@@ -92,7 +111,6 @@ def simulate(
         duration_days, (int, float)
     ), "tf must be of type int or float"
 
-    saveat = SaveAt(ts=jnp.linspace(t0, duration_days, int(duration_days) + 1))
     stepsize_controller: AbstractStepSizeController
     if solver_parameters.constant_step_size > 0.0:
         # if user specifies they want constant step size, set it here
@@ -121,7 +139,60 @@ def simulate(
         initial_state,
         args=ode_parameters,
         stepsize_controller=stepsize_controller,
-        saveat=saveat,
+        saveat=build_saveat(t0, duration_days, save_step, sub_save_indices),
         max_steps=solver_parameters.max_steps,
     )
     return solution
+
+
+def build_saveat(
+    start: float,
+    stop: int,
+    step: int = 1,
+    sub_save_indices: Optional[Tuple[int, ...]] = None,
+) -> SaveAt:
+    """Build the SaveAt object if sub_save_indices are not None then SaveAt is built using SubSaveAt.
+
+    Parameters
+    ----------
+    start : float
+        initial time step or t0 for the purpose of building an array of time steps
+    stop : int
+        the final time step for the purpose of building an array of time steps
+    step: int
+        value that lets you increment your time step at which a state is saved. If for example you would like to run
+        your solution for duration_days = 100 but only save a state weekly you would pass step = 7.
+        save_step is optional by default it is set to 1 which will have no effect.
+    sub_save_indices : Tuple[int, ...]
+        tuple of initial_state indices specifying which compartments to save states for in the final sol.ys.
+        sub_save_indices is optional and by default set to None.
+
+    Returns
+    -------
+    diffrax.SaveAt
+        SaveAt object, which specifies which compartments and the time step they should be saved for the Solution object.
+        For more information on what's included within diffrax.SaveAt see:
+        https://docs.kidger.site/diffrax/api/saveat/
+    """
+    if step <= 0:
+        step = 1
+    save_times = jnp.linspace(start, stop, int(stop // step) + 1)
+    built_saveat = SaveAt(ts=save_times)
+
+    if sub_save_indices is not None:
+        try:
+            sub_save = SubSaveAt(
+                ts=save_times,
+                fn=lambda t, y, args: tuple(
+                    y[i]
+                    if i in sub_save_indices
+                    else jnp.array([], dtype=y[i].dtype)
+                    for i in range(len(y))
+                ),
+            )
+            built_saveat = SaveAt(subs=sub_save)
+        except IndexError as ex:
+            print(
+                f"An index passed to sub_save_indices was out of range for initial_state values. Exception: {ex}"
+            )
+    return built_saveat

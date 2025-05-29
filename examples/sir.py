@@ -139,6 +139,7 @@ if not skip_plt:
     )
     plt.legend()
     plt.show()
+
 # diff recovered individuals to recover lagged incidence for each age group
 incidence = jnp.diff(solution.ys[idx.r], axis=0)
 # %%
