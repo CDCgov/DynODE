@@ -9,7 +9,7 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
-## [2025.05.29.1a] - Fixing `scale_initial_infections`
+## [2025.05.29.1a] - `SubSaveAt` support for `odes.simulate()`
 ### Changed
 - Changed `odes.simulate()` added `sub_save_indicies` and `save_step` optional parameters that are passed to `build_saveat` function.
 - Added `odes.build_saveat()` to determine (`sub_save_indicies is not None`) if `SubSaveAt` object should be used when building the `SaveAt` object. `build_saveat()` can also optionally increment the time steps `SaveAt` saves states via the `save_step` argument.
