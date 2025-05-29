@@ -9,6 +9,11 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2025.05.29.1a] - Fixing `scale_initial_infections`
+### Changed
+- Changed `odes.simulate()` added `sub_save_indicies` and `save_step` optional parameters that are passed to `build_saveat` function.
+- Added `odes.build_saveat()` to determine (`sub_save_indicies is not None`) if `SubSaveAt` object should be used when building the `SaveAt` object. `build_saveat()` can also optionally increment the time steps `SaveAt` saves states via the `save_step` argument.
+
 ## [2024.04.23.1a] - Fixing `scale_initial_infections`
 ### Changed
 - Changed `abstract_parameters.scale_initial_infections()` to preserve age distributions before and after scaling the number of initial infections. Before we were scaling E and I compartments and then scaling S down by the gained infections in E and I, without realizing that S/E/I had different age distributions individually.

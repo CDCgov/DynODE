@@ -14,7 +14,6 @@ from diffrax import Solution
 from numpyro.infer import Predictive
 from numpyro.infer.svi import SVIRunResult
 
-from dynode.logging import log, log_decorator
 from dynode.model_configuration import (
     SimulationConfig,
 )
@@ -101,27 +100,7 @@ def run_simulation(config: SimulationConfig, tf) -> Solution:
     return solution
 
 
-def run_simulation_sub_save_example(config: SimulationConfig, tf) -> Solution:
-    ode_params = get_odeparams(config)
-
-    # we need just the jax arrays for the initial state to the ODEs
-    initial_state = config.initializer.get_initial_state(SIRConfig=config)
-    # solve the odes for 100 days
-    # TODO, what if you dont jit the ode method?
-    solution: Solution = simulate(
-        ode=sir_ode,
-        duration_days=tf,
-        initial_state=initial_state,
-        ode_parameters=ode_params,
-        solver_parameters=config.parameters.solver_params,
-        sub_save_indices=(config.idx.s, config.idx.r),
-        save_step=7,
-    )
-    return solution
-
-
 # define the entire process of simulating incidence
-@log_decorator
 def model(
     config: SimulationConfig,
     tf,
@@ -145,7 +124,6 @@ def model(
     return solution
 
 
-log.use_logging(level="debug", output="both")
 # produce synthetic data with fixed r0 and infectious period
 solution = run_simulation(config_static, tf=100)
 # plot the soliution
@@ -162,24 +140,6 @@ plt.plot(
 )
 plt.plot(
     jnp.sum(solution.ys[idx.r], axis=idx.r.age + 1),
-    label="r",
-)
-
-plt.legend()
-plt.show()
-
-# example of using sub save for compartments
-# produce synthetic data with fixed r0 and infectious period
-solution_sub_save = run_simulation_sub_save_example(config_static, tf=100)
-sub_save = solution_sub_save.ys
-assert sub_save is not None
-# add 1 to each axis to account for the leading time dimension in `solution`
-plt.plot(
-    jnp.sum(sub_save[idx.s], axis=idx.s.age + 1),
-    label="s",
-)
-plt.plot(
-    jnp.sum(sub_save[idx.r], axis=idx.r.age + 1),
     label="r",
 )
 

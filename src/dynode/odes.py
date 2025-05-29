@@ -80,6 +80,15 @@ def simulate(
     ------
     TypeError
         `initial_state` must only contain jax.Array types.
+
+    Examples
+    ------
+    sub_save_indices and save_step example:
+        solution: Solution = simulate(
+            ...,
+            sub_save_indices=(config.idx.s, config.idx.r),
+            save_step=7,
+        )
     """
     if any(
         [not isinstance(compartment, Array) for compartment in initial_state]
