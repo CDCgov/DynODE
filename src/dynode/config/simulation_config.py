@@ -306,6 +306,22 @@ class SimulationConfig(BaseModel):
                 )
         return self
 
+    @model_validator(mode="after")
+    def _validate_initial_state(self):
+        """Assert that all dimensions in the Compartment have unique names."""
+        initial_state = self.initializer.get_initial_state(SIRConfig=self)
+        initial_compartment_states = []
+        compartment_states = []
+
+        for compartment in initial_state:
+            initial_compartment_states.append(compartment.shape)
+        for compartment in self.compartments:
+            compartment_states.append(compartment.shape)
+
+        assert initial_compartment_states == compartment_states
+
+        return self
+
     def get_compartment(self, compartment_name: str) -> Compartment:
         """Search for and return a Compartment if it exists.
 
