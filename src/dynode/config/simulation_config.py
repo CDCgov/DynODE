@@ -25,7 +25,10 @@ from .dimension import (
 )
 from .initializer import Initializer
 from .params import Params
-from .simulation_date import set_dynode_init_date_flag
+from .simulation_date import (
+    replace_simulation_dates,
+    set_dynode_init_date_flag,
+)
 
 
 class Compartment(BaseModel):
@@ -176,9 +179,10 @@ class SimulationConfig(BaseModel):
     )
 
     def model_post_init(self, __context: Any) -> None:
-        """Initialize context for model run."""
+        """Post-initialization method to replace instances of SimulationDate with numeric sim days."""
         init_date = self.initializer.initialize_date
         set_dynode_init_date_flag(init_date)
+        self = replace_simulation_dates(self)
 
     @cached_property
     def idx(self):
