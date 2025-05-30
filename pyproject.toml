@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dynode"
-version = "2025.05.02.1a"
+version = "2025.05.29.1a"
 description = "CDC CFA Predict Scenarios model development"
 authors = ["CFA"]
 license = "Apache License, Version 2.0, January 2004"
@@ -17,13 +17,12 @@ numpy = "2.0.*"
 numpyro = "0.15.*"
 pandas = "2.2.*"
 seaborn = "0.13.*"
-pip = "24.2.*"
 epiweeks = "2.3.*"
-docker = "7.1.*"
 pydantic = "^2.10.6"
 chex = {git = "https://github.com/mishmish66/chex.git", rev="6c9f2fb727ba385474501158bc7c747dd792c419"}
-
 arviz = "^0.21.0"
+typing-extensions = "^4.13.2"
+annotated-types = "^0.7.0"
 
 
 [tool.poetry.group.dev.dependencies]

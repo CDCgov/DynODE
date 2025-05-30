@@ -9,6 +9,28 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2025.05.29.1a] - `SubSaveAt` support for `odes.simulate()`
+### Changed
+- Changed `odes.simulate()` added `sub_save_indicies` and `save_step` optional parameters that are passed to `build_saveat` function.
+- Added `odes.build_saveat()` to determine (`sub_save_indicies is not None`) if `SubSaveAt` object should be used when building the `SaveAt` object. `build_saveat()` can also optionally increment the time steps `SaveAt` saves states via the `save_step` argument.
+
+## [2025.05.22.1a] - Dynode Module Reorg
+### Meta Changes
+- Realized that all our versions were tagged with 2024 up until now ! Versions should now have the correct year, whoops.
+
+### Changed
+- Reorganized `Dynode` into 5 major modules `config`,`infer`,`simulation`,`typing`, and `utils`.
+    - Reorganized some files within `model_configuration` depending on functionality, split across `config` and `infer` modules.
+- Removed and transfered all disease specific code out to a currently private repository named `DynODE-Models`, keeping `Dynode` as a repo for the framework only.
+    - This includes many files within `src/dynode` such as `mechanistic_inferer.py` and `mechanistic_runner.py`
+    - This includes much of the testing infrastructure built around the outdated classes, thus `tests/*` has either been moved or removed.
+- Split up much of `src/dynode/utils.py` into separate files depending on functionality, some going to `DynODE-Models`
+- Removed old framework example from `examples/` along with the example configs. Keeping `examples/sir.py` as an example of new framework.
+    - This also allowed for the removal of the United States data held for the example script within `data/`.
+- Removed all outdated files within `data_manipulation_scripts/`
+- Exposed all methods and classes from within the modules to the top level `__all__`, meaning users, if they so wish, can import things out of Dynode without traversing the modules.
+- Removed now-unnecessary imports to clean up dependency tree of this repo.
+
 ## [2025.05.02.1a] - Fixing `scale_initial_infections`
 ### Changed
 - Realized our version number still said 2024, whoops!
