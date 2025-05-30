@@ -4,8 +4,11 @@ import datetime
 import os
 from datetime import date
 from functools import cached_property
+from typing import Any
 
-from jax.typing import ArrayLike
+from numpy import ndarray
+from numpyro.distributions import Distribution
+from pydantic import BaseModel
 
 
 def get_dynode_init_date_flag() -> datetime.date | None:
@@ -74,49 +77,47 @@ class SimulationDate(date):
     @property
     def sim_day(self) -> int:
         """Return the current simulation date relative to the init date."""
-        difference = (self - self.initialization_date).days
+        # mypy complains on this line since `self` uses super().__sub__()
+        difference = (self - self.initialization_date).days  # type: ignore
         return difference
 
-    def __add__(self, value):
-        """Add a numeric value to the simulation date."""
-        if isinstance(value, ArrayLike):  # type: ignore
-            return self.sim_day + value
-        elif isinstance(value, SimulationDate):
-            return self.sim_day + value.sim_day
-        return super().__add__(value)
 
-    def __sub__(self, value):
-        """Subtract a numeric value from the simulation date."""
-        if isinstance(value, ArrayLike):  # type: ignore
-            return self.sim_day - value
-        elif isinstance(value, SimulationDate):
-            return self.sim_day - value.sim_day
-        return super().__sub__(value)
+def replace_simulation_dates(obj: Any):
+    """Replace instances of SimulationDate with integer sim day.
 
-    def __rsub__(self, value):
-        """Subtract a numeric value from the simulation date."""
-        return self.__sub__(value)
+    Parameters
+    ----------
+    obj : Any
+        Object that may or may not be an instance of SimulationDate or list
+        type containing SimulationDates
 
-    def __mul__(self, value):
-        """Multiply a numeric value with the simulation date."""
-        if isinstance(value, ArrayLike):  # type: ignore
-            return self.sim_day * value
-        elif isinstance(value, SimulationDate):
-            return self.sim_day * value.sim_day
-        return super().__mul__(value)
+    Returns
+    -------
+    Any | int
+        obj untouched unless is instance of SimulationDate or contains
+        SimulationDate, in which case replaced by int sim day.
 
-    def __rmul__(self, value):
-        """Multiply a numeric value with the simulation date."""
-        return self.__mul__(value)
-
-    def __ge__(self, value):
-        """Greater than or equal to comparison for simulation date."""
-        if isinstance(value, ArrayLike):  # type: ignore
-            return self.sim_day.__ge__(value)
-        elif isinstance(value, SimulationDate):
-            return self.sim_day > value.sim_day
-        return super().__ge__(value)
-
-    def __repr__(self):
-        """Return a string representation of the SimulationDate."""
-        return f"SimulationDate: ({self.year}-{self.month}-{self.day})({self.sim_day}) "
+    Raises
+    ------
+    ValueError
+        if this method is called outside of a SimulationConfig class which
+        calls set_dynode_init_date_flag().
+    """
+    if isinstance(obj, SimulationDate):
+        return obj.sim_day
+    elif isinstance(obj, (list, ndarray)):
+        for i in range(len(obj)):
+            obj[i] = replace_simulation_dates(obj[i])
+    elif isinstance(obj, dict):
+        for key, value in obj.items():
+            obj[key] = replace_simulation_dates(value)
+    elif isinstance(obj, BaseModel):
+        obj_dict = dict(obj)
+        for key, value in obj_dict.items():
+            setattr(obj, key, replace_simulation_dates(value))
+            obj_dict[key] = replace_simulation_dates(value)
+    elif issubclass(type(obj), Distribution):
+        # sometimes distributions use simulation date as their mean.
+        obj_dict = replace_simulation_dates(obj.__dict__)
+        obj.__dict__ = obj_dict
+    return obj

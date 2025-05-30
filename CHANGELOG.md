@@ -31,6 +31,12 @@ no suffix when releases and the staging branch is pulled into the release branch
 - Exposed all methods and classes from within the modules to the top level `__all__`, meaning users, if they so wish, can import things out of Dynode without traversing the modules.
 - Removed now-unnecessary imports to clean up dependency tree of this repo.
 
+## [2025.05.02.1a] - Fixing `scale_initial_infections`
+### Changed
+- Realized our version number still said 2024, whoops!
+- Updated SimulationDate, rather than behaving like an integer by overloading its `__sub__` and `__add__` methods. We now programatically scan all `SimulationConfig` objects for instances of `SimulationDate` and replace the instance with the integer representation. This prevents future bugs like the one with deepcopying objects or numpyro initialization strategies failing to work on distributions using `SimulationDate`.
+
+
 ## [2024.04.23.1a] - Fixing `scale_initial_infections`
 ### Changed
 - Changed `abstract_parameters.scale_initial_infections()` to preserve age distributions before and after scaling the number of initial infections. Before we were scaling E and I compartments and then scaling S down by the gained infections in E and I, without realizing that S/E/I had different age distributions individually.
