@@ -308,7 +308,7 @@ class SimulationConfig(BaseModel):
 
     @model_validator(mode="after")
     def _validate_initial_state(self):
-        """Assert that all dimensions in the Compartment have unique names."""
+        """Assert that initial_state jax arrays and compartments have same shapes"""
         initial_state = self.initializer.get_initial_state(SIRConfig=self)
         initial_compartment_states = []
         compartment_states = []
