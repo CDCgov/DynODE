@@ -9,6 +9,10 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2025.06.01.1a] - `name` field exposed in `Dimension` helper classes.
+### Changed
+- `VaccinationDimension`, `FullStratifiedImmuneHistoryDimension`, and `LastStrainImmuneHistoryDimension` now all expose the `name` field in their constructors, allowing users greater flexibility when naming their dimensions.
+
 ## [2025.05.29.1a] - `SubSaveAt` support for `odes.simulate()`
 ### Changed
 - Changed `odes.simulate()` added `sub_save_indicies` and `save_step` optional parameters that are passed to `build_saveat` function.
