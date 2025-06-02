@@ -308,7 +308,7 @@ class SimulationConfig(BaseModel):
 
     @model_validator(mode="after")
     def _validate_initial_state(self) -> Self:
-        """Assert that initial_state jax arrays and compartments have same shapes"""
+        """Assert that initial_state jax arrays and compartments have same shapes."""
         initial_state = self.initializer.get_initial_state(SIRConfig=self)
 
         assert all(
