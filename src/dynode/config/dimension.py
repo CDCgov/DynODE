@@ -111,7 +111,10 @@ class VaccinationDimension(Dimension):
     """A vaccination dimension of a compartment, supporting ordinal (and optionally seasonal) vaccinations."""
 
     def __init__(
-        self, max_ordinal_vaccinations: int, seasonal_vaccination: bool = False
+        self,
+        max_ordinal_vaccinations: int,
+        seasonal_vaccination: bool = False,
+        name: DynodeName = "vax",
     ):
         """Specify a vaccination dimension with some ordinal doses and optional seasonal dose."""
         if seasonal_vaccination:
@@ -122,7 +125,7 @@ class VaccinationDimension(Dimension):
             )
             for vax_count in range(max_ordinal_vaccinations + 1)
         ]
-        super().__init__(name="vax", bins=bins)
+        super().__init__(name=name, bins=bins)
 
     @property
     def max_shots(self) -> int:
@@ -143,7 +146,9 @@ class ImmuneHistoryDimension(Dimension):
 class FullStratifiedImmuneHistoryDimension(ImmuneHistoryDimension):
     """A type of immune history which represents all possible unique infections."""
 
-    def __init__(self, strains: list[Strain]) -> None:
+    def __init__(
+        self, strains: list[Strain], name: DynodeName = "hist"
+    ) -> None:
         """Create a fully stratified immune history dimension."""
         strain_names = [s.strain_name for s in strains]
         all_immune_histories = [Bin(name="none")]
@@ -153,18 +158,20 @@ class FullStratifiedImmuneHistoryDimension(ImmuneHistoryDimension):
                 [Bin(name="_".join(comb)) for comb in combs]
             )
 
-        super().__init__(name="hist", bins=all_immune_histories)
+        super().__init__(name=name, bins=all_immune_histories)
 
 
 class LastStrainImmuneHistoryDimension(ImmuneHistoryDimension):
     """Immune history dimension that only tracks most recent infection."""
 
-    def __init__(self, strains: list[Strain]) -> None:
+    def __init__(
+        self, strains: list[Strain], name: DynodeName = "hist"
+    ) -> None:
         """Create an immune history dimension that only tracks last infected strain."""
         strain_names = [s.strain_name for s in strains]
         bins: list[Bin] = [Bin(name=state) for state in strain_names]
         bins.insert(0, Bin(name="none"))
-        super().__init__(name="hist", bins=bins)
+        super().__init__(name=name, bins=bins)
 
 
 class WaneDimension(Dimension):
