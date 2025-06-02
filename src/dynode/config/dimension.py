@@ -132,8 +132,10 @@ class VaccinationDimension(Dimension):
             for vax_count in range(max_ordinal_vaccinations + 1)
         ]
         super().__init__(
-            name=name, bins=bins, seasonal_vaccination=seasonal_vaccination
+            name=name,
+            bins=bins,
         )
+        self.seasonal_vaccination = seasonal_vaccination
 
     @property
     def max_shots(self) -> int:
