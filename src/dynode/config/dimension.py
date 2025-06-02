@@ -110,6 +110,11 @@ class Dimension(BaseModel):
 class VaccinationDimension(Dimension):
     """A vaccination dimension of a compartment, supporting ordinal (and optionally seasonal) vaccinations."""
 
+    seasonal_vaccination: bool = Field(
+        description="Whether this dimension tracks a seasonal vaccination.",
+        default=False,
+    )
+
     def __init__(
         self,
         max_ordinal_vaccinations: int,
@@ -119,13 +124,16 @@ class VaccinationDimension(Dimension):
         """Specify a vaccination dimension with some ordinal doses and optional seasonal dose."""
         if seasonal_vaccination:
             max_ordinal_vaccinations += 1
+        # extend range by 1 to add a bin for 0 vaccinations
         bins: list[Bin] = [
             DiscretizedPositiveIntBin(
                 name=f"v{vax_count}", min_value=vax_count, max_value=vax_count
             )
             for vax_count in range(max_ordinal_vaccinations + 1)
         ]
-        super().__init__(name=name, bins=bins)
+        super().__init__(
+            name=name, bins=bins, seasonal_vaccination=seasonal_vaccination
+        )
 
     @property
     def max_shots(self) -> int:
