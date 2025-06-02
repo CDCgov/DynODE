@@ -86,6 +86,20 @@ class TransmissionParams(BaseModel):
     @model_validator(mode="after")
     def _validate_strain_interactions(self) -> Self:
         strain_names = [strain.strain_name for strain in self.strains]
+        # check that strain_interactions contains all strains and nothing but those strains
+        assert set(strain_names) == set(
+            list(self.strain_interactions.keys())
+        ), (
+            "strain_interactions must contain only strains as keys. "
+            f"Found {list(self.strain_interactions.keys())} "
+            f"but expected {strain_names}."
+        )
+
+        for strain_name, interactions in self.strain_interactions.items():
+            assert set(strain_names) == set(list(interactions.keys())), (
+                f"{strain_name} interactions must contain all strains as keys,"
+                f" including itself, got {list(interactions.keys())} "
+            )
         for infecting_strain in strain_names:
             for recovered_from_strain in strain_names:
                 assert infecting_strain in self.strain_interactions.keys(), (
