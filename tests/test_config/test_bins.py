@@ -33,3 +33,30 @@ def test_dynode_name():
         pytest.fail("Bin raised ValueError unexpectedly for valid name!")
 
     assert valid_bin.name == "valid_name"
+
+
+def test_wane_bin():
+    """Test that the WaneBin config is valid."""
+    try:
+        wane_bin = config.WaneBin(
+            name="wane_bin", waiting_time=10.0, base_protection=0.8
+        )
+    except ValidationError:
+        pytest.fail("WaneBin raised ValidationError unexpectedly!")
+
+    assert wane_bin.name == "wane_bin"
+    assert wane_bin.waiting_time == 10.0
+    assert wane_bin.base_protection == 0.8
+
+
+def test_invalid_wane_bin_fields():
+    """Test that the WaneBin config raises an error for invalid base_protection or waiting_time."""
+    with pytest.raises(ValidationError):
+        config.WaneBin(
+            name="invalid_wane_bin", waiting_time=10.0, base_protection=1.2
+        )
+
+    with pytest.raises(ValidationError):
+        config.WaneBin(
+            name="invalid_wane_bin", waiting_time=-5.0, base_protection=0.8
+        )

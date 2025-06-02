@@ -1,3 +1,5 @@
+import math
+
 import pytest
 from pydantic import ValidationError
 
@@ -137,7 +139,7 @@ def test_vaccination_dimension_seasonal():
             f"VaccinationDimension raised an exception unexpectedly: {e}"
         )
 
-    assert dimension.name == "vax"
+    assert dimension.name == "vax"  # default
     assert len(dimension.bins) == num_shots + 2  # +1 for seasonal
     # assert dimension.seasonal_vaccination is True
     assert dimension.bins[0].min_value == 0
@@ -148,3 +150,104 @@ def test_vaccination_dimension_seasonal():
     assert dimension.bins[2].max_value == 2
     assert dimension.bins[3].min_value == 3
     assert dimension.bins[3].max_value == 3
+
+
+def test_fully_stratified_immune_history_dimension():
+    """Test that the FullStratifiedImmuneHistoryDimension builder works correctly."""
+    strains = [
+        config.Strain(strain_name=f"s{i}", r0=2, infectious_period=2)
+        for i in range(3)
+    ]
+    try:
+        dimension = config.FullStratifiedImmuneHistoryDimension(
+            strains=strains
+        )
+    except Exception as e:
+        pytest.fail(
+            f"FullStratifiedImmuneHistoryDimension raised an exception unexpectedly: {e}"
+        )
+
+    assert dimension.name == "hist"
+    # all combinations of strains + "none"
+    assert len(dimension.bins) == 2 ** len(strains)
+    # all combinations of strains interactions
+    expected_bins = [
+        "none",
+        "s0",
+        "s1",
+        "s2",
+        "s0_s1",
+        "s0_s2",
+        "s1_s2",
+        "s0_s1_s2",
+    ]
+    for expected_bin, hist_bin in zip(expected_bins, dimension.bins):
+        assert hist_bin.name == expected_bin, "Expected bin name mismatch."
+
+
+def test_invalid_fully_stratified_immune_history_dimension():
+    """Test that the FullStratifiedImmuneHistoryDimension raises an error for same strains."""
+    with pytest.raises(ValidationError):
+        config.FullStratifiedImmuneHistoryDimension(
+            strains=[
+                config.Strain(
+                    strain_name="same_strain", r0=2, infectious_period=2
+                ),
+                config.Strain(
+                    strain_name="same_strain", r0=2, infectious_period=2
+                ),
+            ]
+        )
+
+
+def test_last_strain_in_immune_history_dimension():
+    """Test that the LastStrainImmuneHistoryDimension produces the desired bins."""
+    strains = [
+        config.Strain(strain_name="s1", r0=2, infectious_period=2),
+        config.Strain(strain_name="s2", r0=2, infectious_period=2),
+        config.Strain(strain_name="s3", r0=2, infectious_period=2),
+    ]
+    try:
+        dimension = config.LastStrainImmuneHistoryDimension(strains=strains)
+    except Exception as e:
+        pytest.fail(
+            f"FullStratifiedImmuneHistoryDimension raised an exception unexpectedly: {e}"
+        )
+
+    assert dimension.name == "hist"
+    assert len(dimension.bins) == len(strains) + 1  # +1 for "none"
+    expected_bins = ["none", "s1", "s2", "s3"]
+    for expected_bin, hist_bin in zip(expected_bins, dimension.bins):
+        assert hist_bin.name == expected_bin, "Expected bin name mismatch."
+
+
+def test_wane_dimension():
+    """Test that the WaneDimension produces the desired bins."""
+    waiting_times = [1.0, 2.0, 3.0, math.inf]
+    base_protections = [0.5, 0.6, 0.7, 0.9]
+    try:
+        dimension = config.WaneDimension(
+            waiting_times=waiting_times,
+            base_protections=base_protections,
+        )
+    except Exception as e:
+        pytest.fail(f"WaneDimension raised an exception unexpectedly: {e}")
+
+    assert dimension.name == "wane"
+    assert len(dimension.bins) == len(waiting_times)
+    for i, bin in enumerate(dimension.bins):
+        bin: config.WaneBin = bin  # type hint
+        assert bin.waiting_time == waiting_times[i]
+        assert bin.base_protection == base_protections[i]
+        assert bin.name == f"W{i}"  # default
+
+
+def test_wane_dimension_no_inf():
+    """Test that the WaneDimension errors if not passed an math.inf as final wane time."""
+    waiting_times = [1.0, 2.0, 3.0, 4.0]
+    base_protections = [0.5, 0.6, 0.7, 0.9]
+    with pytest.raises(ValidationError):
+        config.WaneDimension(
+            waiting_times=waiting_times,
+            base_protections=base_protections,
+        )
