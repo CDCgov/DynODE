@@ -83,6 +83,16 @@ class TransmissionParams(BaseModel):
     ]
     strains: List[Strain]
 
+    @field_validator("strains", mode="before")
+    @classmethod
+    def _validate_strains_field_not_empty(
+        cls, strains: List[Strain]
+    ) -> List[Strain]:
+        """Ensure that the strains field is not empty."""
+        if not strains:
+            raise ValueError("strains field must contain at least one Strain.")
+        return strains
+
     @model_validator(mode="after")
     def _validate_strain_interactions(self) -> Self:
         strain_names = [strain.strain_name for strain in self.strains]
