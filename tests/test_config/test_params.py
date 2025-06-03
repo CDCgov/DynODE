@@ -41,16 +41,15 @@ def test_transmission_params_invalid_strain_interactions():
         config.TransmissionParams(
             strains=strains, strain_interactions=strain_interactions
         )
-    # Extra strain in interactions not in strains, TODO have this raise PR #420 fixes this
-    # strain_interactions = {
-    #     "strain1": {"strain1": 1.0, "strain2": 0.5, "strain3": 0.5},
-    #     "strain2": {"strain1": 0.5, "strain2": 1.0, "strain3": 0.5},
-    #     "strain3": {"strain1": 0.5, "strain2": 0.5, "strain3": 1.0},
-    # }
-    # with pytest.raises(ValidationError):
-    #     config.TransmissionParams(
-    #         strains=strains, strain_interactions=strain_interactions
-    #     )
+    strain_interactions = {
+        "strain1": {"strain1": 1.0, "strain2": 0.5, "strain3": 0.5},
+        "strain2": {"strain1": 0.5, "strain2": 1.0, "strain3": 0.5},
+        "strain3": {"strain1": 0.5, "strain2": 0.5, "strain3": 1.0},
+    }
+    with pytest.raises(ValidationError):
+        config.TransmissionParams(
+            strains=strains, strain_interactions=strain_interactions
+        )
 
 
 def test_transmission_params_inconsistent_strains():
