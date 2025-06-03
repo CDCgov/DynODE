@@ -9,6 +9,11 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+
+## [2025.06.03.1a] - adding validators to catch empty `Strains` list cases
+### Changed
+- Patching a hole in the `TransmissionParams` validator as well as in the `FullStratifiedImmuneHistoryDimension` and `LastStrainImmuneHistoryDimension` classes that allowed empty lists of strains to be passed.
+
 ## [2025.06.01.3a] - patching a validator within `TransmissionParams`
 ### Changed
 - patching a hole in the `TransmissionParams` validator that allowed for poorly formatted `strain_interactions` dictionaries to make it through validation.
