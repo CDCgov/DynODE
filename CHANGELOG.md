@@ -13,6 +13,10 @@ no suffix when releases and the staging branch is pulled into the release branch
 ### Changed
 - patching a hole in the `TransmissionParams` validator that allowed for poorly formatted `strain_interactions` dictionaries to make it through validation.
 
+## [2025.06.01.2a] - exposing `seasonal_vaccination` bool flag in `VaccinationDimension`
+### Changed
+- `VaccinationDimension.seasonal_vaccination` will now return a bool flag whether or not the dimension tracks seasonal vaccination or not. This helpers with greater clarity to the user whether or not seasonal vaccination is enabled for that dimension or not.
+
 ## [2025.06.01.1a] - `name` field exposed in `Dimension` helper classes.
 ### Changed
 - `VaccinationDimension`, `FullStratifiedImmuneHistoryDimension`, and `LastStrainImmuneHistoryDimension` now all expose the `name` field in their constructors, allowing users greater flexibility when naming their dimensions.
