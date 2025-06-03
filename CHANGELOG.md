@@ -9,6 +9,10 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2025.06.01.3a] - patching a validator within `TransmissionParams`
+### Changed
+- patching a hole in the `TransmissionParams` validator that allowed for poorly formatted `strain_interactions` dictionaries to make it through validation.
+
 ## [2025.06.01.2a] - exposing `seasonal_vaccination` bool flag in `VaccinationDimension`
 ### Changed
 - `VaccinationDimension.seasonal_vaccination` will now return a bool flag whether or not the dimension tracks seasonal vaccination or not. This helpers with greater clarity to the user whether or not seasonal vaccination is enabled for that dimension or not.
