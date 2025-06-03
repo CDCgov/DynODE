@@ -86,22 +86,19 @@ class TransmissionParams(BaseModel):
     @model_validator(mode="after")
     def _validate_strain_interactions(self) -> Self:
         strain_names = [strain.strain_name for strain in self.strains]
-        for infecting_strain in strain_names:
-            for recovered_from_strain in strain_names:
-                assert infecting_strain in self.strain_interactions.keys(), (
-                    f"{infecting_strain} not found in first level of the "
-                    f"strain_interactions_dictionary, , every strain should "
-                    f"have an interaction value against all other strains, found : "
-                    f"{list(self.strain_interactions.keys())}"
-                )
-                assert (
-                    recovered_from_strain
-                    in self.strain_interactions[infecting_strain]
-                ), (
-                    f"unable to find {recovered_from_strain} within "
-                    f"strain_interactions[{infecting_strain}], every strain "
-                    f"should have an interaction value against all other strains."
-                )
+        # check that strain_interactions contains all strains and nothing but those strains
+        assert set(strain_names) == set(self.strain_interactions.keys()), (
+            f"first dimension of strain_interactions must contain all strain names as "
+            f"keys. Found {list(self.strain_interactions.keys())}"
+            f"but expected {strain_names}."
+        )
+
+        for strain_name, interactions in self.strain_interactions.items():
+            assert set(strain_names) == set(interactions.keys()), (
+                f"strain_interactions[{strain_name}] interactions must contain "
+                f"all strains as keys, including itself, "
+                f"found {list(interactions.keys())}, expected {strain_names}."
+            )
         return self
 
     @field_validator("strains", mode="after")
