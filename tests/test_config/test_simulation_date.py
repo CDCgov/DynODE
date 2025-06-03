@@ -1,3 +1,4 @@
+import os
 from datetime import date
 
 import pytest
@@ -6,6 +7,14 @@ from numpyro.distributions import Normal
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 import dynode.config as config
+
+
+@pytest.fixture(autouse=True)
+def setup_environment():
+    # to make sure the tests dont impact eachother, lets always clear
+    # the env flag before and after each test.
+    if f"DYNODE_INITIALIZATION_DATE({os.getpid()})" in os.environ:
+        del os.environ[f"DYNODE_INITIALIZATION_DATE({os.getpid()})"]
 
 
 def test_simulation_date():
@@ -19,6 +28,8 @@ def test_simulation_date():
 
 
 def test_simulation_date_without_dynode_flag():
+    # make sure the dynode initialization date flag is not set
+    # del os.environ[f"DYNODE_INITIALIZATION_DATE({os.getpid()})"]
     simulation_date = config.SimulationDate(2022, 2, 11)
     with pytest.raises(ValueError):
         simulation_date.sim_day
