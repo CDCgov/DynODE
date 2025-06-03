@@ -28,8 +28,6 @@ def test_simulation_date():
 
 
 def test_simulation_date_without_dynode_flag():
-    # make sure the dynode initialization date flag is not set
-    # del os.environ[f"DYNODE_INITIALIZATION_DATE({os.getpid()})"]
     simulation_date = config.SimulationDate(2022, 2, 11)
     with pytest.raises(ValueError):
         simulation_date.sim_day
