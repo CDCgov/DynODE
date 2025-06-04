@@ -2,7 +2,6 @@
 # Including all the class setup
 # %% imports and definitions
 # most of these imports are for type hinting
-import argparse
 from types import SimpleNamespace
 
 import arviz as az
@@ -13,6 +12,9 @@ import matplotlib.pyplot as plt
 import numpyro
 from diffrax import Solution
 from example_sir_config import SIRConfig, SIRInferedConfig
+
+# for displaying things if inside jupyter notebook
+from IPython.display import display
 from numpyro.infer import Predictive
 from numpyro.infer.svi import SVIRunResult
 
@@ -21,11 +23,7 @@ from dynode.infer import MCMCProcess, SVIProcess, sample_then_resolve
 from dynode.simulation import AbstractODEParams, simulate
 from dynode.typing import CompartmentGradients, CompartmentState
 
-# allow git hooks to skip the plt.show() command, default to show
-parser = argparse.ArgumentParser()
-parser.add_argument("--skip-plt", type=bool, default=False)
-args = parser.parse_args()
-skip_plt = args.skip_plt
+SHOW_PLOTS = False  # turn to true for some additional insights!
 
 
 # define the behavior of the ODEs and the parameters they take
@@ -124,7 +122,7 @@ solution = run_simulation(config_static, tf=100)
 assert solution.ys is not None
 idx = config_static.idx
 # add 1 to each axis to account for the leading time dimension in `solution`
-if not skip_plt:
+if SHOW_PLOTS:
     plt.plot(
         jnp.sum(solution.ys[idx.s], axis=idx.s.age + 1),
         label="s",
@@ -149,15 +147,15 @@ config_infer = SIRInferedConfig()
 # creating two InferenceProcesses, one for MCMC and one for SVI
 inference_process_mcmc = MCMCProcess(
     numpyro_model=model,
-    num_warmup=500,
-    num_samples=500,
+    num_warmup=500,  # higher = more accurate to a point
+    num_samples=100,  # for posterior generation
     num_chains=1,
     nuts_max_tree_depth=10,
 )
 inference_process_svi = SVIProcess(
     numpyro_model=model,
-    num_iterations=1000,
-    num_samples=1000,  # for posterior generation
+    num_iterations=500,  # higher = more accurate to a point
+    num_samples=100,  # for posterior generation
 )
 # %%
 # running inference
@@ -190,10 +188,16 @@ print(
     f"Infectious Period: {jnp.mean(posterior_samples_svi['strains_0_infectious_period'])}"
 )
 # %%
-mcmc_arviz = inference_process_mcmc.to_arviz()
-svi_arviz = inference_process_svi.to_arviz()
+if SHOW_PLOTS:
+    svi_arviz = inference_process_svi.to_arviz()
+    print(
+        "the following arviz object is only interactive if run as a notebook."
+    )
+    display(svi_arviz)
+
 # %%
-if not skip_plt:
+if SHOW_PLOTS:
+    mcmc_arviz = inference_process_mcmc.to_arviz()
     axes = az.plot_density(
         [mcmc_arviz],
         data_labels=["R0"],
@@ -205,9 +209,10 @@ if not skip_plt:
     fig.suptitle("Density Interval for R0")
 
     plt.show()
-mcmc_arviz
-# %%
-svi_arviz
+    print(
+        "the following arviz object is only interactive if run as a notebook."
+    )
+    display(mcmc_arviz)
 # %%
 # projecting forward
 # now lets turn on Predictive mode and do some projections forward without observed data
@@ -240,13 +245,13 @@ posterior_incidence_svi = predictive_svi(
 )
 
 # %%
-# pick a random subset of 50 samples and plot the incidence, plot the true incidence from earlier as well
-random_samples = jax.random.choice(
-    inference_process_mcmc.inference_prngkey,
-    posterior_incidence_mcmc["inf_incidence"].shape[0],
-    shape=(50,),
-)
-if not skip_plt:
+if SHOW_PLOTS:
+    # pick a random subset of 50 samples and plot the incidence, plot the true incidence from earlier as well
+    random_samples = jax.random.choice(
+        inference_process_mcmc.inference_prngkey,
+        posterior_incidence_mcmc["inf_incidence"].shape[0],
+        shape=(50,),
+    )
     for sample in random_samples:
         plt.plot(
             jnp.sum(posterior_incidence_mcmc["inf_incidence"][sample], axis=1),
