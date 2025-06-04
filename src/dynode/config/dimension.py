@@ -160,6 +160,9 @@ class FullStratifiedImmuneHistoryDimension(ImmuneHistoryDimension):
         self, strains: list[Strain], name: DynodeName = "hist"
     ) -> None:
         """Create a fully stratified immune history dimension."""
+        assert (
+            len(strains) > 0
+        ), "Must pass at least one strain to immune history dimension."
         strain_names = [s.strain_name for s in strains]
         all_immune_histories = [Bin(name="none")]
         for strain in range(1, len(strain_names) + 1):
@@ -178,6 +181,9 @@ class LastStrainImmuneHistoryDimension(ImmuneHistoryDimension):
         self, strains: list[Strain], name: DynodeName = "hist"
     ) -> None:
         """Create an immune history dimension that only tracks last infected strain."""
+        assert (
+            len(strains) > 0
+        ), "Must pass at least one strain to immune history dimension."
         strain_names = [s.strain_name for s in strains]
         bins: list[Bin] = [Bin(name=state) for state in strain_names]
         bins.insert(0, Bin(name="none"))
