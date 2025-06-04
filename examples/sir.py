@@ -12,9 +12,6 @@ import matplotlib.pyplot as plt
 import numpyro
 from diffrax import Solution
 from example_sir_config import SIRConfig, SIRInferedConfig
-
-# for displaying things if inside jupyter notebook
-from IPython.display import display
 from numpyro.infer import Predictive
 from numpyro.infer.svi import SVIRunResult
 
@@ -193,7 +190,7 @@ if SHOW_PLOTS:
     print(
         "the following arviz object is only interactive if run as a notebook."
     )
-    display(svi_arviz)
+    print(svi_arviz)
 
 # %%
 if SHOW_PLOTS:
@@ -212,7 +209,7 @@ if SHOW_PLOTS:
     print(
         "the following arviz object is only interactive if run as a notebook."
     )
-    display(mcmc_arviz)
+    print(mcmc_arviz)
 # %%
 # projecting forward
 # now lets turn on Predictive mode and do some projections forward without observed data
