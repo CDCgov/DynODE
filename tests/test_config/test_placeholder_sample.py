@@ -34,3 +34,12 @@ def test_placeholder_sample_substitution():
         ), "Substituted sample did not return expected value"
     except config.SamplePlaceholderError as e:
         pytest.fail(f"Substituted sample raised SamplePlaceholderError: {e}")
+
+
+def test_invalid_naming_placeholder_sample_substitution():
+    """Test that you must match the placeholder name in order to get a value."""
+    sample_with_substitute = substitute(
+        sample_placeholder, data={"NOTsample": 42}
+    )
+    with pytest.raises(config.SamplePlaceholderError):
+        sample_with_substitute()

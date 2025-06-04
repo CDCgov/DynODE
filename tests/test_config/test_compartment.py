@@ -82,7 +82,7 @@ def test_compartments_different_dimensions():
 
 
 def test_compartment_invalid_dimensions():
-    """Test that the Compartment config raises an error for invalid dimensions."""
+    """Test that the Compartment config raises an error for dimensions with the same name."""
     with pytest.raises(ValidationError):
         config.Compartment(
             name="invalid_compartment",

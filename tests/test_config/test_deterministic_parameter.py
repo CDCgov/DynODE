@@ -1,6 +1,7 @@
 import pytest
 
 import dynode.config as config
+from dynode.infer import resolve_deterministic
 
 
 def test_deterministic_parameter():
@@ -22,6 +23,23 @@ def test_deterministic_parameter():
         param_state["dependent_param2"].resolve(param_state)
         == param_state["another_param"]
     )
+
+
+def test_resolve_deterministic():
+    param_state = {
+        "base_param": [1, 2, 3],
+        "another_param": 5,
+        "dependent_param": config.DeterministicParameter(
+            depends_on="base_param", index=1
+        ),
+        "dependent_param2": config.DeterministicParameter(
+            depends_on="another_param"
+        ),
+    }
+    param_state = resolve_deterministic(param_state, root_params=param_state)
+    # check that the replacement worked as expected.
+    assert param_state["dependent_param"] == param_state["base_param"][1]
+    assert param_state["dependent_param2"] == param_state["another_param"]
 
 
 def test_invalid_deterministic_parameter():

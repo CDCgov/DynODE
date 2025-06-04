@@ -1,3 +1,5 @@
+import string
+
 import pytest
 from pydantic import ValidationError
 
@@ -22,17 +24,35 @@ def test_invalid_descretized_int_bin():
         config.DiscretizedPositiveIntBin(min_value=10, max_value=0)
 
 
+def test_invalid_descretized_int_bin_negatives():
+    with pytest.raises(ValidationError):
+        config.DiscretizedPositiveIntBin(min_value=-5, max_value=0)
+
+
 def test_dynode_name():
     """Test that the bin config raises an error for invalid name."""
-    with pytest.raises(ValidationError):
-        config.Bin(name="1_invalid_name")
-
     try:
         valid_bin = config.Bin(name="valid_name")
     except ValidationError:
         pytest.fail("Bin raised ValueError unexpectedly for valid name!")
 
     assert valid_bin.name == "valid_name"
+
+
+def test_invalid_dynode_names():
+    with pytest.raises(ValidationError):
+        # fails because not numeric
+        config.Bin(name="1_invalid_name")
+    with pytest.raises(ValidationError):
+        # fails due to space
+        config.Bin(name="invalid name")
+    # no special characters except underscore _
+    invalid_punctuation = list(string.punctuation)
+    invalid_punctuation.pop(invalid_punctuation.index("_"))
+    for char in invalid_punctuation:
+        # fails due to disallowed special char
+        with pytest.raises(ValidationError):
+            config.Bin(name=f"invalid{char}name")
 
 
 def test_wane_bin():

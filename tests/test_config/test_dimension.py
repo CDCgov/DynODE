@@ -124,6 +124,8 @@ def test_vaccination_dimension():
     assert dimension.bins[0].max_value == 0
     assert dimension.bins[1].min_value == 1
     assert dimension.bins[1].max_value == 1
+    assert dimension.bins[2].min_value == 2
+    assert dimension.bins[2].max_value == 2
 
 
 def test_vaccination_dimension_seasonal():

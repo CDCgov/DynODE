@@ -41,11 +41,50 @@ def test_transmission_params_invalid_strain_interactions():
         config.TransmissionParams(
             strains=strains, strain_interactions=strain_interactions
         )
+
+    strain_interactions = {
+        "strain1": {"strain1": 1.0, "strain2": 0.5},
+        # Missing entire row of strain_interactions matrix
+    }
+    with pytest.raises(ValidationError):
+        config.TransmissionParams(
+            strains=strains, strain_interactions=strain_interactions
+        )
     strain_interactions = {
         "strain1": {"strain1": 1.0, "strain2": 0.5, "strain3": 0.5},
         "strain2": {"strain1": 0.5, "strain2": 1.0, "strain3": 0.5},
+        # extra row in strain_interactions
         "strain3": {"strain1": 0.5, "strain2": 0.5, "strain3": 1.0},
     }
+    with pytest.raises(ValidationError):
+        config.TransmissionParams(
+            strains=strains, strain_interactions=strain_interactions
+        )
+
+
+def test_transmission_params_invalid_strains_list():
+    strains = []
+    strain_interactions = {
+        "strain1": {"strain1": 1.0, "strain2": 0.5},
+        "strain2": {"strain1": 0.5, "strain2": 1.5},
+    }
+    with pytest.raises(ValidationError):
+        config.TransmissionParams(
+            strains=strains, strain_interactions=strain_interactions
+        )
+    strains = [
+        config.Strain(strain_name="strain1", r0=2, infectious_period=5),
+        # missing a strain2
+    ]
+    with pytest.raises(ValidationError):
+        config.TransmissionParams(
+            strains=strains, strain_interactions=strain_interactions
+        )
+    strains = [
+        config.Strain(strain_name="strain1", r0=2, infectious_period=5),
+        # name mismatch
+        config.Strain(strain_name="NOTstrain2", r0=2, infectious_period=5),
+    ]
     with pytest.raises(ValidationError):
         config.TransmissionParams(
             strains=strains, strain_interactions=strain_interactions
