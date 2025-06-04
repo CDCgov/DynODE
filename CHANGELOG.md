@@ -13,6 +13,11 @@ no suffix when releases and the staging branch is pulled into the release branch
 ### Changed
 - adding a validator to `SimulationConfig` that disallows compartments with the same names, as this breaks the `idx` enum and `get_compartment()` functions.
 
+
+## [2025.06.03.1a] - adding validators to catch empty `Strains` list cases
+### Changed
+- Patching a hole in the `TransmissionParams` validator as well as in the `FullStratifiedImmuneHistoryDimension` and `LastStrainImmuneHistoryDimension` classes that allowed empty lists of strains to be passed.
+
 ## [2025.06.01.3a] - patching a validator within `TransmissionParams`
 ### Changed
 - patching a hole in the `TransmissionParams` validator that allowed for poorly formatted `strain_interactions` dictionaries to make it through validation.
