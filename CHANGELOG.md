@@ -9,6 +9,10 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2025.06.03.2a] - disallowing duplicate compartment names in `SimulationConfig`
+### Changed
+- adding a validator to `SimulationConfig` that disallows compartments with the same names, as this breaks the `idx` enum and `get_compartment()` functions.
+
 
 ## [2025.06.03.1a] - adding validators to catch empty `Strains` list cases
 ### Changed

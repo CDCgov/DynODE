@@ -207,6 +207,17 @@ class SimulationConfig(BaseModel):
         return compartments_namespace
 
     @model_validator(mode="after")
+    def _validate_no_shared_compartment_names(self) -> Self:
+        """Validate that no two compartments have the same name."""
+        compartment_names = [c.name for c in self.compartments]
+        assert len(set(compartment_names)) == len(compartment_names), (
+            f"you can not have two identically named compartments, "
+            f"found shared names: "
+            f"{set([x for x in compartment_names if compartment_names.count(x) > 1])}"
+        )
+        return self
+
+    @model_validator(mode="after")
     def _validate_shared_compartment_dimensions(self) -> Self:
         """Validate that any dimensions with same name across compartments are equal."""
         # quad-nested for loops are not ideal, but lists are very small so this should be fine
