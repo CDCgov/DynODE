@@ -107,9 +107,9 @@ def simulate(
     term = ODETerm(ode)
     t0 = 0.0
     dt0 = None  # first step size determined automatically
-    assert isinstance(
-        duration_days, (int, float)
-    ), "tf must be of type int or float"
+    assert isinstance(duration_days, (int, float)), (
+        "tf must be of type int or float"
+    )
 
     stepsize_controller: AbstractStepSizeController
     if solver_parameters.constant_step_size > 0.0:

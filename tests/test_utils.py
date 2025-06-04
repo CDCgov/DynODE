@@ -169,9 +169,9 @@ def test_identify_distribution_indexes():
         "sample_name": "example",
         "sample_idx": None,
     }, "not correctly indexing non-list sampled parameters"
-    assert (
-        "no-sample" not in indexes.keys()
-    ), "identify_distribution_indexes should not return indexes for unsampled parameters"
+    assert "no-sample" not in indexes.keys(), (
+        "identify_distribution_indexes should not return indexes for unsampled parameters"
+    )
 
 
 # get the function to test
@@ -202,9 +202,9 @@ def test_flatten_list_params_numpy():
     assert "test" not in flattened.keys()
     for suffix in range(5):
         key = "test_%s" % str(suffix)
-        assert (
-            key in flattened.keys()
-        ), "flatten_list_parameters not naming split params correctly."
+        assert key in flattened.keys(), (
+            "flatten_list_parameters not naming split params correctly."
+        )
         assert flattened[key].shape == (
             4,
             20,
@@ -219,9 +219,9 @@ def test_flatten_list_params_jax_numpy():
     assert "test" not in flattened.keys()
     for suffix in range(5):
         key = "test_%s" % str(suffix)
-        assert (
-            key in flattened.keys()
-        ), "flatten_list_parameters not naming split params correctly."
+        assert key in flattened.keys(), (
+            "flatten_list_parameters not naming split params correctly."
+        )
         assert flattened[key].shape == (
             4,
             20,
@@ -240,9 +240,9 @@ def test_flatten_list_params_multi_dim():
                 str(suffix_first_dim),
                 str(suffix_second_dim),
             )
-            assert (
-                key in flattened.keys()
-            ), "flatten_list_parameters not naming split params correctly."
+            assert key in flattened.keys(), (
+                "flatten_list_parameters not naming split params correctly."
+            )
             assert flattened[key].shape == (
                 4,
                 20,

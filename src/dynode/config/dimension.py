@@ -60,9 +60,9 @@ class Dimension(BaseModel):
     def _check_bin_names_unique(cls, bins: list[Bin]) -> list[Bin]:
         assert len(bins) > 0, "can not have dimension with no bins"
         names = [b.name for b in bins]
-        assert len(set(names)) == len(
-            names
-        ), "Dimension of categorical bins must have unique bin names."
+        assert len(set(names)) == len(names), (
+            "Dimension of categorical bins must have unique bin names."
+        )
         return bins
 
     @field_validator("bins", mode="after")
@@ -77,9 +77,9 @@ class Dimension(BaseModel):
             bins_sorted = sorted(
                 bins, key=lambda b: b.min_value, reverse=False
             )
-            assert (
-                bins == bins_sorted
-            ), f"Any dimension made up of DiscretizedIntBins must be sorted, got {bins}"
+            assert bins == bins_sorted, (
+                f"Any dimension made up of DiscretizedIntBins must be sorted, got {bins}"
+            )
             # assert that bins dont overlap now they are sorted
             assert all(
                 [
@@ -160,9 +160,9 @@ class FullStratifiedImmuneHistoryDimension(ImmuneHistoryDimension):
         self, strains: list[Strain], name: DynodeName = "hist"
     ) -> None:
         """Create a fully stratified immune history dimension."""
-        assert (
-            len(strains) > 0
-        ), "Must pass at least one strain to immune history dimension."
+        assert len(strains) > 0, (
+            "Must pass at least one strain to immune history dimension."
+        )
         strain_names = [s.strain_name for s in strains]
         all_immune_histories = [Bin(name="none")]
         for strain in range(1, len(strain_names) + 1):
@@ -181,9 +181,9 @@ class LastStrainImmuneHistoryDimension(ImmuneHistoryDimension):
         self, strains: list[Strain], name: DynodeName = "hist"
     ) -> None:
         """Create an immune history dimension that only tracks last infected strain."""
-        assert (
-            len(strains) > 0
-        ), "Must pass at least one strain to immune history dimension."
+        assert len(strains) > 0, (
+            "Must pass at least one strain to immune history dimension."
+        )
         strain_names = [s.strain_name for s in strains]
         bins: list[Bin] = [Bin(name=state) for state in strain_names]
         bins.insert(0, Bin(name="none"))
@@ -211,12 +211,12 @@ class WaneDimension(Dimension):
             name of the dimension, dimensions tracking different waning states
             must have different names, by default "wane".
         """
-        assert (
-            len(waiting_times) > 0
-        ), "Wane dimension must have at least one bin."
-        assert len(waiting_times) == len(
-            base_protections
-        ), "must pass equal length wait times and base protections"
+        assert len(waiting_times) > 0, (
+            "Wane dimension must have at least one bin."
+        )
+        assert len(waiting_times) == len(base_protections), (
+            "must pass equal length wait times and base protections"
+        )
         bins: list[Bin] = []
         for idx, (wait_time, base_protection) in enumerate(
             zip(waiting_times, base_protections)
@@ -238,7 +238,7 @@ class WaneDimension(Dimension):
         """Validate last wane bin can not be waned out of."""
         last_wane_bin = self.bins[-1]
         assert isinstance(last_wane_bin, WaneBin)
-        assert isinf(
-            last_wane_bin.waiting_time
-        ), "last wane bin should have math.inf waiting time"
+        assert isinf(last_wane_bin.waiting_time), (
+            "last wane bin should have math.inf waiting time"
+        )
         return self
