@@ -121,20 +121,19 @@ def test_same_dim_names_same_bins(c: config.SimulationConfig):
     c.model_validate(c)
 
 
-# does not pass for now, hotfixing
-# def test_same_compartment_names_errors(c: config.SimulationConfig):
-#     """Test that compartments with the same name raise an error."""
-#     c.compartments.append(
-#         config.Compartment(
-#             name="compartment1",  # Same name as existing compartment
-#             dimensions=[
-#                 config.Dimension(name="dim2", bins=[config.Bin(name="bin2")])
-#             ],
-#         )
-#     )
-#     with pytest.raises(ValidationError):
-#         # rerun the validators now that we have added the new compartment
-#         c.model_validate(c)
+def test_same_compartment_names_errors(c: config.SimulationConfig):
+    """Test that compartments with the same name raise an error."""
+    c.compartments.append(
+        config.Compartment(
+            name="compartment1",  # Same name as existing compartment
+            dimensions=[
+                config.Dimension(name="dim2", bins=[config.Bin(name="bin2")])
+            ],
+        )
+    )
+    with pytest.raises(ValidationError):
+        # rerun the validators now that we have added the new compartment
+        c.model_validate(c)
 
 
 def test_immune_history_compartment_validators(c: config.SimulationConfig):
