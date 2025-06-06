@@ -23,6 +23,8 @@ chex = {git = "https://github.com/mishmish66/chex.git", rev="6c9f2fb727ba3854745
 arviz = "^0.21.0"
 typing-extensions = "^4.13.2"
 annotated-types = "^0.7.0"
+sphinx = "<8.2.3"
+furo = "^2024.8.6"
 
 
 [tool.poetry.group.dev.dependencies]
