@@ -64,9 +64,9 @@ class Compartment(BaseModel):
     def _validate_dimensions_names(self):
         """Assert that all dimensions in the Compartment have unique names."""
         dimension_names = [dim.name for dim in self.dimensions]
-        assert (
-            len(set(dimension_names)) == len(dimension_names)
-        ), "you can not have two identically named dimensions within a compartment"
+        assert len(set(dimension_names)) == len(dimension_names), (
+            "you can not have two identically named dimensions within a compartment"
+        )
         return self
 
     @property
@@ -260,9 +260,9 @@ class SimulationConfig(BaseModel):
                     LastStrainImmuneHistoryDimension,
                 ),
             )
-            assert (
-                type(dimension)(strains) == dimension
-            ), "Found immune states that dont correlate with strains from transmission_params"
+            assert type(dimension)(strains) == dimension, (
+                "Found immune states that dont correlate with strains from transmission_params"
+            )
         return self
 
     @model_validator(mode="after")
