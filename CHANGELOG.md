@@ -13,10 +13,13 @@ no suffix when releases and the staging branch is pulled into the release branch
 ### Changed
 - no behavior changes, just updating ruff linter and pre-commit git actions.
 
+## [2025.06.09.1a] - unit testing `dynode.config` sub-module
+### Added
+- A boat load of unit tests for `dynode.config` submodule. This is not exhaustive and will likely be further expanded in the future
+
 ## [2025.06.03.2a] - disallowing duplicate compartment names in `SimulationConfig`
 ### Changed
 - adding a validator to `SimulationConfig` that disallows compartments with the same names, as this breaks the `idx` enum and `get_compartment()` functions.
-
 
 ## [2025.06.03.1a] - adding validators to catch empty `Strains` list cases
 ### Changed

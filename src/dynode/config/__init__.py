@@ -7,6 +7,7 @@ from .dimension import (
     FullStratifiedImmuneHistoryDimension,
     LastStrainImmuneHistoryDimension,
     VaccinationDimension,
+    WaneDimension,
 )
 from .initializer import Initializer
 from .params import (
@@ -28,6 +29,7 @@ __all__ = [
     "VaccinationDimension",
     "FullStratifiedImmuneHistoryDimension",
     "LastStrainImmuneHistoryDimension",
+    "WaneDimension",
     "Bin",
     "WaneBin",
     "DiscretizedPositiveIntBin",

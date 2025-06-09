@@ -6,11 +6,6 @@ import numpy as np
 import numpyro.distributions as dist
 
 from dynode import utils
-from dynode.utils import (
-    base_equation,
-    conditional_knots,
-    evaluate_cubic_spline,
-)
 
 # strain indexes {"a": 0, "b": 1, "c": 2}
 
@@ -26,7 +21,7 @@ def test_base_equation():
     coefficients = jnp.array([5, 1, 2, 3])
     tested_times = list(range(-2, 15)) + [100]
     for time in tested_times:
-        assert base_equation(time, coefficients) == equation(time), (
+        assert utils.base_equation(time, coefficients) == equation(time), (
             "base equation failed to evaluate with input : %s" % str(time)
         )
 
@@ -47,7 +42,7 @@ def test_conditional_knots_no_coefficients():
     knots = jnp.array([0, 5, 10])
     tested_times = list(range(-2, 15)) + [100]
     for time in tested_times:
-        assert conditional_knots(time, knots, coefficients) == equation(
+        assert utils.conditional_knots(time, knots, coefficients) == equation(
             time
         ), "conditional_knots failed to evaluate with input : %s" % str(time)
 
@@ -68,7 +63,7 @@ def test_conditional_knots_with_coefficients():
     coefficients = jnp.array([1, 2, 3])
     tested_times = list(range(-2, 15)) + [100]
     for time in tested_times:
-        assert conditional_knots(time, knots, coefficients) == equation(
+        assert utils.conditional_knots(time, knots, coefficients) == equation(
             time
         ), "conditional_knots failed to evaluate with input : %s" % str(time)
 
@@ -92,7 +87,7 @@ def test_cubic_spline():
     knot_coefficients = jnp.array([5, 6, 7])
     tested_times = list(range(-2, 15)) + [100]
     for time in tested_times:
-        assert evaluate_cubic_spline(
+        assert utils.evaluate_cubic_spline(
             time,
             knot_locations,
             base_equation_coefficients,
@@ -128,7 +123,7 @@ def test_evaluate_cubic_spline():
         return base_equation + splines
 
     for t in range(-5, 5, 1):
-        utils_splines = evaluate_cubic_spline(
+        utils_splines = utils.evaluate_cubic_spline(
             t, test_spline_locations, test_base_equations, test_spline_coefs
         ).flatten()
         assert utils_splines[0] == test_spline_1(t), (
@@ -247,3 +242,82 @@ def test_flatten_list_params_multi_dim():
                 4,
                 20,
             ), "flatten_list_parameters breaking up wrong axis when passed >3"
+
+
+def test_vectorize_objects():
+    class TestObject:
+        def __init__(self, value):
+            self.value = value
+
+    objs = [TestObject(i) for i in range(5)]
+    target = "value"
+
+    # Test without filter
+    result = utils.vectorize_objects(objs, target)
+    assert result == [0, 1, 2, 3, 4], "vectorize_objects failed without filter"
+
+    # Test with filter
+    result = utils.vectorize_objects(
+        objs, target, filter=lambda x: x.value > 2
+    )
+    assert result == [3, 4], "vectorize_objects failed with filter"
+
+
+def test_vectorize_objects_exceptions():
+    class TestObject:
+        def __init__(self, value):
+            self.value = value
+
+    objs = [TestObject(i) for i in range(5)]
+    # Test with non-existing attribute
+    try:
+        utils.vectorize_objects(objs, "non_existing")
+    except AttributeError:
+        pass  # Expected behavior
+    else:
+        assert False, (
+            "vectorize_objects should raise AttributeError for non-existing attribute"
+        )
+
+
+def test_sim_day_to_date():
+    init_date = datetime.date(2022, 10, 15)
+    sim_day = 21
+    expected_date = init_date + datetime.timedelta(days=sim_day)
+
+    result_date = utils.sim_day_to_date(sim_day, init_date)
+
+    assert result_date == expected_date, (
+        f"sim_day_to_date failed: expected {expected_date}, got {result_date}"
+    )
+
+
+def test_sim_day_to_epiweek():
+    # this init_date is on a saturday, which means it still belongs
+    # to the previous year's epi-weeks, thus 52
+    init_date = datetime.date(2022, 1, 1)
+    sim_day = 0
+    epi_week = utils.sim_day_to_epiweek(sim_day, init_date)
+
+    assert 52 == epi_week.week, (
+        f"sim_day_to_epiweek failed: expected 52, got {epi_week.week}"
+    )
+    # now lets check the next week, ensuring epi-week wraps back around to 1
+    sim_day = 2
+    epi_week = utils.sim_day_to_epiweek(sim_day, init_date)
+
+    assert 1 == epi_week.week, (
+        f"sim_day_to_epiweek failed: expected 1, got {epi_week.week}"
+    )
+
+
+def test_date_to_sim_day():
+    init_date = datetime.date(2022, 10, 15)
+    date = datetime.date(2022, 11, 5)
+    expected_sim_day = (date - init_date).days
+
+    result_sim_day = utils.date_to_sim_day(date, init_date)
+
+    assert result_sim_day == expected_sim_day, (
+        f"date_to_sim_day failed: expected {expected_sim_day}, got {result_sim_day}"
+    )
