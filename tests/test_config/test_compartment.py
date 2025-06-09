@@ -38,9 +38,9 @@ def test_compartments_equal():
             config.Dimension(name="dim1", bins=[config.Bin(name="bin1")])
         ],
     )
-    assert (
-        compartment1 == compartment2
-    ), "Compartments with same name and dimensions should be equal"
+    assert compartment1 == compartment2, (
+        "Compartments with same name and dimensions should be equal"
+    )
 
 
 def test_compartments_different_names():
@@ -57,9 +57,9 @@ def test_compartments_different_names():
             config.Dimension(name="dim1", bins=[config.Bin(name="bin1")])
         ],
     )
-    assert (
-        compartment1 != compartment2
-    ), "Compartments with different names should not be equal"
+    assert compartment1 != compartment2, (
+        "Compartments with different names should not be equal"
+    )
 
 
 def test_compartments_different_dimensions():
@@ -76,9 +76,9 @@ def test_compartments_different_dimensions():
             config.Dimension(name="dim2", bins=[config.Bin(name="bin2")])
         ],
     )
-    assert (
-        compartment1 != compartment2
-    ), "Compartments with different dimensions should not be equal"
+    assert compartment1 != compartment2, (
+        "Compartments with different dimensions should not be equal"
+    )
 
 
 def test_compartment_invalid_dimensions():
