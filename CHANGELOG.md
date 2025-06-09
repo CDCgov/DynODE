@@ -9,7 +9,7 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
-## [2025.06.04.1a] - unit testing `dynode.config` sub-module
+## [2025.06.09.1a] - unit testing `dynode.config` sub-module
 ### Added
 - A boat load of unit tests for `dynode.config` submodule. This is not exhaustive and will likely be further expanded in the future
 
