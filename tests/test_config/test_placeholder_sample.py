@@ -29,9 +29,9 @@ def test_placeholder_sample_substitution():
         sample_placeholder, data={"sample": 42}
     )
     try:
-        assert (
-            sample_with_substitute() == 42
-        ), "Substituted sample did not return expected value"
+        assert sample_with_substitute() == 42, (
+            "Substituted sample did not return expected value"
+        )
     except config.SamplePlaceholderError as e:
         pytest.fail(f"Substituted sample raised SamplePlaceholderError: {e}")
 

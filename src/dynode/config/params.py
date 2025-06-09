@@ -123,7 +123,9 @@ class TransmissionParams(BaseModel):
         ]
         assert all(
             [compare == strain_intro_ages[0] for compare in strain_intro_ages]
-        ), "currently DynODE requires all strains have matching introduction_ages."
+        ), (
+            "currently DynODE requires all strains have matching introduction_ages."
+        )
         # Fields to check for consistency (excluding introduction_* fields)
         optional_fields_to_check = [
             "exposed_to_infectious",

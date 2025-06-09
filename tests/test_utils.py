@@ -164,9 +164,9 @@ def test_identify_distribution_indexes():
         "sample_name": "example",
         "sample_idx": None,
     }, "not correctly indexing non-list sampled parameters"
-    assert (
-        "no-sample" not in indexes.keys()
-    ), "identify_distribution_indexes should not return indexes for unsampled parameters"
+    assert "no-sample" not in indexes.keys(), (
+        "identify_distribution_indexes should not return indexes for unsampled parameters"
+    )
 
 
 # get the function to test
@@ -197,9 +197,9 @@ def test_flatten_list_params_numpy():
     assert "test" not in flattened.keys()
     for suffix in range(5):
         key = "test_%s" % str(suffix)
-        assert (
-            key in flattened.keys()
-        ), "flatten_list_parameters not naming split params correctly."
+        assert key in flattened.keys(), (
+            "flatten_list_parameters not naming split params correctly."
+        )
         assert flattened[key].shape == (
             4,
             20,
@@ -214,9 +214,9 @@ def test_flatten_list_params_jax_numpy():
     assert "test" not in flattened.keys()
     for suffix in range(5):
         key = "test_%s" % str(suffix)
-        assert (
-            key in flattened.keys()
-        ), "flatten_list_parameters not naming split params correctly."
+        assert key in flattened.keys(), (
+            "flatten_list_parameters not naming split params correctly."
+        )
         assert flattened[key].shape == (
             4,
             20,
@@ -235,9 +235,9 @@ def test_flatten_list_params_multi_dim():
                 str(suffix_first_dim),
                 str(suffix_second_dim),
             )
-            assert (
-                key in flattened.keys()
-            ), "flatten_list_parameters not naming split params correctly."
+            assert key in flattened.keys(), (
+                "flatten_list_parameters not naming split params correctly."
+            )
             assert flattened[key].shape == (
                 4,
                 20,
@@ -275,7 +275,9 @@ def test_vectorize_objects_exceptions():
     except AttributeError:
         pass  # Expected behavior
     else:
-        assert False, "vectorize_objects should raise AttributeError for non-existing attribute"
+        assert False, (
+            "vectorize_objects should raise AttributeError for non-existing attribute"
+        )
 
 
 def test_sim_day_to_date():
@@ -285,9 +287,9 @@ def test_sim_day_to_date():
 
     result_date = utils.sim_day_to_date(sim_day, init_date)
 
-    assert (
-        result_date == expected_date
-    ), f"sim_day_to_date failed: expected {expected_date}, got {result_date}"
+    assert result_date == expected_date, (
+        f"sim_day_to_date failed: expected {expected_date}, got {result_date}"
+    )
 
 
 def test_sim_day_to_epiweek():
@@ -297,16 +299,16 @@ def test_sim_day_to_epiweek():
     sim_day = 0
     epi_week = utils.sim_day_to_epiweek(sim_day, init_date)
 
-    assert (
-        52 == epi_week.week
-    ), f"sim_day_to_epiweek failed: expected 52, got {epi_week.week}"
+    assert 52 == epi_week.week, (
+        f"sim_day_to_epiweek failed: expected 52, got {epi_week.week}"
+    )
     # now lets check the next week, ensuring epi-week wraps back around to 1
     sim_day = 2
     epi_week = utils.sim_day_to_epiweek(sim_day, init_date)
 
-    assert (
-        1 == epi_week.week
-    ), f"sim_day_to_epiweek failed: expected 1, got {epi_week.week}"
+    assert 1 == epi_week.week, (
+        f"sim_day_to_epiweek failed: expected 1, got {epi_week.week}"
+    )
 
 
 def test_date_to_sim_day():
@@ -316,6 +318,6 @@ def test_date_to_sim_day():
 
     result_sim_day = utils.date_to_sim_day(date, init_date)
 
-    assert (
-        result_sim_day == expected_sim_day
-    ), f"date_to_sim_day failed: expected {expected_sim_day}, got {result_sim_day}"
+    assert result_sim_day == expected_sim_day, (
+        f"date_to_sim_day failed: expected {expected_sim_day}, got {result_sim_day}"
+    )

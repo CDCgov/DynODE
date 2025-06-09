@@ -11,9 +11,9 @@ repos:
     -   id: mixed-line-ending
     -   id: trailing-whitespace
 #####
-# Python
+# Python formatting
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.6.8
+  rev: v0.11.12
   hooks:
     # Sort imports
     - id: ruff
