@@ -26,7 +26,7 @@ def test_simulation_date():
     """Test that the SimulationDate config is valid."""
     try:
         config.set_dynode_init_date_flag(date(2022, 2, 11))
-        simulation_day = config.SimulationDate(2022, 2, 11)
+        simulation_day = config.simulation_day(2022, 2, 11)
     except ValidationError as e:
         pytest.fail(f"SimulationDate raised ValidationError unexpectedly: {e}")
 
@@ -35,12 +35,12 @@ def test_simulation_date():
 
 def test_simulation_date_without_dynode_flag():
     with pytest.raises(ValueError):
-        config.SimulationDate(2022, 2, 11)
+        config.simulation_day(2022, 2, 11)
 
 
 def test_simulation_date_with_dynode_flag():
     config.set_dynode_init_date_flag(date(2022, 2, 11))
-    simulation_date = config.SimulationDate(2022, 2, 11)
+    simulation_date = config.simulation_day(2022, 2, 11)
     assert simulation_date == 0, (
         "Sim day should be 0 when dynode init date flag is set to same day"
     )
@@ -48,7 +48,7 @@ def test_simulation_date_with_dynode_flag():
 
 def test_simulation_date_with_future_date():
     config.set_dynode_init_date_flag(date(2022, 2, 1))
-    simulation_date = config.SimulationDate(2022, 2, 11)
+    simulation_date = config.simulation_day(2022, 2, 11)
     assert simulation_date == 10, (
         "Sim day should be 0 when dynode init date flag is set to same day"
     )
@@ -57,7 +57,7 @@ def test_simulation_date_with_future_date():
 def test_replace_simulation_dates_dict():
     config.set_dynode_init_date_flag(date(2022, 2, 11))
     obj = {
-        "simulation_date": config.SimulationDate(2022, 2, 11),
+        "simulation_date": config.simulation_day(2022, 2, 11),
         "other_field": "test_value",
     }
     assert obj["simulation_date"] == 0, (
@@ -73,7 +73,7 @@ def test_replace_simulation_dates_obj():
         simulation_day: SimulationDay
 
     config.set_dynode_init_date_flag(date(2022, 2, 11))
-    obj = test(simulation_day=config.SimulationDate(2022, 2, 11))
+    obj = test(simulation_day=config.simulation_day(2022, 2, 11))
     assert obj.simulation_day == 0, (
         "replace_simuoation_dates is not finding SimulationDate objects correctly."
     )
@@ -81,7 +81,7 @@ def test_replace_simulation_dates_obj():
 
 def test_replace_simulation_dates_list():
     config.set_dynode_init_date_flag(date(2022, 2, 11))
-    obj = [config.SimulationDate(2022, 2, 11), "test_value"]
+    obj = [config.simulation_day(2022, 2, 11), "test_value"]
     assert obj[0] == 0, (
         "replace_simuoation_dates is not finding SimulationDate objects correctly."
     )
@@ -89,7 +89,7 @@ def test_replace_simulation_dates_list():
 
 def test_replace_simulation_dates_distribution():
     config.set_dynode_init_date_flag(date(2022, 2, 11))
-    obj = Normal(loc=config.SimulationDate(2022, 2, 11), scale=1.0)
+    obj = Normal(loc=config.simulation_day(2022, 2, 11), scale=1.0)
     assert obj.loc == 0, (
         "replace_simulation_dates is not finding SimulationDate objects correctly in distributions."
     )
@@ -104,7 +104,7 @@ def test_replace_simulation_dates_distribution():
 def test_replace_simulation_dates_custom_object():
     class custom_obj:
         def __init__(self):
-            self.x: SimulationDay = config.SimulationDate(2022, 2, 11)
+            self.x: SimulationDay = config.simulation_day(2022, 2, 11)
 
     config.set_dynode_init_date_flag(date(2022, 2, 11))
     custom_o = custom_obj()
@@ -116,10 +116,10 @@ def test_replace_simulation_dates_custom_object():
 def test_replace_simulation_dates_nested_distributions():
     config.set_dynode_init_date_flag(date(2022, 2, 11))
     obj = TruncatedNormal(
-        loc=config.SimulationDate(2022, 2, 11),
+        loc=config.simulation_day(2022, 2, 11),
         scale=1.0,
-        low=config.SimulationDate(2022, 2, 10),
-        high=config.SimulationDate(2022, 2, 12),
+        low=config.simulation_day(2022, 2, 10),
+        high=config.simulation_day(2022, 2, 12),
     )
 
     assert obj.base_dist.loc == 0, (
@@ -143,6 +143,6 @@ def test_replace_simulation_dates_skips_frozen_dataclasses():
     class custom_obj:
         x: SimulationDay
 
-    custom_o = custom_obj(config.SimulationDate(2022, 2, 11))
+    custom_o = custom_obj(config.simulation_day(2022, 2, 11))
     assert isinstance(custom_o.x, SimulationDay)
     assert custom_o.x == 0

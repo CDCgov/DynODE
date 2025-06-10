@@ -34,7 +34,7 @@ def set_dynode_init_date_flag(init_date: datetime.date) -> None:
     )
 
 
-def SimulationDate(year: int, month: int, day: int) -> SimulationDay:
+def simulation_day(year: int, month: int, day: int) -> SimulationDay:
     """Lookup and return the DynODE SimulationDay for this simulation.
 
     Parameters

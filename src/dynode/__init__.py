@@ -25,7 +25,6 @@ from .config import (
     PlaceholderSample,
     SamplePlaceholderError,
     SimulationConfig,
-    SimulationDate,
     SolverParams,
     Strain,
     TransmissionParams,
@@ -33,6 +32,7 @@ from .config import (
     WaneBin,
     get_dynode_init_date_flag,
     set_dynode_init_date_flag,
+    simulation_day,
 )
 from .infer import (
     InferenceProcess,
@@ -102,7 +102,7 @@ __all__ = [
     "Params",
     "SolverParams",
     "TransmissionParams",
-    "SimulationDate",
+    "simulation_day",
     "set_dynode_init_date_flag",
     "get_dynode_init_date_flag",
     "PlaceholderSample",
