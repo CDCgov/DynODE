@@ -10,6 +10,8 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 no suffix when releases and the staging branch is pulled into the release branch.
 
 ## [2025.06.10.1a] - remove `SimulationDate` class in favor of `simulation_day` helper method.
+### Added
+- SimulationDay type for better type hinting integers meant to represent simulation days.
 ### Changed
 - replaced `dynode.config.SimulationDate` with a helper method `dynode.config.simulation_day`, requiring init_day flag to be set earlier in execution via `dynode.set_dynode_init_date_flag(date)`. This eliminates costly search of all objects for `SimulationDate` instances, while only requiring a single line of code to setup functionality.
 
