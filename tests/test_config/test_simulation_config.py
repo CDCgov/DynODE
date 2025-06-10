@@ -9,6 +9,8 @@ import dynode.config as config
 @pytest.fixture
 def c():
     """Fixture for a valid simulation configuration."""
+    init_date = date(2022, 2, 11)
+    config.set_dynode_init_date_flag(init_date)
     return config.SimulationConfig(
         compartments=[
             config.Compartment(
@@ -22,7 +24,7 @@ def c():
         ],
         initializer=config.Initializer(
             description="test initializer",
-            initialize_date=date(2022, 2, 11),
+            initialize_date=init_date,
             population_size=1000,
         ),
         parameters=config.Params(

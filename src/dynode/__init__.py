@@ -31,6 +31,8 @@ from .config import (
     TransmissionParams,
     VaccinationDimension,
     WaneBin,
+    get_dynode_init_date_flag,
+    set_dynode_init_date_flag,
 )
 from .infer import (
     InferenceProcess,
@@ -52,6 +54,7 @@ from .typing import (
     DynodeName,
     ObservedData,
     ODE_Eqns,
+    SimulationDay,
     UnitIntervalFloat,
 )
 from .utils import (
@@ -100,6 +103,8 @@ __all__ = [
     "SolverParams",
     "TransmissionParams",
     "SimulationDate",
+    "set_dynode_init_date_flag",
+    "get_dynode_init_date_flag",
     "PlaceholderSample",
     "SamplePlaceholderError",
     "DeterministicParameter",
@@ -115,6 +120,7 @@ __all__ = [
     "CompartmentState",
     "CompartmentGradients",
     "DynodeName",
+    "SimulationDay",
     "CompartmentTimeseries",
     "UnitIntervalFloat",
     "ObservedData",
