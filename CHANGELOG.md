@@ -9,6 +9,12 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2025.06.11.3a] - adding more `dynode.utils` tests
+### Added
+- some tests for `dynode.utils.drop_keys_with_substring()`
+### Changed
+- removed some unused methods and code within `test_utils.py`
+
 ## [2025.06.09.3a] - more efficient `sir.py` example script.
 ### Changed
 - modified our `examples/sir.py` script to work in jupyter notebooks, as a script, and in our github workflows, while minimizing its runtime.
