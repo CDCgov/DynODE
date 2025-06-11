@@ -59,7 +59,7 @@ def test_svi_process_get_samples():
         num_samples=10,
         progress_bar=False,
     )
-    svi_process = svi_process.infer(y=y)
+    svi_process.infer(y=y)
     samples = svi_process.get_samples()
     assert "dist_loc" in samples.keys()
     assert len(samples["dist_loc"]) == svi_process.num_samples
