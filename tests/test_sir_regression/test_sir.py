@@ -3,7 +3,7 @@ import pytest
 from scipy.optimize import root_scalar
 
 from dynode.simulation import simulate
-from examples.sir_base import get_config, get_odeparams, sir_ode
+from examples.sir import get_config, get_odeparams, sir_ode
 
 
 @pytest.mark.parametrize(
