@@ -15,6 +15,10 @@ no suffix when releases and the staging branch is pulled into the release branch
 ### Changed
 - removed some unused methods and code within `test_utils.py`
 
+## [2025.06.11.2a] - adding unit tests for `dynode.simulation`
+### Added
+- some unit tests for `dynode.simulate()`
+
 ## [2025.06.11.1a] - unit test expansion.
 ### Added
 - some unit tests for dynode.infer objects.
