@@ -26,8 +26,6 @@ from dynode.infer import sample_then_resolve
 from dynode.simulation import AbstractODEParams, simulate
 from dynode.typing import CompartmentGradients, CompartmentState
 
-SHOW_PLOTS = False  # turn to true for some additional insights!
-
 
 # --- SIR Initializer with age stratification ---
 class SIRInitializer(Initializer):
@@ -65,40 +63,36 @@ class SIRInitializer(Initializer):
 
 
 # --- SIRConfig for bin definitions and strain specification---
-class SIRConfig(SimulationConfig):
-    """A static SIR config class with basic age structure."""
-
-    def __init__(self):
-        """Set parameters for a static SIR compartmental model.
-
-        This includes compartment shape, initializer, and solver/transmission parameters.
-        """
-        dimension = Dimension(
-            name="age", bins=[Bin(name="young"), Bin(name="old")]
-        )
-        s = Compartment(name="s", dimensions=[dimension])
-        i = Compartment(name="i", dimensions=[dimension])
-        r = Compartment(name="r", dimensions=[dimension])
-        strain = [Strain(strain_name="swo9", r0=2, infectious_period=7.0)]
-        contact_matrix = jnp.array([[0.7, 0.3], [0.3, 0.7]])
-        # normalize contact matrix by the spectral radius
-        contact_matrix = contact_matrix / jnp.max(
-            jnp.real(jnp.linalg.eigvals(contact_matrix))
-        )
-        parameters = Params(
-            solver_params=SolverParams(),
-            transmission_params=TransmissionParams(
-                strains=strain,
-                strain_interactions={"swo9": {"swo9": 1.0}},
-                # contact matrix for young/old interactions
-                contact_matrix=contact_matrix,
-            ),
-        )
-        super().__init__(
-            compartments=[s, i, r],
-            initializer=SIRInitializer(),
-            parameters=parameters,
-        )
+def get_config(r_0=2.0, infectious_period=7.0) -> SimulationConfig:
+    """Create a SimulationConfig for an age-stratified SIR model."""
+    dimension = Dimension(
+        name="age", bins=[Bin(name="young"), Bin(name="old")]
+    )
+    s = Compartment(name="s", dimensions=[dimension])
+    i = Compartment(name="i", dimensions=[dimension])
+    r = Compartment(name="r", dimensions=[dimension])
+    strain = [
+        Strain(strain_name="swo9", r0=r_0, infectious_period=infectious_period)
+    ]
+    contact_matrix = jnp.array([[0.7, 0.3], [0.3, 0.7]])
+    # normalize contact matrix by the spectral radius
+    contact_matrix = contact_matrix / jnp.max(
+        jnp.real(jnp.linalg.eigvals(contact_matrix))
+    )
+    parameters = Params(
+        solver_params=SolverParams(),
+        transmission_params=TransmissionParams(
+            strains=strain,
+            strain_interactions={"swo9": {"swo9": 1.0}},
+            contact_matrix=contact_matrix,
+        ),
+    )
+    config = SimulationConfig(
+        compartments=[s, i, r],
+        initializer=SIRInitializer(),
+        parameters=parameters,
+    )
+    return config
 
 
 # define the behavior of the ODEs and the parameters they take
@@ -168,7 +162,7 @@ def run_simulation(config: SimulationConfig, tf) -> Solution:
 
 # --- Run and Plot ---
 if __name__ == "__main__":
-    config = SIRConfig()
+    config = get_config()
 
     sol = simulate(
         ode=sir_ode,

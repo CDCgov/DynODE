@@ -83,6 +83,7 @@ def sir_ode(t: float, state: CompartmentState, p: SIR_ODEParams):
 
 
 def get_odeparams(config: SimulationConfig) -> SIR_ODEParams:
+    """Transform and vectorize transmission parameters into ODE parameters."""
     strain = config.parameters.transmission_params.strains[0]
     beta = strain.r0 / strain.infectious_period
     gamma = 1.0 / strain.infectious_period
