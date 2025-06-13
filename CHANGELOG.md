@@ -15,6 +15,10 @@ no suffix when releases and the staging branch is pulled into the release branch
 ### Changed
 - removed some unused methods and code within `test_utils.py`
 
+## [2025.06.11.1a] - unit test expansion.
+### Added
+- some unit tests for dynode.infer objects.
+
 ## [2025.06.09.3a] - more efficient `sir.py` example script.
 ### Changed
 - modified our `examples/sir.py` script to work in jupyter notebooks, as a script, and in our github workflows, while minimizing its runtime.
