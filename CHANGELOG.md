@@ -9,6 +9,16 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2025.06.16.2a] - adding more `examples` modules
+### Added
+- `examples/sir.py` for a super basic SIR example in Dynode framework
+- `examples/seirs.py` for a slightly more complex SEIRS model
+- `examples/seirs_seasonal_forcing.py` for an example of how to implement seasonality.
+- `examples/seirs_multi_strain_age_stratified.py` to act as a complex example with competing strains and age stratification.
+- some regression tests of these new examples within `tests/test_*_dynamics/`
+### Changed
+- renamed `examples/sir_config.py` and `examples/sir.py` into `examples/sir_age_stratified.py` and `examples/sir_infer_parameters` respectively to be more clear as to the structure of the original example now that `examples/sir.py` exists as a base example.
+
 ## [2025.06.11.3a] - adding more `dynode.utils` tests
 ### Added
 - some tests for `dynode.utils.drop_keys_with_substring()`
