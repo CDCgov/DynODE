@@ -24,8 +24,7 @@ arviz = "^0.21.0"
 typing-extensions = "^4.13.2"
 annotated-types = "^0.7.0"
 sphinx = "<8.2.3"
-furo = "^2024.8.6"
-
+sphinx-book-theme = "^1.1.4"
 
 [tool.poetry.group.dev.dependencies]
 pandas-stubs = "2.2.*"
