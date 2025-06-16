@@ -9,6 +9,10 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2025.06.16.1a] - enforcing stricter `jax` versioning
+### Changed
+- jax version requirements to avoid odd state in which `diffrax = 0.7.0` while `jax=0.6.0` which causes unknown failures.
+
 ## [2025.06.11.3a] - adding more `dynode.utils` tests
 ### Added
 - some tests for `dynode.utils.drop_keys_with_substring()`
