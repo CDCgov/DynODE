@@ -1,3 +1,5 @@
+"""An example of the most simple SIR model using Dynode."""
+
 from datetime import date
 
 import chex

@@ -1,11 +1,21 @@
+"""An example of SEIRS model with seasonal forcing using Dynode.
+
+This example extends the SEIRS model to include seasonal forcing
+by modifying the transmission rate based on a sinusoidal function.
+
+To achieve this, we define a `SeasonalityParams` dataclass as a subclass of our
+ODE parameters, then pass these parameters to the ODE function which calls
+upon the seasonal function to adjust the transmission rate."""
+
 import chex
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-from seirs import get_config  # Import your existing config function
 
-from dynode import Strain
+from dynode import SimulationConfig, Strain
 from dynode.simulation import AbstractODEParams, simulate
 from dynode.typing import CompartmentState
+
+from .seirs import get_config  # Import your existing config function
 
 
 # --- Seasonality Params ---
@@ -47,7 +57,10 @@ def seirs_ode_seasonal(t: float, state: CompartmentState, p: SEIRS_ODEParams):
 
 # --- ODE Params getter with seasonal params ---
 def get_seirs_odeparams(
-    config, forcing_amp=0.2, forcing_phase=0.0, forcing_period=365.0
+    config: SimulationConfig,
+    forcing_amp=0.2,
+    forcing_phase=0.0,
+    forcing_period=365.0,
 ):
     strain: Strain = config.parameters.transmission_params.strains[0]
     beta = strain.r0 / strain.infectious_period
@@ -93,5 +106,3 @@ if __name__ == "__main__":
     plt.legend()
     plt.title("SEIRS Model With Seasonal Forcing")
     plt.show()
-
-    # plotting code as before...

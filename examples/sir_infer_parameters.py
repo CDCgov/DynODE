@@ -1,3 +1,7 @@
+"""An example of using Dynode to infer parameters of an SIR model with age stratification.
+
+This example imports elements from the `sir_age_stratified` module."""
+
 import arviz as az
 import jax
 import jax.numpy as jnp
@@ -7,7 +11,8 @@ import numpyro.distributions as dist
 from diffrax import Solution
 from numpyro.infer import Predictive
 from numpyro.infer.svi import SVIRunResult
-from sir_age_stratified import SIRConfig, run_simulation
+from sir_age_stratified import get_config as get_static_config
+from sir_age_stratified import run_simulation
 
 from dynode import MCMCProcess, Strain, SVIProcess
 from dynode.config import SimulationConfig
@@ -16,7 +21,7 @@ from dynode.config import SimulationConfig
 def model(
     config: SimulationConfig,
     tf,
-    obs_data: jax.Array | None = None,
+    obs_data: jax.Array,
 ):
     """Numpyro model for simulating infection incidence of an SIR model."""
     solution: Solution = run_simulation(config, tf)
@@ -34,35 +39,29 @@ def model(
     return solution
 
 
-class SIRInferedConfig(SIRConfig):
-    """An SIR config class with priors on r0 and infectious_period."""
-
-    def __init__(self):
-        """Set parameters for a infered SIR compartmental model.
-
-        This includes compartment shape, initializer, and solver/transmission parameters.
-        """
-        # build the static version then replace the strain with
-        # one modeled by some proposed priors instead.
-        super().__init__()
-
-        self.parameters.transmission_params.strains = [
-            Strain(
-                strain_name="swo9",
-                r0=dist.TransformedDistribution(
-                    dist.Beta(0.5, 0.5),
-                    dist.transforms.AffineTransform(1.5, 1),
-                ),
-                infectious_period=dist.TruncatedNormal(
-                    loc=8, scale=2, low=2, high=15
-                ),
-            )
-        ]
+def get_config() -> SimulationConfig:
+    """Get a static SIR config with fixed r0 and infectious period."""
+    # this is the same as the one in `sir_age_stratified`
+    sir_config = get_static_config(r_0=2.0, infectious_period=7.0)
+    # replace the strain with one modeled by some proposed priors
+    sir_config.parameters.transmission_params.strains = [
+        Strain(
+            strain_name="swo9",
+            r0=dist.TransformedDistribution(
+                dist.Beta(0.5, 0.5),
+                dist.transforms.AffineTransform(1.5, 1),
+            ),
+            infectious_period=dist.TruncatedNormal(
+                loc=8, scale=2, low=2, high=15
+            ),
+        )
+    ]
+    return sir_config
 
 
 if __name__ == "__main__":
     # produce synthetic data with fixed r0 and infectious period
-    config_static = SIRConfig()
+    config_static = get_static_config()
     solution = run_simulation(config_static, tf=100)
     # plot the soliution
     assert solution.ys is not None
@@ -88,7 +87,7 @@ if __name__ == "__main__":
     # %%
     # set up inference process
     # now lets infer the parameters of this strain instead
-    config_infer = SIRInferedConfig()
+    config_infer = get_config()
     # creating two InferenceProcesses, one for MCMC and one for SVI
     inference_process_mcmc = MCMCProcess(
         numpyro_model=model,
@@ -147,7 +146,7 @@ if __name__ == "__main__":
     )
 
     fig = axes.flatten()[0].get_figure()
-    fig.suptitle("Density Interval for R0")
+    fig.suptitle("Density Interval for R0 Posterior Samples (MCMC)")
 
     plt.show()
     print(

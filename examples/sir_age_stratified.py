@@ -1,9 +1,13 @@
-# An Example of how to simulate a basic SIR compartmental model using the dynode package
-# Including all the class setup
-# %% imports and definitions
-# most of these imports are for type hinting
+"""An example of a simple age-stratified SIR model using Dynode.
+
+To do this we simply expand the size of the dimension to include age bins, young and old.
+
+Small changes are needed throughout the code to accommodate this change.
+Including in the Initializer to stratify the population by age,
+the ODEs to account for age-specific transmission rates,
+and the simulation setup to handle the new compartment structure."""
+
 from datetime import date
-from types import SimpleNamespace
 
 import chex
 import jax
@@ -96,12 +100,11 @@ def get_config(r_0=2.0, infectious_period=7.0) -> SimulationConfig:
 
 
 # define the behavior of the ODEs and the parameters they take
-@chex.dataclass(static_keynames=["idx"])
+@chex.dataclass()
 class SIR_ODEParams(AbstractODEParams):
     beta: chex.ArrayDevice  # r0/infectious period
     gamma: chex.ArrayDevice  # 1/infectious period
     contact_matrix: chex.ArrayDevice  # contact matrix
-    idx: SimpleNamespace  # indexing object for the compartments
 
 
 # define a function to easily translate the object oriented TransmissionParams
@@ -118,7 +121,6 @@ def get_odeparams(config: SimulationConfig) -> SIR_ODEParams:
         beta=jnp.array(beta),
         gamma=jnp.array(gamma),
         contact_matrix=transmission_params.contact_matrix,
-        idx=config.idx,
     )
 
 
@@ -138,10 +140,6 @@ def sir_ode(
     di = s_to_i - i_to_r
     dr = i_to_r
     return tuple([ds, di, dr])
-
-
-# %% setup simulation process.
-# instantiate the config
 
 
 def run_simulation(config: SimulationConfig, tf) -> Solution:

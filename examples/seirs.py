@@ -1,3 +1,9 @@
+"""An example of a simple SEIRS model using Dynode.
+This example demonstrates how to set up a basic SEIRS model
+with compartments for susceptible, exposed, infectious, and recovered individuals.
+
+With populations waning back to full susceptibility after a certain period."""
+
 from datetime import date
 
 import chex
@@ -57,9 +63,6 @@ def get_config(
         latent_period=latent_period,
         waning_period=waning_period,
     )
-    # Store extra parameters in transmission_params
-    # setattr(transmission_params, "latent_period", latent_period)
-    # setattr(transmission_params, "waning_period", waning_period)
 
     parameters = Params(
         solver_params=SolverParams(),
