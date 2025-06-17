@@ -1,4 +1,4 @@
-name: Automatic Sphinx Documentation
+name: Generate Documentation
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   generate-api-docs:
-    name: Generate API Documentation
+    name: API Documentation
     runs-on: ubuntu-latest
 
     steps:
@@ -32,6 +32,7 @@ jobs:
 
       - name: Clean and Build HTML
         run: |
+          ls
           cd docs
           poetry run make clean
           poetry run make html
