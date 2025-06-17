@@ -20,6 +20,20 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        run: |
+          pip install poetry
+          poetry --version
+
+      - name: Install Dependencies
+        run: |
+          poetry install --no-root --with dev
+
       - name: Build HTML
         uses: ammaraskar/sphinx-action@master
 
@@ -35,19 +49,7 @@ jobs:
 #        with:
 #          github_token: ${{ secrets.GITHUB_TOKEN }}
 #          publish_dir: docs/build/html
-#      - name: Setup Python
-#        uses: actions/setup-python@v5
-#        with:
-#          python-version: '3.10'
-#
-#      - name: Install Poetry
-#        run: |
-#          pip install poetry
-#          poetry --version
-#
-#      - name: Install Dependencies
-#        run: |
-#          poetry install --no-root --with dev
+
 #
 #      - name: Clean and Build HTML
 #        run: |
