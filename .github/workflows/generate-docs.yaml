@@ -11,28 +11,47 @@ jobs:
   generate-api-docs:
     name: API Documentation
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          persist-credentials: false
 
-      - name: Install Poetry
-        run: |
-          pip install poetry
-          poetry --version
+      - name: Build HTML
+        uses: ammaraskar/sphinx-action@master
 
-      - name: Install Dependencies
-        run: |
-          poetry install --no-root --with dev
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-docs
+          path: docs/build/html/
 
-      - name: Clean and Build HTML
-        run: |
-          ls
-          cd docs
-          poetry run make clean
-          poetry run make html
+#      - name: Deploy
+#        uses: peaceiris/actions-gh-pages@v3
+#        if: github.ref == 'refs/heads/main'
+#        with:
+#          github_token: ${{ secrets.GITHUB_TOKEN }}
+#          publish_dir: docs/build/html
+#      - name: Setup Python
+#        uses: actions/setup-python@v5
+#        with:
+#          python-version: '3.10'
+#
+#      - name: Install Poetry
+#        run: |
+#          pip install poetry
+#          poetry --version
+#
+#      - name: Install Dependencies
+#        run: |
+#          poetry install --no-root --with dev
+#
+#      - name: Clean and Build HTML
+#        run: |
+#          ls
+#          cd docs
+#          poetry run make clean
+#          poetry run make html
