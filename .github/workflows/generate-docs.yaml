@@ -34,8 +34,6 @@ jobs:
         run: |
           poetry install --no-root --with dev
 
-#      - name: Build HTML
-#        uses: ammaraskar/sphinx-action@master
       - name: Clean and Build HTML
         run: |
           ls
@@ -49,9 +47,9 @@ jobs:
           name: html-docs
           path: docs/build/html/
 
-#      - name: Deploy
-#        uses: peaceiris/actions-gh-pages@v3
-#        if: github.ref == 'refs/heads/main'
-#        with:
-#          github_token: ${{ secrets.GITHUB_TOKEN }}
-#          publish_dir: docs/build/html
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        if: github.ref == 'refs/heads/na-api-docs'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs/build/html
