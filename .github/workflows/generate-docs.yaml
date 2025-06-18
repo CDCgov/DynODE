@@ -34,8 +34,14 @@ jobs:
         run: |
           poetry install --no-root --with dev
 
-      - name: Build HTML
-        uses: ammaraskar/sphinx-action@master
+#      - name: Build HTML
+#        uses: ammaraskar/sphinx-action@master
+      - name: Clean and Build HTML
+        run: |
+          ls
+          cd docs
+          poetry run make clean
+          poetry run make html
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -49,11 +55,3 @@ jobs:
 #        with:
 #          github_token: ${{ secrets.GITHUB_TOKEN }}
 #          publish_dir: docs/build/html
-
-#
-#      - name: Clean and Build HTML
-#        run: |
-#          ls
-#          cd docs
-#          poetry run make clean
-#          poetry run make html
