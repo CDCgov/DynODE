@@ -17,7 +17,7 @@ with open("../../pyproject.toml", "rb") as file:
 
 project = "DynODE"
 copyright = pyproject_data["tool"]["poetry"]["license"]
-author = pyproject_data["tool"]["poetry"]["authors"]
+author = "".join(pyproject_data["tool"]["poetry"]["authors"])
 release = pyproject_data["tool"]["poetry"]["version"]
 
 # -- General configuration ---------------------------------------------------
