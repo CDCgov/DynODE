@@ -8,17 +8,20 @@
 import os
 import sys
 
+import tomli
+
+sys.path.insert(0, os.path.abspath("../../src"))
+
+with open("../../pyproject.toml", "rb") as file:
+    pyproject_data = tomli.load(file)
+
 project = "DynODE"
-copyright = "2025, Thomas Hladish, Ariel Shurygin, Kok Ben Toh, Michael Batista, More TBD"
-author = (
-    "Thomas Hladish, Ariel Shurygin, Kok Ben Toh, Michael Batista, More TBD"
-)
-release = "2025.06.03.2a"
+copyright = pyproject_data["tool"]["poetry"]["license"]
+author = pyproject_data["tool"]["poetry"]["authors"]
+release = pyproject_data["tool"]["poetry"]["version"]
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
-
-sys.path.insert(0, os.path.abspath("../../src"))
 
 extensions = [
     "sphinx.ext.duration",
