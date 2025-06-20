@@ -45,8 +45,7 @@ jobs:
 
       - name: Build HTML
         run: |
-          cd docs
-          poetry run make html
+          poetry run sphinx-build -M html docs/source/ docs/build/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
