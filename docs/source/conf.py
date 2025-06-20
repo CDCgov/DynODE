@@ -19,6 +19,7 @@ release = "2025.06.03.2a"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 sys.path.insert(0, os.path.abspath("../../src/dynode/"))
+print(os.path.abspath("../../src/dynode/"))
 
 extensions = [
     "sphinx.ext.duration",
@@ -48,9 +49,3 @@ html_static_path = ["_static"]
 html_css_files = [
     "style.css",
 ]
-
-"""
-def setup(app):
-    app.add_css_file("https://design.cms.gov/cdn/design-system/7.0.0/css/index.css")
-    app.add_css_file("https://design.cms.gov/cdn/design-system/7.0.0/css/core-theme.css")
-"""
