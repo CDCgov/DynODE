@@ -2,7 +2,7 @@ name: Generate Documentation
 
 on:
   pull_request:
-    branches: ["doc-gen-test"]
+    branches: ["main"]
 
   workflow_dispatch:
 
