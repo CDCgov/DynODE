@@ -18,12 +18,7 @@ release = "2025.06.03.2a"
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-sys.path.insert(
-    0,
-    os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "../../src/dynode")
-    ),
-)
+sys.path.insert(0, os.path.abspath("../../src"))
 
 extensions = [
     "sphinx.ext.duration",
