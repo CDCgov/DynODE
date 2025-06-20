@@ -34,11 +34,9 @@ jobs:
         run: |
           poetry install --no-root --with dev
 
-      - name: Clean and Build HTML
+      - name: Build HTML
         run: |
-          ls
           cd docs
-          poetry run make clean
           poetry run make html
 
       - name: Upload Artifacts
