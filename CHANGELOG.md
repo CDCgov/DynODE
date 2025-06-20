@@ -9,10 +9,35 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2025.06.11.3a] - adding more `dynode.utils` tests
+### Added
+- some tests for `dynode.utils.drop_keys_with_substring()`
+### Changed
+- removed some unused methods and code within `test_utils.py`
+
+## [2025.06.11.2a] - adding unit tests for `dynode.simulation`
+### Added
+- some unit tests for `dynode.simulate()`
+
+## [2025.06.11.1a] - unit test expansion.
+### Added
+- some unit tests for dynode.infer objects.
+
+## [2025.06.09.3a] - more efficient `sir.py` example script.
+### Changed
+- modified our `examples/sir.py` script to work in jupyter notebooks, as a script, and in our github workflows, while minimizing its runtime.
+
+## [2025.06.09.2a] - updating ruff linter to latest version
+### Changed
+- no behavior changes, just updating ruff linter and pre-commit git actions.
+
+## [2025.06.09.1a] - unit testing `dynode.config` sub-module
+### Added
+- A boat load of unit tests for `dynode.config` submodule. This is not exhaustive and will likely be further expanded in the future
+
 ## [2025.06.03.2a] - disallowing duplicate compartment names in `SimulationConfig`
 ### Changed
 - adding a validator to `SimulationConfig` that disallows compartments with the same names, as this breaks the `idx` enum and `get_compartment()` functions.
-
 
 ## [2025.06.03.1a] - adding validators to catch empty `Strains` list cases
 ### Changed

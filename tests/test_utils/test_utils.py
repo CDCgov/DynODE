@@ -1,21 +1,19 @@
 import datetime
-from enum import IntEnum
 
 import jax.numpy as jnp
 import numpy as np
 import numpyro.distributions as dist
 
 from dynode import utils
-from dynode.utils import (
-    base_equation,
-    conditional_knots,
-    evaluate_cubic_spline,
-)
 
-# strain indexes {"a": 0, "b": 1, "c": 2}
 
-example_strain_idxs = IntEnum("example_strain_idxs", ["a", "b", "c"], start=0)
-num_strains = 3
+def test_drop_substring():
+    # in this case we imagine "plated_params" is a set of 10 plated parameters
+    # in a fit with 5 chains and 20 samples
+    test = {"a": np.ones((5, 20)), "b1234": np.ones((5, 20))}
+    test = utils.drop_keys_with_substring(test, drop_s="b1")
+    assert "b1234" not in test.keys()
+    assert "a" in test.keys()
 
 
 def test_base_equation():
@@ -26,7 +24,7 @@ def test_base_equation():
     coefficients = jnp.array([5, 1, 2, 3])
     tested_times = list(range(-2, 15)) + [100]
     for time in tested_times:
-        assert base_equation(time, coefficients) == equation(time), (
+        assert utils.base_equation(time, coefficients) == equation(time), (
             "base equation failed to evaluate with input : %s" % str(time)
         )
 
@@ -47,7 +45,7 @@ def test_conditional_knots_no_coefficients():
     knots = jnp.array([0, 5, 10])
     tested_times = list(range(-2, 15)) + [100]
     for time in tested_times:
-        assert conditional_knots(time, knots, coefficients) == equation(
+        assert utils.conditional_knots(time, knots, coefficients) == equation(
             time
         ), "conditional_knots failed to evaluate with input : %s" % str(time)
 
@@ -68,7 +66,7 @@ def test_conditional_knots_with_coefficients():
     coefficients = jnp.array([1, 2, 3])
     tested_times = list(range(-2, 15)) + [100]
     for time in tested_times:
-        assert conditional_knots(time, knots, coefficients) == equation(
+        assert utils.conditional_knots(time, knots, coefficients) == equation(
             time
         ), "conditional_knots failed to evaluate with input : %s" % str(time)
 
@@ -92,7 +90,7 @@ def test_cubic_spline():
     knot_coefficients = jnp.array([5, 6, 7])
     tested_times = list(range(-2, 15)) + [100]
     for time in tested_times:
-        assert evaluate_cubic_spline(
+        assert utils.evaluate_cubic_spline(
             time,
             knot_locations,
             base_equation_coefficients,
@@ -128,7 +126,7 @@ def test_evaluate_cubic_spline():
         return base_equation + splines
 
     for t in range(-5, 5, 1):
-        utils_splines = evaluate_cubic_spline(
+        utils_splines = utils.evaluate_cubic_spline(
             t, test_spline_locations, test_base_equations, test_spline_coefs
         ).flatten()
         assert utils_splines[0] == test_spline_1(t), (
@@ -169,29 +167,8 @@ def test_identify_distribution_indexes():
         "sample_name": "example",
         "sample_idx": None,
     }, "not correctly indexing non-list sampled parameters"
-    assert (
-        "no-sample" not in indexes.keys()
-    ), "identify_distribution_indexes should not return indexes for unsampled parameters"
-
-
-# get the function to test
-def _get_index_enums():
-    compartment_idx = IntEnum(
-        "compartment_index", ["S", "E", "I", "C"], start=0
-    )
-    wane_idx = IntEnum("wane_index", ["W0", "W1", "W2", "W3"], start=0)
-    strain_idx = IntEnum("strain_index", ["S0", "S1", "S2", "S3"], start=0)
-    return compartment_idx, wane_idx, strain_idx
-
-
-def _get_sol():
-    return tuple(
-        [
-            jnp.ones(
-                (100, 4, 4, 4, 4),
-            )
-            for _ in range(4)
-        ]
+    assert "no-sample" not in indexes.keys(), (
+        "identify_distribution_indexes should not return indexes for unsampled parameters"
     )
 
 
@@ -202,9 +179,9 @@ def test_flatten_list_params_numpy():
     assert "test" not in flattened.keys()
     for suffix in range(5):
         key = "test_%s" % str(suffix)
-        assert (
-            key in flattened.keys()
-        ), "flatten_list_parameters not naming split params correctly."
+        assert key in flattened.keys(), (
+            "flatten_list_parameters not naming split params correctly."
+        )
         assert flattened[key].shape == (
             4,
             20,
@@ -219,9 +196,9 @@ def test_flatten_list_params_jax_numpy():
     assert "test" not in flattened.keys()
     for suffix in range(5):
         key = "test_%s" % str(suffix)
-        assert (
-            key in flattened.keys()
-        ), "flatten_list_parameters not naming split params correctly."
+        assert key in flattened.keys(), (
+            "flatten_list_parameters not naming split params correctly."
+        )
         assert flattened[key].shape == (
             4,
             20,
@@ -240,10 +217,89 @@ def test_flatten_list_params_multi_dim():
                 str(suffix_first_dim),
                 str(suffix_second_dim),
             )
-            assert (
-                key in flattened.keys()
-            ), "flatten_list_parameters not naming split params correctly."
+            assert key in flattened.keys(), (
+                "flatten_list_parameters not naming split params correctly."
+            )
             assert flattened[key].shape == (
                 4,
                 20,
             ), "flatten_list_parameters breaking up wrong axis when passed >3"
+
+
+def test_vectorize_objects():
+    class TestObject:
+        def __init__(self, value):
+            self.value = value
+
+    objs = [TestObject(i) for i in range(5)]
+    target = "value"
+
+    # Test without filter
+    result = utils.vectorize_objects(objs, target)
+    assert result == [0, 1, 2, 3, 4], "vectorize_objects failed without filter"
+
+    # Test with filter
+    result = utils.vectorize_objects(
+        objs, target, filter=lambda x: x.value > 2
+    )
+    assert result == [3, 4], "vectorize_objects failed with filter"
+
+
+def test_vectorize_objects_exceptions():
+    class TestObject:
+        def __init__(self, value):
+            self.value = value
+
+    objs = [TestObject(i) for i in range(5)]
+    # Test with non-existing attribute
+    try:
+        utils.vectorize_objects(objs, "non_existing")
+    except AttributeError:
+        pass  # Expected behavior
+    else:
+        assert False, (
+            "vectorize_objects should raise AttributeError for non-existing attribute"
+        )
+
+
+def test_sim_day_to_date():
+    init_date = datetime.date(2022, 10, 15)
+    sim_day = 21
+    expected_date = init_date + datetime.timedelta(days=sim_day)
+
+    result_date = utils.sim_day_to_date(sim_day, init_date)
+
+    assert result_date == expected_date, (
+        f"sim_day_to_date failed: expected {expected_date}, got {result_date}"
+    )
+
+
+def test_sim_day_to_epiweek():
+    # this init_date is on a saturday, which means it still belongs
+    # to the previous year's epi-weeks, thus 52
+    init_date = datetime.date(2022, 1, 1)
+    sim_day = 0
+    epi_week = utils.sim_day_to_epiweek(sim_day, init_date)
+
+    assert 52 == epi_week.week, (
+        f"sim_day_to_epiweek failed: expected 52, got {epi_week.week}"
+    )
+    # now lets check the next week, ensuring epi-week wraps back around to 1
+    sim_day = 2
+    epi_week = utils.sim_day_to_epiweek(sim_day, init_date)
+
+    assert 1 == epi_week.week, (
+        f"sim_day_to_epiweek failed: expected 1, got {epi_week.week}"
+    )
+
+
+def test_date_to_sim_day():
+    init_date = datetime.date(2022, 10, 15)
+    date = datetime.date(2022, 11, 5)
+    expected_sim_day = (date - init_date).days
+
+    result_sim_day = utils.date_to_sim_day(date, init_date)
+
+    assert result_sim_day == expected_sim_day, (
+        f"date_to_sim_day failed: expected {expected_sim_day}, got {result_sim_day}"
+    )
