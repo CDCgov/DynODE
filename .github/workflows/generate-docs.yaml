@@ -1,13 +1,13 @@
 name: Generate Documentation
 
 on:
-  push:
+  pull_request:
     branches: ["na-api-docs"]
 
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
