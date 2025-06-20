@@ -45,7 +45,6 @@ jobs:
 
       - name: Build HTML
         run: |
-          ls
           poetry run sphinx-build -M html docs/source/ docs/build/
 
       - name: Setup Pages
