@@ -2,7 +2,7 @@ name: Generate Documentation
 
 on:
   pull_request:
-    branches: ["na-api-docs"]
+    branches: ["doc-gen-test"]
 
   workflow_dispatch:
 
