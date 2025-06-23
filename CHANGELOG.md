@@ -19,6 +19,10 @@ no suffix when releases and the staging branch is pulled into the release branch
 ### Changed
 - renamed `examples/sir_config.py` and `examples/sir.py` into `examples/sir_age_stratified.py` and `examples/sir_infer_parameters` respectively to be more clear as to the structure of the original example now that `examples/sir.py` exists as a base example.
 
+## [2025.06.16.1a] - enforcing stricter `jax` versioning
+### Changed
+- jax version requirements to avoid odd state in which `diffrax = 0.7.0` while `jax=0.6.0` which causes unknown failures.
+
 ## [2025.06.11.3a] - adding more `dynode.utils` tests
 ### Added
 - some tests for `dynode.utils.drop_keys_with_substring()`
