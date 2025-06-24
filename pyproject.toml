@@ -23,7 +23,9 @@ chex = {git = "https://github.com/mishmish66/chex.git", rev="6c9f2fb727ba3854745
 arviz = "^0.21.0"
 typing-extensions = "^4.13.2"
 annotated-types = "^0.7.0"
-
+sphinx = "<8.2.3"
+sphinx-book-theme = "^1.1.4"
+tomli = "^2.2.1"
 
 [tool.poetry.group.dev.dependencies]
 pandas-stubs = "2.2.*"
