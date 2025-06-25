@@ -11,7 +11,6 @@ from numpyro.distributions import (
 from pydantic import BaseModel, ValidationError
 
 import dynode.config as config
-from dynode.typing import SimulationDay
 
 
 @pytest.fixture(autouse=True)
@@ -70,7 +69,7 @@ def test_replace_simulation_dates_obj():
     config.set_dynode_init_date_flag(date(2022, 2, 11))
 
     class test(BaseModel):
-        simulation_day: SimulationDay
+        simulation_day: int
 
     config.set_dynode_init_date_flag(date(2022, 2, 11))
     obj = test(simulation_day=config.simulation_day(2022, 2, 11))
@@ -104,7 +103,7 @@ def test_replace_simulation_dates_distribution():
 def test_replace_simulation_dates_custom_object():
     class custom_obj:
         def __init__(self):
-            self.x: SimulationDay = config.simulation_day(2022, 2, 11)
+            self.x: int = config.simulation_day(2022, 2, 11)
 
     config.set_dynode_init_date_flag(date(2022, 2, 11))
     custom_o = custom_obj()
@@ -141,8 +140,8 @@ def test_replace_simulation_dates_skips_frozen_dataclasses():
 
     @dataclass(frozen=True)
     class custom_obj:
-        x: SimulationDay
+        x: int
 
     custom_o = custom_obj(config.simulation_day(2022, 2, 11))
-    assert isinstance(custom_o.x, SimulationDay)
+    assert isinstance(custom_o.x, int)
     assert custom_o.x == 0
