@@ -9,6 +9,13 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2025.06.25.1a] - adding `sphinx` auto-documentation
+### Added
+- `sphinx` python library for api documentation
+- `sphinx-book-theme` theme for sphinx static html site that has accessibility features
+- `tomli` python library for parsing `.toml` files such as `pyproject.toml`
+- `generate-docs.yaml` GitHub workflow added to automatically generate and deploy DynODE API Docs when a PR to main is created.
+
 ## [2025.06.16.2a] - adding more `examples` modules
 ### Added
 - `examples/sir.py` for a super basic SIR example in Dynode framework
