@@ -17,7 +17,11 @@ from .params import (
 )
 from .placeholder_sample import PlaceholderSample, SamplePlaceholderError
 from .simulation_config import Compartment, SimulationConfig
-from .simulation_date import SimulationDate
+from .simulation_date import (
+    get_dynode_init_date_flag,
+    set_dynode_init_date_flag,
+    simulation_day,
+)
 from .strains import Strain
 
 __all__ = [
@@ -37,7 +41,9 @@ __all__ = [
     "Params",
     "SolverParams",
     "TransmissionParams",
-    "SimulationDate",
+    "simulation_day",
+    "set_dynode_init_date_flag",
+    "get_dynode_init_date_flag",
     "PlaceholderSample",
     "SamplePlaceholderError",
     "DeterministicParameter",

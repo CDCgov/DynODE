@@ -12,7 +12,7 @@ from pydantic import (
     Field,
     model_validator,
 )
-from typing_extensions import Any, Self
+from typing_extensions import Self
 
 from dynode.typing import DynodeName
 
@@ -25,10 +25,6 @@ from .dimension import (
 )
 from .initializer import Initializer
 from .params import Params
-from .simulation_date import (
-    replace_simulation_dates,
-    set_dynode_init_date_flag,
-)
 
 
 class Compartment(BaseModel):
@@ -177,12 +173,6 @@ class SimulationConfig(BaseModel):
     parameters: Params = Field(
         description="""Model parameters, includes epidemiological and miscellaneous."""
     )
-
-    def model_post_init(self, __context: Any) -> None:
-        """Post-initialization method to replace instances of SimulationDate with numeric sim days."""
-        init_date = self.initializer.initialize_date
-        set_dynode_init_date_flag(init_date)
-        self = replace_simulation_dates(self)
 
     @cached_property
     def idx(self):
