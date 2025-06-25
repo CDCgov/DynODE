@@ -1,5 +1,4 @@
 import datetime
-from enum import IntEnum
 
 import jax.numpy as jnp
 import numpy as np
@@ -7,10 +6,14 @@ import numpyro.distributions as dist
 
 from dynode import utils
 
-# strain indexes {"a": 0, "b": 1, "c": 2}
 
-example_strain_idxs = IntEnum("example_strain_idxs", ["a", "b", "c"], start=0)
-num_strains = 3
+def test_drop_substring():
+    # in this case we imagine "plated_params" is a set of 10 plated parameters
+    # in a fit with 5 chains and 20 samples
+    test = {"a": np.ones((5, 20)), "b1234": np.ones((5, 20))}
+    test = utils.drop_keys_with_substring(test, drop_s="b1")
+    assert "b1234" not in test.keys()
+    assert "a" in test.keys()
 
 
 def test_base_equation():
@@ -166,27 +169,6 @@ def test_identify_distribution_indexes():
     }, "not correctly indexing non-list sampled parameters"
     assert "no-sample" not in indexes.keys(), (
         "identify_distribution_indexes should not return indexes for unsampled parameters"
-    )
-
-
-# get the function to test
-def _get_index_enums():
-    compartment_idx = IntEnum(
-        "compartment_index", ["S", "E", "I", "C"], start=0
-    )
-    wane_idx = IntEnum("wane_index", ["W0", "W1", "W2", "W3"], start=0)
-    strain_idx = IntEnum("strain_index", ["S0", "S1", "S2", "S3"], start=0)
-    return compartment_idx, wane_idx, strain_idx
-
-
-def _get_sol():
-    return tuple(
-        [
-            jnp.ones(
-                (100, 4, 4, 4, 4),
-            )
-            for _ in range(4)
-        ]
     )
 
 

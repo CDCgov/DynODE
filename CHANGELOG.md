@@ -9,11 +9,46 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
-## [2025.06.10.1a] - remove `SimulationDate` class in favor of `simulation_day` helper method.
+## [2025.06.25.2a] - remove `SimulationDate` class in favor of `simulation_day` helper method.
 ### Added
 - SimulationDay type for better type hinting integers meant to represent simulation days.
 ### Changed
 - replaced `dynode.config.SimulationDate` with a helper method `dynode.config.simulation_day`, requiring init_day flag to be set earlier in execution via `dynode.set_dynode_init_date_flag(date)`. This eliminates costly search of all objects for `SimulationDate` instances, while only requiring a single line of code to setup functionality.
+
+## [2025.06.25.1a] - adding `sphinx` auto-documentation
+### Added
+- `sphinx` python library for api documentation
+- `sphinx-book-theme` theme for sphinx static html site that has accessibility features
+- `tomli` python library for parsing `.toml` files such as `pyproject.toml`
+- `generate-docs.yaml` GitHub workflow added to automatically generate and deploy DynODE API Docs when a PR to main is created.
+
+## [2025.06.16.2a] - adding more `examples` modules
+### Added
+- `examples/sir.py` for a super basic SIR example in Dynode framework
+- `examples/seirs.py` for a slightly more complex SEIRS model
+- `examples/seirs_seasonal_forcing.py` for an example of how to implement seasonality.
+- `examples/seirs_multi_strain_age_stratified.py` to act as a complex example with competing strains and age stratification.
+- some regression tests of these new examples within `tests/test_*_dynamics/`
+### Changed
+- renamed `examples/sir_config.py` and `examples/sir.py` into `examples/sir_age_stratified.py` and `examples/sir_infer_parameters` respectively to be more clear as to the structure of the original example now that `examples/sir.py` exists as a base example.
+
+## [2025.06.16.1a] - enforcing stricter `jax` versioning
+### Changed
+- jax version requirements to avoid odd state in which `diffrax = 0.7.0` while `jax=0.6.0` which causes unknown failures.
+
+## [2025.06.11.3a] - adding more `dynode.utils` tests
+### Added
+- some tests for `dynode.utils.drop_keys_with_substring()`
+### Changed
+- removed some unused methods and code within `test_utils.py`
+
+## [2025.06.11.2a] - adding unit tests for `dynode.simulation`
+### Added
+- some unit tests for `dynode.simulate()`
+
+## [2025.06.11.1a] - unit test expansion.
+### Added
+- some unit tests for dynode.infer objects.
 
 ## [2025.06.09.3a] - more efficient `sir.py` example script.
 ### Changed
