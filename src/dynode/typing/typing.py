@@ -13,8 +13,6 @@ CompartmentGradients = Tuple[jax.Array, ...]
 CompartmentTimeseries = CompartmentState
 
 UnitIntervalFloat = Annotated[float, Ge(0.0), Le(1.0)]
-# an int meant to represent the day of a particular simulation
-SimulationDay = int
 
 
 ODE_Eqns = Callable[

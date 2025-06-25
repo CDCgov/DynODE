@@ -4,8 +4,6 @@ import datetime
 import os
 from datetime import date
 
-from dynode.typing import SimulationDay
-
 
 def get_dynode_init_date_flag() -> datetime.date | None:
     """Get the dynode initialization date from the envionment variable.
@@ -34,7 +32,7 @@ def set_dynode_init_date_flag(init_date: datetime.date) -> None:
     )
 
 
-def simulation_day(year: int, month: int, day: int) -> SimulationDay:
+def simulation_day(year: int, month: int, day: int) -> int:
     """Lookup and return the DynODE SimulationDay for this simulation.
 
     Parameters
@@ -45,7 +43,7 @@ def simulation_day(year: int, month: int, day: int) -> SimulationDay:
 
     Returns
     -------
-    SimulationDay
+    int
         integer simulation day, can be negative if date(year, month, day) comes before
         the dynode init date.
 
