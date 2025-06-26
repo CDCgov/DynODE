@@ -4,8 +4,6 @@ from functools import cached_property
 from types import SimpleNamespace
 from typing import List, Union
 
-import jax.numpy as jnp
-from jax import Array
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -38,23 +36,6 @@ class Compartment(BaseModel):
     dimensions: List[Dimension] = Field(
         description="""Compartment dimension definitions."""
     )
-    values: Array = Field(
-        default_factory=lambda: jnp.array([]),
-        description="Compartment matrix values.",
-    )
-
-    @model_validator(mode="after")
-    def _shape_match(self) -> Self:
-        """Set default values if unspecified, asserts dimensions and values shape matches."""
-        target_values_shape: tuple[int, ...] = tuple(
-            [len(d_i) for d_i in self.dimensions]
-        )
-        if bool(self.values.any()):
-            assert target_values_shape == self.values.shape
-        else:
-            # fill with default for now, values filled in at runtime.
-            self.values = jnp.zeros(target_values_shape)
-        return self
 
     @model_validator(mode="after")
     def _validate_dimensions_names(self):
@@ -102,10 +83,6 @@ class Compartment(BaseModel):
         -------
         bool
             whether or not the two compartments are equal in name and dimension structure.
-
-        Note
-        ----
-        does not check the values of the compartments, only their dimensionality and definition.
         """
         if isinstance(value, Compartment):
             if self.name == value.name and len(self.dimensions) == len(
@@ -117,33 +94,6 @@ class Compartment(BaseModel):
                         return False
                 return True
         return False
-
-    def __setitem__(self, index: int | slice | tuple, value: float) -> None:
-        """Set Compartment value in a numpy-like way.
-
-        Parameters
-        ----------
-        index : int | slice | tuple
-            index or slice or tuple to index the Compartment's values.
-        value : float
-            float to set values[index] to.
-        """
-        self.values = self.values.at[index].set(value)
-
-    def __getitem__(self, index: int | slice | tuple) -> Array:
-        """Get the Compartment's values at some index.
-
-        Parameters
-        ----------
-        index : int | slice | tuple
-            index to look up.
-
-        Returns
-        -------
-        Any
-            value of the `self.values` tensor at that index.
-        """
-        return self.values.at[index].get()
 
 
 class _IntWithAttributes(int):
