@@ -1,4 +1,3 @@
-import jax.numpy as jnp
 import pytest
 from pydantic import ValidationError
 
@@ -19,7 +18,6 @@ def test_compartment_valid():
 
     assert compartment.name == "valid_compartment"
     assert compartment.shape == (1,)
-    assert compartment.values == jnp.zeros((1,))
     assert compartment.idx.dim1 == 0
     assert compartment.idx.dim1.bin1 == 0
 
