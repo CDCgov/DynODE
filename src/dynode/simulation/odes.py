@@ -235,10 +235,10 @@ def log_failed_diffrax_solve(
             )
         )
     logger.error(
-        "ODE solve failed with result: %s, ode_parameters: %s, "
-        "first index with inf by compartment (often sign of an untracked discontinuity): %s",
+        "ODE solve failed with result: %s, \n"
+        "ode_parameters: %s, \n"
+        "first index with inf by compartment (often sign of an untracked discontinuity): %s \n",
         solution.result,
         ode_parameters,
         compartment_inf_exists,
     )
-    print(f"solution.ys: {solution.ys}")
