@@ -85,8 +85,7 @@ def plot_model_overview_subplot_matplotlib(
     plot_normalizations: np.ndarray = np.array(
         [1, 1, 100000, 1, 1, 100000, 100000]
     ),
-    matplotlib_style: list[str]
-    | str = [
+    matplotlib_style: list[str] | str = [
         "seaborn-v0_8-colorblind",
     ],
 ) -> plt.Figure:
@@ -252,8 +251,7 @@ def plot_model_overview_subplot_matplotlib(
 def plot_checkpoint_inference_correlation_pairs(
     posteriors_in: dict[str, np.ndarray | list],
     max_samples_calculated: int = 100,
-    matplotlib_style: list[str]
-    | str = [
+    matplotlib_style: list[str] | str = [
         "seaborn-v0_8-colorblind",
     ],
 ):
@@ -384,8 +382,7 @@ def plot_checkpoint_inference_correlation_pairs(
 
 def plot_mcmc_chains(
     samples_in: dict[str, np.ndarray | list],
-    matplotlib_style: list[str]
-    | str = [
+    matplotlib_style: list[str] | str = [
         "seaborn-v0_8-colorblind",
     ],
 ) -> plt.Figure:
@@ -502,8 +499,7 @@ def _sample_prior_distributions(priors, num_samples) -> dict[str, Array]:
 
 def plot_prior_distributions(
     priors: dict[str, Any],
-    matplotlib_style: list[str]
-    | str = [
+    matplotlib_style: list[str] | str = [
         "seaborn-v0_8-colorblind",
     ],
     num_samples=5000,
@@ -579,8 +575,7 @@ def plot_prior_distributions(
 def plot_violin_plots(
     priors: dict[str, list] | None = None,
     posteriors: dict[str, list] | None = None,
-    matplotlib_style: list[str]
-    | str = [
+    matplotlib_style: list[str] | str = [
         "seaborn-v0_8-colorblind",
     ],
 ):

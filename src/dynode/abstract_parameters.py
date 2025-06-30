@@ -160,11 +160,11 @@ class AbstractParameters:
         """
         try:
             # create or re-recreate parameters based on other possibly sampled parameters
-            parameters[
-                "CROSSIMMUNITY_MATRIX"
-            ] = utils.strain_interaction_to_cross_immunity(
-                parameters["NUM_STRAINS"],
-                parameters["STRAIN_INTERACTIONS"],
+            parameters["CROSSIMMUNITY_MATRIX"] = (
+                utils.strain_interaction_to_cross_immunity(
+                    parameters["NUM_STRAINS"],
+                    parameters["STRAIN_INTERACTIONS"],
+                )
             )
             beta = parameters["STRAIN_R0s"] / parameters["INFECTIOUS_PERIOD"]
             gamma = 1 / parameters["INFECTIOUS_PERIOD"]
