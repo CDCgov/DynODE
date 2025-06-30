@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   example:
@@ -25,4 +26,4 @@ jobs:
     - name: Run Example
       run: |
         poetry install
-        poetry run examples/example_end_to_end_run.py
+        poetry run python3 examples/sir.py

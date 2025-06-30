@@ -28,4 +28,4 @@ jobs:
 
     - name: Run myPy
       run: |
-        poetry run mypy .
+        poetry run mypy src/
