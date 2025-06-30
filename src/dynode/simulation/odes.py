@@ -15,11 +15,14 @@ from diffrax import (  # type: ignore
     Solution,
     SubSaveAt,
     diffeqsolve,
+    is_okay,
 )
 from jax import Array
+from jax.debug import callback
 
 from ..config import SolverParams
 from ..typing import CompartmentState, ODE_Eqns
+from ..utils import logger
 
 
 @chex.dataclass
@@ -141,7 +144,12 @@ def simulate(
         stepsize_controller=stepsize_controller,
         saveat=build_saveat(t0, duration_days, save_step, sub_save_indices),
         max_steps=solver_parameters.max_steps,
+        throw=False,
     )
+    if not is_okay(solution.result):
+        # if the solve failed, log the solution using jax's callback functions
+        callback(log_failed_diffrax_solve, solution, ode_parameters)
+        raise RuntimeError(solution.result)
     return solution
 
 
@@ -196,3 +204,41 @@ def build_saveat(
                 f"An index passed to sub_save_indices was out of range for initial_state values. Exception: {ex}"
             )
     return built_saveat
+
+
+def log_failed_diffrax_solve(
+    solution: Solution, ode_parameters: AbstractODEParams
+) -> None:
+    """Log the failed diffrax solve for debugging purposes.
+
+    Parameters
+    ----------
+    solution : Solution
+        The Solution object that contains the result of the ODE solve.
+
+    Note
+    ----
+    This function must be wrapped in `jax.debug.callback` to have the desire effect.
+
+    The reason for this is because `solution.ys` will likely be a jax tracer at the time of this function call,
+    so we need to first evaluate it into concrete values before printing.
+    """
+    # None if no infs are found, otherwise the index of the first inf in that compartment
+    compartment_inf_exists = []
+    for timeseries in solution.ys:
+        compartment_inf_exists.append(
+            # scans across first dimension of `timeseries` (time)
+            # for compartment states with infs, returns index of the first one found.
+            next(
+                (i for i, y in enumerate(timeseries) if jnp.any(jnp.isinf(y))),
+                None,
+            )
+        )
+    logger.error(
+        "ODE solve failed with result: %s, ode_parameters: %s, "
+        "first index with inf by compartment (often sign of an untracked discontinuity): %s",
+        solution.result,
+        ode_parameters,
+        compartment_inf_exists,
+    )
+    print(f"solution.ys: {solution.ys}")
