@@ -3,15 +3,17 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-DynODE API Documentation
-========================
+.. include:: markdown/Home.rst
 
-/* Below API Documentation Description TBD /*
+.. toctree::
+   :maxdepth: 2
+   :class: hidden-toc
 
-This repository is for the design and implementation of the DynODE framework for disease Scenario forecasting, built by the Scenarios team within CFA-Predict.
-
-Currently, we aim to use this code to forecast different disease tranmission scenarios with a compartmental mechanistic ODE model.
-We aim to provide enough flexibility for the code users to explore a variety of scenarios, but also making certain design decisions that allow for fast computation and fitting as well as code readability.
+   backend libraries <markdown/backend-libraries>
+   configuration <markdown/configuration>
+   inference <markdown/inference>
+   simulation <markdown/simulation>
+   utils <markdown/utils>
 
 .. autosummary::
    :toctree: _autosummary
