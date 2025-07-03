@@ -7,6 +7,7 @@
 
 .. toctree::
    :maxdepth: 2
+   :caption: Modules
    :class: hidden-toc
 
    backend libraries <markdown/backend-libraries>
@@ -18,6 +19,7 @@
 .. autosummary::
    :toctree: _autosummary
    :template: module.rst
+   :caption: DynODE API
    :recursive:
 
    dynode

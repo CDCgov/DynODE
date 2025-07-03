@@ -5,6 +5,7 @@ This document describes the core inference classes and helper utilities used in 
 ## Visual Representation
 
 ```{mermaid}
+%%{ init: { "theme": "dark", "themeVariables": { "primaryColor": "#bb86fc", "background": "#121212"} } }%%
 classDiagram
     %% Abstract base class
     class InferenceProcess {

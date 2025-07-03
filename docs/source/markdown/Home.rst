@@ -1,7 +1,7 @@
-DynODE Framework Wiki
-=====================
+DynODE Framework Documentation
+==============================
 
-This wiki is intended to provide a slightly more in-depth overview of
+This documentation is intended to provide a slightly more in-depth overview of
 the DynODE framework, which is a flexible and modular framework for
 simulating infectious disease dynamics. The framework is designed to be
 customizable and extensible, allowing users to easily modify and adapt
@@ -11,7 +11,7 @@ For disease specific implementations of this framework, please refer to
 `DynODE-Models <https://github.com/cdcent/DynODE-Models>`__. Which may
 still be private but may become public in the future.
 
-This wiki aims to cover the following topics:
+This documentation aims to cover the following topics:
 
 1. The 4 major DynODE modules
 
@@ -33,7 +33,7 @@ hospitalization incidence and timing - Impact of a new variant be
 antigenic shift - Regional differences in burden - Impact of vaccination
 timing/reformulation/increased uptake
 
-After reading this wiki, I encourage you to check out the ``examples/``
+After reading this documentation, I encourage you to check out the ``examples/``
 directory, which contains a set of example models of increasing
 complexity. Slowly building from a simple SIR model, adding seasonality
 modules, adding more compartments, and even inference capabilities.

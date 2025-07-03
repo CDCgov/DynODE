@@ -9,6 +9,7 @@ Lets start with a visual representation of the configuration structure, then go 
 ## Visual Representation
 
 ```{mermaid}
+%%{ init: { "theme": "dark", "themeVariables": { "primaryColor": "#bb86fc", "background": "#121212"} } }%%
 classDiagram
     class SimulationConfig {
         +list~Compartment~ compartments
