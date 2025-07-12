@@ -159,7 +159,7 @@ def resolve_deterministic(
 
 
 def sample_then_resolve(
-    parameters: Any, rng_key: Array | None = None, _prefix=""
+    parameters: Any, rng_key: Array | None = None, _prefix: str = ""
 ) -> dynode.config.TransmissionParams:
     """Copy, sample and resolve parameters, returning a jax-compliant copy.
 
