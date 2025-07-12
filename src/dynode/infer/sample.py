@@ -15,7 +15,9 @@ from pydantic import BaseModel
 import dynode.config
 
 
-def sample_distributions(obj: Any, rng_key: Array | None = None, _prefix: str = ""):
+def sample_distributions(
+    obj: Any, rng_key: Array | None = None, _prefix: str = ""
+):
     """Recurisvely scans data structures and samples numpyro.Distribution objects.
 
     Parameters
@@ -51,11 +53,17 @@ def sample_distributions(obj: Any, rng_key: Array | None = None, _prefix: str = 
             obj_dict[key] = sample_distributions(
                 value, rng_key=rng_key, _prefix=_prefix + f"{key}_"
             )
-        return dict(obj_dict) if isinstance(obj, dict) else obj.__class__(**obj_dict)
+        return (
+            dict(obj_dict)
+            if isinstance(obj, dict)
+            else obj.__class__(**obj_dict)
+        )
     elif isinstance(obj, (np.ndarray, list)):
         # Recursively sample elements in list.
         lst = [
-            sample_distributions(item, rng_key=rng_key, _prefix=_prefix + f"{i}_")
+            sample_distributions(
+                item, rng_key=rng_key, _prefix=_prefix + f"{i}_"
+            )
             for i, item in enumerate(obj)
         ]
 
@@ -71,7 +79,9 @@ def sample_distributions(obj: Any, rng_key: Array | None = None, _prefix: str = 
         return obj
 
 
-def resolve_deterministic(obj: Any, root_params: dict | BaseModel, _prefix: str = ""):
+def resolve_deterministic(
+    obj: Any, root_params: dict | BaseModel, _prefix: str = ""
+):
     """Find and resolve all DeterministicParameter types.
 
     Parameters
@@ -126,7 +136,11 @@ def resolve_deterministic(obj: Any, root_params: dict | BaseModel, _prefix: str 
             obj_dict[key] = resolve_deterministic(
                 value, root_params, _prefix=_prefix + f"{key}_"
             )
-        return dict(obj_dict) if isinstance(obj, dict) else obj.__class__(**obj_dict)
+        return (
+            dict(obj_dict)
+            if isinstance(obj, dict)
+            else obj.__class__(**obj_dict)
+        )
     elif isinstance(obj, (np.ndarray, list)):
         # Recursively sample elements in list.
         return [
@@ -174,7 +188,9 @@ def sample_then_resolve(
         with samples / resolved values.
     """
     parameters = deepcopy(parameters)
-    parameters = sample_distributions(parameters, rng_key=rng_key, _prefix=_prefix)
+    parameters = sample_distributions(
+        parameters, rng_key=rng_key, _prefix=_prefix
+    )
     parameters = resolve_deterministic(
         parameters, root_params=dict(parameters), _prefix=_prefix
     )
