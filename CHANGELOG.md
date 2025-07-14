@@ -9,6 +9,10 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+## [2025.07.12.1a] - expose `_prefix` in `sample_then_resolve`
+### Changed
+- exposed a `_prefix` parameter to `sample_then_resolve` to allow users to add custom prefixes to their sampled/resolved parameters
+
 ## [2025.06.26.1a] - remove `.values` field from `Compartment`
 ### Removed
 - `.values` field from `Compartment` class, as it was not used anywhere in the codebase and was causing confusion for users. The `Compartment` class now only contains the wireframe of the compartment sizes, but the values themselves are stored in the `diffrax.Solution` object returned by the `dynode.simulate()` function. We should discorage users from accessing the `.values` field of `Compartment` objects directly, except for in the ODEs.

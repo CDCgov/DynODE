@@ -70,6 +70,30 @@ def test_sample_distributions_naming():
     )
 
 
+def test_sample_distributions_naming_prefix():
+    test = {
+        "a": dist.Normal(),
+        "b": [1, dist.Normal()],
+        "c": np.array([dist.Normal(), 1]),
+        "d": {"nested_dict": dist.Normal()},
+    }
+    t = trace(
+        lambda: sample_distributions(test, rng_key=PRNGKey(0), _prefix="test_")
+    ).get_trace()
+    assert "test_a" in t.keys(), (
+        f"{test} samples not named correctly, expected 'a', got {t.keys()}"
+    )
+    assert "test_b_1" in t.keys(), (
+        f"{test} samples not named correctly, expected 'b_1', got {t.keys()}"
+    )
+    assert "test_c_0" in t.keys(), (
+        f"{test} samples not named correctly, expected 'c_0', got {t.keys()}"
+    )
+    assert "test_d_nested_dict" in t.keys(), (
+        f"{test} samples not named correctly, expected 'd_nested_dict', got {t.keys()}"
+    )
+
+
 def test_resolve_deterministic():
     test = {"a": 1, "b": DeterministicParameter("a")}
     test = resolve_deterministic(test, root_params=test)
@@ -97,3 +121,31 @@ def test_sample_then_resolve():
     assert isinstance(test["a"], Array)
     assert isinstance(test["b"], Array)
     assert test["a"] == test["b"]
+
+
+def test_sample_then_resolve_naming_prefix():
+    test = {
+        "a": dist.Normal(),
+        "b": [1, dist.Normal()],
+        "c": np.array([dist.Normal(), 1]),
+        "d": {"nested_dict": dist.Normal()},
+        "e": DeterministicParameter("a"),
+    }
+    t = trace(
+        lambda: sample_then_resolve(test, rng_key=PRNGKey(0), _prefix="test_"),
+    ).get_trace()
+    assert "test_a" in t.keys(), (
+        f"{test} samples not named correctly, expected 'test_a', got {t.keys()}"
+    )
+    assert "test_b_1" in t.keys(), (
+        f"{test} samples not named correctly, expected 'test_b_1', got {t.keys()}"
+    )
+    assert "test_c_0" in t.keys(), (
+        f"{test} samples not named correctly, expected 'test_c_0', got {t.keys()}"
+    )
+    assert "test_d_nested_dict" in t.keys(), (
+        f"{test} samples not named correctly, expected 'test_d_nested_dict', got {t.keys()}"
+    )
+    assert "test_e" in t.keys(), (
+        f"{test} samples not named correctly, expected 'test_e', got {t.keys()}"
+    )
