@@ -28,6 +28,8 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.intersphinx",
+    "sphinxcontrib.mermaid",
+    "myst_parser",
 ]
 autosummary_generate = True
 intersphinx_mapping = {
@@ -35,6 +37,10 @@ intersphinx_mapping = {
 }
 
 templates_path = ["_templates"]
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".md": "markdown",
+}
 # exclude_patterns = []
 
 
