@@ -159,7 +159,7 @@ def resolve_deterministic(
 
 
 def sample_then_resolve(
-    parameters: Any, rng_key: Array | None = None
+    parameters: Any, rng_key: Array | None = None, _prefix: str = ""
 ) -> dynode.config.TransmissionParams:
     """Copy, sample and resolve parameters, returning a jax-compliant copy.
 
@@ -174,6 +174,12 @@ def sample_then_resolve(
         jax.random.PRNGKey(), by default None meaning context RNGKey will be
         used if running from within MCMC execution.
 
+    _prefix : str, optional
+        prefix to append to all sampled and resolved parameters. Useful for
+        differentiating between different fits. Changing this parameter
+        may break code that depends on a hardcoded parameter name.
+        Defaults to "".
+
     Returns
     ---------
     Any
@@ -182,8 +188,10 @@ def sample_then_resolve(
         with samples / resolved values.
     """
     parameters = deepcopy(parameters)
-    parameters = sample_distributions(parameters, rng_key=rng_key)
+    parameters = sample_distributions(
+        parameters, rng_key=rng_key, _prefix=_prefix
+    )
     parameters = resolve_deterministic(
-        parameters, root_params=dict(parameters)
+        parameters, root_params=dict(parameters), _prefix=_prefix
     )
     return parameters
