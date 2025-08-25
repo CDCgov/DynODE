@@ -12,6 +12,7 @@ from pydantic import (
 )
 from typing_extensions import Self
 
+from dynode.infer import sample_then_resolve
 from dynode.typing import DynodeName
 
 from .bins import AgeBin, Bin
@@ -22,7 +23,7 @@ from .dimension import (
     LastStrainImmuneHistoryDimension,
 )
 from .initializer import Initializer
-from .params import Params
+from .params import ParameterSet, Params
 
 
 class Compartment(BaseModel):
@@ -123,6 +124,7 @@ class SimulationConfig(BaseModel):
     parameters: Params = Field(
         description="""Model parameters, includes epidemiological and miscellaneous."""
     )
+    parameter_sets: dict[str, ParameterSet]
 
     @cached_property
     def idx(self):
@@ -328,3 +330,17 @@ class SimulationConfig(BaseModel):
         for compartment in self.compartments:
             flattened_lst.extend(compartment.dimensions)
         return flattened_lst
+
+    def inject_parameters(
+        self, injection_parameter_set: ParameterSet, set_keys: List[str] = None
+    ) -> None:
+        # Note to self: currenlty not using the set_keys arg also need to account for model_config in future itteration
+        for _, parameter_set in self.parameter_sets.items():
+            for parameter in injection_parameter_set.parameters:
+                parameter_set.parameters.append(parameter)
+
+    def sample_then_resolve_parameters(self) -> None:
+        for name, parameter_set in self.parameter_sets.items():
+            parameter_set = sample_then_resolve(
+                parameter_set, _prefix=f"{name}_"
+            )
