@@ -17,6 +17,8 @@ from pydantic import (
 )
 from typing_extensions import Self
 
+from dynode.infer import sample_then_resolve
+
 from .deterministic_parameter import DeterministicParameter
 from .simulation_config import SimulationConfig
 from .strains import Strain
@@ -40,7 +42,7 @@ class CompartmentalModel(BaseModel):
     configs: dict[int, SimulationConfig]
 
     def model_post_init(self, __context) -> None:
-        self.shared_parameters.sample_then_resolve()
+        self.shared_parameters = sample_then_resolve(self.shared_parameters)
 
         for _, config in self.configs.items():
             config.inject_parameters(parameter_set=self.shared_parameters)

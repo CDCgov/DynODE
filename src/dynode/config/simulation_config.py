@@ -334,10 +334,13 @@ class SimulationConfig(BaseModel):
     def inject_parameters(
         self, injection_parameter_set: ParameterSet, set_keys: List[str] = None
     ) -> None:
-        # Note to self: currenlty not using the set_keys arg also need to account for model_config in future itteration
+        # Note to self: currenlty not using the set_keys. Create another version of the function that merges without field overwrite
         for _, parameter_set in self.parameter_sets.items():
-            for parameter in injection_parameter_set.parameters:
-                parameter_set.parameters.append(parameter)
+            merged_fields = {
+                **parameter_set.model_dump(),
+                **injection_parameter_set.model_dump(),
+            }
+            parameter_set = parameter_set.model_copy(update=merged_fields)
 
     def sample_then_resolve_parameters(self) -> None:
         for name, parameter_set in self.parameter_sets.items():
