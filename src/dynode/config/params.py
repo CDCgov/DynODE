@@ -17,9 +17,8 @@ from pydantic import (
 )
 from typing_extensions import Self
 
-from dynode.infer import sample_then_resolve
-
 from .deterministic_parameter import DeterministicParameter
+from .sample import sample_then_resolve
 from .simulation_config import SimulationConfig
 from .strains import Strain
 

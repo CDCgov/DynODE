@@ -12,7 +12,6 @@ from pydantic import (
 )
 from typing_extensions import Self
 
-from dynode.infer import sample_then_resolve
 from dynode.typing import DynodeName
 
 from .bins import AgeBin, Bin
@@ -24,6 +23,7 @@ from .dimension import (
 )
 from .initializer import Initializer
 from .params import ParameterSet, Params
+from .sample import sample_then_resolve
 
 
 class Compartment(BaseModel):

@@ -34,6 +34,9 @@ from .config import (
     VaccinationDimension,
     WaneBin,
     get_dynode_init_date_flag,
+    resolve_deterministic,
+    sample_distributions,
+    sample_then_resolve,
     set_dynode_init_date_flag,
     simulation_day,
 )
@@ -42,9 +45,6 @@ from .infer import (
     MCMCProcess,
     SVIProcess,
     checkpoint_compartment_sizes,
-    resolve_deterministic,
-    sample_distributions,
-    sample_then_resolve,
 )
 from .simulation import (
     AbstractODEParams,

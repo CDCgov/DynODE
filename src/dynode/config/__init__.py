@@ -19,6 +19,11 @@ from .params import (
     TransmissionParams,
 )
 from .placeholder_sample import PlaceholderSample, SamplePlaceholderError
+from .sample import (
+    resolve_deterministic,
+    sample_distributions,
+    sample_then_resolve,
+)
 from .simulation_config import Compartment, SimulationConfig
 from .simulation_date import (
     get_dynode_init_date_flag,
@@ -53,4 +58,7 @@ __all__ = [
     "PlaceholderSample",
     "SamplePlaceholderError",
     "DeterministicParameter",
+    "sample_then_resolve",
+    "resolve_deterministic",
+    "sample_distributions",
 ]
