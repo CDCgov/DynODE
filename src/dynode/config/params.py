@@ -32,7 +32,7 @@ class Parameter:
 
 class ParameterSet(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
-    parameters: list[Parameter]
+    parameters: list[Parameter] = None
 
 
 class CompartmentalModel(BaseModel):

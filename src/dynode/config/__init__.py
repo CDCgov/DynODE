@@ -11,6 +11,9 @@ from .dimension import (
 )
 from .initializer import Initializer
 from .params import (
+    CompartmentalModel,
+    Parameter,
+    ParameterSet,
     Params,
     SolverParams,
     TransmissionParams,
@@ -41,6 +44,9 @@ __all__ = [
     "Params",
     "SolverParams",
     "TransmissionParams",
+    "Parameter",
+    "ParameterSet",
+    "CompartmentalModel",
     "simulation_day",
     "set_dynode_init_date_flag",
     "get_dynode_init_date_flag",
