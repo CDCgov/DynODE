@@ -12,7 +12,8 @@ import numpyro.distributions as Dist  # type: ignore
 from jax import Array
 from pydantic import BaseModel
 
-import dynode.config
+from .deterministic_parameter import DeterministicParameter
+from .params import ParameterSet
 
 
 def sample_distributions(
@@ -147,7 +148,7 @@ def resolve_deterministic(
             resolve_deterministic(item, root_params, _prefix=_prefix + f"{i}_")
             for i, item in enumerate(obj)
         ]
-    elif isinstance(obj, dynode.config.DeterministicParameter):
+    elif isinstance(obj, DeterministicParameter):
         # resolve the DeterministicParameter by finding what its connected to
         # remove trailing underscore from recursive calls above.
         if len(_prefix) > 0:
@@ -160,7 +161,7 @@ def resolve_deterministic(
 
 def sample_then_resolve(
     parameters: Any, rng_key: Array | None = None, _prefix: str = ""
-) -> dynode.config.ParameterSet:
+) -> ParameterSet:
     """Copy, sample and resolve parameters, returning a jax-compliant copy.
 
     Parameters
