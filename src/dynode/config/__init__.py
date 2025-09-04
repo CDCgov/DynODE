@@ -1,6 +1,7 @@
 """DynODE configuration module."""
 
 from .bins import AgeBin, Bin, DiscretizedPositiveIntBin, WaneBin
+from .compartmental_model import CompartmentalModel
 from .deterministic_parameter import DeterministicParameter
 from .dimension import (
     Dimension,
@@ -10,10 +11,8 @@ from .dimension import (
     WaneDimension,
 )
 from .initializer import Initializer
+from .parameter_set import ParameterSet
 from .params import (
-    CompartmentalModel,
-    Parameter,
-    ParameterSet,
     Params,
     SolverParams,
     TransmissionParams,
@@ -49,7 +48,6 @@ __all__ = [
     "Params",
     "SolverParams",
     "TransmissionParams",
-    "Parameter",
     "ParameterSet",
     "CompartmentalModel",
     "simulation_day",

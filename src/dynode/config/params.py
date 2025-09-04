@@ -1,6 +1,6 @@
 """Module containing Parameter classes for storing DynODE parameters."""
 
-from typing import List, Union
+from typing import List
 
 from diffrax import AbstractSolver, Tsit5
 from jax.typing import ArrayLike
@@ -18,41 +18,8 @@ from pydantic import (
 from typing_extensions import Self
 
 from .deterministic_parameter import DeterministicParameter
-from .sample import sample_then_resolve
-from .simulation_config import SimulationConfig
+from .parameter_set import ParameterSet
 from .strains import Strain
-
-
-class Parameter:
-    name: str
-    distribution: Union[Distribution, float] = None
-    deterministic: DeterministicParameter = None
-
-
-class ParameterSet(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
-    parameters: list[Parameter] = None
-
-
-class CompartmentalModel(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
-
-    shared_parameters: ParameterSet  # add Pydantic Field to class attributes
-    configs: dict[int, SimulationConfig]
-
-    def model_post_init(self, __context) -> None:
-        self.shared_parameters = sample_then_resolve(self.shared_parameters)
-
-        for _, config in self.configs.items():
-            config.inject_parameters(parameter_set=self.shared_parameters)
-            config.sample_then_resolve_parameters()
-
-    def numpyro_model(self, **kwargs):
-        """User must implement this method to define the NumPyro model."""
-
-        raise NotImplementedError(
-            "implement functionality to get initial state"
-        )
 
 
 class SolverParams(ParameterSet):
