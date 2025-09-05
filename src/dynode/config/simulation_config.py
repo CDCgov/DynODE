@@ -22,7 +22,7 @@ from .dimension import (
     LastStrainImmuneHistoryDimension,
 )
 from .initializer import Initializer
-from .params import ParameterSet, Params
+from .parameter_set import ParameterSet
 from .sample import sample_then_resolve
 
 
@@ -121,9 +121,9 @@ class SimulationConfig(BaseModel):
     compartments: List[Compartment] = Field(
         description="""Compartments of the model."""
     )
-    parameters: Params = Field(
-        description="""Model parameters, includes epidemiological and miscellaneous."""
-    )
+    # parameters: Params = Field(
+    #    description="""Model parameters, includes epidemiological and miscellaneous."""
+    # )
     parameter_sets: dict[str, ParameterSet]
 
     @cached_property
