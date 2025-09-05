@@ -187,7 +187,8 @@ class SimulationConfig(BaseModel):
         - a `LastStrainImmuneHistory` should have 3 bins, `none`, `x`, `y`
         - Neither class should bins with any other strain `z` or exclude one of the required bins.
         """
-        strains = self.parameters.transmission_params.strains
+        # need to add validator to ensure there is a parameter set of type TransmissionParams also need to handle fetching that set differently
+        strains = self.parameter_sets["transmission_params"].strains
         # gather all ImmuneHistory dimensions
         all_dims = self.flatten_dims()
         all_immune_hist_dims = [
@@ -214,7 +215,9 @@ class SimulationConfig(BaseModel):
         if any(
             [
                 strain.introduction_ages is not None
-                for strain in self.parameters.transmission_params.strains
+                for strain in self.parameter_sets[
+                    "transmission_params"
+                ].strains
             ]
         ):
             # find a dimension with Age stratification
@@ -229,7 +232,7 @@ class SimulationConfig(BaseModel):
                 "find any age structure in the compartments"
             )
             mask = []
-            for strain in self.parameters.transmission_params.strains:
+            for strain in self.parameter_sets["transmission_params"].strains:
                 # assume intro_ages is found in age_structure due to above validator
                 if strain.introduction_ages is not None:
                     mask = [
@@ -245,7 +248,7 @@ class SimulationConfig(BaseModel):
     @model_validator(mode="after")
     def _validate_introduced_strains(self) -> Self:
         """Validate that all introduced strains have the same age binning as defined by the Model's compartments."""
-        strains = self.parameters.transmission_params.strains
+        strains = self.parameter_sets["transmission_params"].strains
         all_bins = self.flatten_bins()
         age_structure = [b for b in all_bins if isinstance(b, AgeBin)]
         for strain in strains:
