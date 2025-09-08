@@ -19,7 +19,9 @@ class CompartmentalModel(BaseModel):
         self.shared_parameters = sample_then_resolve(self.shared_parameters)
         print(type(self.shared_parameters))
         for _, config in self.configs.items():
-            config.inject_parameters(parameter_set=self.shared_parameters)
+            config.inject_parameters(
+                injection_parameter_set=self.shared_parameters
+            )
             print(type(config))
             print(type(self.shared_parameters))
             config.sample_then_resolve_parameters()
