@@ -195,6 +195,5 @@ def sample_then_resolve(
     parameters = resolve_deterministic(
         parameters, root_params=dict(parameters), _prefix=_prefix
     )
-    if isinstance(parameters, dict):
-        return type(parameters).model_construct(**parameters)
-    return parameters
+
+    return type(parameters).model_construct(**parameters)
