@@ -188,10 +188,13 @@ def sample_then_resolve(
         `numpyro.Distribution` or `DeterministicParameter` objects replaced
         with samples / resolved values.
     """
+    print("before deepcopy")
     parameters = deepcopy(parameters)
+    print("before sample")
     parameters = sample_distributions(
         parameters, rng_key=rng_key, _prefix=_prefix
     )
+    print("before deterministic")
     parameters = resolve_deterministic(
         parameters, root_params=dict(parameters), _prefix=_prefix
     )
