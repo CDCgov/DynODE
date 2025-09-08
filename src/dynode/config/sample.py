@@ -196,5 +196,5 @@ def sample_then_resolve(
         parameters, root_params=dict(parameters), _prefix=_prefix
     )
     if isinstance(parameters, dict):
-        return ParameterSet.model_validate(parameters)
+        return type(parameters).model_construct(**parameters)
     return parameters
