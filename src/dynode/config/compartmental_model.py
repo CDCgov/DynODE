@@ -15,7 +15,7 @@ class CompartmentalModel(BaseModel):
     configs: dict[int, SimulationConfig]
 
     def model_post_init(self, __context) -> None:
-        print(type(sample_then_resolve(self.shared_parameters)))
+        print("before 1st sample_then_resolve")
         self.shared_parameters = sample_then_resolve(self.shared_parameters)
         print(type(self.shared_parameters))
         for _, config in self.configs.items():
