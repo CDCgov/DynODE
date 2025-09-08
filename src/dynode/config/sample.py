@@ -196,4 +196,4 @@ def sample_then_resolve(
         parameters, root_params=dict(parameters), _prefix=_prefix
     )
 
-    return type(parameters).model_construct(**parameters)
+    return type(ParameterSet).model_construct(**parameters)
