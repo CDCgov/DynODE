@@ -195,5 +195,6 @@ def sample_then_resolve(
     parameters = resolve_deterministic(
         parameters, root_params=dict(parameters), _prefix=_prefix
     )
-    print(type(parameters))
+    if isinstance(parameters, dict):
+        return ParameterSet.model_validate(parameters)
     return parameters
