@@ -195,4 +195,5 @@ def sample_then_resolve(
     parameters = resolve_deterministic(
         parameters, root_params=dict(parameters), _prefix=_prefix
     )
+    print(type(parameters))
     return parameters
