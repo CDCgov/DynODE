@@ -6,6 +6,7 @@ from copy import deepcopy
 # strongly dislikes the IntEnum class.
 from typing import Any
 
+import jax
 import numpy as np
 import numpyro  # type: ignore
 import numpyro.distributions as Dist  # type: ignore
@@ -188,6 +189,9 @@ def sample_then_resolve(
         `numpyro.Distribution` or `DeterministicParameter` objects replaced
         with samples / resolved values.
     """
+    if rng_key is None:
+        rng_key = jax.random.PRNGKey(0)
+
     print("before deepcopy")
     parameters = deepcopy(parameters)
     print("before sample")
