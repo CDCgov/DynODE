@@ -23,6 +23,7 @@ from .dimension import (
 )
 from .initializer import Initializer
 from .parameter_set import ParameterSet
+from .params import SolverParams
 from .sample import sample_then_resolve
 
 
@@ -352,6 +353,8 @@ class SimulationConfig(BaseModel):
         for key, parameter_set in self.parameter_sets.items():
             #            if set_keys is not None and key not in set_keys:
             #                continue  # Skip keys not in the target list
+            if isinstance(parameter_set, SolverParams):
+                continue
 
             merged_fields = {
                 **parameter_set.model_dump(),
@@ -375,6 +378,9 @@ class SimulationConfig(BaseModel):
 
     def sample_then_resolve_parameters(self) -> None:
         for name, parameter_set in self.parameter_sets.items():
+            if isinstance(parameter_set, SolverParams):
+                continue
+
             parameter_set = sample_then_resolve(
                 parameter_set, _prefix=f"{name}_"
             )
