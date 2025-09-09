@@ -369,7 +369,8 @@ class SimulationConfig(BaseModel):
                 new_param_set = parameter_set.__class__.model_construct(
                     **merged_fields
                 )
-
+            print(key)
+            print(new_param_set)
             self.parameter_sets[key] = new_param_set
 
     def sample_then_resolve_parameters(self) -> None:
