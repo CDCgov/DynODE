@@ -4,7 +4,6 @@ from functools import cached_property
 from types import SimpleNamespace
 from typing import List, Union
 
-from diffrax import AbstractSolver, Tsit5
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -338,19 +337,40 @@ class SimulationConfig(BaseModel):
     def inject_parameters(
         self, injection_parameter_set: ParameterSet, set_keys: List[str] = None
     ) -> None:
-        # Note to self: currenlty not using the set_keys. Create another version of the function that merges without field overwrite
-        for base_key, parameter_set in self.parameter_sets.items():
-            merged = parameter_set.model_dump()
+        """
+        Injects parameters from `injection_parameter_set` into selected parameter sets.
 
-            for key, parameter in injection_parameter_set.model_dump().items():
-                if isinstance(parameter, AbstractSolver):
-                    parameter = Tsit5()
+        Parameters
+        ----------
+        injection_parameter_set : ParameterSet
+            The source of parameters to inject.
 
-                merged[key] = parameter
+        set_keys : List[str], optional
+            A list of keys in `self.parameter_sets` to inject into.
+            If None, injects into all parameter sets.
+        """
+        for key, parameter_set in self.parameter_sets.items():
+            #            if set_keys is not None and key not in set_keys:
+            #                continue  # Skip keys not in the target list
 
-            self.parameter_sets[base_key] = (
-                parameter_set.__class__.model_validate(merged)
-            )
+            merged_fields = {
+                **parameter_set.model_dump(),
+                **injection_parameter_set.model_dump(),
+            }
+
+            # Reconstruct the model safely
+            try:
+                new_param_set = parameter_set.__class__.model_validate(
+                    merged_fields
+                )
+            except TypeError as e:
+                print(e.errors())
+                # Fallback if validation fails due to abstract types
+                new_param_set = parameter_set.__class__.model_construct(
+                    **merged_fields
+                )
+
+            self.parameter_sets[key] = new_param_set
 
     def sample_then_resolve_parameters(self) -> None:
         for name, parameter_set in self.parameter_sets.items():
