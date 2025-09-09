@@ -343,8 +343,10 @@ class SimulationConfig(BaseModel):
                 **parameter_set.model_dump(),
                 **injection_parameter_set.model_dump(),
             }
-            parameter_set = parameter_set.model_copy(update=merged_fields)
-            self.parameter_sets[key] = parameter_set
+            new_param_set = parameter_set.__class__.model_validate(
+                merged_fields
+            )
+            self.parameter_sets[key] = new_param_set
 
     def sample_then_resolve_parameters(self) -> None:
         for name, parameter_set in self.parameter_sets.items():
