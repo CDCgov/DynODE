@@ -4,6 +4,7 @@ from pydantic import (
 )
 
 from .parameter_set import ParameterSet
+from .params import SolverParams
 from .sample import sample_then_resolve
 from .simulation_config import SimulationConfig
 
@@ -11,6 +12,7 @@ from .simulation_config import SimulationConfig
 class CompartmentalModel(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
 
+    solver_parameters: SolverParams
     shared_parameters: ParameterSet  # add Pydantic Field to class attributes
     configs: dict[int, SimulationConfig]
 
