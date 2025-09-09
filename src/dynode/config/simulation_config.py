@@ -4,6 +4,7 @@ from functools import cached_property
 from types import SimpleNamespace
 from typing import List, Union
 
+from diffrax import AbstractSolver, Tsit5
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -338,15 +339,18 @@ class SimulationConfig(BaseModel):
         self, injection_parameter_set: ParameterSet, set_keys: List[str] = None
     ) -> None:
         # Note to self: currenlty not using the set_keys. Create another version of the function that merges without field overwrite
-        for key, parameter_set in self.parameter_sets.items():
-            merged_fields = {
-                **parameter_set.model_dump(),
-                **injection_parameter_set.model_dump(),
-            }
-            new_param_set = parameter_set.__class__.model_validate(
-                merged_fields
+        for base_key, parameter_set in self.parameter_sets.items():
+            merged = parameter_set.model_dump()
+
+            for key, parameter in injection_parameter_set.model_dump().items():
+                if isinstance(parameter, AbstractSolver):
+                    parameter = Tsit5()
+
+                merged[key] = parameter
+
+            self.parameter_sets[base_key] = (
+                parameter_set.__class__.model_validate(merged)
             )
-            self.parameter_sets[key] = new_param_set
 
     def sample_then_resolve_parameters(self) -> None:
         for name, parameter_set in self.parameter_sets.items():
