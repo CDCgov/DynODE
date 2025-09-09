@@ -364,7 +364,7 @@ class SimulationConfig(BaseModel):
                     merged_fields
                 )
             except TypeError as e:
-                print(e.errors())
+                print(e)
                 # Fallback if validation fails due to abstract types
                 new_param_set = parameter_set.__class__.model_construct(
                     **merged_fields
