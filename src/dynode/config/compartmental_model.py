@@ -29,5 +29,5 @@ class CompartmentalModel(BaseModel):
             config.inject_parameters(
                 injection_parameter_set=self.shared_parameters
             )
-            config.sample_then_resolve_parameters()
+            config.sample_then_resolve_parameters(prefix=str(key))
             self.configs[key] = config

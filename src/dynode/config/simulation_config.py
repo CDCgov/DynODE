@@ -374,13 +374,13 @@ class SimulationConfig(BaseModel):
                 )
             self.parameter_sets[key] = new_param_set
 
-    def sample_then_resolve_parameters(self) -> None:
+    def sample_then_resolve_parameters(self, prefix: str) -> None:
         for key, parameter_set in self.parameter_sets.items():
             if isinstance(parameter_set, SolverParams):
                 continue
 
             parameter_set = sample_then_resolve(
-                parameter_set, _prefix=f"{key}_"
+                parameter_set, _prefix=f"{prefix}_"
             )
             print(key)
             print(parameter_set)
