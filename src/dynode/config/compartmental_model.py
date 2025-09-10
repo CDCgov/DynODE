@@ -14,7 +14,14 @@ class CompartmentalModel(BaseModel):
     shared_parameters: ParameterSet  # add Pydantic Field to class attributes
     configs: dict[int, SimulationConfig]
 
-    def model_post_init(self, __context) -> None:
+    def numpyro_model(self, **kwargs):
+        """User must implement this method to define the NumPyro model."""
+
+        raise NotImplementedError(
+            "implement functionality to get initial state"
+        )
+
+    def parameter_init(self) -> None:
         print("before 1st sample_then_resolve")
         self.shared_parameters = sample_then_resolve(self.shared_parameters)
 
@@ -24,10 +31,3 @@ class CompartmentalModel(BaseModel):
             )
             config.sample_then_resolve_parameters()
             self.configs[key] = config
-
-    def numpyro_model(self, **kwargs):
-        """User must implement this method to define the NumPyro model."""
-
-        raise NotImplementedError(
-            "implement functionality to get initial state"
-        )
