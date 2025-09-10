@@ -21,13 +21,17 @@ class CompartmentalModel(BaseModel):
             "implement functionality to get initial state"
         )
 
-    def parameter_init(self) -> None:
+    def parameter_init(self):
         print("before 1st sample_then_resolve")
-        self.shared_parameters = sample_then_resolve(self.shared_parameters)
+        shared_parameters = sample_then_resolve(self.shared_parameters)
 
+        configs = {}
         for key, config in self.configs.items():
-            config.inject_parameters(
-                injection_parameter_set=self.shared_parameters
+            config_copy = config.model_copy(deep=True)
+            config_copy.inject_parameters(
+                injection_parameter_set=shared_parameters
             )
-            config.sample_then_resolve_parameters(prefix=str(key))
-            self.configs[key] = config
+            config_copy.sample_then_resolve_parameters(prefix=str(key))
+            configs[key] = config_copy
+
+        return configs, shared_parameters

@@ -382,6 +382,4 @@ class SimulationConfig(BaseModel):
             parameter_set = sample_then_resolve(
                 parameter_set, _prefix=f"{prefix}_"
             )
-            print(key)
-            print(parameter_set)
             self.parameter_sets[key] = parameter_set
