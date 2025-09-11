@@ -199,20 +199,30 @@
 #    return parameters
 from typing import Any
 
+import jax.tree_util as jtu
 import numpyro
 import numpyro.distributions as dist
-import tree
+import tree  # dm-tree
 from pydantic import BaseModel
 
 from .deterministic_parameter import DeterministicParameter
 
 
 def sample_then_resolve(parameters: Any, root_prefix: str = ""):
-    # --- BaseModel registration ---
+    """
+    Samples all numpyro distributions found in `parameters` and then resolves
+    DeterministicParameter leaves, returning a new structure of the same shape.
+
+    Notes:
+    - We lazily register each concrete Pydantic BaseModel (and ParameterSet)
+      class we encounter as a JAX PyTree so dm-tree can traverse inside.
+    - We do NOT pass rng_key to numpyro.sample; NumPyro handlers supply it.
+    """
+
+    # --- PyTree registration helpers ----------------------------------------
     def _bm_flatten(x: BaseModel):
-        # Use .model_dump() for pydantic v2; for v1 use .dict()
+        # Pydantic v2: model_dump(); if you're on v1, use x.dict()
         d = x.model_dump()
-        # Keep a deterministic key order so unflatten lines up
         keys = tuple(sorted(d.keys()))
         children = [d[k] for k in keys]
         aux = (x.__class__, keys)
@@ -222,34 +232,58 @@ def sample_then_resolve(parameters: Any, root_prefix: str = ""):
         cls, keys = aux
         return cls(**{k: v for k, v in zip(keys, children)})
 
-    tree.register_pytree_node(BaseModel, _bm_flatten, _bm_unflatten)
+    def _ensure_registered(x: Any):
+        """
+        Lazily register the *concrete class* of BaseModel/ParameterSet instances.
+        JAX registration is per-class (not inherited).
+        """
+        t = type(x)
+        if isinstance(x, BaseModel):
+            # Register concrete subclass of BaseModel
+            try:
+                jtu.register_pytree_node(t, _bm_flatten, _bm_unflatten)
+            except ValueError:
+                # Already registered: jax.tree_util raises ValueError on duplicate
+                pass
 
-    def _path_to_name(path_entries, root_prefix: str | None = None) -> str:
+    # Shallow pre-walk to register encountered types (no heavy copying).
+    def _register_walk(obj: Any):
+        _ensure_registered(obj)
+        if isinstance(obj, dict):
+            for v in obj.values():
+                _register_walk(v)
+        elif isinstance(obj, (list, tuple)):
+            for v in obj:
+                _register_walk(v)
+        # Arrays (jnp/np) are leaves; BaseModel/ParameterSet handled above.
+
+    _register_walk(parameters)
+
+    # --- Path → name helper ---------------------------------------------------
+    def _path_to_name(path_entries, root_prefix_str: str | None = None) -> str:
         tokens = []
-        if root_prefix:
-            tokens.append(root_prefix)
+        if root_prefix_str:
+            tokens.append(root_prefix_str)
         for p in path_entries:
-            # dm-tree path entries have .key (dict) or .idx (sequence)
+            # dm-tree Path elements expose .key (for dicts) or .idx (for sequences)
             if hasattr(p, "key"):
                 tokens.append(str(p.key))
             elif hasattr(p, "idx"):
                 tokens.append(str(p.idx))
             else:
-                # fallback (shouldn't happen often)
                 tokens.append(str(p))
         return "_".join(tokens)
 
-    # 1) sample all numpyro distributions
+    # --- 1) Sample all numpyro distributions ---------------------------------
     def _sample_leaf(path, x):
         if isinstance(x, dist.Distribution):
             name = _path_to_name(path, root_prefix or None)
-            # Let NumPyro supply RNG via handlers; don't pass rng_key
             return numpyro.sample(name, x)
         return x
 
     sampled = tree.map_structure_with_path(_sample_leaf, parameters)
 
-    # 2) resolve DeterministicParameter against the *sampled* structure
+    # --- 2) Resolve DeterministicParameter against the sampled structure ------
     def _resolve_leaf(path, x):
         if isinstance(x, DeterministicParameter):
             name = _path_to_name(path, root_prefix or None)
