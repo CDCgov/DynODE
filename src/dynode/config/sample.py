@@ -203,12 +203,15 @@ import jax.tree_util as jtu
 import numpyro
 import numpyro.distributions as dist
 import tree  # dm-tree
+from jax import Array
 from pydantic import BaseModel
 
 from .deterministic_parameter import DeterministicParameter
 
 
-def sample_then_resolve(parameters: Any, root_prefix: str = ""):
+def sample_then_resolve(
+    parameters: Any, rng_key: Array | None = None, root_prefix: str = ""
+):
     """
     Samples all numpyro distributions found in `parameters` and then resolves
     DeterministicParameter leaves, returning a new structure of the same shape.
@@ -278,7 +281,7 @@ def sample_then_resolve(parameters: Any, root_prefix: str = ""):
     def _sample_leaf(path, x):
         if isinstance(x, dist.Distribution):
             name = _path_to_name(path, root_prefix or None)
-            return numpyro.sample(name, x)
+            return numpyro.sample(name, x, rng_key=rng_key)
         return x
 
     sampled = tree.map_structure_with_path(_sample_leaf, parameters)
