@@ -207,6 +207,7 @@ from jax import Array
 from pydantic import BaseModel
 
 from .deterministic_parameter import DeterministicParameter
+from .parameter_set import ParameterSet
 
 
 def sample_then_resolve(
@@ -235,6 +236,19 @@ def sample_then_resolve(
         cls, keys = aux
         return cls(**{k: v for k, v in zip(keys, children)})
 
+    def _ps_flatten(x: ParameterSet):
+        # If ParameterSet is a BaseModel, we won’t reach here (handled by BaseModel registration).
+        # Otherwise expose as a dict-like structure.
+        d = dict(x) if not isinstance(x, BaseModel) else x.model_dump()
+        keys = tuple(sorted(d.keys()))
+        children = [d[k] for k in keys]
+        aux = (x.__class__, keys)
+        return children, aux
+
+    def _ps_unflatten(aux, children):
+        cls, keys = aux
+        return cls(**{k: v for k, v in zip(keys, children)})
+
     def _ensure_registered(x: Any):
         """
         Lazily register the *concrete class* of BaseModel/ParameterSet instances.
@@ -247,6 +261,11 @@ def sample_then_resolve(
                 jtu.register_pytree_node(t, _bm_flatten, _bm_unflatten)
             except ValueError:
                 # Already registered: jax.tree_util raises ValueError on duplicate
+                pass
+        elif isinstance(x, ParameterSet) and not isinstance(x, BaseModel):
+            try:
+                jtu.register_pytree_node(t, _ps_flatten, _ps_unflatten)
+            except ValueError:
                 pass
 
     # Shallow pre-walk to register encountered types (no heavy copying).
