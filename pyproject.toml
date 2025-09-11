@@ -28,6 +28,7 @@ sphinx-book-theme = "^1.1.4"
 tomli = "^2.2.1"
 myst-parser = "^4.0.1"
 sphinxcontrib-mermaid = "^1.0.0"
+dm-tree = "^0.1.9"
 
 [tool.poetry.group.dev.dependencies]
 pandas-stubs = "2.2.*"
