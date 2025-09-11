@@ -19,8 +19,6 @@ from .params import (
 )
 from .placeholder_sample import PlaceholderSample, SamplePlaceholderError
 from .sample import (
-    resolve_deterministic,
-    sample_distributions,
     sample_then_resolve,
 )
 from .simulation_config import Compartment, SimulationConfig
@@ -57,6 +55,4 @@ __all__ = [
     "SamplePlaceholderError",
     "DeterministicParameter",
     "sample_then_resolve",
-    "resolve_deterministic",
-    "sample_distributions",
 ]
