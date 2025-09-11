@@ -197,115 +197,126 @@
 #    )
 #
 #    return parameters
+import dataclasses as dc
 from typing import Any
 
 import jax.tree_util as jtu
 import numpyro
 import numpyro.distributions as dist
 import tree  # dm-tree
-from jax import Array
 from pydantic import BaseModel
 
 from .deterministic_parameter import DeterministicParameter
-from .parameter_set import ParameterSet
+from .params import ParameterSet
+
+# ---------- PyTree registrations (lazy, per concrete class) ----------
 
 
-def sample_then_resolve(
-    parameters: Any, rng_key: Array | None = None, root_prefix: str = ""
-):
-    """
-    Samples all numpyro distributions found in `parameters` and then resolves
-    DeterministicParameter leaves, returning a new structure of the same shape.
+def _bm_flatten(x: BaseModel):
+    # v2: model_dump(); v1: x.dict()
+    d = x.model_dump()
+    keys = tuple(sorted(d.keys()))
+    children = [d[k] for k in keys]
+    aux = (x.__class__, keys)
+    return children, aux
 
-    Notes:
-    - We lazily register each concrete Pydantic BaseModel (and ParameterSet)
-      class we encounter as a JAX PyTree so dm-tree can traverse inside.
-    - We do NOT pass rng_key to numpyro.sample; NumPyro handlers supply it.
-    """
 
-    # --- PyTree registration helpers ----------------------------------------
-    def _bm_flatten(x: BaseModel):
-        # Pydantic v2: model_dump(); if you're on v1, use x.dict()
-        d = x.model_dump()
-        keys = tuple(sorted(d.keys()))
-        children = [d[k] for k in keys]
-        aux = (x.__class__, keys)
-        return children, aux
+def _bm_unflatten(aux, children):
+    cls, keys = aux
+    return cls(**{k: v for k, v in zip(keys, children)})
 
-    def _bm_unflatten(aux, children):
-        cls, keys = aux
-        return cls(**{k: v for k, v in zip(keys, children)})
 
-    def _ps_flatten(x: ParameterSet):
-        # If ParameterSet is a BaseModel, we won’t reach here (handled by BaseModel registration).
-        # Otherwise expose as a dict-like structure.
-        d = dict(x) if not isinstance(x, BaseModel) else x.model_dump()
-        keys = tuple(sorted(d.keys()))
-        children = [d[k] for k in keys]
-        aux = (x.__class__, keys)
-        return children, aux
+def _ps_flatten(x: ParameterSet):
+    # If ParameterSet subclasses BaseModel, the BaseModel hook will handle it.
+    d = dict(x) if not isinstance(x, BaseModel) else x.model_dump()
+    keys = tuple(sorted(d.keys()))
+    children = [d[k] for k in keys]
+    aux = (x.__class__, keys)
+    return children, aux
 
-    def _ps_unflatten(aux, children):
-        cls, keys = aux
-        return cls(**{k: v for k, v in zip(keys, children)})
 
-    def _ensure_registered(x: Any):
-        """
-        Lazily register the *concrete class* of BaseModel/ParameterSet instances.
-        JAX registration is per-class (not inherited).
-        """
-        t = type(x)
+def _ps_unflatten(aux, children):
+    cls, keys = aux
+    return cls(**{k: v for k, v in zip(keys, children)})
+
+
+def _dc_flatten(x: Any):
+    # Generic dataclass support
+    flds = dc.fields(x)
+    keys = tuple(f.name for f in flds)
+    children = [getattr(x, k) for k in keys]
+    aux = (x.__class__, keys)
+    return children, aux
+
+
+def _dc_unflatten(aux, children):
+    cls, keys = aux
+    return cls(**{k: v for k, v in zip(keys, children)})
+
+
+def _ensure_registered(x: Any):
+    t = type(x)
+    try:
         if isinstance(x, BaseModel):
-            # Register concrete subclass of BaseModel
-            try:
-                jtu.register_pytree_node(t, _bm_flatten, _bm_unflatten)
-            except ValueError:
-                # Already registered: jax.tree_util raises ValueError on duplicate
-                pass
+            jtu.register_pytree_node(t, _bm_flatten, _bm_unflatten)
         elif isinstance(x, ParameterSet) and not isinstance(x, BaseModel):
-            try:
-                jtu.register_pytree_node(t, _ps_flatten, _ps_unflatten)
-            except ValueError:
-                pass
+            jtu.register_pytree_node(t, _ps_flatten, _ps_unflatten)
+        elif dc.is_dataclass(x):
+            jtu.register_pytree_node(t, _dc_flatten, _dc_unflatten)
+    except ValueError:
+        # already registered
+        pass
 
-    # Shallow pre-walk to register encountered types (no heavy copying).
-    def _register_walk(obj: Any):
-        _ensure_registered(obj)
-        if isinstance(obj, dict):
-            for v in obj.values():
-                _register_walk(v)
-        elif isinstance(obj, (list, tuple)):
-            for v in obj:
-                _register_walk(v)
-        # Arrays (jnp/np) are leaves; BaseModel/ParameterSet handled above.
 
+def _register_walk(obj: Any):
+    _ensure_registered(obj)
+    if isinstance(obj, dict):
+        for v in obj.values():
+            _register_walk(v)
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            _register_walk(v)
+    # jnp/np arrays remain leaves (good); nested containers are covered above
+
+
+# ---------- Path → name ----------
+
+
+def _path_to_name(path_entries, root_prefix: str | None) -> str:
+    tokens: list[str] = []
+    if root_prefix:
+        tokens.append(root_prefix)
+    for p in path_entries:
+        if hasattr(p, "key"):
+            tokens.append(str(p.key))  # dict key
+        elif hasattr(p, "idx"):
+            tokens.append(str(p.idx))  # sequence index
+        else:
+            tokens.append(str(p))
+    return "_".join(tokens)
+
+
+# ---------- Public API ----------
+
+
+def sample_then_resolve(parameters: Any, root_prefix: str = "") -> Any:
+    """
+    Replace all numpyro Distribution leaves with samples and then
+    resolve DeterministicParameter leaves. Returns a new structure.
+    """
+    # 0) make sure dm-tree can descend into your containers
     _register_walk(parameters)
 
-    # --- Path → name helper ---------------------------------------------------
-    def _path_to_name(path_entries, root_prefix_str: str | None = None) -> str:
-        tokens = []
-        if root_prefix_str:
-            tokens.append(root_prefix_str)
-        for p in path_entries:
-            # dm-tree Path elements expose .key (for dicts) or .idx (for sequences)
-            if hasattr(p, "key"):
-                tokens.append(str(p.key))
-            elif hasattr(p, "idx"):
-                tokens.append(str(p.idx))
-            else:
-                tokens.append(str(p))
-        return "_".join(tokens)
-
-    # --- 1) Sample all numpyro distributions ---------------------------------
+    # 1) sample all distributions
     def _sample_leaf(path, x):
         if isinstance(x, dist.Distribution):
             name = _path_to_name(path, root_prefix or None)
-            return numpyro.sample(name, x, rng_key=rng_key)
+            return numpyro.sample(name, x)
         return x
 
     sampled = tree.map_structure_with_path(_sample_leaf, parameters)
 
-    # --- 2) Resolve DeterministicParameter against the sampled structure ------
+    # 2) resolve deterministics using the sampled structure
     def _resolve_leaf(path, x):
         if isinstance(x, DeterministicParameter):
             name = _path_to_name(path, root_prefix or None)
@@ -313,4 +324,11 @@ def sample_then_resolve(
         return x
 
     resolved = tree.map_structure_with_path(_resolve_leaf, sampled)
+
+    # 3) (optional) fail fast if any Distributions slipped through
+    # def _has_dist(z: Any) -> bool:
+    #     leaves = tree.flatten(z)[0]
+    #     return any(isinstance(l, dist.Distribution) for l in leaves)
+    # assert not _has_dist(resolved), "Unsampled Distribution found after sample_then_resolve."
+
     return resolved
