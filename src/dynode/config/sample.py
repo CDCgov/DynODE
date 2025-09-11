@@ -197,10 +197,12 @@
 #    )
 #
 #    return parameters
+
 import dataclasses as dc
 from typing import Any
 
 import jax.tree_util as jtu
+import numpy as np
 import numpyro
 import numpyro.distributions as dist
 import tree  # dm-tree
@@ -209,13 +211,27 @@ from pydantic import BaseModel
 from .deterministic_parameter import DeterministicParameter
 from .params import ParameterSet
 
+
+# ---------- helpers: normalize object arrays so dm-tree can descend ----------
+def _normalize_object_arrays(x: Any) -> Any:
+    # Convert only object-dtype ndarrays to lists; leave numeric arrays alone.
+    if isinstance(x, np.ndarray):
+        if x.dtype == object:
+            return [_normalize_object_arrays(v) for v in x.tolist()]
+        return x
+    if isinstance(x, dict):
+        return {k: _normalize_object_arrays(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        t = type(x)
+        return t(_normalize_object_arrays(v) for v in x)
+    return x
+
+
 # ---------- PyTree registrations (lazy, per concrete class) ----------
-
-
 def _bm_flatten(x: BaseModel):
-    # v2: model_dump(); v1: x.dict()
+    # Pydantic v2: model_dump(); v1: x.dict()
     d = x.model_dump()
-    keys = tuple(sorted(d.keys()))
+    keys = tuple(d.keys())  # preserve insertion order
     children = [d[k] for k in keys]
     aux = (x.__class__, keys)
     return children, aux
@@ -227,9 +243,10 @@ def _bm_unflatten(aux, children):
 
 
 def _ps_flatten(x: ParameterSet):
-    # If ParameterSet subclasses BaseModel, the BaseModel hook will handle it.
-    d = dict(x) if not isinstance(x, BaseModel) else x.model_dump()
-    keys = tuple(sorted(d.keys()))
+    if isinstance(x, BaseModel):
+        return _bm_flatten(x)
+    d = dict(x)
+    keys = tuple(d.keys())
     children = [d[k] for k in keys]
     aux = (x.__class__, keys)
     return children, aux
@@ -241,7 +258,6 @@ def _ps_unflatten(aux, children):
 
 
 def _dc_flatten(x: Any):
-    # Generic dataclass support
     flds = dc.fields(x)
     keys = tuple(f.name for f in flds)
     children = [getattr(x, k) for k in keys]
@@ -269,45 +285,55 @@ def _ensure_registered(x: Any):
 
 
 def _register_walk(obj: Any):
+    """
+    Lazily register *and recurse into* containers so nested BaseModels
+    (e.g., Strain) get registered before traversal.
+    """
     _ensure_registered(obj)
+
     if isinstance(obj, dict):
         for v in obj.values():
             _register_walk(v)
+
     elif isinstance(obj, (list, tuple)):
         for v in obj:
             _register_walk(v)
-    # jnp/np arrays remain leaves (good); nested containers are covered above
+
+    elif isinstance(obj, BaseModel):
+        # recurse into fields of this BaseModel
+        for v in obj.model_dump().values():
+            _register_walk(v)
+
+    elif dc.is_dataclass(obj):
+        # recurse into dataclass fields
+        for f in dc.fields(obj):
+            _register_walk(getattr(obj, f.name))
+
+    # arrays remain leaves; object arrays are normalized to lists earlier
 
 
-# ---------- Path → name ----------
-
-
+# ---------- path → name ----------
 def _path_to_name(path_entries, root_prefix: str | None) -> str:
-    tokens: list[str] = []
-    if root_prefix:
-        tokens.append(root_prefix)
+    parts = [root_prefix] if root_prefix else []
     for p in path_entries:
         if hasattr(p, "key"):
-            tokens.append(str(p.key))  # dict key
+            parts.append(str(p.key))
         elif hasattr(p, "idx"):
-            tokens.append(str(p.idx))  # sequence index
+            parts.append(str(p.idx))
         else:
-            tokens.append(str(p))
-    return "_".join(tokens)
+            parts.append(str(p))
+    return "_".join(parts)
 
 
-# ---------- Public API ----------
-
-
+# ---------- public API ----------
 def sample_then_resolve(parameters: Any, root_prefix: str = "") -> Any:
-    """
-    Replace all numpyro Distribution leaves with samples and then
-    resolve DeterministicParameter leaves. Returns a new structure.
-    """
-    # 0) make sure dm-tree can descend into your containers
+    # (0) normalize object arrays so traversal can reach distributions inside
+    parameters = _normalize_object_arrays(parameters)
+
+    # (1) ensure dm-tree can descend into nested containers (incl. BaseModel->Strain)
     _register_walk(parameters)
 
-    # 1) sample all distributions
+    # (2) sample all distributions
     def _sample_leaf(path, x):
         if isinstance(x, dist.Distribution):
             name = _path_to_name(path, root_prefix or None)
@@ -316,7 +342,7 @@ def sample_then_resolve(parameters: Any, root_prefix: str = "") -> Any:
 
     sampled = tree.map_structure_with_path(_sample_leaf, parameters)
 
-    # 2) resolve deterministics using the sampled structure
+    # (3) resolve DeterministicParameter leaves
     def _resolve_leaf(path, x):
         if isinstance(x, DeterministicParameter):
             name = _path_to_name(path, root_prefix or None)
@@ -325,10 +351,9 @@ def sample_then_resolve(parameters: Any, root_prefix: str = "") -> Any:
 
     resolved = tree.map_structure_with_path(_resolve_leaf, sampled)
 
-    # 3) (optional) fail fast if any Distributions slipped through
-    # def _has_dist(z: Any) -> bool:
-    #     leaves = tree.flatten(z)[0]
-    #     return any(isinstance(l, dist.Distribution) for l in leaves)
-    # assert not _has_dist(resolved), "Unsampled Distribution found after sample_then_resolve."
+    # (4) optional safety check to catch any missed distributions
+    # leaves = tree.flatten(resolved)[0]
+    # assert not any(isinstance(l, dist.Distribution) for l in leaves), \
+    #     "Unsampled Distribution left after sample_then_resolve."
 
     return resolved
