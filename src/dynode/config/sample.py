@@ -337,6 +337,7 @@ def sample_then_resolve(parameters: Any, root_prefix: str = "") -> Any:
     def _sample_leaf(path, x):
         if isinstance(x, dist.Distribution):
             name = _path_to_name(path, root_prefix or None)
+            print("dist: ", x)
             return numpyro.sample(name, x)
         return x
 
