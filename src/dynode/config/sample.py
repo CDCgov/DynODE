@@ -234,6 +234,9 @@ def _bm_flatten(x: BaseModel):
     keys = tuple(d.keys())  # preserve insertion order
     children = [d[k] for k in keys]
     aux = (x.__class__, keys)
+    print("BaseModel Flatten: ")
+    print("children ", children)
+    print("aux ", aux)
     return children, aux
 
 
