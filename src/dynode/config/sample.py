@@ -211,6 +211,36 @@ from pydantic import BaseModel
 from .deterministic_parameter import DeterministicParameter
 
 
+# add this helper near the top
+def _to_plain(obj: Any) -> Any:
+    """Convert BaseModel / dataclass containers to plain dicts/lists/tuples recursively."""
+    if isinstance(obj, BaseModel):
+        d = obj.model_dump()
+        return {k: _to_plain(v) for k, v in d.items()}
+    if dc.is_dataclass(obj) and not isinstance(obj, type):
+        return {
+            f.name: _to_plain(getattr(obj, f.name)) for f in dc.fields(obj)
+        }
+    if isinstance(obj, dict):
+        return {k: _to_plain(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_to_plain(v) for v in obj]
+    if isinstance(obj, tuple):
+        return tuple(_to_plain(v) for v in obj)
+    return obj
+
+
+def _is_leaf_for_pass1(x):
+    # Treat Distributions and DeterministicParameters as leaves so we don't
+    # descend into their internals.
+    return isinstance(x, (dist.Distribution, DeterministicParameter))
+
+
+def _is_leaf_for_pass2(x):
+    # Same idea for the second pass; deterministics must remain leaves.
+    return isinstance(x, (dist.Distribution, DeterministicParameter))
+
+
 # --- Optional: convert only object arrays -> lists so we can descend ---
 def _normalize_object_arrays(x: Any) -> Any:
     if isinstance(x, np.ndarray) and x.dtype == object:
@@ -309,11 +339,11 @@ def sample_then_resolve(parameters: Any, root_prefix: str = "") -> Any:
     _register_walk(parameters)
 
     # 2) PASS 1: sample all distributions
-    paths_and_leaves, treedef = jtu.tree_flatten_with_path(parameters)
-    if paths_and_leaves:
-        paths, leaves = zip(*paths_and_leaves)
-    else:
-        paths, leaves = (), ()
+    paths_and_leaves, treedef = jtu.tree_flatten_with_path(
+        parameters, is_leaf=_is_leaf_for_pass1
+    )
+    paths, leaves = zip(*paths_and_leaves) if paths_and_leaves else ([], [])
+
     sampled_leaves = []
     for path, leaf in zip(paths, leaves):
         if isinstance(leaf, dist.Distribution):
@@ -322,29 +352,26 @@ def sample_then_resolve(parameters: Any, root_prefix: str = "") -> Any:
         else:
             sampled_leaves.append(leaf)
     sampled = jtu.tree_unflatten(treedef, sampled_leaves)
-    print("sampled leaves: ")
-    print(sampled_leaves)
+
+    # Build plain mapping for DeterministicParameter.resolve
+    root_plain = _to_plain(sampled)
 
     # 3) PASS 2: resolve DeterministicParameter against sampled
-    paths_and_leaves2, treedef2 = jtu.tree_flatten_with_path(sampled)
-    if paths_and_leaves2:
-        paths2, leaves2 = zip(*paths_and_leaves2)
-    else:
-        paths2, leaves2 = (), ()
+    paths_and_leaves2, treedef2 = jtu.tree_flatten_with_path(
+        sampled, is_leaf=_is_leaf_for_pass2
+    )
+    paths2, leaves2 = (
+        zip(*paths_and_leaves2) if paths_and_leaves2 else ([], [])
+    )
+
     resolved_leaves = []
     for path, leaf in zip(paths2, leaves2):
         if isinstance(leaf, DeterministicParameter):
             name = _name_from_path(path, root_prefix or None)
-            resolved_leaves.append(
-                numpyro.deterministic(name, leaf.resolve(sampled))
-            )
+            resolved_val = leaf.resolve(root_plain)  # <-- dict-like root
+            resolved_leaves.append(numpyro.deterministic(name, resolved_val))
         else:
             resolved_leaves.append(leaf)
+
     resolved = jtu.tree_unflatten(treedef2, resolved_leaves)
-
-    # Optional safety: ensure no Distributions slipped through
-    # _, leaves_chk = jtu.tree_flatten(resolved)
-    # assert not any(isinstance(l, dist.Distribution) for l in leaves_chk), \
-    #     "Unsampled Distribution left after sample_then_resolve."
-
     return resolved
