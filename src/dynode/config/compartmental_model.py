@@ -24,6 +24,8 @@ class CompartmentalModel(BaseModel):
     def parameter_init(self):
         print("before 1st sample_then_resolve")
         shared_parameters = sample_then_resolve(self.shared_parameters)
+        print("shared_parameters: ")
+        print(shared_parameters)
 
         configs = {}
         for key, config in self.configs.items():
