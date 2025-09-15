@@ -380,6 +380,6 @@ class SimulationConfig(BaseModel):
                 continue
 
             parameter_set = sample_then_resolve(
-                parameter_set, _prefix=f"{prefix}_"
+                parameter_set, root_prefix=f"{prefix}_"
             )
             self.parameter_sets[key] = parameter_set
