@@ -322,6 +322,8 @@ def sample_then_resolve(parameters: Any, root_prefix: str = "") -> Any:
         else:
             sampled_leaves.append(leaf)
     sampled = jtu.tree_unflatten(treedef, sampled_leaves)
+    print("sampled: ")
+    print(sampled)
 
     # 3) PASS 2: resolve DeterministicParameter against sampled
     paths_and_leaves2, treedef2 = jtu.tree_flatten_with_path(sampled)
