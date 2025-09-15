@@ -198,6 +198,7 @@
 #
 #    return parameters
 
+# utils_sample_then_resolve.py
 import dataclasses as dc
 from typing import Any
 
@@ -205,20 +206,15 @@ import jax.tree_util as jtu
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
-import tree  # dm-tree
 from pydantic import BaseModel
 
 from .deterministic_parameter import DeterministicParameter
-from .params import ParameterSet
 
 
-# ---------- helpers: normalize object arrays so dm-tree can descend ----------
+# --- Optional: convert only object arrays -> lists so we can descend ---
 def _normalize_object_arrays(x: Any) -> Any:
-    # Convert only object-dtype ndarrays to lists; leave numeric arrays alone.
-    if isinstance(x, np.ndarray):
-        if x.dtype == object:
-            return [_normalize_object_arrays(v) for v in x.tolist()]
-        return x
+    if isinstance(x, np.ndarray) and x.dtype == object:
+        return [_normalize_object_arrays(v) for v in x.tolist()]
     if isinstance(x, dict):
         return {k: _normalize_object_arrays(v) for k, v in x.items()}
     if isinstance(x, (list, tuple)):
@@ -227,35 +223,18 @@ def _normalize_object_arrays(x: Any) -> Any:
     return x
 
 
-# ---------- PyTree registrations (lazy, per concrete class) ----------
+# --- PyTree registrations for concrete classes we see (lazy) ---
 def _bm_flatten(x: BaseModel):
-    # Pydantic v2: model_dump(); v1: x.dict()
+    # pydantic v2: model_dump(); v1: x.dict()
     d = x.model_dump()
-    keys = tuple(d.keys())  # preserve insertion order
-    children = [d[k] for k in keys]
-    aux = (x.__class__, keys)
-    print("BaseModel Flatten: ")
-    print("children ", children)
-    print("aux ", aux)
-    return children, aux
-
-
-def _bm_unflatten(aux, children):
-    cls, keys = aux
-    return cls(**{k: v for k, v in zip(keys, children)})
-
-
-def _ps_flatten(x: ParameterSet):
-    if isinstance(x, BaseModel):
-        return _bm_flatten(x)
-    d = dict(x)
+    # preserve insertion order for stable site names
     keys = tuple(d.keys())
     children = [d[k] for k in keys]
     aux = (x.__class__, keys)
     return children, aux
 
 
-def _ps_unflatten(aux, children):
+def _bm_unflatten(aux, children):
     cls, keys = aux
     return cls(**{k: v for k, v in zip(keys, children)})
 
@@ -278,8 +257,6 @@ def _ensure_registered(x: Any):
     try:
         if isinstance(x, BaseModel):
             jtu.register_pytree_node(t, _bm_flatten, _bm_unflatten)
-        elif isinstance(x, ParameterSet) and not isinstance(x, BaseModel):
-            jtu.register_pytree_node(t, _ps_flatten, _ps_unflatten)
         elif dc.is_dataclass(x):
             jtu.register_pytree_node(t, _dc_flatten, _dc_unflatten)
     except ValueError:
@@ -288,37 +265,28 @@ def _ensure_registered(x: Any):
 
 
 def _register_walk(obj: Any):
-    """
-    Lazily register *and recurse into* containers so nested BaseModels
-    (e.g., Strain) get registered before traversal.
-    """
     _ensure_registered(obj)
-
     if isinstance(obj, dict):
         for v in obj.values():
             _register_walk(v)
-
     elif isinstance(obj, (list, tuple)):
         for v in obj:
             _register_walk(v)
-
     elif isinstance(obj, BaseModel):
-        # recurse into fields of this BaseModel
+        # recurse into fields so nested Pydantic subclasses (e.g., Strain) get registered
         for v in obj.model_dump().values():
             _register_walk(v)
-
     elif dc.is_dataclass(obj):
-        # recurse into dataclass fields
         for f in dc.fields(obj):
             _register_walk(getattr(obj, f.name))
+    # arrays stay leaves; object arrays normalized earlier
 
-    # arrays remain leaves; object arrays are normalized to lists earlier
 
-
-# ---------- path → name ----------
-def _path_to_name(path_entries, root_prefix: str | None) -> str:
+# --- path -> stable site name ---
+def _name_from_path(path, root_prefix: str | None) -> str:
     parts = [root_prefix] if root_prefix else []
-    for p in path_entries:
+    # KeyPath entries: .key for dict, .idx for sequences
+    for p in path:
         if hasattr(p, "key"):
             parts.append(str(p.key))
         elif hasattr(p, "idx"):
@@ -328,36 +296,53 @@ def _path_to_name(path_entries, root_prefix: str | None) -> str:
     return "_".join(parts)
 
 
-# ---------- public API ----------
+# --- public API ---
 def sample_then_resolve(parameters: Any, root_prefix: str = "") -> Any:
-    # (0) normalize object arrays so traversal can reach distributions inside
+    """
+    Replace numpyro Distribution leaves with samples and DeterministicParameter
+    leaves with deterministic nodes, preserving the original classes.
+    """
+    # 0) normalize only object arrays so we can traverse
     parameters = _normalize_object_arrays(parameters)
 
-    # (1) ensure dm-tree can descend into nested containers (incl. BaseModel->Strain)
+    # 1) ensure all concrete Pydantic/dataclass classes are registered
     _register_walk(parameters)
 
-    # (2) sample all distributions
-    def _sample_leaf(path, x):
-        if isinstance(x, dist.Distribution):
-            name = _path_to_name(path, root_prefix or None)
-            print("dist: ", x)
-            return numpyro.sample(name, x)
-        return x
+    # 2) PASS 1: sample all distributions
+    paths_and_leaves, treedef = jtu.tree_flatten_with_path(parameters)
+    if paths_and_leaves:
+        paths, leaves = zip(*paths_and_leaves)
+    else:
+        paths, leaves = (), ()
+    sampled_leaves = []
+    for path, leaf in zip(paths, leaves):
+        if isinstance(leaf, dist.Distribution):
+            name = _name_from_path(path, root_prefix or None)
+            sampled_leaves.append(numpyro.sample(name, leaf))
+        else:
+            sampled_leaves.append(leaf)
+    sampled = jtu.tree_unflatten(treedef, sampled_leaves)
 
-    sampled = tree.map_structure_with_path(_sample_leaf, parameters)
+    # 3) PASS 2: resolve DeterministicParameter against sampled
+    paths_and_leaves2, treedef2 = jtu.tree_flatten_with_path(sampled)
+    if paths_and_leaves2:
+        paths2, leaves2 = zip(*paths_and_leaves2)
+    else:
+        paths2, leaves2 = (), ()
+    resolved_leaves = []
+    for path, leaf in zip(paths2, leaves2):
+        if isinstance(leaf, DeterministicParameter):
+            name = _name_from_path(path, root_prefix or None)
+            resolved_leaves.append(
+                numpyro.deterministic(name, leaf.resolve(sampled))
+            )
+        else:
+            resolved_leaves.append(leaf)
+    resolved = jtu.tree_unflatten(treedef2, resolved_leaves)
 
-    # (3) resolve DeterministicParameter leaves
-    def _resolve_leaf(path, x):
-        if isinstance(x, DeterministicParameter):
-            name = _path_to_name(path, root_prefix or None)
-            return numpyro.deterministic(name, x.resolve(sampled))
-        return x
-
-    resolved = tree.map_structure_with_path(_resolve_leaf, sampled)
-
-    # (4) optional safety check to catch any missed distributions
-    # leaves = tree.flatten(resolved)[0]
-    # assert not any(isinstance(l, dist.Distribution) for l in leaves), \
+    # Optional safety: ensure no Distributions slipped through
+    # _, leaves_chk = jtu.tree_flatten(resolved)
+    # assert not any(isinstance(l, dist.Distribution) for l in leaves_chk), \
     #     "Unsampled Distribution left after sample_then_resolve."
 
     return resolved
