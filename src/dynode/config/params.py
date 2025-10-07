@@ -156,10 +156,13 @@ class TransmissionParams(ParameterSet):
         return strains
 
 
-class Params(BaseModel):
+class ParameterWrapper(BaseModel):
     """Miscellaneous parameters of an ODE model."""
 
     # allow users to pass custom types to ParamStore
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
+
     solver_params: SolverParams
     transmission_params: TransmissionParams
+    distributions: ParameterSet
+    deterministic_params: ParameterSet
