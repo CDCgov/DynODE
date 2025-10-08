@@ -5,7 +5,8 @@ from pydantic import (
 
 # from .parameter_set import ParameterSet
 from .params import ParameterWrapper
-from .sample import sample_then_resolve
+
+# from .sample import sample_then_resolve
 from .simulation_config import SimulationConfig
 
 
@@ -23,16 +24,20 @@ class CompartmentalModel(BaseModel):
             "implement functionality to get initial state"
         )
 
+    # Still need to verify if not injecting samples into each config will even work.
+    # might result in not yearly stratified results due to lack of unique site names for each year
+    # however might also not be an issue since we are simulating each year seperatly. Need to verify results.
     def parameter_init(self):
-        distributions = sample_then_resolve(self.distributions)
+        parameters = self.parameters.model_copy(deep=True)
+        distributions = parameters.distributions
+        deterministic_params = parameters.deterministic_params
+
+        distributions.sample_distributions()
+        deterministic_params.resolve_deterministic(distributions)
 
         configs = {}
         for key, config in self.configs.items():
             config_copy = config.model_copy(deep=True)
-            config_copy.inject_parameters(
-                injection_parameter_set=distributions
-            )
-            config_copy.sample_then_resolve_parameters(prefix=str(key))
             configs[key] = config_copy
 
-        return configs, distributions
+        return configs, parameters
