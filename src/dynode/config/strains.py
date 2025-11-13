@@ -1,8 +1,9 @@
 """Strain types for ODE compartment models."""
 
 from datetime import date
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
+import numpyro
 from jax.typing import ArrayLike
 from numpyro.distributions import Distribution
 from pydantic import (
@@ -11,6 +12,7 @@ from pydantic import (
     Field,
     NonNegativeFloat,
     PositiveFloat,
+    field_validator,
 )
 
 from dynode.typing import DynodeName
@@ -107,3 +109,34 @@ class Strain(BaseModel):
     contains valid bins, this field encodes which age bins
     will be introduced, None= All zeros for each age bin.""",
     )
+
+    interactions: Dict[
+        str, Union[float, ArrayLike, Distribution, DeterministicParameter]
+    ] = Field(
+        default_factory=dict,
+        description="Optional per-pair interaction overrides for this source strain.",
+    )
+
+    @field_validator("interactions", mode="after")
+    def _no_empty_keys(cls, v: Dict[str, object]) -> Dict[str, object]:
+        if "" in v:
+            raise ValueError(
+                "Interactions cannot have empty target strain names."
+            )
+        return v
+
+    def sample_distributions(self):
+        obj_dict = self.model_dump()
+
+        for key, value in obj_dict.items():
+            if issubclass(type(value), Distribution):
+                numpyro.sample(value)
+
+    # Need to support more than one parameter set for this function
+    # the dependent parameters could be in multiple other sets
+    def resolve_deterministic(self, dependent_parameter_set: dict[str, Any]):
+        obj_dict = self.model_dump()
+
+        for key, value in obj_dict.items():
+            if isinstance(value, DeterministicParameter):
+                numpyro.determinisitc(value.resolve(dependent_parameter_set))

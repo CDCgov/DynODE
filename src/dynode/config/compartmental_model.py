@@ -3,7 +3,7 @@ from pydantic import (
     ConfigDict,
 )
 
-# from .parameter_set import ParameterSet
+from .parameter_set import ParameterSet
 from .params import ParameterWrapper
 
 # from .sample import sample_then_resolve
@@ -15,6 +15,7 @@ class CompartmentalModel(BaseModel):
 
     #    shared_parameters: ParameterSet  # add Pydantic Field to class attributes
     parameters: ParameterWrapper
+    data: ParameterSet
     configs: dict[int, SimulationConfig]
 
     def numpyro_model(self, **kwargs):
