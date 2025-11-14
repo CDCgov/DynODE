@@ -13,10 +13,9 @@ from .simulation_config import SimulationConfig
 class CompartmentalModel(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
 
-    #    shared_parameters: ParameterSet  # add Pydantic Field to class attributes
     parameters: ParameterWrapper
     data: ParameterSet
-    configs: dict[int, SimulationConfig]
+    config: SimulationConfig
 
     def numpyro_model(self, **kwargs):
         """User must implement this method to define the NumPyro model."""
@@ -30,15 +29,20 @@ class CompartmentalModel(BaseModel):
     # however might also not be an issue since we are simulating each year seperatly. Need to verify results.
     def parameter_init(self):
         parameters = self.parameters.model_copy(deep=True)
+        data = self.data.model_copy(deep=True)
+        config = self.config.model_copy(deep=True)
+
         distributions = parameters.distributions
         deterministic_params = parameters.deterministic_params
+        transmission_params = parameters.transmission_params
 
         distributions.sample_distributions()
         deterministic_params.resolve_deterministic(distributions)
 
-        configs = {}
-        for key, config in self.configs.items():
-            config_copy = config.model_copy(deep=True)
-            configs[key] = config_copy
+        for strain in transmission_params.strains:
+            strain.sample_distributions()
+            strain.resolve_deterministic(distributions)
 
-        return configs, parameters
+        transmission_params.build_interaction_matrix()
+
+        return parameters, data, config

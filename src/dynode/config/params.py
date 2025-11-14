@@ -229,7 +229,8 @@ class ParameterWrapper(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
 
     solver_params: SolverParams
+    transmission_params: TransmissionParams
     distributions: ParameterSet
     deterministic_params: ParameterSet
-    strains: ParameterSet
-    compartments: ParameterSet
+    # strains: ParameterSet
+    # compartments: ParameterSet
