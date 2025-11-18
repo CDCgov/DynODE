@@ -125,7 +125,7 @@ class SimulationConfig(BaseModel):
     # parameters: Params = Field(
     #    description="""Model parameters, includes epidemiological and miscellaneous."""
     # )
-    parameter_sets: dict[str, ParameterSet]
+    # parameter_sets: dict[str, ParameterSet]
 
     @cached_property
     def idx(self):
