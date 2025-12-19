@@ -9,6 +9,11 @@ on a given day. The `micro` version is suffixed with an `a` in the case of mergi
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
 
+
+## [2025.12.19.1a] - updating pandas version
+### Changed
+- Updated `pandas` version in `pyproject.toml` to >= 2.3.2 so that DynODE can be used with CFA CloudOps
+
 ## [2025.07.14.1a] - adding DynODE wiki markdown to static docs site
 ### Added
 - `myst_parser` allows sphinx can parse markdown files into html

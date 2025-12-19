@@ -54,5 +54,5 @@ Contact Us
 
 For code specific questions reach out to:
 
-Tom Hladish (utx5@cdc.gov) or Ben Kok Toh (tjk3@cdc.gov) or Michael
+Tom Hladish (utx5@cdc.gov) or Kok Ben Toh (tjk3@cdc.gov) or Michael
 Batista(upi8@cdc.gov)
