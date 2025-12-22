@@ -1,15 +1,11 @@
 from datetime import date
-from typing import Annotated, Any
 
 import chex
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-from diffrax import Solution
-from pydantic import BeforeValidator, ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field
 
-# weird
-# unit test, sci eval, integration testing
 from dynode.config import (
     Compartment,
     Dimension,
@@ -26,36 +22,20 @@ from dynode.simulation import AbstractODEParams, simulate
 from dynode.typing import CompartmentGradients, CompartmentState
 
 
-def to_jax_array(v):
-    return jnp.array(v)
-
-
-JaxArray = Annotated[jnp.ndarray, BeforeValidator(to_jax_array)]
-
-
 class SIRInitializer(Initializer):
     """Initializer for SIR model, setting initial conditions for compartments."""
 
-    # Tell Pydantic it's okay to have jax.Array/jnp.ndarray fields
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
 
-    # Override parent defaults (instead of doing this in __init__)
     description: str = "An SIR initializer"
     initialize_date: date = date(2022, 2, 11)  # random date
     population_size: int = 1000
 
-    # New fields as jnp.ndarray
     age_demographics: jnp.ndarray = Field(...)
     risk_prop: jnp.ndarray = Field(...)
 
-    # Convert input to jnp.array before validation
-    @field_validator("age_demographics", "risk_prop", mode="before")
-    @classmethod
-    def _to_jax_array(cls, v: Any) -> jnp.ndarray:
-        return jnp.array(v)
-
     def get_initial_state(
-        self, s0_prop=0.99, i0_prop=0.01, **kwargs
+        self, s0_prop=0.99, i0_prop=0.01
     ) -> CompartmentState:
         """Get initial compartment values for an SIR model stratified by age."""
         assert s0_prop + i0_prop == 1.0, (
@@ -110,17 +90,28 @@ def get_config(
     initializer = SIRInitializer(
         age_demographics=age_demographics, risk_prop=risk_prop
     )
-    # contact_matrix = jnp.array([[[[0.25, 0.15], [0.35, 0.25]], [[0.15,0.35], [0.1,0.4]]],
-    #                             [[[0.4,0.1],[0.2,0.3]],[[0.25,0.35],[0.3,0.1]]]])
 
-    age_risk_prop = (
-        initializer.age_demographics[:, None] * initializer.risk_prop
-    )  # age by row, risk by column
-    contact_matrix = (
-        age_risk_prop[:, :, None, None] * age_risk_prop[None, None, :, :]
+    # Manually assigned contact matrix
+    contact_matrix = jnp.array(
+        [
+            [
+                [[0.03, 0.07], [0.11, 0.19], [0.29, 0.31]],
+                [[0.26, 0.04], [0.18, 0.12], [0.22, 0.18]],
+            ],
+            [
+                [[0.09, 0.21], [0.06, 0.14], [0.27, 0.23]],
+                [[0.33, 0.11], [0.05, 0.07], [0.21, 0.23]],
+            ],
+            [
+                [[0.16, 0.24], [0.08, 0.06], [0.22, 0.24]],
+                [[0.19, 0.01], [0.28, 0.17], [0.14, 0.21]],
+            ],
+        ]
     )
 
-    check_dimension(contact_matrix, age_demographics, risk_prop)
+    check_contact_matrix_shape(contact_matrix, age_dimension, risk_dimension)
+
+    ## delete this for now since the contact matrix is not square
 
     # normalize contact matrix by the spectral radius
     # contact_matrix = contact_matrix / jnp.max(
@@ -144,13 +135,14 @@ def get_config(
     return config
 
 
-def check_dimension(contact_matrix, age_demographics, risk_prop):
-    assert contact_matrix.shape == (
-        age_demographics.shape[0],
-        risk_prop.shape[1],
-        risk_prop.shape[0],
-        risk_prop.shape[1],
-    ), "Contact matrix shape does not match age demographics."
+def check_contact_matrix_shape(prod: jnp.ndarray, A: Dimension, B: Dimension):
+    """
+    The shape of contact matrix needs to be the product of shapes of A (age) and B (risk) dimensions for now
+    """
+    assert prod.shape == (len(A), len(B), len(A), len(B)), (
+        f"Contact matrix shape {prod.shape} does not match the product of "
+        f"age dimension shape {len(A)} and risk dimension shape {len(B)}."
+    )
 
 
 # define the behavior of the ODEs and the parameters they take
@@ -161,8 +153,6 @@ class SIR_ODEParams(AbstractODEParams):
     contact_matrix: chex.ArrayDevice  # contact matrix
 
 
-# define a function to easily translate the object oriented TransmissionParams
-# into the vectorized ODEParams.
 def get_odeparams(config: SimulationConfig) -> SIR_ODEParams:
     """Transform and vectorize transmission parameters into ODE parameters."""
     transmission_params = sample_then_resolve(
@@ -197,23 +187,6 @@ def sir_ode(
     return tuple([ds, di, dr])
 
 
-def run_simulation(config: SimulationConfig, tf) -> Solution:
-    ode_params = get_odeparams(config)
-
-    # we need just the jax arrays for the initial state to the ODEs
-    initial_state = config.initializer.get_initial_state(SIRConfig=config)
-    # solve the odes for 100 days
-    solution: Solution = simulate(
-        ode=sir_ode,
-        duration_days=tf,
-        initial_state=initial_state,
-        ode_parameters=ode_params,
-        solver_parameters=config.parameters.solver_params,
-    )
-    return solution
-
-
-# --- Run and Plot ---
 if __name__ == "__main__":
     config = get_config()
 
