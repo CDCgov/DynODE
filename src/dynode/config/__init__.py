@@ -1,6 +1,6 @@
 """DynODE configuration module."""
 
-from .bins import AgeBin, Bin, DiscretizedPositiveIntBin, WaneBin
+from .bins import AgeBin, Bin, DiscretizedPositiveIntBin, RiskBin, WaneBin
 from .deterministic_parameter import DeterministicParameter
 from .dimension import (
     Dimension,
@@ -38,6 +38,7 @@ __all__ = [
     "WaneBin",
     "DiscretizedPositiveIntBin",
     "AgeBin",
+    "RiskBin",
     "Params",
     "SolverParams",
     "TransmissionParams",
