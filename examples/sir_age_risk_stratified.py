@@ -178,7 +178,7 @@ def sir_ode(
     force_of_infection = p.beta * jnp.einsum(
         "ijkl,mn -> ij", (p.contact_matrix) / pop_size, i
     )
-    print(force_of_infection)
+
     s_to_i = s * force_of_infection
     i_to_r = i * p.gamma
     ds = -s_to_i
