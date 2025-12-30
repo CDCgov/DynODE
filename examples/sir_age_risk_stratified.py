@@ -93,10 +93,10 @@ def get_config(
         n_risk=len(risk_dimension),
     )
 
-    assert_vector_or_square_matrix(
+    assert_square_matrix(
         x=age_contact_matrix, n=len(age_dimension), name="Age contact matrix"
     )
-    assert_vector_or_square_matrix(
+    assert_square_matrix(
         x=risk_contact_matrix,
         n=len(risk_dimension),
         name="Risk contact matrix",
@@ -115,9 +115,8 @@ def get_config(
     )
 
     # Contact matrix by age and risk:
-    contact_matrix = (
-        age_contact_matrix[:, None, :, None]
-        * risk_contact_matrix[None, :, None, :]
+    contact_matrix = jnp.einsum(
+        "ij, kl -> ikjl", age_contact_matrix, risk_contact_matrix
     )
 
     parameters = Params(
@@ -137,14 +136,14 @@ def get_config(
     return config
 
 
-def assert_vector_or_square_matrix(
+def assert_square_matrix(
     x: jnp.ndarray,
     n: int,
     name: str,
 ):
     """
-    Check if x is a 2D square matrix of more than one bin exists for the dimension,
-    or if x is a 1D vector if only one bin exists for the dimension.
+    Check if x is a 2D square matrix of more than one bin exists for the dimension.
+    Only pass when more than one bin exists.
 
     Args:
     x: the array to check
@@ -153,20 +152,12 @@ def assert_vector_or_square_matrix(
     vector_shape: the expected shape for the vector/matrix
     """
 
-    if n == 1:
-        assert x.ndim == 1, (
-            f"{name} must be 1D when there is only one {name} bin."
-        )
-        assert x.shape == (1,), (
-            f"{name} must have shape (1,) when there is only one bin."
-        )
-
-    elif n > 1:
+    if n > 1:
         assert x.ndim == 2 and x.shape == (n, n), (
             f"{name} must be a square 2D array of shape ({n}, {n})."
         )
     else:
-        raise ValueError(f"{name} dimension must have at least one bin.")
+        raise ValueError(f"{name} dimension must have at least two bins.")
 
 
 def assert_risk_prop_shape(
@@ -175,15 +166,11 @@ def assert_risk_prop_shape(
     n_risk: int,
 ):
     """
-    If n_risk == 1: allow 1D (n_age,)
-    If n_risk > 1: require 2D (n_age, n_risk).
+    Check if risk_prop has the correct shape based on number of age and risk bins.
+    Only pass when more than one bin exists for the risk dimension.
     """
 
-    if n_risk == 1:
-        assert risk_prop.ndim == 1 and risk_prop.shape == (n_age,), (
-            f"Risk proportions must be 1D with shape ({n_age},) when there is only one risk bin."
-        )
-    elif n_risk > 1:
+    if n_risk > 1:
         assert risk_prop.ndim == 2 and risk_prop.shape == (n_age, n_risk), (
             f"Risk proportions must be 2D with shape ({n_age}, {n_risk}) when there are multiple risk bins."
         )
