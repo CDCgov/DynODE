@@ -8,7 +8,7 @@ from pydantic import (
     PositiveFloat,
     model_validator,
 )
-from typing_extensions import Literal, Self
+from typing_extensions import Self
 
 from dynode.typing import DynodeName
 
