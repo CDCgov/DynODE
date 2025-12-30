@@ -16,7 +16,7 @@ from dynode.config import (
     Strain,
     TransmissionParams,
 )
-from dynode.config.bins import AgeBin, RiskBin
+from dynode.config.bins import AgeBin, Bin
 from dynode.infer import sample_then_resolve
 from dynode.simulation import AbstractODEParams, simulate
 from dynode.typing import CompartmentGradients, CompartmentState
@@ -80,7 +80,7 @@ def get_config(
         ],
     )
     risk_dimension = Dimension(
-        name="risk", bins=[RiskBin(name="high"), RiskBin(name="low")]
+        name="risk", bins=[Bin(name="high"), Bin(name="low")]
     )
 
     assert len(age_demographics) == len(age_dimension), (

@@ -87,9 +87,3 @@ class WaneBin(Bin):
         description="""Proportion of immune protection retained by populations within
           this bin, between [0-1]. May be subsequently modified by strain immune escape.""",
     )
-
-
-class RiskBin(Bin):
-    """Risk bin with a string defining high or low risk."""
-
-    name: Literal["high", "low"] = Field(...)
