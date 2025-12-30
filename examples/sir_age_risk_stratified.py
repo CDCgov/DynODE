@@ -46,9 +46,9 @@ class SIRInitializer(Initializer):
         age_risk_prop = (
             self.age_demographics[:, None] * self.risk_prop
         )  # age by row, risk by column
-        num_susceptibles = self.population_size * jnp.array([s0_prop])
+        num_susceptibles = self.population_size * s0_prop
         s_0 = num_susceptibles * age_risk_prop
-        num_infectious = self.population_size * jnp.array([i0_prop])
+        num_infectious = self.population_size * i0_prop
         i_0 = num_infectious * age_risk_prop
         r_0 = jnp.zeros(s_0.shape)
 
@@ -65,6 +65,10 @@ def get_config(
     infectious_period=7.0,
     age_demographics=jnp.array([0.7, 0.2, 0.1]),
     risk_prop=jnp.array([[0.1, 0.9], [0.6, 0.4], [0.8, 0.2]]),
+    age_contact_matrix=jnp.array(
+        [[0.7, 0.2, 0.1], [0.2, 0.7, 0.1], [0.1, 0.1, 0.8]]
+    ),
+    risk_contact_matrix=jnp.array([[0.7, 0.3], [0.3, 0.7]]),
 ) -> SimulationConfig:
     """Create a SimulationConfig for an age-stratified SIR model."""
     age_dimension = Dimension(
@@ -79,6 +83,25 @@ def get_config(
         name="risk", bins=[RiskBin(name="high"), RiskBin(name="low")]
     )
 
+    assert len(age_demographics) == len(age_dimension), (
+        "Length of age proportions must match the number of age bins."
+    )
+
+    assert_risk_prop_shape(
+        risk_prop=risk_prop,
+        n_age=len(age_dimension),
+        n_risk=len(risk_dimension),
+    )
+
+    assert_vector_or_square_matrix(
+        x=age_contact_matrix, n=len(age_dimension), name="Age contact matrix"
+    )
+    assert_vector_or_square_matrix(
+        x=risk_contact_matrix,
+        n=len(risk_dimension),
+        name="Risk contact matrix",
+    )
+
     s = Compartment(name="s", dimensions=[age_dimension, risk_dimension])
     i = Compartment(name="i", dimensions=[age_dimension, risk_dimension])
     r = Compartment(name="r", dimensions=[age_dimension, risk_dimension])
@@ -91,32 +114,11 @@ def get_config(
         age_demographics=age_demographics, risk_prop=risk_prop
     )
 
-    # Manually assigned contact matrix
-    contact_matrix = jnp.array(
-        [
-            [
-                [[0.03, 0.07], [0.11, 0.19], [0.29, 0.31]],
-                [[0.26, 0.04], [0.18, 0.12], [0.22, 0.18]],
-            ],
-            [
-                [[0.09, 0.21], [0.06, 0.14], [0.27, 0.23]],
-                [[0.33, 0.11], [0.05, 0.07], [0.21, 0.23]],
-            ],
-            [
-                [[0.16, 0.24], [0.08, 0.06], [0.22, 0.24]],
-                [[0.19, 0.01], [0.28, 0.17], [0.14, 0.21]],
-            ],
-        ]
+    # Contact matrix by age and risk:
+    contact_matrix = (
+        age_contact_matrix[:, None, :, None]
+        * risk_contact_matrix[None, :, None, :]
     )
-
-    check_contact_matrix_shape(contact_matrix, age_dimension, risk_dimension)
-
-    ## delete this for now since the contact matrix is not square
-
-    # normalize contact matrix by the spectral radius
-    # contact_matrix = contact_matrix / jnp.max(
-    #     jnp.real(jnp.linalg.eigvals(contact_matrix))
-    # )
 
     parameters = Params(
         solver_params=SolverParams(),
@@ -135,14 +137,58 @@ def get_config(
     return config
 
 
-def check_contact_matrix_shape(prod: jnp.ndarray, A: Dimension, B: Dimension):
+def assert_vector_or_square_matrix(
+    x: jnp.ndarray,
+    n: int,
+    name: str,
+):
     """
-    The shape of contact matrix needs to be the product of shapes of A (age) and B (risk) dimensions for now
+    Check if x is a 2D square matrix of more than one bin exists for the dimension,
+    or if x is a 1D vector if only one bin exists for the dimension.
+
+    Args:
+    x: the array to check
+    n: number of bins in the dimension
+    name: name of the dimension
+    vector_shape: the expected shape for the vector/matrix
     """
-    assert prod.shape == (len(A), len(B), len(A), len(B)), (
-        f"Contact matrix shape {prod.shape} does not match the product of "
-        f"age dimension shape {len(A)} and risk dimension shape {len(B)}."
-    )
+
+    if n == 1:
+        assert x.ndim == 1, (
+            f"{name} must be 1D when there is only one {name} bin."
+        )
+        assert x.shape == (1,), (
+            f"{name} must have shape (1,) when there is only one bin."
+        )
+
+    elif n > 1:
+        assert x.ndim == 2 and x.shape == (n, n), (
+            f"{name} must be a square 2D array of shape ({n}, {n})."
+        )
+    else:
+        raise ValueError(f"{name} dimension must have at least one bin.")
+
+
+def assert_risk_prop_shape(
+    risk_prop: jnp.ndarray,
+    n_age: int,
+    n_risk: int,
+):
+    """
+    If n_risk == 1: allow 1D (n_age,)
+    If n_risk > 1: require 2D (n_age, n_risk).
+    """
+
+    if n_risk == 1:
+        assert risk_prop.ndim == 1 and risk_prop.shape == (n_age,), (
+            f"Risk proportions must be 1D with shape ({n_age},) when there is only one risk bin."
+        )
+    elif n_risk > 1:
+        assert risk_prop.ndim == 2 and risk_prop.shape == (n_age, n_risk), (
+            f"Risk proportions must be 2D with shape ({n_age}, {n_risk}) when there are multiple risk bins."
+        )
+    else:
+        raise ValueError("Risk dimension must have at least one bin.")
 
 
 # define the behavior of the ODEs and the parameters they take
@@ -176,10 +222,10 @@ def sir_ode(
     s, i, r = state
     pop_size = s + i + r
     force_of_infection = p.beta * jnp.einsum(
-        "ijkl,mn -> ij", (p.contact_matrix) / pop_size, i
+        "ijkl,ij -> ij", (p.contact_matrix) / pop_size, i
     )
 
-    s_to_i = s * force_of_infection
+    s_to_i = jnp.einsum("ij,ij -> ij", s, force_of_infection)
     i_to_r = i * p.gamma
     ds = -s_to_i
     di = s_to_i - i_to_r
