@@ -60,47 +60,28 @@ class SIRInitializer(Initializer):
         )
 
 
-def get_config(
-    r_0=2.0,
-    infectious_period=7.0,
-    age_demographics=jnp.array([0.7, 0.2, 0.1]),
-    risk_prop=jnp.array([[0.1, 0.9], [0.6, 0.4], [0.8, 0.2]]),
-    age_contact_matrix=jnp.array(
-        [[0.7, 0.2, 0.1], [0.2, 0.7, 0.1], [0.1, 0.1, 0.8]]
-    ),
-    risk_contact_matrix=jnp.array([[0.7, 0.3], [0.3, 0.7]]),
-) -> SimulationConfig:
+def get_config(config_params: dict) -> SimulationConfig:
     """Create a SimulationConfig for an age-stratified SIR model."""
-    age_dimension = Dimension(
-        name="age",
-        bins=[
-            AgeBin(0, 17, name="young"),
-            AgeBin(18, 64, name="adult"),
-            AgeBin(65, 99, name="elderly"),
-        ],
-    )
-    risk_dimension = Dimension(
-        name="risk", bins=[Bin(name="high"), Bin(name="low")]
-    )
+    r_0 = config_params["r_0"]
+    infectious_period = config_params["infectious_period"]
 
-    assert len(age_demographics) == len(age_dimension), (
-        "Length of age proportions must match the number of age bins."
-    )
+    age_demographics = config_params["age_demographics"]
+    risk_prop = config_params["risk_prop"]
 
-    assert_risk_prop_shape(
-        risk_prop=risk_prop,
-        n_age=len(age_dimension),
-        n_risk=len(risk_dimension),
-    )
+    age_contact_matrix = config_params["age_contact_matrix"]
+    risk_contact_matrix = config_params["risk_contact_matrix"]
 
-    assert_square_matrix(
-        x=age_contact_matrix, n=len(age_dimension), name="Age contact matrix"
-    )
-    assert_square_matrix(
-        x=risk_contact_matrix,
-        n=len(risk_dimension),
-        name="Risk contact matrix",
-    )
+    age_dimension = config_params["age_dimension"]
+    risk_dimension = config_params["risk_dimension"]
+
+    assert len(age_demographics) == len(age_dimension)
+    assert len(risk_prop) == len(risk_dimension)
+
+    assert age_contact_matrix.shape[0] == age_contact_matrix.shape[1]
+    assert age_contact_matrix.shape[0] == len(age_dimension)
+
+    assert risk_contact_matrix.shape[0] == risk_contact_matrix.shape[1]
+    assert risk_contact_matrix.shape[0] == len(risk_dimension)
 
     s = Compartment(name="s", dimensions=[age_dimension, risk_dimension])
     i = Compartment(name="i", dimensions=[age_dimension, risk_dimension])
@@ -134,48 +115,6 @@ def get_config(
     )
 
     return config
-
-
-def assert_square_matrix(
-    x: jnp.ndarray,
-    n: int,
-    name: str,
-):
-    """
-    Check if x is a 2D square matrix of more than one bin exists for the dimension.
-    Only pass when more than one bin exists.
-
-    Args:
-    x: the array to check
-    n: number of bins in the dimension
-    name: name of the dimension
-    vector_shape: the expected shape for the vector/matrix
-    """
-
-    if n > 1:
-        assert x.ndim == 2 and x.shape == (n, n), (
-            f"{name} must be a square 2D array of shape ({n}, {n})."
-        )
-    else:
-        raise ValueError(f"{name} dimension must have at least two bins.")
-
-
-def assert_risk_prop_shape(
-    risk_prop: jnp.ndarray,
-    n_age: int,
-    n_risk: int,
-):
-    """
-    Check if risk_prop has the correct shape based on number of age and risk bins.
-    Only pass when more than one bin exists for the risk dimension.
-    """
-
-    if n_risk > 1:
-        assert risk_prop.ndim == 2 and risk_prop.shape == (n_age, n_risk), (
-            f"Risk proportions must be 2D with shape ({n_age}, {n_risk}) when there are multiple risk bins."
-        )
-    else:
-        raise ValueError("Risk dimension must have at least one bin.")
 
 
 # define the behavior of the ODEs and the parameters they take
@@ -221,7 +160,22 @@ def sir_ode(
 
 
 if __name__ == "__main__":
-    config = get_config()
+    config_params = {
+        "r_0": 2.0,
+        "infectious_period": 7.0,
+        "age_demographics": jnp.array([1.0]),
+        "risk_prop": jnp.array([[1.0]]),
+        "age_contact_matrix": jnp.array([[1.0]]),
+        "risk_contact_matrix": jnp.array([[1.0]]),
+        "age_dimension": Dimension(
+            name="age",
+            bins=[
+                AgeBin(0, 99, "all"),
+            ],
+        ),
+        "risk_dimension": Dimension(name="risk", bins=[Bin(name="all")]),
+    }
+    config = get_config(config_params=config_params)
 
     sol = simulate(
         ode=sir_ode,
@@ -234,15 +188,29 @@ if __name__ == "__main__":
     s, i, r = sol.ys  # each is (timesteps, 2)
     t = sol.ts
 
-    age_labels = ["Young", "Adult", "Elderly"]
-    risk_labels = ["High risk", "Low risk"]
+    age_labels = ["All"]
+    risk_labels = ["High risk"]
+    age_risk_dim = len(age_labels) * len(risk_labels)
+
     age_risk_labels = [f"{a} {b}" for a in age_labels for b in risk_labels]
     for idx, label in enumerate(age_risk_labels):
-        plt.plot(t, s.reshape(-1, 6)[:, idx], label=f"Susceptible ({label})")
-        plt.plot(t, i.reshape(-1, 6)[:, idx], label=f"Infectious ({label})")
-        plt.plot(t, r.reshape(-1, 6)[:, idx], label=f"Recovered ({label})")
+        plt.plot(
+            t,
+            s.reshape(-1, age_risk_dim)[:, idx],
+            label=f"Susceptible ({label})",
+        )
+        plt.plot(
+            t,
+            i.reshape(-1, age_risk_dim)[:, idx],
+            label=f"Infectious ({label})",
+        )
+        plt.plot(
+            t,
+            r.reshape(-1, age_risk_dim)[:, idx],
+            label=f"Recovered ({label})",
+        )
     plt.xlabel("Days")
     plt.ylabel("Population")
     plt.legend(ncol=1, bbox_to_anchor=(1.0, 1.05))
     plt.title("Simple SIR Model (Age and Risk Stratified)")
-    plt.savefig("sir_age_risk_stratified.png", bbox_inches="tight")
+    plt.savefig("test_risk.png", bbox_inches="tight")
