@@ -165,17 +165,23 @@ if __name__ == "__main__":
     config_params = {
         "r_0": 2.0,
         "infectious_period": 7.0,
-        "age_demographics": jnp.array([1.0]),
-        "risk_prop": jnp.array([[1.0]]),
-        "age_contact_matrix": jnp.array([[1.0]]),
-        "risk_contact_matrix": jnp.array([[1.0]]),
+        "age_demographics": jnp.array([0.7, 0.2, 0.1]),
+        "risk_prop": jnp.array([[0.1, 0.9], [0.6, 0.4], [0.8, 0.2]]),
+        "age_contact_matrix": jnp.array(
+            [[0.7, 0.2, 0.1], [0.2, 0.7, 0.1], [0.1, 0.1, 0.8]]
+        ),
+        "risk_contact_matrix": jnp.array([[0.8, 0.2], [0.2, 0.8]]),
         "age_dimension": Dimension(
             name="age",
             bins=[
-                AgeBin(0, 99, "all"),
+                AgeBin(0, 17, "young"),
+                AgeBin(18, 64, "adult"),
+                AgeBin(65, 99, "elderly"),
             ],
         ),
-        "risk_dimension": Dimension(name="risk", bins=[Bin(name="all")]),
+        "risk_dimension": Dimension(
+            name="risk", bins=[Bin(name="high"), Bin(name="low")]
+        ),
     }
     config = get_config(config_params=config_params)
 
@@ -190,8 +196,8 @@ if __name__ == "__main__":
     s, i, r = sol.ys  # each is (timesteps, 2)
     t = sol.ts
 
-    age_labels = ["All"]
-    risk_labels = ["High risk"]
+    age_labels = ["Young", "Adult", "Elderly"]
+    risk_labels = ["High risk", "Low risk"]
     age_risk_dim = len(age_labels) * len(risk_labels)
 
     age_risk_labels = [f"{a} {b}" for a in age_labels for b in risk_labels]
@@ -215,4 +221,4 @@ if __name__ == "__main__":
     plt.ylabel("Population")
     plt.legend(ncol=1, bbox_to_anchor=(1.0, 1.05))
     plt.title("Simple SIR Model (Age and Risk Stratified)")
-    plt.savefig("test_risk.png", bbox_inches="tight")
+    plt.savefig("sir_age_risk_stratified.png", bbox_inches="tight")
