@@ -8,6 +8,7 @@ from examples.sir_age_risk_stratified import (
     get_odeparams,
 )
 
+## check shape and value of initial proportion and contact matrix ##
 pytestmark = pytest.mark.parametrize(
     "inputs, expected_init_prop_shape, expected_cm_shape, expected_init_prop, expected_cm",
     [
