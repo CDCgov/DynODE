@@ -75,7 +75,9 @@ def get_config(config_params: dict) -> SimulationConfig:
     risk_dimension = config_params["risk_dimension"]
 
     assert len(age_demographics) == len(age_dimension)
-    assert len(risk_prop) == len(risk_dimension)
+    assert risk_prop.shape[1] == len(
+        risk_dimension
+    )  # for each age group, what is the risk prop?
 
     assert age_contact_matrix.shape[0] == age_contact_matrix.shape[1]
     assert age_contact_matrix.shape[0] == len(age_dimension)
