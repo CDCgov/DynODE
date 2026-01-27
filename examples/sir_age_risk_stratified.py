@@ -34,23 +34,21 @@ class SIRInitializer(Initializer):
     age_demographics: jnp.ndarray = Field(...)
     risk_prop: jnp.ndarray = Field(...)
 
-    def get_initial_state(
-        self,
-        s0_prop=jnp.array([[0.99, 1.0], [0.99, 1.0], [1.0, 1.0]]),
-        i0_prop=jnp.array([[0.01, 0.0], [0.01, 0.0], [0.0, 0.0]]),
-    ) -> CompartmentState:
-        """Get initial compartment values for an SIR model stratified by age."""
-        # assert s0_prop + i0_prop == 1.0, (
-        #     "s0_prop and i0_prop must sum to 1.0, "
-        #     f"got {s0_prop} and {i0_prop}."
-        # )
+    s0_prop: jnp.ndarray | float = Field(...)
+    i0_prop: jnp.ndarray | float = Field(...)
+
+    def get_initial_state(self) -> CompartmentState:
+        assert (self.s0_prop + self.i0_prop == 1.0).all(), (
+            "each group in s0_prop and i0_prop must sum to 1.0, "
+            f"got {self.s0_prop} and {self.i0_prop}."
+        )
 
         age_risk_prop = (
             self.age_demographics[:, None] * self.risk_prop
         )  # age by row, risk by column
-        num_susceptibles = self.population_size * s0_prop
+        num_susceptibles = self.population_size * self.s0_prop
         s_0 = num_susceptibles * age_risk_prop
-        num_infectious = self.population_size * i0_prop
+        num_infectious = self.population_size * self.i0_prop
         i_0 = num_infectious * age_risk_prop
         r_0 = jnp.zeros(s_0.shape)
 
@@ -76,10 +74,19 @@ def get_config(config_params: dict) -> SimulationConfig:
     age_dimension = config_params["age_dimension"]
     risk_dimension = config_params["risk_dimension"]
 
+    s0_prop = config_params["s0_prop"]
+    i0_prop = config_params["i0_prop"]
+
     assert len(age_demographics) == len(age_dimension)
     assert risk_prop.shape[1] == len(
         risk_dimension
     )  # for each age group, what is the risk prop?
+
+    assert s0_prop.shape[0] == len(age_dimension)
+    assert s0_prop.shape[1] == len(risk_dimension)
+
+    assert i0_prop.shape[0] == len(age_dimension)
+    assert i0_prop.shape[1] == len(risk_dimension)
 
     assert age_contact_matrix.shape[0] == age_contact_matrix.shape[1]
     assert age_contact_matrix.shape[0] == len(age_dimension)
@@ -96,7 +103,10 @@ def get_config(config_params: dict) -> SimulationConfig:
     ]
 
     initializer = SIRInitializer(
-        age_demographics=age_demographics, risk_prop=risk_prop
+        age_demographics=age_demographics,
+        risk_prop=risk_prop,
+        s0_prop=s0_prop,
+        i0_prop=i0_prop,
     )
 
     # Contact matrix by age and risk:
@@ -167,6 +177,8 @@ if __name__ == "__main__":
     config_params = {
         "r_0": 2.0,
         "infectious_period": 7.0,
+        "s0_prop": jnp.array([[0.99, 1.0], [0.99, 0.99], [1.0, 1.0]]),
+        "i0_prop": jnp.array([[0.01, 0.0], [0.01, 0.01], [0.0, 0.0]]),
         "age_demographics": jnp.array([0.7, 0.2, 0.1]),
         "risk_prop": jnp.array([[0.5, 0.5], [0.5, 0.5], [0.5, 0.5]]),
         "age_contact_matrix": jnp.array(
@@ -186,8 +198,6 @@ if __name__ == "__main__":
         ),
     }
     config = get_config(config_params=config_params)
-
-    # print(config.parameters.transmission_params.contact_matrix)
 
     sol = simulate(
         ode=sir_ode,
@@ -212,16 +222,16 @@ if __name__ == "__main__":
             s.reshape(-1, age_risk_dim)[:, idx],
             label=f"Susceptible ({label})",
         )
-        plt.plot(
-            t,
-            i.reshape(-1, age_risk_dim)[:, idx],
-            label=f"Infectious ({label})",
-        )
-        plt.plot(
-            t,
-            r.reshape(-1, age_risk_dim)[:, idx],
-            label=f"Recovered ({label})",
-        )
+        # plt.plot(
+        #     t,
+        #     i.reshape(-1, age_risk_dim)[:, idx],
+        #     label=f"Infectious ({label})",
+        # )
+        # plt.plot(
+        #     t,
+        #     r.reshape(-1, age_risk_dim)[:, idx],
+        #     label=f"Recovered ({label})",
+        # )
     plt.xlabel("Days")
     plt.ylabel("Population")
     plt.legend(ncol=1, bbox_to_anchor=(1.0, 1.05))
