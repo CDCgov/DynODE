@@ -216,24 +216,20 @@ if __name__ == "__main__":
 
     age_risk_labels = [f"{a} {b}" for a in age_labels for b in risk_labels]
 
-    for idx, label in enumerate(age_risk_labels):
-        plt.plot(
-            t,
-            s.reshape(-1, age_risk_dim)[:, idx],
-            label=f"Susceptible ({label})",
-        )
-        # plt.plot(
-        #     t,
-        #     i.reshape(-1, age_risk_dim)[:, idx],
-        #     label=f"Infectious ({label})",
-        # )
-        # plt.plot(
-        #     t,
-        #     r.reshape(-1, age_risk_dim)[:, idx],
-        #     label=f"Recovered ({label})",
-        # )
+    fig, axes = plt.subplots(3, 1, figsize=(10, 6))
+    state_names = ("Susceptible", "Infectious", "Recovered")
+
+    for ax, state, name in zip(axes, (s, i, r), state_names):
+        for idx, label in enumerate(age_risk_labels):
+            ax.plot(
+                t,
+                state.reshape(-1, age_risk_dim)[:, idx],
+                label=f"({label})",
+            )
+            ax.set_title(name)
     plt.xlabel("Days")
     plt.ylabel("Population")
     plt.legend(ncol=1, bbox_to_anchor=(1.0, 1.05))
-    plt.title("Simple SIR Model (Age and Risk Stratified)")
+    fig.tight_layout(rect=[0, 0, 0.85, 0.95])
+    plt.suptitle("Simple SIR Model (Age and Risk Stratified)", y=0.95)
     plt.savefig("sir_age_risk_stratified.png", bbox_inches="tight")
