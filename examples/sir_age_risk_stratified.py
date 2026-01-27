@@ -35,13 +35,15 @@ class SIRInitializer(Initializer):
     risk_prop: jnp.ndarray = Field(...)
 
     def get_initial_state(
-        self, s0_prop=0.99, i0_prop=0.01
+        self,
+        s0_prop=jnp.array([[0.99, 1.0], [0.99, 1.0], [1.0, 1.0]]),
+        i0_prop=jnp.array([[0.01, 0.0], [0.01, 0.0], [0.0, 0.0]]),
     ) -> CompartmentState:
         """Get initial compartment values for an SIR model stratified by age."""
-        assert s0_prop + i0_prop == 1.0, (
-            "s0_prop and i0_prop must sum to 1.0, "
-            f"got {s0_prop} and {i0_prop}."
-        )
+        # assert s0_prop + i0_prop == 1.0, (
+        #     "s0_prop and i0_prop must sum to 1.0, "
+        #     f"got {s0_prop} and {i0_prop}."
+        # )
 
         age_risk_prop = (
             self.age_demographics[:, None] * self.risk_prop
@@ -150,7 +152,7 @@ def sir_ode(
     s, i, r = state
     pop_size = s + i + r
     force_of_infection = p.beta * jnp.einsum(
-        "ijkl,ij -> ij", (p.contact_matrix) / pop_size, i
+        "ijkl,ij -> kl", (p.contact_matrix) / pop_size, i
     )
 
     s_to_i = jnp.einsum("ij,ij -> ij", s, force_of_infection)
@@ -166,11 +168,11 @@ if __name__ == "__main__":
         "r_0": 2.0,
         "infectious_period": 7.0,
         "age_demographics": jnp.array([0.7, 0.2, 0.1]),
-        "risk_prop": jnp.array([[0.1, 0.9], [0.6, 0.4], [0.8, 0.2]]),
+        "risk_prop": jnp.array([[0.5, 0.5], [0.5, 0.5], [0.5, 0.5]]),
         "age_contact_matrix": jnp.array(
-            [[0.7, 0.2, 0.1], [0.2, 0.7, 0.1], [0.1, 0.1, 0.8]]
+            [[0.8, 0.2, 0.0], [0.2, 0.8, 0.0], [0.0, 0.0, 1.0]]
         ),
-        "risk_contact_matrix": jnp.array([[0.8, 0.2], [0.2, 0.8]]),
+        "risk_contact_matrix": jnp.array([[0.5, 0.5], [0.5, 0.5]]),
         "age_dimension": Dimension(
             name="age",
             bins=[
@@ -184,6 +186,8 @@ if __name__ == "__main__":
         ),
     }
     config = get_config(config_params=config_params)
+
+    # print(config.parameters.transmission_params.contact_matrix)
 
     sol = simulate(
         ode=sir_ode,
@@ -201,6 +205,7 @@ if __name__ == "__main__":
     age_risk_dim = len(age_labels) * len(risk_labels)
 
     age_risk_labels = [f"{a} {b}" for a in age_labels for b in risk_labels]
+
     for idx, label in enumerate(age_risk_labels):
         plt.plot(
             t,
