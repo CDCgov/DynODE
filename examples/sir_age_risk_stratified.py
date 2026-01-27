@@ -34,8 +34,8 @@ class SIRInitializer(Initializer):
     age_demographics: jnp.ndarray = Field(...)
     risk_prop: jnp.ndarray = Field(...)
 
-    s0_prop: jnp.ndarray | float = Field(...)
-    i0_prop: jnp.ndarray | float = Field(...)
+    s0_prop: jnp.ndarray = Field(...)
+    i0_prop: jnp.ndarray = Field(...)
 
     def get_initial_state(self) -> CompartmentState:
         assert (self.s0_prop + self.i0_prop == 1.0).all(), (
@@ -162,7 +162,7 @@ def sir_ode(
     s, i, r = state
     pop_size = s + i + r
     force_of_infection = p.beta * jnp.einsum(
-        "ijkl,ij -> kl", (p.contact_matrix) / pop_size, i
+        "ijkl,ij -> kl", (p.contact_matrix), i / pop_size
     )
 
     s_to_i = jnp.einsum("ij,ij -> ij", s, force_of_infection)
