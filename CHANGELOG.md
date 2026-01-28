@@ -14,6 +14,10 @@ no suffix when releases and the staging branch is pulled into the release branch
 - `sir_age_risk_stratified.py` under `dynode.examples` to allow risk stratification on the base of age stratification.
 - `test_age_risk_groups.py` under `test/test_age_risk_groups` to check the functions used in `sir_age_risk_stratified.py`.
 
+## [2025.12.19.1a] - updating pandas version
+### Changed
+- Updated `pandas` version in `pyproject.toml` to >= 2.3.2 so that DynODE can be used with CFA CloudOps
+
 ## [2025.07.14.1a] - adding DynODE wiki markdown to static docs site
 ### Added
 - `myst_parser` allows sphinx can parse markdown files into html
