@@ -92,7 +92,7 @@ def test_simulation_save_steps(ode_params, initial_state):
         )
 
 
-def test_subsave_indicies(ode_params, initial_state):
+def test_subsave_indices(ode_params, initial_state):
     # try returning all combinations of compartments
     combos = [
         [0],  # s only

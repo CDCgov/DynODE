@@ -38,7 +38,7 @@ class SIRInitializer(Initializer):
     def __init__(self):
         """Create an SIR Initializer."""
         super().__init__(
-            description="An SIR initalizer",
+            description="An SIR initializer",
             initialize_date=date(2022, 2, 11),  # random date
             population_size=1000,
         )

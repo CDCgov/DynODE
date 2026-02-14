@@ -475,7 +475,7 @@ def _sample_prior_distributions(priors, num_samples) -> dict[str, Array]:
     Notes
     -----
     Return dict key names follow the same naming convention as when sampling.
-    Meaning that distributions within lists or matricies have their
+    Meaning that distributions within lists or matrices have their
     index stored as a list of _i suffix at the end of their name.
     """
     dist_only = {}
@@ -492,7 +492,7 @@ def _sample_prior_distributions(priors, num_samples) -> dict[str, Array]:
         # otherwise this sample is nested in a list and should be retrieved
         else:
             temp = priors[parameter_name]
-            # go into multi-dimensional matricies one index at a time
+            # go into multi-dimensional matrices one index at a time
             for i in parameter_idx:
                 temp = temp[i]
             dist_only[dist_name] = temp
