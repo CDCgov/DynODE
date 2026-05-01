@@ -33,15 +33,15 @@ class Strain(BaseModel):
     ] = Field(
         description="""Strain reproduction number used to calculate transmission rate."""
     )
-    infectious_period: Union[PositiveFloat, ArrayLike, Distribution] = Field(
+    infectious_period: Union[PositiveFloat, ArrayLike, Distribution, DeterministicParameter] = Field(
         description="""Average number of days a freshly infectious population
         stays infectious for."""
     )
-    exposed_to_infectious: Optional[PositiveFloat] = Field(
-        default=None,
-        description="""Average number of days between exposure to this strain
-          before a population gains the ability to transmit it to others""",
-    )
+    exposed_to_infectious: Optional[Union[PositiveFloat, ArrayLike, Distribution, DeterministicParameter]] = Field(
+    default=None,
+    description="""Average number of days between exposure to this strain
+      before a population gains the ability to transmit it to others""",
+)
     vaccine_efficacy: Optional[dict[int, NonNegativeFloat]] = Field(
         default=None,
         description="""Dictionary mapping integer number of tracked vaccine
