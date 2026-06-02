@@ -8,6 +8,11 @@ pattern: `YYYY.MM.DD.micro`, where `micro` monotonically increases with each PR 
 on a given day. The `micro` version is suffixed with an `a` in the case of merging to `main` or
 `development` branches, a `b` when starting the release process in the staging branch, and
 no suffix when releases and the staging branch is pulled into the release branch.
+## [2026.06.02.1a] - changing dependencies allowing upgrade of python version
+### Changed
+- Allowed later version of python from 3.10 up to 3.13 in `pyproject.toml`
+- Updated `numpy` version in `pyproject.toml` to >= 2.1, which is essential for python upgrades
+- Removed upper limit for a bunch of dependencies as they are not impacting the package usage
 
 ## [2026.01.28.1a] - adding risk group in DynODE examples
 ### Added
