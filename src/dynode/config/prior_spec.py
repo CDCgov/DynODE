@@ -1,7 +1,13 @@
 from typing import Any
 
 import numpyro.distributions as dist
-from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    NonNegativeInt,
+    model_validator,
+)
 from typing_extensions import Self
 
 from dynode.typing import DynodeName

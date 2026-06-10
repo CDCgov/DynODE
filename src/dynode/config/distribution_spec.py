@@ -170,11 +170,16 @@ class DistributionSpec(BaseModel, ABC):
     ) -> Any:
         return value.evaluate(context)
 
+
 class NormalSpec(DistributionSpec):
     type: Literal["normal"] = "normal"
 
-    loc: DistributionValue = Field(default_factory=lambda: ConstantValueSpec(value=0.0))
-    scale: DistributionValue = Field(default_factory=lambda: ConstantValueSpec(value=1.0))
+    loc: DistributionValue = Field(
+        default_factory=lambda: ConstantValueSpec(value=0.0)
+    )
+    scale: DistributionValue = Field(
+        default_factory=lambda: ConstantValueSpec(value=1.0)
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -198,7 +203,9 @@ class NormalSpec(DistributionSpec):
     def dependencies(self) -> set[str]:
         return self.loc.dependencies() | self.scale.dependencies()
 
-    def to_numpyro(self, context: dict[str, Any] | None = None) -> dist.Distribution:
+    def to_numpyro(
+        self, context: dict[str, Any] | None = None
+    ) -> dist.Distribution:
         return dist.Normal(
             loc=self._eval(self.loc, context),
             scale=self._eval(self.scale, context),
@@ -208,8 +215,12 @@ class NormalSpec(DistributionSpec):
 class LogNormalSpec(DistributionSpec):
     type: Literal["lognormal"] = "lognormal"
 
-    loc: DistributionValue = Field(default_factory=lambda: ConstantValueSpec(value=0.0))
-    scale: DistributionValue = Field(default_factory=lambda: ConstantValueSpec(value=1.0))
+    loc: DistributionValue = Field(
+        default_factory=lambda: ConstantValueSpec(value=0.0)
+    )
+    scale: DistributionValue = Field(
+        default_factory=lambda: ConstantValueSpec(value=1.0)
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -233,7 +244,9 @@ class LogNormalSpec(DistributionSpec):
     def dependencies(self) -> set[str]:
         return self.loc.dependencies() | self.scale.dependencies()
 
-    def to_numpyro(self, context: dict[str, Any] | None = None) -> dist.Distribution:
+    def to_numpyro(
+        self, context: dict[str, Any] | None = None
+    ) -> dist.Distribution:
         return dist.LogNormal(
             loc=self._eval(self.loc, context),
             scale=self._eval(self.scale, context),
@@ -272,7 +285,9 @@ class GammaSpec(DistributionSpec):
     def dependencies(self) -> set[str]:
         return self.concentration.dependencies() | self.rate.dependencies()
 
-    def to_numpyro(self, context: dict[str, Any] | None = None) -> dist.Distribution:
+    def to_numpyro(
+        self, context: dict[str, Any] | None = None
+    ) -> dist.Distribution:
         return dist.Gamma(
             concentration=self._eval(self.concentration, context),
             rate=self._eval(self.rate, context),
@@ -304,7 +319,9 @@ class ExponentialSpec(DistributionSpec):
     def dependencies(self) -> set[str]:
         return self.rate.dependencies()
 
-    def to_numpyro(self, context: dict[str, Any] | None = None) -> dist.Distribution:
+    def to_numpyro(
+        self, context: dict[str, Any] | None = None
+    ) -> dist.Distribution:
         return dist.Exponential(
             rate=self._eval(self.rate, context),
         )
@@ -345,7 +362,9 @@ class BetaSpec(DistributionSpec):
             | self.concentration0.dependencies()
         )
 
-    def to_numpyro(self, context: dict[str, Any] | None = None) -> dist.Distribution:
+    def to_numpyro(
+        self, context: dict[str, Any] | None = None
+    ) -> dist.Distribution:
         return dist.Beta(
             concentration1=self._eval(self.concentration1, context),
             concentration0=self._eval(self.concentration0, context),
@@ -377,7 +396,9 @@ class HalfNormalSpec(DistributionSpec):
     def dependencies(self) -> set[str]:
         return self.scale.dependencies()
 
-    def to_numpyro(self, context: dict[str, Any] | None = None) -> dist.Distribution:
+    def to_numpyro(
+        self, context: dict[str, Any] | None = None
+    ) -> dist.Distribution:
         return dist.HalfNormal(
             scale=self._eval(self.scale, context),
         )
@@ -386,8 +407,12 @@ class HalfNormalSpec(DistributionSpec):
 class TruncatedNormalSpec(DistributionSpec):
     type: Literal["truncated_normal"] = "truncated_normal"
 
-    loc: DistributionValue = Field(default_factory=lambda: ConstantValueSpec(value=0.0))
-    scale: DistributionValue = Field(default_factory=lambda: ConstantValueSpec(value=1.0))
+    loc: DistributionValue = Field(
+        default_factory=lambda: ConstantValueSpec(value=0.0)
+    )
+    scale: DistributionValue = Field(
+        default_factory=lambda: ConstantValueSpec(value=1.0)
+    )
     low: DistributionValue | None = None
     high: DistributionValue | None = None
 
@@ -432,13 +457,16 @@ class TruncatedNormalSpec(DistributionSpec):
 
         return deps
 
-    def to_numpyro(self, context: dict[str, Any] | None = None) -> dist.Distribution:
+    def to_numpyro(
+        self, context: dict[str, Any] | None = None
+    ) -> dist.Distribution:
         return dist.TruncatedNormal(
             loc=self._eval(self.loc, context),
             scale=self._eval(self.scale, context),
             low=None if self.low is None else self._eval(self.low, context),
             high=None if self.high is None else self._eval(self.high, context),
         )
+
 
 PriorDistributionSpec = Annotated[
     NormalSpec
