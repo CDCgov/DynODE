@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 
 import jax.numpy as jnp
 import numpy as np
@@ -10,275 +9,11 @@ from typing_extensions import Self
 
 from dynode.typing import DynodeName
 
-
-class InitializerValueSpec(BaseModel):
-    """
-    Base class for values used to construct initial conditions.
-
-    These values are intentionally declarative and serializable.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        arbitrary_types_allowed=True,
-    )
-
-    type: str
-
-    def dependencies(self) -> set[str]:
-        """
-        Return parameter names needed to evaluate this value.
-        """
-        raise NotImplementedError
-
-    def data_dependencies(self) -> set[str]:
-        """
-        Return observed-data names needed to evaluate this value.
-        """
-        return set()
-
-    def evaluate(
-        self,
-        context: dict[str, Any] | None = None,
-        data: Any | None = None,
-    ) -> Any:
-        raise NotImplementedError
-
-
-class ConstantInitialValueSpec(InitializerValueSpec):
-    """
-    Literal numeric initial value.
-
-    Examples
-    --------
-    0.0
-    [100, 200, 300]
-    [[10, 20], [30, 40]]
-    """
-
-    type: Literal["constant"] = "constant"
-
-    value: Any = Field(
-        description="Scalar or nested numeric list used as an initial value."
-    )
-
-    @model_validator(mode="after")
-    def validate_numeric_tree(self) -> Self:
-        self._validate_numeric_value(self.value)
-        return self
-
-    def dependencies(self) -> set[str]:
-        return set()
-
-    def evaluate(
-        self,
-        context: dict[str, Any] | None = None,
-        data: Any | None = None,
-    ) -> Any:
-        if isinstance(self.value, list):
-            return jnp.asarray(self.value)
-
-        return self.value
-
-    @classmethod
-    def _validate_numeric_value(cls, value: Any) -> None:
-        if isinstance(value, bool):
-            return
-
-        if isinstance(value, (int, float)):
-            return
-
-        if isinstance(value, list):
-            for item in value:
-                cls._validate_numeric_value(item)
-
-            # Catch ragged nested lists early.
-            try:
-                array = np.asarray(value)
-            except Exception as exc:
-                raise ValueError("Constant initial value is not array-like.") from exc
-
-            if array.dtype == object:
-                raise ValueError(
-                    "Constant initial value appears to be ragged. "
-                    "Use a rectangular nested list."
-                )
-
-            return
-
-        raise TypeError(
-            "Constant initial values must be numeric scalars or nested numeric lists. "
-            f"Got {type(value).__name__}."
-        )
-
-
-class ParamInitialValueSpec(InitializerValueSpec):
-    """
-    Reference to a sampled or resolved parameter.
-    """
-
-    type: Literal["param_ref"] = "param_ref"
-
-    name: str
-
-    def dependencies(self) -> set[str]:
-        return {self.name}
-
-    def evaluate(
-        self,
-        context: dict[str, Any] | None = None,
-        data: Any | None = None,
-    ) -> Any:
-        if context is None:
-            raise ValueError(
-                f"Cannot resolve parameter reference {self.name!r} without context."
-            )
-
-        try:
-            return context[self.name]
-        except KeyError as exc:
-            raise KeyError(
-                f"Parameter {self.name!r} was not found in context. "
-                f"Available values are: {sorted(context)}."
-            ) from exc
-
-
-class DeterministicInitialValueSpec(InitializerValueSpec):
-    """
-    Reference to an already evaluated deterministic parameter.
-    """
-
-    type: Literal["deterministic_ref"] = "deterministic_ref"
-
-    name: str
-
-    def dependencies(self) -> set[str]:
-        return {self.name}
-
-    def evaluate(
-        self,
-        context: dict[str, Any] | None = None,
-        data: Any | None = None,
-    ) -> Any:
-        if context is None:
-            raise ValueError(
-                f"Cannot resolve deterministic reference {self.name!r} without context."
-            )
-
-        try:
-            return context[self.name]
-        except KeyError as exc:
-            raise KeyError(
-                f"Deterministic parameter {self.name!r} was not found in context. "
-                f"Available values are: {sorted(context)}."
-            ) from exc
-
-
-class DataInitialValueSpec(InitializerValueSpec):
-    """
-    Reference to observed data.
-
-    This is useful when initial conditions are derived from the first observed
-    population size, first observed prevalence, imported data arrays, etc.
-    """
-
-    type: Literal["data_ref"] = "data_ref"
-
-    name: str = Field(
-        description="Name of the data field or observed series to use."
-    )
-
-    index: int | None = Field(
-        default=None,
-        description=(
-            "Optional index into the referenced data array. "
-            "For example, index=0 uses the first observation."
-        ),
-    )
-
-    def dependencies(self) -> set[str]:
-        return set()
-
-    def data_dependencies(self) -> set[str]:
-        return {self.name}
-
-    def evaluate(
-        self,
-        context: dict[str, Any] | None = None,
-        data: Any | None = None,
-    ) -> Any:
-        if data is None:
-            raise ValueError(
-                f"Cannot resolve data reference {self.name!r} without data."
-            )
-
-        value = self._lookup_data_value(data)
-
-        if self.index is not None:
-            value = value[self.index]
-
-        return value
-
-    def _lookup_data_value(self, data: Any) -> Any:
-        """
-        Supports:
-        - DataSpec with get_observation(...)
-        - dict returned by DataSpec.as_jax()
-        - plain dicts
-        """
-        if hasattr(data, "get_observation"):
-            observation = data.get_observation(self.name)
-
-            if hasattr(observation, "as_jax"):
-                return observation.as_jax()
-
-            return observation.values
-
-        if isinstance(data, Mapping):
-            if self.name in data:
-                return data[self.name]
-
-            observations = data.get("observations")
-            if isinstance(observations, Mapping) and self.name in observations:
-                return observations[self.name]
-
-        raise KeyError(
-            f"Could not find data reference {self.name!r}."
-        )
-
-
-InitializerValue = Annotated[
-    ConstantInitialValueSpec
-    | ParamInitialValueSpec
-    | DeterministicInitialValueSpec
-    | DataInitialValueSpec,
-    Field(discriminator="type"),
-]
-
-
-def as_initializer_value(value: Any) -> Any:
-    """
-    Convenience helper.
-
-    Allows:
-
-        value=0.0
-
-    instead of:
-
-        value={"type": "constant", "value": 0.0}
-    """
-    if isinstance(value, InitializerValueSpec):
-        return value
-
-    if isinstance(value, dict) and "type" in value:
-        return value
-
-    return {
-        "type": "constant",
-        "value": value,
-    }
+from .value_spec import (
+    ConstantValueSpec,
+    InitializerValue,
+    as_value_spec,
+)
 
 
 class CompartmentInitialConditionSpec(BaseModel):
@@ -297,7 +32,7 @@ class CompartmentInitialConditionSpec(BaseModel):
     )
 
     value: InitializerValue = Field(
-        default_factory=lambda: ConstantInitialValueSpec(value=0.0),
+        default_factory=lambda: ConstantValueSpec(value=0.0),
         description=(
             "Initial value for this compartment. Scalars are broadcast to the "
             "full compartment shape."
@@ -317,17 +52,27 @@ class CompartmentInitialConditionSpec(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def coerce_value(cls, data: Any) -> Any:
-        if isinstance(data, dict):
+        if isinstance(data, dict) and "value" in data:
             data = dict(data)
-
-            if "value" in data:
-                data["value"] = as_initializer_value(data["value"])
+            data["value"] = as_value_spec(data["value"])
 
         return data
 
     @property
     def dependencies(self) -> set[str]:
+        """
+        Parameter and deterministic dependencies required to evaluate this
+        initial condition.
+        """
         return self.value.dependencies()
+
+    @property
+    def parameter_dependencies(self) -> set[str]:
+        return self.value.parameter_dependencies()
+
+    @property
+    def deterministic_dependencies(self) -> set[str]:
+        return self.value.deterministic_dependencies()
 
     @property
     def data_dependencies(self) -> set[str]:
@@ -338,7 +83,10 @@ class CompartmentInitialConditionSpec(BaseModel):
         context: dict[str, Any] | None = None,
         data: Any | None = None,
     ) -> Any:
-        return self.value.evaluate(context=context, data=data)
+        return self.value.evaluate(
+            context=context,
+            data=data,
+        )
 
 
 class InitializerSpec(BaseModel):
@@ -348,7 +96,7 @@ class InitializerSpec(BaseModel):
     This class validates and builds initial values for compartments. It should
     not sample parameters or call NumPyro primitives.
 
-    The runtime layer can call:
+    Runtime code can call:
 
         initializer.build_dict(simulation, context, data)
         initializer.build_flat(simulation, context, data)
@@ -362,7 +110,9 @@ class InitializerSpec(BaseModel):
 
     type: Literal["explicit"] = Field(
         default="explicit",
-        description="Initializer strategy. Currently supports explicit compartment values.",
+        description=(
+            "Initializer strategy. Currently supports explicit compartment values."
+        ),
     )
 
     compartments: tuple[CompartmentInitialConditionSpec, ...] = Field(
@@ -400,10 +150,32 @@ class InitializerSpec(BaseModel):
 
     @property
     def dependencies(self) -> set[str]:
+        """
+        All parameter-like dependencies required by the initializer.
+        Includes sampled parameter refs and deterministic refs.
+        """
         deps: set[str] = set()
 
         for compartment in self.compartments:
             deps |= compartment.dependencies
+
+        return deps
+
+    @property
+    def parameter_dependencies(self) -> set[str]:
+        deps: set[str] = set()
+
+        for compartment in self.compartments:
+            deps |= compartment.parameter_dependencies
+
+        return deps
+
+    @property
+    def deterministic_dependencies(self) -> set[str]:
+        deps: set[str] = set()
+
+        for compartment in self.compartments:
+            deps |= compartment.deterministic_dependencies
 
         return deps
 
@@ -434,13 +206,12 @@ class InitializerSpec(BaseModel):
     def validate_against_simulation(self, simulation: Any) -> None:
         """
         Validate this initializer against SimulationSpec.
-
-        This is called by SimulationSpec.validate_initializer_compatible().
         """
         simulation_names = set(simulation.compartment_names)
         initializer_names = set(self.initialized_compartment_names)
 
         unknown = sorted(initializer_names - simulation_names)
+
         if unknown:
             raise ValueError(
                 "Initializer refers to compartments not present in the simulation: "
@@ -448,6 +219,7 @@ class InitializerSpec(BaseModel):
             )
 
         missing = sorted(simulation_names - initializer_names)
+
         if missing and self.missing_compartment_policy == "error":
             raise ValueError(
                 "Initializer is missing initial conditions for compartments: "
@@ -460,20 +232,27 @@ class InitializerSpec(BaseModel):
         """
         Optional full-model validation hook.
 
-        ModelSpec can call this if initializer validation eventually needs
-        access to parameters, data, or transmission settings.
+        ModelSpec can call this when initializer validation needs access to
+        parameters, data, or transmission settings.
         """
         self.validate_against_simulation(model.simulation)
 
-        parameter_names = getattr(model.parameters, "resolved_parameter_names", set())
-        if callable(parameter_names):
-            parameter_names = parameter_names()
+        resolved_parameter_names = getattr(
+            model.parameters,
+            "resolved_parameter_names",
+            set(),
+        )
 
-        missing_parameter_refs = sorted(self.dependencies - set(parameter_names))
+        if callable(resolved_parameter_names):
+            resolved_parameter_names = resolved_parameter_names()
+
+        missing_parameter_refs = sorted(
+            self.dependencies - set(resolved_parameter_names)
+        )
 
         if missing_parameter_refs:
             raise ValueError(
-                "Initializer refers to unknown parameters: "
+                "Initializer refers to unknown parameters or deterministic values: "
                 f"{missing_parameter_refs}."
             )
 
@@ -491,10 +270,11 @@ class InitializerSpec(BaseModel):
         """
         Validate shapes that are knowable at config-validation time.
 
-        Parameter/data references may only be shape-checkable at runtime.
+        ParamRef, DeterministicRef, DataRef, and expression values may only be
+        shape-checkable at runtime.
         """
         for compartment_name, init in self.compartment_map.items():
-            if not isinstance(init.value, ConstantInitialValueSpec):
+            if not isinstance(init.value, ConstantValueSpec):
                 continue
 
             target_shape = tuple(simulation.compartment_shape(compartment_name))
@@ -504,7 +284,10 @@ class InitializerSpec(BaseModel):
             if self._shape_matches(value_shape, target_shape):
                 continue
 
-            if init.allow_broadcast and self._can_broadcast(value_shape, target_shape):
+            if init.allow_broadcast and self._can_broadcast(
+                value_shape,
+                target_shape,
+            ):
                 continue
 
             raise ValueError(
@@ -541,13 +324,17 @@ class InitializerSpec(BaseModel):
             if init is None:
                 if self.missing_compartment_policy == "error":
                     raise ValueError(
-                        f"Missing initial condition for compartment {compartment_name!r}."
+                        f"Missing initial condition for compartment "
+                        f"{compartment_name!r}."
                     )
 
                 raw_value = 0.0
                 allow_broadcast = True
             else:
-                raw_value = init.evaluate(context=context, data=data)
+                raw_value = init.evaluate(
+                    context=context,
+                    data=data,
+                )
                 allow_broadcast = init.allow_broadcast
 
             state[compartment_name] = self._coerce_to_shape(
@@ -568,7 +355,7 @@ class InitializerSpec(BaseModel):
         """
         Build initial state as a flattened JAX vector.
 
-        This is useful if your ODE runtime stores the full state as one vector.
+        Useful if your ODE runtime stores the full state as one vector.
         """
         state_dict = self.build_dict(
             simulation=simulation,
@@ -623,7 +410,6 @@ class InitializerSpec(BaseModel):
         allow_broadcast: bool,
     ):
         array = jnp.asarray(value)
-
         value_shape = tuple(array.shape)
 
         if value_shape == target_shape:
@@ -660,4 +446,4 @@ class InitializerSpec(BaseModel):
         except ValueError:
             return False
 
-        return tuple(broadcast_shape) == target_shape 
+        return tuple(broadcast_shape) == target_shape
