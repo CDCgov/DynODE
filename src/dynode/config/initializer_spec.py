@@ -137,8 +137,7 @@ class InitializerSpec(BaseModel):
     @property
     def initialized_compartment_names(self) -> list[str]:
         return [
-            compartment.compartment_name
-            for compartment in self.compartments
+            compartment.compartment_name for compartment in self.compartments
         ]
 
     @property
@@ -266,7 +265,9 @@ class InitializerSpec(BaseModel):
                     f"{missing_data_refs}."
                 )
 
-    def _validate_constant_shapes_against_simulation(self, simulation: Any) -> None:
+    def _validate_constant_shapes_against_simulation(
+        self, simulation: Any
+    ) -> None:
         """
         Validate shapes that are knowable at config-validation time.
 
@@ -277,7 +278,9 @@ class InitializerSpec(BaseModel):
             if not isinstance(init.value, ConstantValueSpec):
                 continue
 
-            target_shape = tuple(simulation.compartment_shape(compartment_name))
+            target_shape = tuple(
+                simulation.compartment_shape(compartment_name)
+            )
             value = init.value.evaluate()
             value_shape = tuple(jnp.asarray(value).shape)
 

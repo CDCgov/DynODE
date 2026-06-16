@@ -36,7 +36,9 @@ class ValueSpec(BaseModel):
 
         This includes sampled parameter refs and deterministic refs.
         """
-        return self.parameter_dependencies() | self.deterministic_dependencies()
+        return (
+            self.parameter_dependencies() | self.deterministic_dependencies()
+        )
 
     def parameter_dependencies(self) -> set[str]:
         return set()
@@ -53,6 +55,7 @@ class ValueSpec(BaseModel):
         data: Any | None = None,
     ) -> Any:
         raise NotImplementedError
+
 
 class ConstantValueSpec(ValueSpec):
     """
@@ -118,6 +121,7 @@ class ConstantValueSpec(ValueSpec):
             f"Got {type(value).__name__}."
         )
 
+
 class ParamRef(ValueSpec):
     """
     Reference to a sampled parameter.
@@ -152,6 +156,7 @@ class ParamRef(ValueSpec):
                 f"Available values are: {sorted(context)}."
             ) from exc
 
+
 class DeterministicRef(ValueSpec):
     """
     Reference to an already-resolved deterministic parameter.
@@ -181,6 +186,7 @@ class DeterministicRef(ValueSpec):
                 f"Deterministic parameter {self.name!r} was not found in context. "
                 f"Available values are: {sorted(context)}."
             ) from exc
+
 
 class DataRef(ValueSpec):
     """
@@ -231,9 +237,8 @@ class DataRef(ValueSpec):
             if isinstance(observations, Mapping) and self.name in observations:
                 return observations[self.name]
 
-        raise KeyError(
-            f"Could not find data reference {self.name!r}."
-        )
+        raise KeyError(f"Could not find data reference {self.name!r}.")
+
 
 class UnaryValueSpec(ValueSpec):
     type: Literal["unary"] = "unary"
@@ -288,6 +293,7 @@ class UnaryValueSpec(ValueSpec):
             return 1 / (1 + jnp.exp(-value))
 
         raise ValueError(f"Unsupported unary operation: {self.op!r}.")
+
 
 class BinaryValueSpec(ValueSpec):
     type: Literal["binary"] = "binary"
@@ -351,6 +357,7 @@ class BinaryValueSpec(ValueSpec):
 
         raise ValueError(f"Unsupported binary operation: {self.op!r}.")
 
+
 class FunctionValueSpec(ValueSpec):
     type: Literal["function"] = "function"
 
@@ -376,10 +383,14 @@ class FunctionValueSpec(ValueSpec):
 
         if self.function == "clip":
             if len(self.args) != 1:
-                raise ValueError("clip requires exactly one positional argument.")
+                raise ValueError(
+                    "clip requires exactly one positional argument."
+                )
 
             if "min" not in self.kwargs or "max" not in self.kwargs:
-                raise ValueError("clip requires keyword arguments 'min' and 'max'.")
+                raise ValueError(
+                    "clip requires keyword arguments 'min' and 'max'."
+                )
 
         return self
 
@@ -421,10 +432,7 @@ class FunctionValueSpec(ValueSpec):
         context: Mapping[str, Any] | None = None,
         data: Any | None = None,
     ) -> Any:
-        args = [
-            arg.evaluate(context=context, data=data)
-            for arg in self.args
-        ]
+        args = [arg.evaluate(context=context, data=data) for arg in self.args]
 
         kwargs = {
             key: value.evaluate(context=context, data=data)
@@ -455,6 +463,7 @@ class FunctionValueSpec(ValueSpec):
             return jnp.concatenate(args, axis=axis)
 
         raise ValueError(f"Unsupported function: {self.function!r}.")
+
 
 def as_value_spec(value: Any) -> Any:
     """
@@ -506,6 +515,7 @@ def coerce_value_fields(data: Any, field_names: Iterable[str]) -> Any:
 
     return data
 
+
 ValueExpression = Annotated[
     ConstantValueSpec
     | ParamRef
@@ -522,9 +532,7 @@ for _model in (
     BinaryValueSpec,
     FunctionValueSpec,
 ):
-    _model.model_rebuild(
-        _types_namespace={"ValueExpression": ValueExpression}
-    )
+    _model.model_rebuild(_types_namespace={"ValueExpression": ValueExpression})
 
 DistributionValue = ValueExpression
 DeterministicExpression = ValueExpression
