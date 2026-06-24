@@ -8,8 +8,8 @@ from . import (
     ParameterSpec,
     SimulationSpec,
 )
-from .bins import AgeBin
-from .dimension import (
+from .bin_spec import AgeBin
+from .dimension_spec import (
     FullStratifiedImmuneHistoryDimension,
     ImmuneHistoryDimension,
     LastStrainImmuneHistoryDimension,

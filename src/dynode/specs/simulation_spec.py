@@ -7,8 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
 
 from . import CompartmentSpec, InitializerSpec
-from .bins import AgeBin, Bin
-from .dimension import DimensionSpec
+from .bin_spec import AgeBin, BinSpec
+from .dimension_spec import DimensionSpec
 
 
 class _IntWithAttributes(int):
@@ -204,26 +204,26 @@ class SimulationSpec(BaseModel):
 
         return unique
 
-    def flatten_bins(self) -> list[Bin]:
+    def flatten_bins(self) -> list[BinSpec]:
         """
         Flatten all bins across all compartments and dimensions.
 
         This preserves compartment, dimension, and bin order.
         """
-        flattened: list[Bin] = []
+        flattened: list[BinSpec] = []
 
         for dimension in self.flatten_dims():
             flattened.extend(dimension.bins)
 
         return flattened
 
-    def flatten_unique_bins(self) -> list[Bin]:
+    def flatten_unique_bins(self) -> list[BinSpec]:
         """
         Return unique bins preserving first-seen order.
 
         Useful for validation, not for constructing the ODE state.
         """
-        unique: list[Bin] = []
+        unique: list[BinSpec] = []
 
         for bin_ in self.flatten_bins():
             if bin_ not in unique:
