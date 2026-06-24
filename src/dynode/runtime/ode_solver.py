@@ -11,7 +11,6 @@ import numpy as np
 
 from .runtime_model import RuntimeModel
 
-
 ParameterContext = Mapping[str, Any]
 FlatState = Any
 StateDict = Mapping[str, Any]
@@ -30,10 +29,16 @@ class OdeSolverError(RuntimeError):
 @dataclass(frozen=True, slots=True)
 class OdeSolverOptions:
     """
-    Options controlling ODE solving.
+    Runtime options for wrapping and validating the ODE solve.
 
-    This class intentionally does not duplicate SolverSpec. SolverSpec owns
-    solver method, tolerances, save_at, max_steps, dt0, and controller setup.
+    This class intentionally does not duplicate SolverSpec. SolverSpec owns:
+    - solver method
+    - dt0
+    - step-size controller
+    - save_at
+    - max_steps
+    - throw
+    - jump_ts / step_ts handling
     """
 
     rhs_state_format: RHSStateFormat = "flat"
@@ -45,8 +50,6 @@ class OdeSolverOptions:
 
     y0_dtype: Any | None = None
 
-    # Extra static/contextual values made available to rhs_fn.
-    # Prefer keeping these small and static.
     rhs_extra: Mapping[str, Any] = field(default_factory=dict)
 
 
@@ -60,7 +63,7 @@ def solve_ode(
     t0: float | None = None,
     t1: float | None = None,
     terms: Any | None = None,
-    solver_kwargs: Mapping[str, Any] | None = None,
+    extra_diffeqsolve_kwargs: Mapping[str, Any] | None = None,
     options: OdeSolverOptions | None = None,
 ) -> dfx.Solution:
     """
@@ -75,33 +78,28 @@ def solve_ode(
         ODE right-hand-side function.
 
     y0:
-        Initial state. May be either:
-        - a flat vector matching runtime.state_layout.total_size
-        - a compartment dictionary that can be flattened by StateLayout
+        Initial state. May be either a flat vector or a compartment dictionary.
 
     params:
         Full parameter context from parameter_sampling.py.
 
     data:
-        Optional data object passed to rhs_fn through the wrapper.
+        Optional data object passed through to rhs_fn.
 
     t0, t1:
-        Optional solve start/end times. If omitted, this function attempts to
-        infer them from data, runtime.data_spec, or SolverSpec.save_at.ts.
+        Optional solve start/end times. If omitted, the solver tries to infer
+        them from data, runtime.data_spec, or SolverSpec.save_at.ts.
 
     terms:
-        Optional prebuilt Diffrax term. Usually leave this as None.
+        Optional prebuilt Diffrax term. Usually None.
 
-    solver_kwargs:
-        Optional overrides merged into runtime.solver_spec.diffeqsolve_kwargs().
+    extra_diffeqsolve_kwargs:
+        Optional extra Diffrax kwargs that are not owned by SolverSpec and not
+        owned by solve_ode. Examples might include advanced Diffrax arguments
+        such as an adjoint or event configuration.
 
     options:
-        ODE-solver wrapper options.
-
-    Returns
-    -------
-    diffrax.Solution
-        The Diffrax solution object.
+        Runtime solve wrapper options.
     """
     options = options or OdeSolverOptions()
 
@@ -123,7 +121,7 @@ def solve_ode(
 
     diffeqsolve_kwargs = build_diffeqsolve_kwargs(
         runtime=runtime,
-        overrides=solver_kwargs,
+        extra_kwargs=extra_diffeqsolve_kwargs,
     )
 
     if terms is None:
@@ -155,6 +153,92 @@ def solve_ode(
 
     return solution
 
+
+def build_diffeqsolve_kwargs(
+    *,
+    runtime: RuntimeModel,
+    extra_kwargs: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Build keyword arguments for diffrax.diffeqsolve.
+
+    SolverSpec is the only source of truth for:
+    - solver
+    - dt0
+    - stepsize_controller
+    - saveat
+    - max_steps
+    - throw
+    """
+    solver_spec = runtime.solver_spec
+
+    diffeqsolve_kwargs = getattr(solver_spec, "diffeqsolve_kwargs", None)
+
+    if not callable(diffeqsolve_kwargs):
+        raise OdeSolverError(
+            "runtime.solver_spec must expose diffeqsolve_kwargs(). "
+            "Do not reconstruct Diffrax solver objects in ode_solver.py."
+        )
+
+    kwargs = dict(diffeqsolve_kwargs())
+
+    required = {
+        "solver",
+        "dt0",
+        "stepsize_controller",
+        "saveat",
+        "max_steps",
+        "throw",
+    }
+
+    missing = sorted(required - set(kwargs))
+
+    if missing:
+        raise OdeSolverError(
+            "SolverSpec.diffeqsolve_kwargs() did not provide required keys: "
+            f"{missing}."
+        )
+
+    if extra_kwargs:
+        _validate_extra_diffeqsolve_kwargs(extra_kwargs)
+        kwargs.update(dict(extra_kwargs))
+
+    return kwargs
+
+
+def _validate_extra_diffeqsolve_kwargs(
+    extra_kwargs: Mapping[str, Any],
+) -> None:
+    """
+    Prevent extra kwargs from overriding values owned by solve_ode or SolverSpec.
+    """
+    solve_owned = {
+        "terms",
+        "t0",
+        "t1",
+        "y0",
+        "args",
+    }
+
+    solver_spec_owned = {
+        "solver",
+        "dt0",
+        "stepsize_controller",
+        "saveat",
+        "max_steps",
+        "throw",
+    }
+
+    reserved = solve_owned | solver_spec_owned
+    conflicts = sorted(reserved & set(extra_kwargs))
+
+    if conflicts:
+        raise OdeSolverError(
+            "extra_diffeqsolve_kwargs cannot override arguments owned by "
+            f"solve_ode or SolverSpec: {conflicts}."
+        )
+
+
 def make_ode_term(
     *,
     runtime: RuntimeModel,
@@ -163,16 +247,16 @@ def make_ode_term(
     options: OdeSolverOptions | None = None,
 ) -> dfx.ODETerm:
     """
-    Build a Diffrax ODETerm from the user-provided rhs_fn.
+    Build a Diffrax ODETerm from the user-provided RHS function.
     """
-    vector_field = make_vector_field(
-        runtime=runtime,
-        rhs_fn=rhs_fn,
-        data=data,
-        options=options,
+    return dfx.ODETerm(
+        make_vector_field(
+            runtime=runtime,
+            rhs_fn=rhs_fn,
+            data=data,
+            options=options,
+        )
     )
-
-    return dfx.ODETerm(vector_field)
 
 
 def make_vector_field(
@@ -183,12 +267,12 @@ def make_vector_field(
     options: OdeSolverOptions | None = None,
 ) -> Callable[[Any, Any, Any], Any]:
     """
-    Wrap rhs_fn into Diffrax's expected vector-field shape:
+    Wrap rhs_fn into Diffrax's expected vector field signature:
 
         vector_field(t, y, args) -> dy_dt
 
-    In this framework:
-    - y is usually a flat state vector
+    Here:
+    - y is the flat ODE state vector unless rhs_state_format='dict'
     - args is the parameter context
     - runtime and data are captured by closure
     """
@@ -224,109 +308,7 @@ def make_vector_field(
 
     return vector_field
 
-def build_diffeqsolve_kwargs(
-    *,
-    runtime: RuntimeModel,
-    overrides: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """
-    Build keyword arguments for diffrax.diffeqsolve from SolverSpec.
 
-    SolverSpec is the single source of truth for:
-    - solver
-    - dt0
-    - stepsize_controller
-    - saveat
-    - max_steps
-    - throw
-
-    This function only delegates to SolverSpec and applies explicit overrides.
-    """
-    solver_spec = runtime.solver_spec
-
-    diffeqsolve_kwargs_fn = getattr(
-        solver_spec,
-        "diffeqsolve_kwargs",
-        None,
-    )
-
-    if callable(diffeqsolve_kwargs_fn):
-        kwargs = dict(diffeqsolve_kwargs_fn())
-    else:
-        kwargs = _fallback_diffeqsolve_kwargs_from_solver_spec(solver_spec)
-
-    if overrides:
-        _validate_no_reserved_diffeqsolve_overrides(overrides)
-        kwargs.update(dict(overrides))
-
-    required = {"solver", "dt0", "saveat", "stepsize_controller"}
-
-    missing = sorted(required - set(kwargs))
-
-    if missing:
-        raise OdeSolverError(
-            "SolverSpec did not provide required Diffrax solve kwargs: "
-            f"{missing}."
-        )
-
-    return kwargs
-
-
-def _fallback_diffeqsolve_kwargs_from_solver_spec(solver_spec: Any) -> dict[str, Any]:
-    """
-    Fallback adapter if SolverSpec does not expose diffeqsolve_kwargs().
-
-    Prefer implementing SolverSpec.diffeqsolve_kwargs(); this fallback is only
-    here to make ode_solver.py more robust during development.
-    """
-    solver_method = getattr(solver_spec, "solver_method", None)
-    controller = getattr(solver_spec, "controller", None)
-    saveat = getattr(solver_spec, "saveat", None)
-
-    if not callable(solver_method):
-        raise OdeSolverError(
-            "SolverSpec must expose diffeqsolve_kwargs() or solver_method()."
-        )
-
-    if not callable(controller):
-        raise OdeSolverError(
-            "SolverSpec must expose diffeqsolve_kwargs() or controller()."
-        )
-
-    if not callable(saveat):
-        raise OdeSolverError(
-            "SolverSpec must expose diffeqsolve_kwargs() or saveat()."
-        )
-
-    return {
-        "solver": solver_method(),
-        "dt0": getattr(solver_spec, "dt0", None),
-        "stepsize_controller": controller(),
-        "saveat": saveat(),
-        "max_steps": getattr(solver_spec, "max_steps", int(1e6)),
-        "throw": getattr(solver_spec, "throw", True),
-    }
-
-
-def _validate_no_reserved_diffeqsolve_overrides(
-    overrides: Mapping[str, Any],
-) -> None:
-    reserved = {
-        "terms",
-        "t0",
-        "t1",
-        "y0",
-        "args",
-    }
-
-    conflicts = sorted(reserved & set(overrides))
-
-    if conflicts:
-        raise OdeSolverError(
-            "solver_kwargs cannot override solve_ode-owned arguments: "
-            f"{conflicts}."
-        )
-    
 def prepare_initial_state_for_solve(
     *,
     runtime: RuntimeModel,
@@ -334,10 +316,10 @@ def prepare_initial_state_for_solve(
     options: OdeSolverOptions | None = None,
 ) -> FlatState:
     """
-    Coerce y0 into the flat vector representation used by the solver.
+    Coerce y0 into the flat vector representation used by Diffrax.
 
-    state_builder.py should normally provide a flat vector already. This function
-    exists as a defensive boundary check.
+    state_builder.py should usually provide a flat vector already. This function
+    is only a boundary check.
     """
     options = options or OdeSolverOptions()
 
@@ -361,6 +343,7 @@ def prepare_initial_state_for_solve(
             ) from exc
 
     return flat_y0
+
 
 def resolve_time_span(
     *,
@@ -478,6 +461,7 @@ def _extract_time_values_from_solver_spec(
 
     return tuple(float(value) for value in ts)
 
+
 def _make_rhs_adapter(
     *,
     rhs_fn: RHSFn,
@@ -522,7 +506,7 @@ def _make_standard_rhs_adapter(
     rhs_fn: RHSFn,
 ) -> Callable[..., Any]:
     """
-    Adapter for rhs functions of shape:
+    Adapter for RHS functions of shape:
 
         rhs_fn(t, y, args)
 
@@ -556,10 +540,11 @@ def _make_keyword_rhs_adapter(
     rhs_fn: RHSFn,
 ) -> Callable[..., Any]:
     """
-    Adapter for rhs functions using named arguments, for example:
+    Adapter for RHS functions using named arguments.
 
-        rhs_fn(t, y, params, runtime)
-        rhs_fn(t=t, y=y, params=params, runtime=runtime, data=data)
+    Supported examples:
+        rhs_fn(t=t, y=y, params=params, runtime=runtime)
+        rhs_fn(t, y, params=params, runtime=runtime)
         rhs_fn(t, y, *, params, runtime, data=None)
     """
     signature = inspect.signature(rhs_fn)
@@ -607,6 +592,7 @@ def _make_keyword_rhs_adapter(
 
     return adapter
 
+
 def normalize_rhs_output(
     *,
     runtime: RuntimeModel,
@@ -640,6 +626,7 @@ def normalize_rhs_output(
 
     return flat_rhs
 
+
 def validate_solution(
     *,
     runtime: RuntimeModel,
@@ -662,8 +649,7 @@ def validate_solution(
     try:
         ys_array = jnp.asarray(ys)
     except Exception:
-        # SaveAt(subs=...) may produce a PyTree of outputs. In that case this
-        # generic flat-state validator is not applicable.
+        # SaveAt(subs=...) or custom output structures may return pytrees.
         return
 
     if ys_array.ndim == 1:
@@ -739,7 +725,9 @@ def solution_final_state_dict(
     Return the final saved state as a compartment dictionary.
     """
     final_flat = solution_final_state_flat(solution=solution)
+
     return runtime.state_layout.unflatten(final_flat)
+
 
 __all__ = [
     "ParameterContext",
@@ -751,9 +739,9 @@ __all__ = [
     "OdeSolverError",
     "OdeSolverOptions",
     "solve_ode",
+    "build_diffeqsolve_kwargs",
     "make_ode_term",
     "make_vector_field",
-    "build_diffeqsolve_kwargs",
     "prepare_initial_state_for_solve",
     "resolve_time_span",
     "normalize_rhs_output",
