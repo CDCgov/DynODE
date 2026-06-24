@@ -16,9 +16,9 @@ with open("../../pyproject.toml", "rb") as file:
     pyproject_data = tomli.load(file)
 
 project = "DynODE"
-copyright = pyproject_data["tool"]["poetry"]["license"]
-author = "".join(pyproject_data["tool"]["poetry"]["authors"])
-release = pyproject_data["tool"]["poetry"]["version"]
+copyright = pyproject_data["project"]["license"]
+author = ", ".join(d["name"] for d in pyproject_data["project"]["authors"])
+release = pyproject_data["project"]["version"]
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

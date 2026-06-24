@@ -1,6 +1,6 @@
 [project]
 name = "dynode"
-version = "2026.06.02.1a"
+version = "2026.06.24.1a"
 description = "CDC CFA Predict Scenarios model development"
 authors = [{name="CFA"}]
 license = "Apache License, Version 2.0, January 2004"
@@ -22,10 +22,10 @@ chex = {git = "https://github.com/mishmish66/chex.git", rev="6c9f2fb727ba3854745
 arviz = ">=0.21,<0.23.4"
 typing-extensions = ">=4.13.2"
 annotated-types = ">=0.7.0"
-#sphinx = ">=8.2.3"
+sphinx = "<8.2.3"
 sphinx-book-theme = ">=1.1.4"
-#tomli = "^2.2.1"
-myst-parser = "^4.0.1"
+tomli = ">=2.2.1"
+myst-parser = ">=4.0.1"
 sphinxcontrib-mermaid = ">=1.0.0"
 
 [tool.poetry.group.dev.dependencies]
