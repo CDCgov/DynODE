@@ -25,7 +25,7 @@ jobs:
       - name: Get version from pyproject.toml
         id: get_version
         run: |
-          VERSION=$(python -c "import toml; print(toml.load('pyproject.toml')['tool']['poetry']['version'])")
+          VERSION=$(python -c "import toml; print(toml.load('pyproject.toml')['project']['version'])")
           echo "VERSION=${VERSION}" >> $GITHUB_ENV
 
       - name: Create Tag
