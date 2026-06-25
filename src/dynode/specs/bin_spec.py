@@ -14,6 +14,7 @@ from typing_extensions import Self
 
 from dynode.typing import DynodeName
 
+
 class BinSpec(BaseModel):
     """
     Base declarative bin specification.
@@ -196,6 +197,7 @@ class DiscretizedPositiveIntBin(BinSpec):
         gap = other.min_value - self.max_value - 1
         return max(gap, 0)
 
+
 class AgeBin(DiscretizedPositiveIntBin):
     """
     Age bin with inclusive minimum and maximum ages.
@@ -236,10 +238,12 @@ class AgeBin(DiscretizedPositiveIntBin):
     def contains_age(self, age: int) -> bool:
         return self.contains(age)
 
+
 Probability = Annotated[
     float,
     Field(ge=0.0, le=1.0),
 ]
+
 
 class WaneBin(BinSpec):
     """
@@ -304,13 +308,12 @@ class WaneBin(BinSpec):
 
         return 1.0 / self.waiting_time
 
+
 AnyBinSpec = Annotated[
-    BinSpec
-    | DiscretizedPositiveIntBin
-    | AgeBin
-    | WaneBin,
+    BinSpec | DiscretizedPositiveIntBin | AgeBin | WaneBin,
     Field(discriminator="type"),
 ]
+
 
 def as_bin_spec(value: Any) -> Any:
     """

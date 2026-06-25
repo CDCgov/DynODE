@@ -11,13 +11,13 @@ from pydantic import (
     PrivateAttr,
     model_validator,
 )
+
+# Adjust this import path if your ModelSpec lives somewhere else.
+from specs.model_spec import ModelSpec
 from typing_extensions import Self
 
 from .compile_model import CompileOptions, compile_model
 from .runtime_model import RuntimeModel
-
-# Adjust this import path if your ModelSpec lives somewhere else.
-from specs.model_spec import ModelSpec
 
 
 def _default_parameter_sampler(
@@ -79,6 +79,7 @@ def _default_ode_solver(
         params=params,
         data=data,
     )
+
 
 class DynodeModel(BaseModel):
     """

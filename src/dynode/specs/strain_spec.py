@@ -17,7 +17,6 @@ from .value_spec import (
     coerce_value_fields,
 )
 
-
 DoseCount = Annotated[int, Field(ge=0)]
 Probability = Annotated[float, Field(ge=0.0, le=1.0)]
 
@@ -184,7 +183,9 @@ class StrainSpec(BaseModel):
             deps |= value.deterministic_dependencies()
 
         for interaction in self.interactions.values():
-            deps |= self._dependency_set(interaction, "deterministic_dependencies")
+            deps |= self._dependency_set(
+                interaction, "deterministic_dependencies"
+            )
 
         return deps
 
@@ -209,7 +210,9 @@ class StrainSpec(BaseModel):
 
         return deps
 
-    def introduction_age_mask(self, age_bins: list[AgeBin] | tuple[AgeBin, ...]) -> list[int]:
+    def introduction_age_mask(
+        self, age_bins: list[AgeBin] | tuple[AgeBin, ...]
+    ) -> list[int]:
         """
         Convert introduction_ages into a mask over model age bins.
 
@@ -219,9 +222,7 @@ class StrainSpec(BaseModel):
             return [0 for _ in age_bins]
 
         missing = [
-            age
-            for age in self.introduction_ages
-            if age not in age_bins
+            age for age in self.introduction_ages if age not in age_bins
         ]
 
         if missing:
@@ -257,9 +258,11 @@ class StrainSpec(BaseModel):
         }
 
         if self.exposed_to_infectious is not None:
-            values["exposed_to_infectious"] = self.exposed_to_infectious.evaluate(
-                context=context,
-                data=data,
+            values["exposed_to_infectious"] = (
+                self.exposed_to_infectious.evaluate(
+                    context=context,
+                    data=data,
+                )
             )
 
         if self.vaccine_efficacy is not None:
@@ -270,9 +273,11 @@ class StrainSpec(BaseModel):
                 context=context,
                 data=data,
             )
-            values["introduction_percentage"] = self.introduction_percentage.evaluate(
-                context=context,
-                data=data,
+            values["introduction_percentage"] = (
+                self.introduction_percentage.evaluate(
+                    context=context,
+                    data=data,
+                )
             )
             values["introduction_scale"] = self.introduction_scale.evaluate(
                 context=context,

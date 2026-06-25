@@ -210,7 +210,9 @@ def _run_spec_validation_hooks(
     data = getattr(spec, "data", None)
 
     if data is not None and options.validate_data_spec:
-        validate_data_against_model = getattr(data, "validate_against_model", None)
+        validate_data_against_model = getattr(
+            data, "validate_against_model", None
+        )
 
         if callable(validate_data_against_model):
             validate_data_against_model(spec)
@@ -291,14 +293,8 @@ def _compile_parameter_layout(
         prior_names=tuple(_name_of(prior) for prior in prior_order),
         deterministic_names=tuple(_name_of(spec) for spec in deterministic),
         deterministic_order=tuple(deterministic_order),
-        prior_specs={
-            _name_of(prior): prior
-            for prior in prior_order
-        },
-        deterministic_specs={
-            _name_of(spec): spec
-            for spec in deterministic
-        },
+        prior_specs={_name_of(prior): prior for prior in prior_order},
+        deterministic_specs={_name_of(spec): spec for spec in deterministic},
     )
 
 
@@ -365,8 +361,7 @@ def _validate_runtime_layout(runtime: RuntimeModel) -> None:
     state_layout = runtime.state_layout
 
     simulation_compartment_names = tuple(
-        str(name)
-        for name in getattr(simulation, "compartment_names", ())
+        str(name) for name in getattr(simulation, "compartment_names", ())
     )
 
     if simulation_compartment_names:
@@ -420,7 +415,10 @@ def _validate_parameter_dependencies(runtime: RuntimeModel) -> None:
                 f"Prior {prior_name!r} depends on unknown parameters {missing}."
             )
 
-    for deterministic_name, deterministic in runtime.parameter_layout.deterministic_specs.items():
+    for (
+        deterministic_name,
+        deterministic,
+    ) in runtime.parameter_layout.deterministic_specs.items():
         deps = _dependency_set(deterministic, "dependencies")
         missing = sorted(deps - available)
 
@@ -484,7 +482,10 @@ def _validate_data_dependencies(runtime: RuntimeModel) -> None:
                 f"{sorted(data_deps)}."
             )
 
-    for deterministic_name, deterministic in runtime.parameter_layout.deterministic_specs.items():
+    for (
+        deterministic_name,
+        deterministic,
+    ) in runtime.parameter_layout.deterministic_specs.items():
         data_deps = _dependency_set(deterministic, "data_dependencies")
 
         if data_deps:
@@ -596,10 +597,7 @@ def _prior_execution_order(
     prior_name_set = set(prior_names)
     deterministic_name_set = set(deterministic_names)
 
-    prior_by_name = {
-        _name_of(prior): prior
-        for prior in priors
-    }
+    prior_by_name = {_name_of(prior): prior for prior in priors}
 
     for prior_name, prior in prior_by_name.items():
         deps = _dependency_set(prior, "dependencies")
@@ -611,7 +609,10 @@ def _prior_execution_order(
 
         deterministic_deps = deps & deterministic_name_set
 
-        if deterministic_deps and not options.allow_prior_dependencies_on_deterministics:
+        if (
+            deterministic_deps
+            and not options.allow_prior_dependencies_on_deterministics
+        ):
             raise CompileError(
                 f"Prior {prior_name!r} depends on deterministic parameters "
                 f"{sorted(deterministic_deps)}, but deterministic parameters "
@@ -693,7 +694,9 @@ def _age_bins_from_simulation(simulation: Any) -> tuple[Any, ...]:
         for dimension in flatten_unique_dims():
             bins = tuple(getattr(dimension, "bins", ()))
 
-            if bins and all(bin_.__class__.__name__ == "AgeBin" for bin_ in bins):
+            if bins and all(
+                bin_.__class__.__name__ == "AgeBin" for bin_ in bins
+            ):
                 age_bins.extend(bins)
                 break
 
@@ -755,10 +758,7 @@ def _compile_metadata(
         )
 
     metadata.update(
-        {
-            str(key): str(value)
-            for key, value in dict(options.metadata).items()
-        }
+        {str(key): str(value) for key, value in dict(options.metadata).items()}
     )
 
     metadata.setdefault("compiled", "true")

@@ -7,7 +7,6 @@ from typing import Any, Mapping
 
 import jax.numpy as jnp
 
-
 ArrayLike = Any
 
 
@@ -23,7 +22,9 @@ def _name_of(value: Any) -> str:
     name = getattr(value, "name", None)
 
     if name is None:
-        raise ValueError(f"Object {value!r} does not expose a 'name' attribute.")
+        raise ValueError(
+            f"Object {value!r} does not expose a 'name' attribute."
+        )
 
     return str(name)
 
@@ -78,10 +79,14 @@ class RuntimeDimension:
 
     def __post_init__(self) -> None:
         if self.axis < 0:
-            raise ValueError(f"RuntimeDimension.axis must be non-negative. Got {self.axis}.")
+            raise ValueError(
+                f"RuntimeDimension.axis must be non-negative. Got {self.axis}."
+            )
 
         if self.size <= 0:
-            raise ValueError(f"RuntimeDimension.size must be positive. Got {self.size}.")
+            raise ValueError(
+                f"RuntimeDimension.size must be positive. Got {self.size}."
+            )
 
         if len(self.bin_names) != self.size:
             raise ValueError(
@@ -104,7 +109,9 @@ class RuntimeDimension:
         object.__setattr__(
             self,
             "bins_to_idx",
-            _readonly_mapping({name: i for i, name in enumerate(self.bin_names)}),
+            _readonly_mapping(
+                {name: i for i, name in enumerate(self.bin_names)}
+            ),
         )
 
     @classmethod
@@ -175,10 +182,14 @@ class RuntimeCompartment:
 
     def __post_init__(self) -> None:
         if self.index < 0:
-            raise ValueError(f"RuntimeCompartment.index must be non-negative. Got {self.index}.")
+            raise ValueError(
+                f"RuntimeCompartment.index must be non-negative. Got {self.index}."
+            )
 
         if self.start < 0:
-            raise ValueError(f"RuntimeCompartment.start must be non-negative. Got {self.start}.")
+            raise ValueError(
+                f"RuntimeCompartment.start must be non-negative. Got {self.start}."
+            )
 
         if self.stop <= self.start:
             raise ValueError(
@@ -226,7 +237,10 @@ class RuntimeCompartment:
             self,
             "dimensions_to_axis",
             _readonly_mapping(
-                {dimension.name: dimension.axis for dimension in self.dimensions}
+                {
+                    dimension.name: dimension.axis
+                    for dimension in self.dimensions
+                }
             ),
         )
 
@@ -386,7 +400,9 @@ class StateLayout:
         duplicates = _duplicates(names)
 
         if duplicates:
-            raise ValueError(f"StateLayout has duplicate compartment names: {duplicates}.")
+            raise ValueError(
+                f"StateLayout has duplicate compartment names: {duplicates}."
+            )
 
         expected_start = 0
 
@@ -564,7 +580,9 @@ class StateLayout:
         compartment_name: str,
     ) -> Any:
         self.validate_flat_state(flat_state)
-        return self.get_compartment(compartment_name).unflatten_from(flat_state)
+        return self.get_compartment(compartment_name).unflatten_from(
+            flat_state
+        )
 
     def replace(
         self,
@@ -582,7 +600,9 @@ class StateLayout:
             allow_broadcast=allow_broadcast,
         )
 
-        return jnp.asarray(flat_state).at[compartment.state_slice].set(flat_value)
+        return (
+            jnp.asarray(flat_state).at[compartment.state_slice].set(flat_value)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -599,7 +619,9 @@ class RuntimeParameterLayout:
     deterministic_order: tuple[Any, ...] = field(default_factory=tuple)
 
     prior_specs: Mapping[str, Any] = field(default_factory=dict, repr=False)
-    deterministic_specs: Mapping[str, Any] = field(default_factory=dict, repr=False)
+    deterministic_specs: Mapping[str, Any] = field(
+        default_factory=dict, repr=False
+    )
 
     prior_to_idx: Mapping[str, int] = field(init=False, repr=False)
     deterministic_to_idx: Mapping[str, int] = field(init=False, repr=False)
@@ -615,14 +637,18 @@ class RuntimeParameterLayout:
                 f"Duplicate deterministic parameter names: {duplicate_deterministic}."
             )
 
-        collisions = sorted(set(self.prior_names) & set(self.deterministic_names))
+        collisions = sorted(
+            set(self.prior_names) & set(self.deterministic_names)
+        )
         if collisions:
             raise ValueError(
                 "A parameter cannot be both sampled and deterministic. "
                 f"Colliding names: {collisions}."
             )
 
-        ordered_names = tuple(_name_of(spec) for spec in self.deterministic_order)
+        ordered_names = tuple(
+            _name_of(spec) for spec in self.deterministic_order
+        )
 
         if set(ordered_names) != set(self.deterministic_names):
             raise ValueError(
@@ -635,7 +661,9 @@ class RuntimeParameterLayout:
         object.__setattr__(
             self,
             "prior_to_idx",
-            _readonly_mapping({name: i for i, name in enumerate(self.prior_names)}),
+            _readonly_mapping(
+                {name: i for i, name in enumerate(self.prior_names)}
+            ),
         )
 
         object.__setattr__(
@@ -682,7 +710,9 @@ class RuntimeParameterLayout:
             deterministic_names=deterministic_names,
             deterministic_order=deterministic_order,
             prior_specs={_name_of(prior): prior for prior in priors},
-            deterministic_specs={_name_of(spec): spec for spec in deterministic},
+            deterministic_specs={
+                _name_of(spec): spec for spec in deterministic
+            },
         )
 
     @property
@@ -732,8 +762,7 @@ class RuntimeParameterLayout:
 
         if missing:
             raise ValueError(
-                "Parameter context is missing required values: "
-                f"{missing}."
+                f"Parameter context is missing required values: {missing}."
             )
 
 
@@ -747,7 +776,9 @@ class RuntimeTransmission:
 
     strain_names: tuple[str, ...]
     interaction_matrix_spec: tuple[tuple[Any, ...], ...]
-    introduction_age_masks: Mapping[str, tuple[int, ...]] = field(default_factory=dict)
+    introduction_age_masks: Mapping[str, tuple[int, ...]] = field(
+        default_factory=dict
+    )
     strain_specs: Mapping[str, Any] = field(default_factory=dict, repr=False)
 
     strains_to_idx: Mapping[str, int] = field(init=False, repr=False)
@@ -757,7 +788,9 @@ class RuntimeTransmission:
 
     def __post_init__(self) -> None:
         if not self.strain_names:
-            raise ValueError("RuntimeTransmission requires at least one strain.")
+            raise ValueError(
+                "RuntimeTransmission requires at least one strain."
+            )
 
         duplicates = _duplicates(self.strain_names)
         if duplicates:
@@ -789,8 +822,7 @@ class RuntimeTransmission:
             )
 
         mask_lengths = {
-            len(mask)
-            for mask in self.introduction_age_masks.values()
+            len(mask) for mask in self.introduction_age_masks.values()
         }
 
         if len(mask_lengths) > 1:
@@ -822,8 +854,7 @@ class RuntimeTransmission:
                 introduced_names.append(strain_name)
 
         strains_to_idx = {
-            strain_name: i
-            for i, strain_name in enumerate(self.strain_names)
+            strain_name: i for i, strain_name in enumerate(self.strain_names)
         }
 
         object.__setattr__(
@@ -875,15 +906,16 @@ class RuntimeTransmission:
             strain_names_value = strain_names_value()
 
         if strain_names_value is None:
-            strain_names = tuple(_name_of(strain) for strain in transmission.strains)
+            strain_names = tuple(
+                _name_of(strain) for strain in transmission.strains
+            )
         else:
             strain_names = tuple(str(name) for name in strain_names_value)
 
         strains = tuple(getattr(transmission, "strains", ()))
 
         interaction_matrix = tuple(
-            tuple(row)
-            for row in transmission.interaction_matrix_spec()
+            tuple(row) for row in transmission.interaction_matrix_spec()
         )
 
         masks: dict[str, tuple[int, ...]] = {}
@@ -891,12 +923,13 @@ class RuntimeTransmission:
         for strain in strains:
             strain_name = _name_of(strain)
 
-            introduction_age_mask = getattr(strain, "introduction_age_mask", None)
+            introduction_age_mask = getattr(
+                strain, "introduction_age_mask", None
+            )
 
             if callable(introduction_age_mask):
                 masks[strain_name] = tuple(
-                    int(value)
-                    for value in introduction_age_mask(age_bins)
+                    int(value) for value in introduction_age_mask(age_bins)
                 )
             else:
                 masks[strain_name] = tuple(0 for _ in age_bins)

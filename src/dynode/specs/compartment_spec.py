@@ -12,6 +12,7 @@ from dynode.typing import DynodeName
 from .bin_spec import BinSpec
 from .dimension_spec import AnyDimensionSpec
 
+
 class _IntWithAttributes(int):
     """
     Integer index that can also expose named attributes.
@@ -40,6 +41,7 @@ class _IntWithAttributes(int):
 
     def __str__(self) -> str:
         return str(int(self))
+
 
 class CompartmentSpec(BaseModel):
     """
@@ -124,8 +126,7 @@ class CompartmentSpec(BaseModel):
     @property
     def dimensions_to_idx(self) -> dict[str, int]:
         return {
-            dimension.name: i
-            for i, dimension in enumerate(self.dimensions)
+            dimension.name: i for i, dimension in enumerate(self.dimensions)
         }
 
     @property
@@ -197,7 +198,7 @@ class CompartmentSpec(BaseModel):
 
         return dims_namespace
 
-    def get_dimension(self, name: str) -> DimensionSpec:
+    def get_dimension(self, name: str) -> AnyDimensionSpec:
         for dimension in self.dimensions:
             if dimension.name == name:
                 return dimension
@@ -278,7 +279,7 @@ class CompartmentSpec(BaseModel):
             )
 
     @staticmethod
-    def _bin_index_attrs(dimension: DimensionSpec) -> dict[str, int]:
+    def _bin_index_attrs(dimension: AnyDimensionSpec) -> dict[str, int]:
         """
         Build bin-name -> bin-index attributes for a dimension.
 

@@ -16,6 +16,7 @@ from pydantic import (
 )
 from typing_extensions import Self
 
+
 class SolverMethodSpec(BaseModel, ABC):
     """
     Declarative Diffrax solver-method spec.
@@ -117,6 +118,7 @@ SolverMethod = Annotated[
     Field(discriminator="type"),
 ]
 
+
 class StepSizeControllerSpec(BaseModel, ABC):
     """
     Declarative Diffrax step-size-controller spec.
@@ -207,6 +209,7 @@ StepSizeController = Annotated[
     Field(discriminator="type"),
 ]
 
+
 class SaveAtSpec(BaseModel):
     """
     Declarative Diffrax SaveAt spec.
@@ -260,6 +263,7 @@ class SaveAtSpec(BaseModel):
             dense=self.dense,
             steps=self.steps,
         )
+
 
 class SolverSpec(BaseModel):
     """

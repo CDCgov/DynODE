@@ -9,7 +9,6 @@ import numpy as np
 
 from .runtime_model import RuntimeModel
 
-
 StateDict = dict[str, Any]
 FlatState = Any
 ParameterContext = Mapping[str, Any]
@@ -40,6 +39,7 @@ class StateBuilderOptions:
     validate_finite: bool = False
     validate_nonnegative: bool = False
     strict_static_value_validation: bool = False
+
 
 def build_initial_state(
     *,
@@ -84,6 +84,7 @@ def build_initial_state(
         options=options,
     )
 
+
 def build_initial_state_dict(
     *,
     runtime: RuntimeModel,
@@ -124,6 +125,7 @@ def build_initial_state_dict(
         options=options,
     )
 
+
 def build_initial_state_flat(
     *,
     runtime: RuntimeModel,
@@ -159,6 +161,7 @@ def build_initial_state_flat(
     )
 
     return flat_state
+
 
 def normalize_state_dict(
     *,
@@ -225,6 +228,7 @@ def normalize_state_dict(
 
     return normalized
 
+
 def validate_state_dict(
     *,
     runtime: RuntimeModel,
@@ -239,6 +243,7 @@ def validate_state_dict(
         state=state,
         options=options,
     )
+
 
 def validate_flat_state(
     *,
@@ -264,6 +269,7 @@ def validate_flat_state(
         options=options,
         label="flat initial state",
     )
+
 
 def flatten_state_dict(
     *,
@@ -295,6 +301,7 @@ def flatten_state_dict(
 
     return flat_state
 
+
 def unflatten_state(
     *,
     runtime: RuntimeModel,
@@ -320,6 +327,7 @@ def unflatten_state(
         options=options,
     )
 
+
 def state_view(
     *,
     runtime: RuntimeModel,
@@ -338,7 +346,8 @@ def state_view(
         raise StateBuilderError(
             f"Could not extract compartment {compartment_name!r} from flat state."
         ) from exc
-    
+
+
 def replace_state_view(
     *,
     runtime: RuntimeModel,
@@ -361,7 +370,8 @@ def replace_state_view(
         raise StateBuilderError(
             f"Could not replace compartment {compartment_name!r} in flat state."
         ) from exc
-    
+
+
 def validate_initializer_context(
     *,
     runtime: RuntimeModel,
@@ -412,7 +422,8 @@ def validate_initializer_context(
             "Initializer depends on data series that are not available: "
             f"{missing_data}. Available data series are: {sorted(available_data)}."
         )
-    
+
+
 def _dependency_set(
     obj: Any,
     attr_name: str,
@@ -431,6 +442,7 @@ def _dependency_set(
         return set()
 
     return {str(item) for item in value}
+
 
 def _available_data_names(data: Any) -> set[str]:
     for attr_name in (
@@ -474,6 +486,7 @@ def _available_data_names(data: Any) -> set[str]:
 
     return names
 
+
 def _validate_static_values_if_requested(
     *,
     values: Any,
@@ -510,15 +523,12 @@ def _validate_static_values_if_requested(
             continue
 
         if options.validate_finite and not np.all(np.isfinite(array)):
-            raise StateBuilderError(
-                f"{label} contains non-finite values."
-            )
+            raise StateBuilderError(f"{label} contains non-finite values.")
 
         if options.validate_nonnegative and np.any(array < 0):
-            raise StateBuilderError(
-                f"{label} contains negative values."
-            )
-        
+            raise StateBuilderError(f"{label} contains negative values.")
+
+
 __all__ = [
     "StateDict",
     "FlatState",

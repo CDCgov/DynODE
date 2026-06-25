@@ -9,7 +9,6 @@ from pydantic import (
     ConfigDict,
     Field,
     NonNegativeFloat,
-    PositiveFloat,
     field_validator,
     model_validator,
 )
@@ -51,7 +50,10 @@ class TimeSeriesSpec(BaseModel):
         cls,
         values: tuple[float, ...],
     ) -> tuple[float, ...]:
-        if any(next_value <= current for current, next_value in zip(values, values[1:])):
+        if any(
+            next_value <= current
+            for current, next_value in zip(values, values[1:])
+        ):
             raise ValueError("Time values must be strictly increasing.")
 
         return values
@@ -138,11 +140,7 @@ class ObservedSeriesSpec(BaseModel):
 
     @model_validator(mode="after")
     def validate_values(self) -> Self:
-        numeric_values = [
-            value
-            for value in self.values
-            if value is not None
-        ]
+        numeric_values = [value for value in self.values if value is not None]
 
         if self.scale == "count":
             bad_values = [
@@ -158,11 +156,7 @@ class ObservedSeriesSpec(BaseModel):
                 )
 
         if self.scale in {"rate", "proportion"}:
-            bad_values = [
-                value
-                for value in numeric_values
-                if value < 0
-            ]
+            bad_values = [value for value in numeric_values if value < 0]
 
             if bad_values:
                 raise ValueError(
@@ -171,11 +165,7 @@ class ObservedSeriesSpec(BaseModel):
                 )
 
         if self.scale == "proportion":
-            bad_values = [
-                value
-                for value in numeric_values
-                if value > 1
-            ]
+            bad_values = [value for value in numeric_values if value > 1]
 
             if bad_values:
                 raise ValueError(
@@ -185,9 +175,7 @@ class ObservedSeriesSpec(BaseModel):
 
         if self.lower_bound is not None:
             below = [
-                value
-                for value in numeric_values
-                if value < self.lower_bound
+                value for value in numeric_values if value < self.lower_bound
             ]
 
             if below:
@@ -198,9 +186,7 @@ class ObservedSeriesSpec(BaseModel):
 
         if self.upper_bound is not None:
             above = [
-                value
-                for value in numeric_values
-                if value > self.upper_bound
+                value for value in numeric_values if value > self.upper_bound
             ]
 
             if above:
@@ -307,8 +293,7 @@ class DataSpec(BaseModel):
     @property
     def observed_compartment_names(self) -> list[str]:
         return [
-            observation.compartment_name
-            for observation in self.observations
+            observation.compartment_name for observation in self.observations
         ]
 
     @property

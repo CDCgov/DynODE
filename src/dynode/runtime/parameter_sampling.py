@@ -9,14 +9,15 @@ import numpyro
 
 from .runtime_model import RuntimeModel, RuntimeParameterLayout
 
-
 ParameterContext = dict[str, Any]
+
 
 class ParameterSamplingError(RuntimeError):
     """
     Raised when parameters cannot be sampled or deterministic parameters cannot
     be resolved.
     """
+
 
 @dataclass(frozen=True, slots=True)
 class ParameterSamplingOptions:
@@ -31,6 +32,7 @@ class ParameterSamplingOptions:
     allow_initial_context_overwrite: bool = False
 
     metadata: Mapping[str, str] = field(default_factory=dict)
+
 
 def sample_parameters(
     *,
@@ -98,6 +100,7 @@ def sample_parameters(
 
     return context
 
+
 def sample_prior_parameters(
     *,
     parameter_layout: RuntimeParameterLayout,
@@ -124,6 +127,7 @@ def sample_prior_parameters(
         )
 
     return context
+
 
 def sample_prior_parameter(
     *,
@@ -167,6 +171,7 @@ def sample_prior_parameter(
 
     return value
 
+
 def resolve_deterministic_parameters(
     *,
     parameter_layout: RuntimeParameterLayout,
@@ -191,6 +196,7 @@ def resolve_deterministic_parameters(
 
     return context
 
+
 def resolve_deterministic_parameter(
     *,
     deterministic: Any,
@@ -205,7 +211,10 @@ def resolve_deterministic_parameter(
 
     deterministic_name = _name_of(deterministic)
 
-    if deterministic_name in context and not options.allow_initial_context_overwrite:
+    if (
+        deterministic_name in context
+        and not options.allow_initial_context_overwrite
+    ):
         raise ParameterSamplingError(
             f"Parameter context already contains deterministic parameter "
             f"{deterministic_name!r}. Set allow_initial_context_overwrite=True "
@@ -235,6 +244,7 @@ def resolve_deterministic_parameter(
 
     return value
 
+
 def _make_initial_context(
     *,
     initial_context: Mapping[str, Any] | None,
@@ -243,6 +253,7 @@ def _make_initial_context(
         return {}
 
     return dict(initial_context)
+
 
 def _prior_to_numpyro(
     *,
@@ -291,6 +302,7 @@ def _prior_to_numpyro(
             f"Failed to construct NumPyro distribution for prior "
             f"{_name_of(prior)!r}."
         ) from exc
+
 
 def _evaluate_deterministic(
     *,
@@ -356,6 +368,7 @@ def _evaluate_deterministic(
             f"{_name_of(deterministic)!r}."
         ) from exc
 
+
 def _validate_dependencies_available(
     *,
     obj: Any,
@@ -370,6 +383,7 @@ def _validate_dependencies_available(
             f"{obj_label} depends on values that are not available yet: "
             f"{missing}. Available context values are: {sorted(context)}."
         )
+
 
 def _dependency_set(
     obj: Any,
@@ -390,6 +404,7 @@ def _dependency_set(
 
     return {str(item) for item in value}
 
+
 def _name_of(obj: Any) -> str:
     name = getattr(obj, "name", None)
 
@@ -399,6 +414,7 @@ def _name_of(obj: Any) -> str:
         )
 
     return str(name)
+
 
 def _call_with_supported_kwargs(
     fn: Any,
@@ -433,6 +449,7 @@ def _call_with_supported_kwargs(
     }
 
     return fn(**supported_kwargs)
+
 
 def evaluate_parameter_context_without_numpyro(
     *,
@@ -482,6 +499,7 @@ def evaluate_parameter_context_without_numpyro(
 
     return context
 
+
 def split_parameter_context(
     *,
     runtime: RuntimeModel,
@@ -506,6 +524,7 @@ def split_parameter_context(
         "sampled": sampled,
         "deterministic": deterministic,
     }
+
 
 __all__ = [
     "ParameterContext",

@@ -18,7 +18,15 @@ from typing_extensions import Self
 
 from dynode.typing import DynodeName, UnitIntervalFloat
 
-from .bin_spec import AnyBinSpec, coerce_bin_specs
+from .bin_spec import (
+    AgeBin,
+    AnyBinSpec,
+    BinSpec,
+    DiscretizedPositiveIntBin,
+    WaneBin,
+    coerce_bin_specs,
+)
+
 
 class DimensionSpec(BaseModel):
     """
@@ -94,7 +102,9 @@ class DimensionSpec(BaseModel):
 
     @field_validator("bins")
     @classmethod
-    def validate_bins(cls, bins: tuple[Bin, ...]) -> tuple[Bin, ...]:
+    def validate_bins(
+        cls, bins: tuple[AnyBinSpec, ...]
+    ) -> tuple[AnyBinSpec, ...]:
         cls._validate_bins_not_empty(bins)
         cls._validate_bin_names_unique(bins)
         cls._validate_bins_same_type(bins)
@@ -112,10 +122,7 @@ class DimensionSpec(BaseModel):
 
     @property
     def bins_to_idx(self) -> dict[str, int]:
-        return {
-            bin_.name: i
-            for i, bin_ in enumerate(self.bins)
-        }
+        return {bin_.name: i for i, bin_ in enumerate(self.bins)}
 
     @property
     def idx(self) -> SimpleNamespace:
@@ -135,7 +142,7 @@ class DimensionSpec(BaseModel):
 
         return namespace
 
-    def get_bin(self, name: str) -> Bin:
+    def get_bin(self, name: str) -> BinSpec:
         for bin_ in self.bins:
             if bin_.name == name:
                 return bin_
@@ -172,12 +179,14 @@ class DimensionSpec(BaseModel):
         return self.bins == other.bins
 
     @staticmethod
-    def _validate_bins_not_empty(bins: tuple[Bin, ...]) -> None:
+    def _validate_bins_not_empty(bins: tuple[BinSpec, ...]) -> None:
         if not bins:
-            raise ValueError("DimensionSpec.bins must contain at least one bin.")
+            raise ValueError(
+                "DimensionSpec.bins must contain at least one bin."
+            )
 
     @staticmethod
-    def _validate_bin_names_unique(bins: tuple[Bin, ...]) -> None:
+    def _validate_bin_names_unique(bins: tuple[BinSpec, ...]) -> None:
         names = [bin_.name for bin_ in bins]
         duplicates = sorted({name for name in names if names.count(name) > 1})
 
@@ -187,7 +196,7 @@ class DimensionSpec(BaseModel):
             )
 
     @staticmethod
-    def _validate_bins_same_type(bins: tuple[Bin, ...]) -> None:
+    def _validate_bins_same_type(bins: tuple[BinSpec, ...]) -> None:
         """
         Keep the old behavior: a single dimension should not mix bin classes.
 
@@ -209,42 +218,50 @@ class DimensionSpec(BaseModel):
             )
 
     @staticmethod
-    def _all_discretized_integer_bins(bins: tuple[Bin, ...]) -> bool:
-        return all(
-            isinstance(bin_, DiscretizedPositiveIntBin)
-            for bin_ in bins
-        )
+    def _as_discretized_integer_bins(
+        bins: tuple[BinSpec, ...],
+    ) -> tuple[DiscretizedPositiveIntBin, ...] | None:
+        if not all(
+            isinstance(bin_, DiscretizedPositiveIntBin) for bin_ in bins
+        ):
+            return None
+
+        return tuple(bin_ for bin_ in bins)
 
     @classmethod
     def _validate_discretized_integer_bins_sorted(
         cls,
-        bins: tuple[Bin, ...],
+        bins: tuple[BinSpec, ...],
     ) -> None:
-        if not cls._all_discretized_integer_bins(bins):
+        discretized_bins = cls._as_discretized_integer_bins(bins)
+
+        if discretized_bins is None:
             return
 
         sorted_bins = tuple(
             sorted(
-                bins,
+                discretized_bins,
                 key=lambda bin_: bin_.min_value,
             )
         )
 
-        if bins != sorted_bins:
+        if discretized_bins != sorted_bins:
             raise ValueError(
                 "Dimensions made of DiscretizedPositiveIntBin must be sorted "
-                f"by min_value. Got: {bins}."
+                f"by min_value. Got: {discretized_bins}."
             )
 
     @classmethod
     def _validate_discretized_integer_bins_do_not_overlap(
         cls,
-        bins: tuple[Bin, ...],
+        bins: tuple[BinSpec, ...],
     ) -> None:
-        if not cls._all_discretized_integer_bins(bins):
+        discretized_bins = cls._as_discretized_integer_bins(bins)
+
+        if discretized_bins is None:
             return
 
-        for current, next_ in zip(bins, bins[1:]):
+        for current, next_ in zip(discretized_bins, discretized_bins[1:]):
             if current.max_value >= next_.min_value:
                 raise ValueError(
                     "DiscretizedPositiveIntBin values cannot overlap within a "
@@ -254,12 +271,14 @@ class DimensionSpec(BaseModel):
     @classmethod
     def _validate_discretized_integer_bins_have_no_gaps(
         cls,
-        bins: tuple[Bin, ...],
+        bins: tuple[BinSpec, ...],
     ) -> None:
-        if not cls._all_discretized_integer_bins(bins):
+        discretized_bins = cls._as_discretized_integer_bins(bins)
+
+        if discretized_bins is None:
             return
 
-        for current, next_ in zip(bins, bins[1:]):
+        for current, next_ in zip(discretized_bins, discretized_bins[1:]):
             expected_next_min = current.max_value + 1
 
             if expected_next_min != next_.min_value:
@@ -269,6 +288,7 @@ class DimensionSpec(BaseModel):
                     f"Expected next min_value={expected_next_min}, but got "
                     f"{next_.min_value}. Gap found between {current} and {next_}."
                 )
+
 
 class AgeDimensionSpec(DimensionSpec):
     """
@@ -288,6 +308,7 @@ class AgeDimensionSpec(DimensionSpec):
         min_length=1,
         description="Age bins.",
     )
+
 
 class VaccinationDimensionSpec(DimensionSpec):
     """
@@ -372,6 +393,7 @@ class VaccinationDimensionSpec(DimensionSpec):
         """
         return len(self.bins) - 1
 
+
 class ImmuneHistoryDimension(DimensionSpec):
     """
     Marker base class for immune-history dimensions.
@@ -443,6 +465,7 @@ class ImmuneHistoryDimension(DimensionSpec):
     ) -> ImmuneHistoryDimension:
         raise NotImplementedError
 
+
 class FullStratifiedImmuneHistoryDimension(ImmuneHistoryDimension):
     """
     Immune-history dimension that tracks all unique combinations of prior infection.
@@ -459,7 +482,7 @@ class FullStratifiedImmuneHistoryDimension(ImmuneHistoryDimension):
 
     type: Literal["immune_history_full"] = "immune_history_full"
 
-    bins: tuple[Bin, ...] = Field(
+    bins: tuple[BinSpec, ...] = Field(
         default_factory=tuple,
         description="Immune-history bins. Usually generated automatically.",
     )
@@ -509,19 +532,19 @@ class FullStratifiedImmuneHistoryDimension(ImmuneHistoryDimension):
         )
 
     @staticmethod
-    def _build_bins(strain_names: tuple[str, ...]) -> tuple[Bin, ...]:
-        all_immune_histories: list[Bin] = [Bin(name="none")]
+    def _build_bins(strain_names: tuple[str, ...]) -> tuple[BinSpec, ...]:
+        all_immune_histories: list[BinSpec] = [BinSpec(name="none")]
 
         for history_size in range(1, len(strain_names) + 1):
             for combo in combinations(strain_names, history_size):
-                all_immune_histories.append(
-                    Bin(name="_".join(combo))
-                )
+                all_immune_histories.append(BinSpec(name="_".join(combo)))
 
         return tuple(all_immune_histories)
 
     @classmethod
-    def _coerce_strain_names_from_data(cls, data: dict[str, Any]) -> tuple[str, ...]:
+    def _coerce_strain_names_from_data(
+        cls, data: dict[str, Any]
+    ) -> tuple[str, ...]:
         if "strain_names" in data:
             return tuple(data["strain_names"])
 
@@ -529,6 +552,7 @@ class FullStratifiedImmuneHistoryDimension(ImmuneHistoryDimension):
             return tuple(cls._extract_strain_names(data["strains"]))
 
         return tuple()
+
 
 class LastStrainImmuneHistoryDimension(ImmuneHistoryDimension):
     """
@@ -544,7 +568,7 @@ class LastStrainImmuneHistoryDimension(ImmuneHistoryDimension):
 
     type: Literal["immune_history_last"] = "immune_history_last"
 
-    bins: tuple[Bin, ...] = Field(
+    bins: tuple[BinSpec, ...] = Field(
         default_factory=tuple,
         description="Immune-history bins. Usually generated automatically.",
     )
@@ -594,14 +618,16 @@ class LastStrainImmuneHistoryDimension(ImmuneHistoryDimension):
         )
 
     @staticmethod
-    def _build_bins(strain_names: tuple[str, ...]) -> tuple[Bin, ...]:
+    def _build_bins(strain_names: tuple[str, ...]) -> tuple[BinSpec, ...]:
         return tuple(
-            [Bin(name="none")]
-            + [Bin(name=strain_name) for strain_name in strain_names]
+            [BinSpec(name="none")]
+            + [BinSpec(name=strain_name) for strain_name in strain_names]
         )
 
     @classmethod
-    def _coerce_strain_names_from_data(cls, data: dict[str, Any]) -> tuple[str, ...]:
+    def _coerce_strain_names_from_data(
+        cls, data: dict[str, Any]
+    ) -> tuple[str, ...]:
         if "strain_names" in data:
             return tuple(data["strain_names"])
 
@@ -609,6 +635,7 @@ class LastStrainImmuneHistoryDimension(ImmuneHistoryDimension):
             return tuple(cls._extract_strain_names(data["strains"]))
 
         return tuple()
+
 
 class WaneDimensionSpec(DimensionSpec):
     """
@@ -702,6 +729,7 @@ class WaneDimensionSpec(DimensionSpec):
             )
 
         return self
+
 
 AnyDimensionSpec = Annotated[
     DimensionSpec

@@ -174,9 +174,7 @@ class ModelSpec(BaseModel):
 
         for strain in strains_with_intro_ages:
             missing = [
-                age
-                for age in strain.introduction_ages
-                if age not in age_bins
+                age for age in strain.introduction_ages if age not in age_bins
             ]
 
             if missing:
@@ -297,7 +295,9 @@ class ModelSpec(BaseModel):
         if observed_compartments is None:
             return
 
-        missing = sorted(set(observed_compartments) - set(self.compartment_names))
+        missing = sorted(
+            set(observed_compartments) - set(self.compartment_names)
+        )
 
         if missing:
             raise ValueError(
@@ -369,7 +369,9 @@ class ModelSpec(BaseModel):
 
         Ideally, ParameterSpec should eventually expose this directly.
         """
-        direct = getattr(self.parameters, "deterministic_parameter_names", None)
+        direct = getattr(
+            self.parameters, "deterministic_parameter_names", None
+        )
 
         if callable(direct):
             return set(direct())
@@ -537,4 +539,4 @@ class ModelSpec(BaseModel):
                     names.append(value)
                     break
 
-        return names or None 
+        return names or None
