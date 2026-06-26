@@ -1,61 +1,55 @@
+from __future__ import annotations
+
 from collections.abc import Iterable
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
 
-from . import (
-    DeterministicSpec,
-    PriorSpec,
-    SolverSpec,
-    TransmissionSpec,
-)
+from .deterministic_spec import DeterministicSpec
+from .prior_spec import PriorSpec
 
 ReferenceKind = Literal["parameter", "deterministic"]
 ReferenceRecord = tuple[str, ReferenceKind, str]
 
 
-class ParameterSpec(BaseModel):
+class ParameterBlockSpec(BaseModel):
     """
-    Declarative parameter specification for a dynamic ODE model.
+    Reusable block of sampled and deterministic parameters.
 
-    Responsibilities:
-    - validate prior names
-    - validate deterministic parameter names
-    - validate references to parameters
-    - expose useful parameter-name maps
-    - determine deterministic evaluation order
+    A ParameterBlockSpec is intentionally independent of solver and
+    transmission configuration. It can be used for:
+    - single-model local parameters
+    - shared experiment-level parameters
+    - instance/year-specific parameters in hierarchical experiments
+    - observation-model parameters
 
-    This class should not:
-    - call numpyro.sample
-    - call numpyro.deterministic
-    - mutate parameters during validation
-    - build JAX arrays
+    The older refactor put solver and transmission on ParameterSpec. That made
+    a single model concise, but prevented shared parameter blocks from being
+    first-class.
     """
 
     model_config = ConfigDict(
         extra="forbid",
+        frozen=True,
         arbitrary_types_allowed=True,
-        validate_assignment=True,
     )
 
-    solver: SolverSpec = Field(
-        description="ODE solver settings.",
-    )
+    name: str = Field(default="parameters")
 
-    transmission: TransmissionSpec = Field(
-        description="Transmission and strain-level parameter specification.",
-    )
+    priors: tuple[PriorSpec, ...] = Field(default_factory=tuple)
 
-    priors: tuple[PriorSpec, ...] = Field(
+    deterministic: tuple[DeterministicSpec, ...] = Field(default_factory=tuple)
+
+    external_dependencies: tuple[str, ...] = Field(
         default_factory=tuple,
-        description="Sampled parameters and their prior distributions.",
+        description=(
+            "Parameter names expected to be supplied by an outer context, "
+            "for example shared parameters in an ExperimentSpec."
+        ),
     )
 
-    deterministic: tuple[DeterministicSpec, ...] = Field(
-        default_factory=tuple,
-        description="Deterministic parameters derived from sampled or deterministic values.",
-    )
+    metadata: dict[str, str] = Field(default_factory=dict)
 
     @property
     def prior_names(self) -> list[str]:
@@ -74,10 +68,14 @@ class ParameterSpec(BaseModel):
         return set(self.deterministic_names)
 
     @property
-    def resolved_parameter_names(self) -> set[str]:
+    def local_parameter_names(self) -> set[str]:
         return (
             self.sampled_parameter_names | self.deterministic_parameter_names
         )
+
+    @property
+    def resolved_parameter_names(self) -> set[str]:
+        return self.local_parameter_names | set(self.external_dependencies)
 
     @property
     def prior_map(self) -> dict[str, PriorSpec]:
@@ -88,13 +86,12 @@ class ParameterSpec(BaseModel):
         return {param.name: param for param in self.deterministic}
 
     @model_validator(mode="after")
-    def validate_parameter_spec(self) -> Self:
+    def validate_parameter_block(self) -> Self:
         self._validate_unique_prior_names()
         self._validate_unique_deterministic_names()
         self._validate_no_prior_deterministic_name_collisions()
         self._validate_parameter_references()
         self._validate_deterministic_dependency_graph()
-
         return self
 
     def get_prior(self, name: str) -> PriorSpec:
@@ -118,25 +115,11 @@ class ParameterSpec(BaseModel):
         return name in self.resolved_parameter_names
 
     def deterministic_execution_order(self) -> list[DeterministicSpec]:
-        """
-        Return deterministic parameters in dependency-safe order.
-
-        Example
-        -------
-        If:
-
-            beta = sampled
-            gamma = sampled
-            r0 = beta / gamma
-            log_r0 = log(r0)
-
-        Then the deterministic order should be:
-
-            r0, log_r0
-        """
         deterministic_by_name = self.deterministic_map
         remaining = dict(deterministic_by_name)
-        resolved = set(self.sampled_parameter_names)
+        resolved = set(self.sampled_parameter_names) | set(
+            self.external_dependencies
+        )
         ordered: list[DeterministicSpec] = []
 
         while remaining:
@@ -153,11 +136,10 @@ class ParameterSpec(BaseModel):
                     )
                     for name, spec in remaining.items()
                 }
-
                 raise ValueError(
-                    "Could not determine deterministic parameter execution order. "
-                    "This usually indicates a cycle or an unresolved dependency. "
-                    f"Remaining dependencies: {unresolved}."
+                    "Could not determine deterministic parameter execution "
+                    "order. This usually indicates a cycle or unresolved "
+                    f"dependency. Remaining dependencies: {unresolved}."
                 )
 
             for name in ready_names:
@@ -167,9 +149,13 @@ class ParameterSpec(BaseModel):
 
         return ordered
 
+    @staticmethod
+    def _duplicates(values: Iterable[str]) -> list[str]:
+        values = list(values)
+        return sorted({value for value in values if values.count(value) > 1})
+
     def _validate_unique_prior_names(self) -> None:
         duplicates = self._duplicates(self.prior_names)
-
         if duplicates:
             raise ValueError(
                 f"Prior names must be unique. Duplicates: {duplicates}."
@@ -177,7 +163,6 @@ class ParameterSpec(BaseModel):
 
     def _validate_unique_deterministic_names(self) -> None:
         duplicates = self._duplicates(self.deterministic_names)
-
         if duplicates:
             raise ValueError(
                 "Deterministic parameter names must be unique. "
@@ -188,7 +173,6 @@ class ParameterSpec(BaseModel):
         collisions = sorted(
             self.sampled_parameter_names & self.deterministic_parameter_names
         )
-
         if collisions:
             raise ValueError(
                 "A parameter cannot be both sampled and deterministic. "
@@ -196,24 +180,7 @@ class ParameterSpec(BaseModel):
             )
 
     def _validate_parameter_references(self) -> None:
-        """
-        Validate ParamRef / DeterministicRef-style references.
-
-        This checks references inside:
-        - priors
-        - deterministic specs
-        - transmission specs
-        - strain specs
-        - interaction specs
-
-        Recognition is intentionally generic while your refactor is still
-        evolving. It recognizes classes named:
-        - ParamRef
-        - ParameterRef
-        - DeterministicRef
-        """
         references = list(self._walk_references(self, path="parameters"))
-
         unknown_parameter_refs: list[str] = []
         unknown_deterministic_refs: list[str] = []
 
@@ -223,7 +190,6 @@ class ParameterSpec(BaseModel):
                 and name not in self.resolved_parameter_names
             ):
                 unknown_parameter_refs.append(f"{path} -> {name!r}")
-
             if (
                 kind == "deterministic"
                 and name not in self.deterministic_parameter_names
@@ -231,135 +197,84 @@ class ParameterSpec(BaseModel):
                 unknown_deterministic_refs.append(f"{path} -> {name!r}")
 
         errors: list[str] = []
-
         if unknown_parameter_refs:
             errors.append(
                 "Unknown parameter references: "
                 + ", ".join(unknown_parameter_refs)
             )
-
         if unknown_deterministic_refs:
             errors.append(
                 "Unknown deterministic references: "
                 + ", ".join(unknown_deterministic_refs)
             )
-
         if errors:
             raise ValueError("; ".join(errors))
 
     def _validate_deterministic_dependency_graph(self) -> None:
-        """
-        Validate deterministic dependencies.
-
-        This catches:
-        - references to missing parameters
-        - deterministic cycles
-        - deterministic parameters that cannot be ordered
-        """
         self.deterministic_execution_order()
 
-    def _dependencies_of_deterministic(
-        self,
-        spec: DeterministicSpec,
-    ) -> set[str]:
-        """
-        Infer dependencies of a DeterministicSpec.
+    @staticmethod
+    def _dependencies_of_deterministic(spec: DeterministicSpec) -> set[str]:
+        deps = getattr(spec, "dependencies", set())
+        if callable(deps):
+            deps = deps()
+        return set(deps or set())
 
-        Preferred long-term design:
-        DeterministicSpec should expose one of:
-
-            dependencies
-            dependency_names
-            depends_on
-
-        This fallback also recursively walks references inside the spec.
-        """
-        for attr_name in (
-            "dependencies",
-            "dependency_names",
-            "depends_on",
-        ):
-            value = getattr(spec, attr_name, None)
-
-            if callable(value):
-                value = value()
-
-            if value is not None:
-                return set(value)
-
-        dependencies: set[str] = set()
-
-        for _, kind, name in self._walk_references(spec, path=spec.name):
-            if kind in {"parameter", "deterministic"}:
-                dependencies.add(name)
-
-        dependencies.discard(spec.name)
-
-        return dependencies
-
+    @classmethod
     def _walk_references(
-        self,
-        value: Any,
+        cls,
+        obj: Any,
+        *,
         path: str,
     ) -> Iterable[ReferenceRecord]:
-        """
-        Recursively walk an object and yield parameter references.
+        if obj is None:
+            return
 
-        This makes ParameterSpec tolerant of your in-progress class design.
-        """
-        kind = self._reference_kind(value)
-
+        kind = cls._reference_kind(obj)
         if kind is not None:
-            yield path, kind, value.name
+            name = getattr(obj, "name", None)
+            if name is not None:
+                yield (path, kind, str(name))
             return
 
-        if isinstance(value, BaseModel):
-            for field_name in value.__class__.model_fields:
-                field_value = getattr(value, field_name)
-
-                yield from self._walk_references(
-                    field_value,
-                    path=f"{path}.{field_name}",
+        if isinstance(obj, BaseModel):
+            for field_name in obj.model_fields:
+                value = getattr(obj, field_name)
+                yield from cls._walk_references(
+                    value, path=f"{path}.{field_name}"
                 )
-
-            extra = getattr(value, "__pydantic_extra__", None)
-
-            if extra:
-                for key, extra_value in extra.items():
-                    yield from self._walk_references(
-                        extra_value,
-                        path=f"{path}.{key}",
-                    )
-
             return
 
-        if isinstance(value, dict):
-            for key, item in value.items():
-                yield from self._walk_references(
-                    item,
-                    path=f"{path}[{key!r}]",
-                )
-
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                yield from cls._walk_references(value, path=f"{path}[{key!r}]")
             return
 
-        if isinstance(value, Iterable) and not isinstance(value, (str, bytes)):
-            for i, item in enumerate(value):
-                yield from self._walk_references(
-                    item,
-                    path=f"{path}[{i}]",
-                )
-
-    def _reference_kind(self, value: Any) -> ReferenceKind | None:
-        cls_name = value.__class__.__name__
-
-        if cls_name in {"ParamRef", "ParameterRef"} and hasattr(value, "name"):
-            return "parameter"
-
-        if cls_name == "DeterministicRef" and hasattr(value, "name"):
-            return "deterministic"
-
-        return None
+        if isinstance(obj, (list, tuple, set, frozenset)):
+            for idx, value in enumerate(obj):
+                yield from cls._walk_references(value, path=f"{path}[{idx}]")
+            return
 
     @staticmethod
-    def _duplicates(values: list[str]) -> list[str]:
-        return sorted({value for value in values if values.count(value) > 1})
+    def _reference_kind(obj: Any) -> ReferenceKind | None:
+        class_name = type(obj).__name__
+        if class_name in {"ParamRef", "ParameterRef"}:
+            return "parameter"
+        if class_name == "DeterministicRef":
+            return "deterministic"
+        return None
+
+
+class ModelParameterSpec(ParameterBlockSpec):
+    """Local parameter block for a single ModelSpec."""
+
+
+class ParameterSpec(ParameterBlockSpec):
+    """
+    Backward-compatible name for a parameter block.
+
+    The new architecture uses ParameterBlockSpec for both local and shared
+    parameter groups. SolverSpec and TransmissionSpec now belong on ModelSpec,
+    not on ParameterSpec. Older dict configs with parameters.solver or
+    parameters.transmission are migrated by ModelSpec's before-validator.
+    """

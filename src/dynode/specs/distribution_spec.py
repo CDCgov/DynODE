@@ -43,6 +43,7 @@ class DistributionSpec(BaseModel, ABC):
     def to_numpyro(
         self,
         context: dict[str, Any] | None = None,
+        data: Any | None = None,
     ) -> dist.Distribution:
         """
         Compile this spec into a NumPyro Distribution.
@@ -170,10 +171,11 @@ class NormalSpec(DistributionSpec):
     def to_numpyro(
         self,
         context: dict[str, Any] | None = None,
+        data: Any | None = None,
     ) -> dist.Distribution:
         return dist.Normal(
-            loc=self.loc.evaluate(context=context),
-            scale=self.scale.evaluate(context=context),
+            loc=self.loc.evaluate(context=context, data=data),
+            scale=self.scale.evaluate(context=context, data=data),
         )
 
 
@@ -204,10 +206,11 @@ class LogNormalSpec(DistributionSpec):
     def to_numpyro(
         self,
         context: dict[str, Any] | None = None,
+        data: Any | None = None,
     ) -> dist.Distribution:
         return dist.LogNormal(
-            loc=self.loc.evaluate(context=context),
-            scale=self.scale.evaluate(context=context),
+            loc=self.loc.evaluate(context=context, data=data),
+            scale=self.scale.evaluate(context=context, data=data),
         )
 
 
@@ -240,10 +243,13 @@ class GammaSpec(DistributionSpec):
     def to_numpyro(
         self,
         context: dict[str, Any] | None = None,
+        data: Any | None = None,
     ) -> dist.Distribution:
         return dist.Gamma(
-            concentration=self.concentration.evaluate(context=context),
-            rate=self.rate.evaluate(context=context),
+            concentration=self.concentration.evaluate(
+                context=context, data=data
+            ),
+            rate=self.rate.evaluate(context=context, data=data),
         )
 
 
@@ -271,9 +277,10 @@ class ExponentialSpec(DistributionSpec):
     def to_numpyro(
         self,
         context: dict[str, Any] | None = None,
+        data: Any | None = None,
     ) -> dist.Distribution:
         return dist.Exponential(
-            rate=self.rate.evaluate(context=context),
+            rate=self.rate.evaluate(context=context, data=data),
         )
 
 
@@ -312,10 +319,15 @@ class BetaSpec(DistributionSpec):
     def to_numpyro(
         self,
         context: dict[str, Any] | None = None,
+        data: Any | None = None,
     ) -> dist.Distribution:
         return dist.Beta(
-            concentration1=self.concentration1.evaluate(context=context),
-            concentration0=self.concentration0.evaluate(context=context),
+            concentration1=self.concentration1.evaluate(
+                context=context, data=data
+            ),
+            concentration0=self.concentration0.evaluate(
+                context=context, data=data
+            ),
         )
 
 
@@ -343,9 +355,10 @@ class HalfNormalSpec(DistributionSpec):
     def to_numpyro(
         self,
         context: dict[str, Any] | None = None,
+        data: Any | None = None,
     ) -> dist.Distribution:
         return dist.HalfNormal(
-            scale=self.scale.evaluate(context=context),
+            scale=self.scale.evaluate(context=context, data=data),
         )
 
 
@@ -413,17 +426,161 @@ class TruncatedNormalSpec(DistributionSpec):
     def to_numpyro(
         self,
         context: dict[str, Any] | None = None,
+        data: Any | None = None,
     ) -> dist.Distribution:
         return dist.TruncatedNormal(
-            loc=self.loc.evaluate(context=context),
-            scale=self.scale.evaluate(context=context),
+            loc=self.loc.evaluate(context=context, data=data),
+            scale=self.scale.evaluate(context=context, data=data),
             low=None
             if self.low is None
-            else self.low.evaluate(context=context),
+            else self.low.evaluate(context=context, data=data),
             high=None
             if self.high is None
-            else self.high.evaluate(context=context),
+            else self.high.evaluate(context=context, data=data),
         )
+
+
+class UniformSpec(DistributionSpec):
+    type: Literal["uniform"] = "uniform"
+
+    low: DistributionValue = Field(
+        default_factory=lambda: ConstantValueSpec(value=0.0)
+    )
+    high: DistributionValue = Field(
+        default_factory=lambda: ConstantValueSpec(value=1.0)
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_values(cls, data: Any) -> Any:
+        return coerce_value_fields(data, ("low", "high"))
+
+    @model_validator(mode="after")
+    def validate_parameters(self) -> Self:
+        _validate_constant_numeric(self.low, "Uniform low")
+        _validate_constant_numeric(self.high, "Uniform high")
+        _validate_constant_bounds(self.low, self.high)
+        return self
+
+    def dependencies(self) -> set[str]:
+        return self.low.dependencies() | self.high.dependencies()
+
+    def to_numpyro(
+        self, context: dict[str, Any] | None = None, data: Any | None = None
+    ) -> dist.Distribution:
+        return dist.Uniform(
+            low=self.low.evaluate(context=context, data=data),
+            high=self.high.evaluate(context=context, data=data),
+        )
+
+
+class AffineTransformSpec(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid", frozen=True, arbitrary_types_allowed=True
+    )
+
+    type: Literal["affine"] = "affine"
+    loc: DistributionValue = Field(
+        default_factory=lambda: ConstantValueSpec(value=0.0)
+    )
+    scale: DistributionValue = Field(
+        default_factory=lambda: ConstantValueSpec(value=1.0)
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_values(cls, data: Any) -> Any:
+        return coerce_value_fields(data, ("loc", "scale"))
+
+    def dependencies(self) -> set[str]:
+        return self.loc.dependencies() | self.scale.dependencies()
+
+    def to_numpyro(
+        self, context: dict[str, Any] | None = None, data: Any | None = None
+    ):
+        import numpyro.distributions.transforms as transforms
+
+        return transforms.AffineTransform(
+            loc=self.loc.evaluate(context=context, data=data),
+            scale=self.scale.evaluate(context=context, data=data),
+        )
+
+
+DistributionTransformSpec = Annotated[
+    AffineTransformSpec,
+    Field(discriminator="type"),
+]
+
+
+class TransformedDistributionSpec(DistributionSpec):
+    type: Literal["transformed"] = "transformed"
+
+    base: PriorDistributionSpec
+    transforms: tuple[DistributionTransformSpec, ...]
+
+    def dependencies(self) -> set[str]:
+        deps = self.base.dependencies()
+        for transform in self.transforms:
+            deps |= transform.dependencies()
+        return deps
+
+    def to_numpyro(
+        self, context: dict[str, Any] | None = None, data: Any | None = None
+    ) -> dist.Distribution:
+        return dist.TransformedDistribution(
+            self.base.to_numpyro(context=context, data=data),
+            [
+                transform.to_numpyro(context=context, data=data)
+                for transform in self.transforms
+            ],
+        )
+
+
+class RegisteredDistributionSpec(DistributionSpec):
+    type: Literal["registered"] = "registered"
+
+    registry_key: str
+    kwargs: dict[str, DistributionValue] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_kwargs(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        kwargs = data.get("kwargs")
+        if isinstance(kwargs, dict):
+            data["kwargs"] = {
+                key: value
+                if isinstance(value, dict) and "type" in value
+                else {"type": "constant", "value": value}
+                for key, value in kwargs.items()
+            }
+        return data
+
+    def dependencies(self) -> set[str]:
+        deps: set[str] = set()
+        for value in self.kwargs.values():
+            deps |= value.dependencies()
+        return deps
+
+    def to_numpyro(
+        self, context: dict[str, Any] | None = None, data: Any | None = None
+    ) -> dist.Distribution:
+        registry = None
+        if isinstance(data, dict):
+            registry = data.get("distribution_registry")
+        if registry is None:
+            registry = (context or {}).get("distribution_registry")
+        if registry is None or self.registry_key not in registry:
+            raise KeyError(
+                f"Unknown registered distribution {self.registry_key!r}."
+            )
+        kwargs = {
+            key: value.evaluate(context=context, data=data)
+            for key, value in self.kwargs.items()
+        }
+        return registry[self.registry_key](**kwargs)
 
 
 PriorDistributionSpec = Annotated[
@@ -433,6 +590,17 @@ PriorDistributionSpec = Annotated[
     | ExponentialSpec
     | BetaSpec
     | HalfNormalSpec
-    | TruncatedNormalSpec,
+    | TruncatedNormalSpec
+    | UniformSpec
+    | TransformedDistributionSpec
+    | RegisteredDistributionSpec,
     Field(discriminator="type"),
 ]
+
+# Rebuild models that contain forward references to PriorDistributionSpec.
+try:
+    TransformedDistributionSpec.model_rebuild(
+        _types_namespace={"PriorDistributionSpec": PriorDistributionSpec}
+    )
+except Exception:
+    pass

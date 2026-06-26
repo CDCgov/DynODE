@@ -31,6 +31,8 @@ class ParameterSamplingOptions:
 
     allow_initial_context_overwrite: bool = False
 
+    scope: str | None = None
+
     metadata: Mapping[str, str] = field(default_factory=dict)
 
 
@@ -162,8 +164,10 @@ def sample_prior_parameter(
         data=data,
     )
 
+    sample_site_name = _sample_site_name(prior, options.scope)
+
     value = numpyro.sample(
-        prior_name,
+        sample_site_name,
         distribution,
     )
 
@@ -236,7 +240,7 @@ def resolve_deterministic_parameter(
 
     if options.record_deterministics:
         value = numpyro.deterministic(
-            deterministic_name,
+            _deterministic_site_name(deterministic, options.scope),
             value,
         )
 
@@ -526,11 +530,63 @@ def split_parameter_context(
     }
 
 
+def _sample_site_name(prior: Any, scope: str | None) -> str:
+    sample_site_name = getattr(prior, "sample_site_name", None)
+    if callable(sample_site_name):
+        return str(sample_site_name(scope=scope))
+    name = _name_of(prior)
+    return f"{scope}_{name}" if scope else name
+
+
+def _deterministic_site_name(deterministic: Any, scope: str | None) -> str:
+    name = _name_of(deterministic)
+    return f"{scope}_{name}" if scope else name
+
+
+def sample_parameter_layout(
+    *,
+    parameter_layout: RuntimeParameterLayout,
+    data: Any | None = None,
+    initial_context: Mapping[str, Any] | None = None,
+    scope: str | None = None,
+    options: ParameterSamplingOptions | None = None,
+) -> ParameterContext:
+    """Sample a compiled RuntimeParameterLayout outside a full RuntimeModel.
+
+    This is used by ExperimentRuntime for shared and instance-local parameter
+    blocks. The returned context is keyed by logical parameter names, while
+    NumPyro sample sites are scoped.
+    """
+    base_options = options or ParameterSamplingOptions()
+    scoped_options = ParameterSamplingOptions(
+        validate_dependencies=base_options.validate_dependencies,
+        record_deterministics=base_options.record_deterministics,
+        allow_initial_context_overwrite=base_options.allow_initial_context_overwrite,
+        scope=scope if scope is not None else base_options.scope,
+        metadata=base_options.metadata,
+    )
+    context = _make_initial_context(initial_context=initial_context)
+    sample_prior_parameters(
+        parameter_layout=parameter_layout,
+        context=context,
+        data=data,
+        options=scoped_options,
+    )
+    resolve_deterministic_parameters(
+        parameter_layout=parameter_layout,
+        context=context,
+        data=data,
+        options=scoped_options,
+    )
+    return context
+
+
 __all__ = [
     "ParameterContext",
     "ParameterSamplingError",
     "ParameterSamplingOptions",
     "sample_parameters",
+    "sample_parameter_layout",
     "sample_prior_parameters",
     "sample_prior_parameter",
     "resolve_deterministic_parameters",

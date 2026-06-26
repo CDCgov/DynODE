@@ -237,10 +237,17 @@ class InitializerSpec(BaseModel):
         self.validate_against_simulation(model.simulation)
 
         resolved_parameter_names = getattr(
-            model.parameters,
-            "resolved_parameter_names",
-            set(),
+            model,
+            "available_parameter_names",
+            None,
         )
+
+        if resolved_parameter_names is None:
+            resolved_parameter_names = getattr(
+                model.parameters,
+                "resolved_parameter_names",
+                set(),
+            )
 
         if callable(resolved_parameter_names):
             resolved_parameter_names = resolved_parameter_names()

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -7,13 +9,7 @@ from .value_spec import DeterministicExpression
 
 
 class DeterministicSpec(BaseModel):
-    """
-    Declarative deterministic parameter.
-
-    Example
-    -------
-    beta = r0 / infectious_period
-    """
+    """Declarative deterministic parameter."""
 
     model_config = ConfigDict(
         extra="forbid",
@@ -21,22 +17,27 @@ class DeterministicSpec(BaseModel):
         arbitrary_types_allowed=True,
     )
 
-    name: str = Field(
-        description="Name of the deterministic parameter.",
-    )
-
+    name: str = Field(description="Name of the deterministic parameter.")
     expression: DeterministicExpression = Field(
-        description="Expression used to compute the deterministic parameter.",
+        description="Expression used to compute the deterministic parameter."
     )
-
-    description: str | None = Field(
-        default=None,
-        description="Optional human-readable description.",
-    )
+    description: str | None = None
 
     @property
     def dependencies(self) -> set[str]:
         return self.expression.dependencies()
+
+    @property
+    def parameter_dependencies(self) -> set[str]:
+        return self.expression.parameter_dependencies()
+
+    @property
+    def deterministic_dependencies(self) -> set[str]:
+        return self.expression.deterministic_dependencies()
+
+    @property
+    def data_dependencies(self) -> set[str]:
+        return self.expression.data_dependencies()
 
     @model_validator(mode="after")
     def validate_not_self_referential(self) -> Self:
@@ -44,19 +45,18 @@ class DeterministicSpec(BaseModel):
             raise ValueError(
                 f"Deterministic parameter {self.name!r} depends on itself."
             )
-
         return self
 
-    def evaluate(self, context: dict[str, Any]) -> Any:
-        """
-        Evaluate the deterministic value against an already-sampled/resolved
-        parameter context.
-        """
-        return self.expression.evaluate(context)
+    def evaluate(
+        self,
+        context: dict[str, Any],
+        data: Any | None = None,
+    ) -> Any:
+        return self.expression.evaluate(context=context, data=data)
 
-    def resolve(self, context: dict[str, Any]) -> Any:
-        """
-        Alias for evaluate(), useful if the rest of your framework already uses
-        resolve terminology.
-        """
-        return self.evaluate(context)
+    def resolve(
+        self,
+        context: dict[str, Any],
+        data: Any | None = None,
+    ) -> Any:
+        return self.evaluate(context=context, data=data)

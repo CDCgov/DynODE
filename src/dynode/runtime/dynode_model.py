@@ -11,10 +11,10 @@ from pydantic import (
     PrivateAttr,
     model_validator,
 )
+from typing_extensions import Self
 
 # Adjust this import path if your ModelSpec lives somewhere else.
-from specs.model_spec import ModelSpec
-from typing_extensions import Self
+from dynode.specs.model_spec import ModelSpec
 
 from .compile_model import CompileOptions, compile_model
 from .runtime_model import RuntimeModel

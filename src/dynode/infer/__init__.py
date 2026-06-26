@@ -1,19 +1,21 @@
 """A module for inference processes in Dynode."""
 
-from .checkpointing import checkpoint_compartment_sizes
-from .inference import InferenceProcess, MCMCProcess, SVIProcess
-from .sample import (
-    resolve_deterministic,
-    sample_distributions,
-    sample_then_resolve,
+from .inference import (
+    InferenceProcess,
+    MCMCProcess,
+    NumpyroModel,
+    PosteriorSamples,
+    PredictiveSamples,
+    SVIProcess,
+    split_key,
 )
 
 __all__ = [
-    "sample_then_resolve",
-    "resolve_deterministic",
-    "sample_distributions",
+    "NumpyroModel",
+    "PosteriorSamples",
+    "PredictiveSamples",
     "InferenceProcess",
     "MCMCProcess",
     "SVIProcess",
-    "checkpoint_compartment_sizes",
+    "split_key",
 ]

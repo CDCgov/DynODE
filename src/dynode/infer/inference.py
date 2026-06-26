@@ -1,9 +1,18 @@
-"""Define available Dynode inference processes."""
+"""Inference utilities for DynODE NumPyro models.
 
-from typing import Optional, Type
+This module is intentionally independent of the old ``dynode.config`` and
+``dynode.typing`` APIs. It accepts any callable NumPyro model, including models
+returned by ``DynodeModel.make_numpyro_model(...)`` and
+``DynodeExperiment.make_numpyro_model(...)``.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from typing import Any
 
 import arviz as az
-from diffrax import Solution
+import jax
 from jax import Array
 from jax.random import PRNGKey
 from numpyro.infer import (
@@ -20,219 +29,270 @@ from numpyro.infer.svi import SVIRunResult
 from numpyro.infer.util import log_likelihood
 from numpyro.optim import Adam, _NumPyroOptim
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, PrivateAttr
-from typing_extensions import Callable
 
-import dynode.config
-import dynode.typing
+NumpyroModel = Callable[..., Any]
+PosteriorSamples = dict[str, Array]
+PredictiveSamples = dict[str, Any]
 
 
 class InferenceProcess(BaseModel):
-    """An Inference process for fitting a CompartmentalModel to data.
+    """Base class for fitting a NumPyro model.
 
-    Meant to be an Abstract class for specific inference methods.
+    The model is any NumPyro-compatible callable. DynODE-specific objects such
+    as ``DynodeModel`` or ``DynodeExperiment`` should be converted to a callable
+    with ``make_numpyro_model(...)`` before being passed here.
+
+    Examples
+    --------
+    Single model::
+
+        model = dynode_model.make_numpyro_model()
+        inferer = SVIProcess(numpyro_model=model, ...)
+        inferer.infer(data=data)
+
+    Multi-instance experiment::
+
+        model = dynode_experiment.make_numpyro_model()
+        inferer = SVIProcess(numpyro_model=model, ...)
+        inferer.infer(data=data_by_instance)
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    # TODO change this naming and the word model
-    numpyro_model: Callable[
-        [dynode.config.SimulationConfig, Optional[dynode.typing.ObservedData]],
-        Solution,
-    ] = Field(
-        description="""Numpyro model that initializes state, samples and resolves
-        parameters, generates timeseries, and optionally compares it to
-        observed data, returning generated data."""
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+    numpyro_model: NumpyroModel = Field(
+        description=(
+            "A NumPyro model callable. Usually this is returned by "
+            "DynodeModel.make_numpyro_model(...) or "
+            "DynodeExperiment.make_numpyro_model(...)."
+        )
     )
-    inference_prngkey: Array = PRNGKey(8675314)
-    # bool flag marking inference complete
+
+    inference_prngkey: Array = Field(
+        default_factory=lambda: PRNGKey(8675314),
+        description="PRNG key used for inference and default predictive draws.",
+    )
+
     _inference_complete: bool = PrivateAttr(default=False)
-    # reference to the numpyro object doing inference, currently MCMC or SVI
-    _inferer: Optional[MCMC | SVI] = PrivateAttr(default=None)
-    # for chained inference of subsequent inferers, final state of _inferer
-    _inference_state: Optional[HMCState | SVIRunResult] = PrivateAttr(
+    _inferer: MCMC | SVI | None = PrivateAttr(default=None)
+    _inference_state: HMCState | SVIRunResult | None = PrivateAttr(
         default=None
     )
-    # save a reference to the kwargs used to fit to use again to generate posteriors.
-    _inferer_kwargs: Optional[dict] = PrivateAttr(
-        default_factory=lambda: dict()
-    )
+    _inferer_kwargs: dict[str, Any] = PrivateAttr(default_factory=dict)
 
-    def infer(self, **kwargs) -> MCMC | SVI:
-        """Fit the numpyro_model to data using the inference process.
+    @property
+    def inference_complete(self) -> bool:
+        """Whether ``infer(...)`` has completed successfully."""
+        return self._inference_complete
 
-        Additional keyword arguments are passed to the numpyro_model.
+    @property
+    def inferer(self) -> MCMC | SVI | None:
+        """Underlying NumPyro inferer, if inference has been run."""
+        return self._inferer
 
-        Returns
-        -------
-        MCMC | SVI
-            The MCMC or SVI object used for inference.
+    @property
+    def inference_state(self) -> HMCState | SVIRunResult | None:
+        """Final NumPyro inference state, if inference has been run."""
+        return self._inference_state
+
+    @property
+    def inferer_kwargs(self) -> dict[str, Any]:
+        """Model keyword arguments used for the most recent fit."""
+        return dict(self._inferer_kwargs)
+
+    def infer(self, **model_kwargs: Any) -> MCMC | SVI:
+        """Fit ``numpyro_model``.
+
+        Subclasses implement the specific inference algorithm. Keyword
+        arguments are forwarded to ``numpyro_model``.
         """
         raise NotImplementedError(
-            "Inference process not implemented, please use a subclass."
+            "Inference process not implemented; use MCMCProcess or SVIProcess."
         )
 
     def get_samples(
-        self, group_by_chain=False, exclude_deterministic=True
-    ) -> dict[str, Array]:
-        """Get the posterior samples from the inference process.
+        self,
+        group_by_chain: bool = False,
+        exclude_deterministic: bool = True,
+    ) -> PosteriorSamples:
+        """Return posterior samples after inference."""
+        raise NotImplementedError(
+            "get_samples() not implemented; use MCMCProcess or SVIProcess."
+        )
+
+    def posterior_predictive(
+        self,
+        *,
+        posterior_samples: Mapping[str, Any] | None = None,
+        rng_key: Array | None = None,
+        num_samples: int | None = None,
+        return_sites: tuple[str, ...] | None = None,
+        model_kwargs: Mapping[str, Any] | None = None,
+    ) -> PredictiveSamples:
+        """Generate posterior predictive samples.
 
         Parameters
         ----------
-        group_by_chain : bool
-            whether or not to group posterior samples by chain or not. Adds
-            a leading dimension to return dict's values if True. Does nothing
-            if the inference_method does not support chains such as in SVI.
-
-        exclude_deterministic : bool
-            whether or not to exclude parameters generated from
-            `numpyro.deterministic` as keys in the returned dictionary, by
-            default True.
-
-        Returns
-        -------
-        dict[str, Array]
-        A dictionary of posterior samples, where keys are parameter sites
-        and values are the corresponding samples, possibly arranged by
-        chain/sample in the case of MCMC.
+        posterior_samples:
+            Samples to condition on. Defaults to ``self.get_samples()``.
+        rng_key:
+            PRNG key. Defaults to ``self.inference_prngkey``.
+        num_samples:
+            Optional number of samples for predictive draws. Usually omitted
+            when ``posterior_samples`` are supplied.
+        return_sites:
+            Optional NumPyro return-site filter.
+        model_kwargs:
+            Optional model kwargs. Defaults to the kwargs from ``infer(...)``.
         """
-        raise NotImplementedError(
-            "get_samples() process not implemented, please use a subclass."
+        self._require_complete()
+
+        samples = dict(posterior_samples or self.get_samples())
+        kwargs = self._predictive_kwargs(model_kwargs)
+
+        predictive = Predictive(
+            self.numpyro_model,
+            posterior_samples=samples,
+            num_samples=num_samples,
+            return_sites=return_sites,
         )
+
+        return predictive(
+            rng_key or self.inference_prngkey,
+            **kwargs,
+        )
+
+    def prior_predictive(
+        self,
+        *,
+        rng_key: Array | None = None,
+        num_samples: int = 500,
+        return_sites: tuple[str, ...] | None = None,
+        model_kwargs: Mapping[str, Any] | None = None,
+    ) -> PredictiveSamples:
+        """Generate prior predictive samples from ``numpyro_model``."""
+        kwargs = self._predictive_kwargs(model_kwargs)
+
+        predictive = Predictive(
+            self.numpyro_model,
+            num_samples=num_samples,
+            return_sites=return_sites,
+        )
+
+        return predictive(
+            rng_key or self.inference_prngkey,
+            **kwargs,
+        )
+
+    def log_likelihood(
+        self,
+        *,
+        posterior_samples: Mapping[str, Any] | None = None,
+        model_kwargs: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Compute pointwise log likelihood using NumPyro's utility."""
+        self._require_complete()
+        samples = dict(posterior_samples or self.get_samples())
+        kwargs = self._predictive_kwargs(model_kwargs)
+        return log_likelihood(self.numpyro_model, samples, **kwargs)
 
     def to_arviz(self) -> az.InferenceData:
-        """Return the results of a fit as an arviz InferenceData object.
-
-        Returns
-        -------
-        arviz.InferenceData
-            arviz InferenceData object containing both priors and posterior_predictive.
-
-        Raises
-        ------
-        AssertionError
-            if fitting has not yet been run via `infer()`
-        """
+        """Return results as an ArviZ ``InferenceData`` object."""
         raise NotImplementedError(
-            "to_arviz not implemented for abstract InferenceProcess, use subclass"
+            "to_arviz() not implemented for the base InferenceProcess."
         )
+
+    def _require_complete(self) -> None:
+        if not self._inference_complete:
+            raise AssertionError(
+                "Inference process not completed; call infer(...) first."
+            )
+
+    def _predictive_kwargs(
+        self,
+        model_kwargs: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        if model_kwargs is None:
+            return dict(self._inferer_kwargs)
+        return dict(model_kwargs)
 
 
 class MCMCProcess(InferenceProcess):
-    """Inference process for fitting a numpyro_model to data using MCMC."""
+    """Fit a NumPyro model with NUTS/MCMC."""
 
     num_samples: PositiveInt
     num_warmup: PositiveInt
-    num_chains: PositiveInt
-    nuts_max_tree_depth: PositiveInt
-    nuts_init_strategy: Callable = init_to_median
-    mcmc_kwargs: dict = Field(
-        default_factory=lambda: dict(),
-        description="""Extra kwargs to MCMC, for more info see:
-          https://num.pyro.ai/en/stable/mcmc.html""",
+    num_chains: PositiveInt = 1
+    nuts_max_tree_depth: PositiveInt = 10
+
+    nuts_init_strategy: Callable[..., Any] = init_to_median
+
+    mcmc_kwargs: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra keyword arguments forwarded to numpyro.infer.MCMC.",
     )
-    nuts_kwargs: dict = Field(
-        default_factory=lambda: dict(),
-        description="""Extra kwargs to NUTS sampler, for more info see:
-        https://num.pyro.ai/en/latest/mcmc.html#numpyro.infer.hmc.NUTS""",
+    nuts_kwargs: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra keyword arguments forwarded to numpyro.infer.NUTS.",
     )
     progress_bar: bool = True
 
-    def infer(self, **kwargs) -> MCMC:
-        """Fit the numpyro_model to data using MCMC.
+    def infer(self, **model_kwargs: Any) -> MCMC:
+        """Run NUTS/MCMC and store the fitted inferer."""
+        kernel = NUTS(
+            self.numpyro_model,
+            dense_mass=True,
+            max_tree_depth=self.nuts_max_tree_depth,
+            init_strategy=self.nuts_init_strategy,
+            **self.nuts_kwargs,
+        )
 
-        Additional keyword arguments are passed to the numpyro_model.
-
-        Returns
-        -------
-        MCMC
-            The MCMC object used for inference.
-        """
         inferer = MCMC(
-            NUTS(
-                self.numpyro_model,
-                dense_mass=True,
-                max_tree_depth=self.nuts_max_tree_depth,
-                init_strategy=self.nuts_init_strategy,
-                **self.nuts_kwargs,
-            ),
+            kernel,
             num_warmup=self.num_warmup,
             num_samples=self.num_samples,
             num_chains=self.num_chains,
             progress_bar=self.progress_bar,
             **self.mcmc_kwargs,
         )
-        inferer.run(rng_key=self.inference_prngkey, **kwargs)
+
+        inferer.run(
+            rng_key=self.inference_prngkey,
+            **model_kwargs,
+        )
+
         self._inference_complete = True
         self._inferer = inferer
-        # given to be an HMCState because we are using NUTS here.
         self._inference_state = inferer.last_state
-        self._inferer_kwargs = kwargs
+        self._inferer_kwargs = dict(model_kwargs)
         return inferer
 
     def get_samples(
-        self, group_by_chain=False, exclude_deterministic=True
-    ) -> dict[str, Array]:
-        """Get the posterior samples from the inference process.
-
-        Parameters
-        ----------
-        group_by_chain : bool
-            whether or not to group posterior samples by chain or not. Adds
-            a leading dimension to return dict's values if True.
-
-        exclude_deterministic : bool
-            whether or not to exclude parameters generated from
-            `numpyro.deterministic` as keys in the returned dictionary, by
-            default True.
-
-        Returns
-        -------
-        dict[str, Array]
-        A dictionary of posterior samples, where keys are parameter sites
-        and values are the corresponding samples, arranged with shape
-        `(num_chains * num_samples,)` if group_by_chain=False, otherwise arranged
-        by `(num_chains, num_samples)`.
-        """
-        if not self._inference_complete:
-            raise AssertionError(
-                "Inference process not completed, please call infer() first."
-            )
+        self,
+        group_by_chain: bool = False,
+        exclude_deterministic: bool = True,
+    ) -> PosteriorSamples:
+        """Return MCMC posterior samples."""
+        self._require_complete()
         assert isinstance(self._inferer, MCMC)
+
         if exclude_deterministic:
             return self._inferer.get_samples(group_by_chain=group_by_chain)
-        else:  # include numpyro sites generated by numpyro.determinsitic
-            if group_by_chain:
-                return self._inferer._states[self._inferer._sample_field]
-            else:
-                return self._inferer._states_flat[self._inferer._sample_field]
+
+        # NumPyro does not expose deterministic-site inclusion through a stable
+        # public MCMC API on all supported versions. Preserve the old DynODE
+        # behavior while localizing private-attribute usage here.
+        sample_field = self._inferer._sample_field
+        if group_by_chain:
+            return self._inferer._states[sample_field]
+        return self._inferer._states_flat[sample_field]
 
     def to_arviz(self) -> az.InferenceData:
-        """Return the results of a fit as an arviz InferenceData object.
+        """Convert MCMC fit to ArviZ ``InferenceData``."""
+        self._require_complete()
+        assert isinstance(self._inferer, MCMC)
 
-        Returns
-        -------
-        arviz.InferenceData
-            arviz InferenceData object containing both priors and posterior_predictive.
-
-        Raises
-        ------
-        AssertionError
-            if fitting has not yet been run via `infer()`
-        """
-        if not self._inference_complete:
-            raise AssertionError(
-                "Inference process not completed, please call infer() first."
-            )
-        posterior_predictive = Predictive(
-            self.numpyro_model,
-            posterior_samples=self.get_samples(),
-        )(
-            rng_key=self.inference_prngkey,
-            **self._inferer_kwargs,  # arguments passed to `numpyro_model`
-        )
-        prior = Predictive(self.numpyro_model, num_samples=self.num_samples)(
-            rng_key=self.inference_prngkey,
-            **self._inferer_kwargs,  # arguments passed to `numpyro_model`
-        )
+        posterior_predictive = self.posterior_predictive()
+        prior = self.prior_predictive(num_samples=self.num_samples)
 
         return az.from_numpyro(
             self._inferer,
@@ -242,40 +302,31 @@ class MCMCProcess(InferenceProcess):
 
 
 class SVIProcess(InferenceProcess):
-    """Inference process for fitting a numpyro_model to data using SVI."""
+    """Fit a NumPyro model with stochastic variational inference."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
     num_iterations: PositiveInt = Field(
-        description="""The number of iterations to fit. """
+        description="Number of SVI optimization steps."
     )
     num_samples: PositiveInt = Field(
-        description="""The number of samples to generate when calling
-        get_samples() on this process after a fit."""
+        description="Number of approximate posterior samples returned by get_samples()."
     )
-    guide_class: Type[AutoContinuous] = AutoMultivariateNormal
-    guide_init_strategy: Callable = init_to_median
+
+    guide_class: type[AutoContinuous] = AutoMultivariateNormal
+    guide_init_strategy: Callable[..., Any] = init_to_median
+
     optimizer: _NumPyroOptim = Field(
         default_factory=lambda: Adam(step_size=0.1),
-        description="""SVI optimizer, usually Adam, for available optimizers
-        see: https://num.pyro.ai/en/stable/optimizers.html""",
+        description="NumPyro optimizer, for example Adam or ClippedAdam.",
     )
+
     progress_bar: bool = True
-    guide_kwargs: dict = Field(
-        default_factory=lambda: dict(),
-        description="""extra kwargs to guide, for more information see:
-        https://num.pyro.ai/en/stable/autoguide.html""",
+    guide_kwargs: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Extra keyword arguments forwarded to the autoguide.",
     )
 
-    def infer(self, **kwargs) -> SVI:
-        """Fit the numpyro_model to data using SVI.
-
-        Additional keyword arguments are passed to the numpyro_model.
-
-        Returns
-        -------
-        SVI
-            The SVI object used for inference.
-        """
+    def infer(self, **model_kwargs: Any) -> SVI:
+        """Run SVI and store the fitted inferer/result."""
         guide = self.guide_class(
             self.numpyro_model,
             init_loc_fn=self.guide_init_strategy,
@@ -288,60 +339,42 @@ class SVIProcess(InferenceProcess):
             optim=self.optimizer,
             loss=Trace_ELBO(),
         )
-        svi_state = inferer.init(self.inference_prngkey, **kwargs)
-        self._inference_state = inferer.run(
+
+        result = inferer.run(
             rng_key=self.inference_prngkey,
             num_steps=self.num_iterations,
             progress_bar=self.progress_bar,
-            init_state=svi_state,
-            **kwargs,
+            **model_kwargs,
         )
+
         self._inference_complete = True
         self._inferer = inferer
-        self._inferer_kwargs = kwargs
+        self._inference_state = result
+        self._inferer_kwargs = dict(model_kwargs)
         return inferer
 
     def get_samples(
-        self, _: bool = False, exclude_deterministic: bool = True
-    ) -> dict[str, Array]:
-        """Get the posterior samples from the inference process.
+        self,
+        group_by_chain: bool = False,
+        exclude_deterministic: bool = True,
+    ) -> PosteriorSamples:
+        """Return samples from the fitted variational posterior.
 
-        Parameters
-        ----------
-        _ : bool
-            Unused parameter, whether or not to group posterior samples by chain or not.
-            SVI does not have chains so this is unnecessary.
-
-        exclude_deterministic : bool
-            whether or not to exclude parameters generated from
-            `numpyro.deterministic` as keys in the returned dictionary, by
-            default True.
-
-        Returns
-        -------
-        dict[str, Array]
-            A dictionary of posterior samples, where keys are parameter sites
-            and values are the corresponding samples.
-
-        Notes
-        -----
-        Keep in mind that posterior samples are generated after the fitting
-        process for SVI, and the samples are not arranged by chain/sample like in MCMC.
+        ``group_by_chain`` is accepted for API compatibility. SVI has no chains,
+        so the argument is ignored.
         """
-        if not self._inference_complete:
-            raise AssertionError(
-                "Inference process not completed, please call infer() first."
-            )
-        assert isinstance(self._inference_state, SVIRunResult)
+        del group_by_chain
+        self._require_complete()
         assert isinstance(self._inferer, SVI)
+        assert isinstance(self._inference_state, SVIRunResult)
 
-        # Construct the variational posterior distribution
         predictive = Predictive(
             self._inferer.guide,
             params=self._inference_state.params,
             num_samples=self.num_samples,
         )
         samples = predictive(self.inference_prngkey)
+
         if not exclude_deterministic:
             deterministic_predictive = Predictive(
                 model=self._inferer.model,
@@ -349,57 +382,95 @@ class SVIProcess(InferenceProcess):
                 params=self._inference_state.params,
                 num_samples=self.num_samples,
             )
-
             deterministic_samples = deterministic_predictive(
-                self.inference_prngkey, **self._inferer_kwargs
+                self.inference_prngkey,
+                **self._inferer_kwargs,
             )
             samples = {**samples, **deterministic_samples}
 
-        # Filter out internal parameters (like auto_latent)
-        filtered_samples = {
-            name: value
-            for name, value in samples.items()
-            if not name.startswith("_auto_")
-        }
+        return _filter_internal_sites(samples)
 
-        return filtered_samples
+    def posterior_predictive(
+        self,
+        *,
+        posterior_samples: Mapping[str, Any] | None = None,
+        rng_key: Array | None = None,
+        num_samples: int | None = None,
+        return_sites: tuple[str, ...] | None = None,
+        model_kwargs: Mapping[str, Any] | None = None,
+    ) -> PredictiveSamples:
+        """Generate posterior predictive samples.
+
+        For SVI, defaults to drawing from the fitted guide if explicit
+        ``posterior_samples`` are not supplied.
+        """
+        self._require_complete()
+        assert isinstance(self._inferer, SVI)
+        assert isinstance(self._inference_state, SVIRunResult)
+
+        kwargs = self._predictive_kwargs(model_kwargs)
+        key = rng_key or self.inference_prngkey
+
+        if posterior_samples is not None:
+            predictive = Predictive(
+                self.numpyro_model,
+                posterior_samples=dict(posterior_samples),
+                num_samples=num_samples,
+                return_sites=return_sites,
+            )
+            return predictive(key, **kwargs)
+
+        predictive = Predictive(
+            model=self._inferer.model,
+            guide=self._inferer.guide,
+            params=self._inference_state.params,
+            num_samples=num_samples or self.num_samples,
+            return_sites=return_sites,
+        )
+        return predictive(key, **kwargs)
 
     def to_arviz(self) -> az.InferenceData:
-        """Return the results of a fit as an arviz InferenceData object.
+        """Convert SVI outputs to ArviZ ``InferenceData``.
 
-        Returns
-        -------
-        arviz.InferenceData
-            arviz InferenceData object containing both priors and posterior_predictive.
-
-        Raises
-        ------
-        AssertionError
-            if fitting has not yet been run via `infer()`
+        ArviZ has no NumPyro SVI object equivalent to MCMC, so this method
+        returns prior, posterior predictive, and log-likelihood groups.
         """
-        if not self._inference_complete:
-            raise AssertionError(
-                "Inference process not completed, please call infer() first."
-            )
-        posterior_predictive = Predictive(
-            self.numpyro_model,
-            posterior_samples=self.get_samples(),
-        )(
-            rng_key=self.inference_prngkey,
-            **self._inferer_kwargs,  # arguments passed to `numpyro_model`
+        self._require_complete()
+
+        posterior_samples = self.get_samples()
+        posterior_predictive = self.posterior_predictive(
+            posterior_samples=posterior_samples,
         )
-        prior = Predictive(
-            self.numpyro_model, num_samples=self.num_iterations
-        )(
-            rng_key=self.inference_prngkey,
-            **self._inferer_kwargs,  # arguments passed to `numpyro_model`
-        )
-        ll = log_likelihood(
-            self.numpyro_model, self.get_samples(), **self._inferer_kwargs
-        )
-        # TODO figure out how to return more than just prior and posterior_predictive for svi
+        prior = self.prior_predictive(num_samples=self.num_samples)
+        ll = self.log_likelihood(posterior_samples=posterior_samples)
+
         return az.from_numpyro(
             prior=prior,
             posterior_predictive=posterior_predictive,
             log_likelihood=ll,
         )
+
+
+def split_key(key: Array, num: int = 2) -> tuple[Array, ...]:
+    """Small convenience wrapper around ``jax.random.split``."""
+    return tuple(jax.random.split(key, num))
+
+
+def _filter_internal_sites(samples: Mapping[str, Any]) -> PosteriorSamples:
+    """Drop AutoGuide/private NumPyro sites from a samples dictionary."""
+    return {
+        name: value
+        for name, value in samples.items()
+        if not name.startswith("_auto_") and name != "auto_latent"
+    }
+
+
+__all__ = [
+    "NumpyroModel",
+    "PosteriorSamples",
+    "PredictiveSamples",
+    "InferenceProcess",
+    "MCMCProcess",
+    "SVIProcess",
+    "split_key",
+]

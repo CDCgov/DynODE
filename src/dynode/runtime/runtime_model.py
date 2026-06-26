@@ -1089,7 +1089,7 @@ class RuntimeModel:
             age_bins = tuple()
 
         transmission = RuntimeTransmission.from_spec(
-            spec.parameters.transmission,
+            spec.transmission,
             age_bins=age_bins,
         )
 
@@ -1119,7 +1119,7 @@ class RuntimeModel:
 
     @property
     def solver_spec(self) -> Any:
-        return self.spec.parameters.solver
+        return self.spec.solver
 
     @property
     def initializer_spec(self) -> Any:

@@ -43,6 +43,10 @@ class CompileOptions:
     # Optional metadata merged into RuntimeModel.metadata.
     metadata: Mapping[str, str] = field(default_factory=dict)
 
+    # Names supplied by an outer experiment context. These are accepted when
+    # validating model-local references.
+    external_parameter_names: frozenset[str] = field(default_factory=frozenset)
+
 
 def compile_model(
     spec: Any,
@@ -61,6 +65,8 @@ def compile_model(
         A ModelSpec-like object with:
         - simulation
         - parameters
+        - solver
+        - transmission
         - optional data
 
     options:
@@ -95,7 +101,7 @@ def compile_model(
     )
 
     transmission = _compile_transmission(
-        spec.parameters.transmission,
+        spec.transmission,
         simulation=spec.simulation,
     )
 
@@ -141,7 +147,7 @@ def compile_model_from_dict(
 
 
 def _validate_required_model_shape(spec: Any) -> None:
-    required_top_level = ("simulation", "parameters")
+    required_top_level = ("simulation", "parameters", "solver", "transmission")
 
     for attr_name in required_top_level:
         if not hasattr(spec, attr_name):
@@ -157,16 +163,6 @@ def _validate_required_model_shape(spec: Any) -> None:
     if not hasattr(spec.simulation, "initializer"):
         raise CompileError(
             "Model spec simulation is missing required attribute 'initializer'."
-        )
-
-    if not hasattr(spec.parameters, "solver"):
-        raise CompileError(
-            "Model spec parameters is missing required attribute 'solver'."
-        )
-
-    if not hasattr(spec.parameters, "transmission"):
-        raise CompileError(
-            "Model spec parameters is missing required attribute 'transmission'."
         )
 
 
@@ -211,7 +207,9 @@ def _run_spec_validation_hooks(
 
     if data is not None and options.validate_data_spec:
         validate_data_against_model = getattr(
-            data, "validate_against_model", None
+            data,
+            "validate_against_model",
+            None,
         )
 
         if callable(validate_data_against_model):
@@ -236,7 +234,7 @@ def _run_spec_validation_hooks(
         deterministic_execution_order()
 
     interaction_matrix_spec = getattr(
-        spec.parameters.transmission,
+        spec.transmission,
         "interaction_matrix_spec",
         None,
     )
@@ -263,10 +261,10 @@ def _compile_parameter_layout(
     options: CompileOptions,
 ) -> RuntimeParameterLayout:
     """
-    Compile ParameterSpec into RuntimeParameterLayout.
+    Compile ParameterBlockSpec-like input into RuntimeParameterLayout.
 
-    This version topologically orders priors if prior distributions depend on
-    previously sampled priors.
+    Priors are topologically ordered when prior distributions depend on
+    previously sampled priors or on externally supplied/shared parameters.
     """
     priors = _get_sequence_attr(
         parameters,
@@ -345,7 +343,7 @@ def _validate_runtime_model(
 
     for validator in validators:
         try:
-            validator(runtime)
+            validator(runtime, options=options)
         except CompileError as exc:
             errors.append(str(exc))
 
@@ -356,7 +354,13 @@ def _validate_runtime_model(
         )
 
 
-def _validate_runtime_layout(runtime: RuntimeModel) -> None:
+def _validate_runtime_layout(
+    runtime: RuntimeModel,
+    *,
+    options: CompileOptions,
+) -> None:
+    del options
+
     simulation = runtime.simulation_spec
     state_layout = runtime.state_layout
 
@@ -402,8 +406,12 @@ def _validate_runtime_layout(runtime: RuntimeModel) -> None:
             )
 
 
-def _validate_parameter_dependencies(runtime: RuntimeModel) -> None:
-    available = runtime.parameter_layout.resolved_name_set
+def _validate_parameter_dependencies(
+    runtime: RuntimeModel,
+    *,
+    options: CompileOptions,
+) -> None:
+    available = _available_parameter_names(runtime, options=options)
     errors: list[str] = []
 
     for prior_name, prior in runtime.parameter_layout.prior_specs.items():
@@ -432,9 +440,13 @@ def _validate_parameter_dependencies(runtime: RuntimeModel) -> None:
         raise CompileError("; ".join(errors))
 
 
-def _validate_initializer_dependencies(runtime: RuntimeModel) -> None:
+def _validate_initializer_dependencies(
+    runtime: RuntimeModel,
+    *,
+    options: CompileOptions,
+) -> None:
     initializer = runtime.initializer_spec
-    available = runtime.parameter_layout.resolved_name_set
+    available = _available_parameter_names(runtime, options=options)
 
     deps = _dependency_set(initializer, "dependencies")
     missing = sorted(deps - available)
@@ -446,7 +458,13 @@ def _validate_initializer_dependencies(runtime: RuntimeModel) -> None:
         )
 
 
-def _validate_data_dependencies(runtime: RuntimeModel) -> None:
+def _validate_data_dependencies(
+    runtime: RuntimeModel,
+    *,
+    options: CompileOptions,
+) -> None:
+    del options
+
     data = runtime.data_spec
     available_data = _available_data_names(data)
 
@@ -508,8 +526,12 @@ def _validate_data_dependencies(runtime: RuntimeModel) -> None:
         raise CompileError("; ".join(errors))
 
 
-def _validate_transmission_dependencies(runtime: RuntimeModel) -> None:
-    available = runtime.parameter_layout.resolved_name_set
+def _validate_transmission_dependencies(
+    runtime: RuntimeModel,
+    *,
+    options: CompileOptions,
+) -> None:
+    available = _available_parameter_names(runtime, options=options)
     errors: list[str] = []
 
     for strain_name, strain in runtime.transmission.strain_specs.items():
@@ -573,15 +595,8 @@ def _prior_execution_order(
     order is preserved.
 
     If a prior distribution depends on another sampled prior, this function
-    orders priors topologically.
-
-    Example
-    -------
-    mu_r0 ~ Normal(...)
-    sigma_r0 ~ HalfNormal(...)
-    site_r0 ~ LogNormal(loc=ParamRef("mu_r0"), scale=ParamRef("sigma_r0"))
-
-    Then site_r0 must be sampled after mu_r0 and sigma_r0.
+    orders priors topologically. Dependencies on names supplied by
+    CompileOptions.external_parameter_names are treated as already resolved.
     """
     if not priors:
         return tuple()
@@ -596,6 +611,9 @@ def _prior_execution_order(
 
     prior_name_set = set(prior_names)
     deterministic_name_set = set(deterministic_names)
+    external_name_set = {
+        str(name) for name in options.external_parameter_names
+    }
 
     prior_by_name = {_name_of(prior): prior for prior in priors}
 
@@ -619,7 +637,9 @@ def _prior_execution_order(
                 "are resolved after priors in the current runtime design."
             )
 
-        unknown = deps - prior_name_set - deterministic_name_set
+        unknown = (
+            deps - prior_name_set - deterministic_name_set - external_name_set
+        )
 
         if unknown:
             raise CompileError(
@@ -628,7 +648,12 @@ def _prior_execution_order(
             )
 
     remaining = dict(prior_by_name)
-    resolved: set[str] = set()
+
+    resolved: set[str] = set(external_name_set)
+
+    if options.allow_prior_dependencies_on_deterministics:
+        resolved |= deterministic_name_set
+
     ordered: list[Any] = []
 
     while remaining:
@@ -647,7 +672,8 @@ def _prior_execution_order(
 
             raise CompileError(
                 "Could not determine prior sampling order. This usually means "
-                "there is a cyclic prior dependency. "
+                "there is a cyclic prior dependency or a prior depends on a "
+                "deterministic value that is resolved after priors. "
                 f"Remaining dependencies: {unresolved}."
             )
 
@@ -703,14 +729,68 @@ def _age_bins_from_simulation(simulation: Any) -> tuple[Any, ...]:
     return tuple(age_bins)
 
 
+def _available_parameter_names(
+    runtime: RuntimeModel,
+    *,
+    options: CompileOptions | None = None,
+) -> set[str]:
+    """
+    Names available for resolving parameter references during compilation.
+
+    Includes:
+    - model-local prior names
+    - model-local deterministic parameter names
+    - optional external/shared names supplied by an outer experiment context
+    """
+    parameter_layout = runtime.parameter_layout
+    names: set[str] = set()
+
+    for attr_name in (
+        "prior_names",
+        "deterministic_names",
+        "resolved_names",
+        "resolved_parameter_names",
+    ):
+        value = getattr(parameter_layout, attr_name, None)
+
+        if value is None:
+            continue
+
+        if callable(value):
+            value = value()
+
+        names |= {str(name) for name in value}
+
+    if options is not None:
+        names |= {str(name) for name in options.external_parameter_names}
+
+    return names
+
+
 def _available_data_names(data: Any | None) -> set[str]:
     if data is None:
         return set()
 
+    if isinstance(data, Mapping):
+        names = set(data)
+
+        observations = data.get("observations")
+        if isinstance(observations, Mapping):
+            names |= set(observations)
+
+        covariates = data.get("covariates")
+        if isinstance(covariates, Mapping):
+            names |= set(covariates)
+
+        return {str(name) for name in names}
+
     for attr_name in (
+        "field_names",
         "observation_names",
         "observed_series_names",
         "data_names",
+        "covariate_names",
+        "index_names",
     ):
         value = getattr(data, attr_name, None)
 
@@ -721,6 +801,17 @@ def _available_data_names(data: Any | None) -> set[str]:
             value = value()
 
         return {str(name) for name in value}
+
+    fields = getattr(data, "fields", None)
+
+    if fields is not None:
+        names = {
+            str(getattr(field, "name"))
+            for field in fields
+            if getattr(field, "name", None) is not None
+        }
+        if names:
+            return names
 
     observations = getattr(data, "observations", None)
 

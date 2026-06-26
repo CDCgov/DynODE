@@ -134,6 +134,7 @@ class ParamRef(ValueSpec):
     type: Literal["param_ref"] = "param_ref"
 
     name: str
+    scope: str | None = None
 
     def parameter_dependencies(self) -> set[str]:
         return {self.name}
