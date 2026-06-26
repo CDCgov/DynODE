@@ -9,22 +9,22 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
+from data import dict_to_json, preprocess_observations
+from experiment import build_experiment, posterior_predictive
+from functions import beta_modifier_step_covid, load_vaccination_model_hill
 from matplotlib.backends.backend_pdf import PdfPages
 from numpyro.optim import ClippedAdam
+from specs import EscapePriorConfig, FluSeasonSettings
+from visualize import visualize_fit
 
 from dynode.infer import (
     SVIProcess,  # keep your existing inference wrapper if present
 )
 
-from .data import dict_to_json, preprocess_observations
-from .experiment import build_experiment, posterior_predictive
-from .functions import beta_modifier_step_covid, load_vaccination_model_hill
-from .specs import EscapePriorConfig, FluSeasonSettings
-from .visualize import visualize_fit
-
 jax.config.update("jax_enable_x64", True)
 
 DURATION_DAYS = 364 + 49
+PROCESSED_DATA_DIR = os.environ.get("FLU_PROCESSED_DATA_DIR")
 YEARS = [2015, 2016, 2017, 2018, 2019, 2022, 2023, 2024, 2025]
 INIT_DATES = {
     2015: date(2015, 8, 15),
@@ -104,7 +104,7 @@ def build_settings_and_data():
             escape=escape,
         )
         data[str(yr)] = {
-            **preprocess_observations(dt),
+            **preprocess_observations(dt, PROCESSED_DATA_DIR),
             "vax_data": vax_data,
         }
     return settings_by_year, data

@@ -24,6 +24,13 @@ from .dimension_spec import (
     VaccinationDimensionSpec,
     WaneDimensionSpec,
 )
+from .distribution_spec import (
+    AffineTransformSpec,
+    BetaSpec,
+    HalfNormalSpec,
+    TransformedDistributionSpec,
+    TruncatedNormalSpec,
+)
 from .experiment_spec import ExperimentSpec, ModelInstanceSpec
 from .function_spec import FunctionRef, FunctionRegistry
 from .initializer_spec import CompartmentInitialConditionSpec, InitializerSpec
@@ -36,8 +43,31 @@ from .parameter_spec import (
 )
 from .prior_spec import PriorSpec
 from .simulation_spec import SimulationSpec
+from .solver_spec import (
+    Bosh3Spec,
+    Dopri5Spec,
+    Dopri8Spec,
+    EulerSpec,
+    HeunSpec,
+    Kvaerno3Spec,
+    Kvaerno4Spec,
+    Kvaerno5Spec,
+    PIDControllerSpec,
+    SaveAtSpec,
+    SolverSpec,
+    Tsit5Spec,
+)
 from .strain_spec import StrainSpec
 from .transmission_spec import TransmissionSpec
+from .value_spec import (
+    BinaryValueSpec,
+    ConstantValueSpec,
+    DataRef,
+    DeterministicRef,
+    FunctionValueSpec,
+    ParamRef,
+    UnaryValueSpec,
+)
 
 __all__ = [
     "ArraySpec",
@@ -60,6 +90,11 @@ __all__ = [
     "LastStrainImmuneHistoryDimension",
     "VaccinationDimensionSpec",
     "WaneDimensionSpec",
+    "AffineTransformSpec",
+    "BetaSpec",
+    "HalfNormalSpec",
+    "TransformedDistributionSpec",
+    "TruncatedNormalSpec",
     "ExperimentSpec",
     "ModelInstanceSpec",
     "FunctionRef",
@@ -73,6 +108,25 @@ __all__ = [
     "ParameterSpec",
     "PriorSpec",
     "SimulationSpec",
+    "SolverSpec",
+    "PIDControllerSpec",
+    "SaveAtSpec",
+    "Tsit5Spec",
+    "Dopri5Spec",
+    "Dopri8Spec",
+    "Bosh3Spec",
+    "EulerSpec",
+    "HeunSpec",
+    "Kvaerno3Spec",
+    "Kvaerno4Spec",
+    "Kvaerno5Spec",
     "StrainSpec",
     "TransmissionSpec",
+    "ConstantValueSpec",
+    "ParamRef",
+    "DeterministicRef",
+    "DataRef",
+    "UnaryValueSpec",
+    "BinaryValueSpec",
+    "FunctionValueSpec",
 ]

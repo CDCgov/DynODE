@@ -1,15 +1,15 @@
 from __future__ import annotations
 
+import os
 from datetime import date
 
 import jax
 import jax.numpy as jnp
 import numpyro
-
-from .data import preprocess_observations
-from .experiment import build_experiment
-from .functions import load_vaccination_model_hill
-from .specs import FluSeasonSettings
+from data import preprocess_observations
+from experiment import build_experiment
+from functions import load_vaccination_model_hill
+from specs import FluSeasonSettings
 
 jax.config.update("jax_enable_x64", True)
 
@@ -32,7 +32,12 @@ def main():
     experiment = build_experiment(settings)
     model = experiment.make_numpyro_model(return_outputs=True)
     data = {
-        str(year): {**preprocess_observations(init_date), "vax_data": vax_data}
+        str(year): {
+            **preprocess_observations(
+                init_date, os.environ.get("FLU_PROCESSED_DATA_DIR")
+            ),
+            "vax_data": vax_data,
+        }
     }
     seeded = numpyro.handlers.seed(model, rng_seed=1234)
     out = seeded(data=data)

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import Any
 
 import jax.numpy as jnp
+from constants import CONTACT_MATRIX_5, STRAIN_NAMES
+from functions import external_i, seasonality_coswave
 
 from dynode.runtime.runtime_model import RuntimeModel
-
-from .constants import CONTACT_MATRIX_5, STRAIN_NAMES
-from .functions import external_i, seasonality_coswave
 
 
 def flu_rhs(
@@ -231,16 +231,26 @@ def population_by_age(*, s: Any, e: Any, i: Any, r: Any, idx: Any) -> Any:
 def wane_arrays(
     runtime: RuntimeModel, compartment_name: str, dimension_name: str
 ):
+    """
+    Return static waning-rate and protection vectors for one waning dimension.
+
+    This helper intentionally uses Python ``math.isinf`` instead of
+    ``jax.numpy.isinf``. The bin metadata are static model metadata, not traced
+    ODE state. Using ``jnp.isinf(...)`` inside a Python ``if`` creates a JAX
+    boolean tracer during Diffrax shape tracing and raises
+    TracerBoolConversionError.
+    """
     dimension = runtime.state_layout.get_compartment(
         compartment_name
     ).get_dimension(dimension_name)
-    rates = []
-    protections = []
+    rates: list[float] = []
+    protections: list[float] = []
 
     for bin_spec in dimension.bin_specs:
-        waiting_time = getattr(bin_spec, "waiting_time")
-        rates.append(0.0 if jnp.isinf(waiting_time) else 1.0 / waiting_time)
-        protections.append(getattr(bin_spec, "base_protection"))
+        waiting_time = float(getattr(bin_spec, "waiting_time"))
+        rate = 0.0 if math.isinf(waiting_time) else 1.0 / waiting_time
+        rates.append(rate)
+        protections.append(float(getattr(bin_spec, "base_protection")))
 
     return jnp.asarray(rates), jnp.asarray(protections)
 

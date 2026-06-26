@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,32 @@ from typing import Any
 import jax.numpy as jnp
 import numpy as np
 import pandas as pd
+
+DEFAULT_PROCESSED_DATA_DIR_CANDIDATES = (
+    "/input/data/flu/processed",
+    "~/mounts/scenarios-mechanistic-input/data/flu/processed",
+)
+
+
+def default_processed_data_dir() -> Path:
+    """Return the default processed-data directory for the flu example.
+
+    The environment variable FLU_PROCESSED_DATA_DIR takes precedence.
+    If it is not set, use the first known directory that exists.
+    If none exist, return /input/data/flu/processed so the eventual
+    FileNotFoundError points at the expected container/HPC layout.
+    """
+
+    env_path = os.environ.get("FLU_PROCESSED_DATA_DIR")
+    if env_path:
+        return Path(env_path).expanduser()
+
+    for candidate in DEFAULT_PROCESSED_DATA_DIR_CANDIDATES:
+        path = Path(candidate).expanduser()
+        if path.exists():
+            return path
+
+    return Path(DEFAULT_PROCESSED_DATA_DIR_CANDIDATES[0]).expanduser()
 
 
 def load_initial_s_proportions(path: str | Path) -> jnp.ndarray:
@@ -25,12 +52,29 @@ def load_initial_s_proportions(path: str | Path) -> jnp.ndarray:
 
 
 def preprocess_observations(
-    init_date: date, processed_data_dir: str | Path
+    init_date: date,
+    processed_data_dir: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Load hospitalization and subtype observations for one season."""
+    """Load hospitalization and subtype observations for one season.
+
+    Parameters
+    ----------
+    init_date:
+        Season initialization date. The year determines which processed files
+        are loaded.
+
+    processed_data_dir:
+        Directory containing fsn_usa_5_<year>.csv / nhsn_usa_5_<year>.csv and
+        subtype_prop_usa_<year>.csv. If omitted, this uses
+        FLU_PROCESSED_DATA_DIR when set, otherwise a known default path.
+    """
 
     year = init_date.year
-    processed_data_dir = Path(processed_data_dir).expanduser()
+    processed_data_dir = (
+        Path(processed_data_dir).expanduser()
+        if processed_data_dir is not None
+        else default_processed_data_dir()
+    )
 
     if year < 2020:
         hosp_path = processed_data_dir / f"fsn_usa_5_{year}.csv"
@@ -38,6 +82,17 @@ def preprocess_observations(
         hosp_path = processed_data_dir / f"nhsn_usa_5_{year}.csv"
 
     subtype_path = processed_data_dir / f"subtype_prop_usa_{year}.csv"
+
+    if not hosp_path.exists():
+        raise FileNotFoundError(
+            f"Hospitalization file not found: {hosp_path}. "
+            "Set FLU_PROCESSED_DATA_DIR or pass processed_data_dir explicitly."
+        )
+    if not subtype_path.exists():
+        raise FileNotFoundError(
+            f"Subtype file not found: {subtype_path}. "
+            "Set FLU_PROCESSED_DATA_DIR or pass processed_data_dir explicitly."
+        )
 
     obs_hosps_df = pd.read_csv(hosp_path)
     obs_hosps_df["weekendingdate"] = pd.to_datetime(

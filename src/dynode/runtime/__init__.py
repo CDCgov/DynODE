@@ -13,6 +13,7 @@ from .data_bundle import DataBundle
 from .dynode_experiment import DynodeExperiment
 from .dynode_model import DynodeModel
 from .experiment_runtime import ExperimentRuntime, ModelInstanceRuntime
+from .ode_solver import OdeSolverOptions
 from .runtime_context import RuntimeContext
 from .runtime_model import (
     RuntimeModel,
@@ -34,6 +35,7 @@ __all__ = [
     "DynodeModel",
     "ExperimentRuntime",
     "ModelInstanceRuntime",
+    "OdeSolverOptions",
     "RuntimeContext",
     "RuntimeModel",
     "RuntimeParameterLayout",

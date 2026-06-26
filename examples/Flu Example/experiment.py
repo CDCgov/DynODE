@@ -3,15 +3,14 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 import jax
+from data import make_posterior_predictive_data
 from numpyro.infer import Predictive
+from observations import compute_observations, generate_aux_output, likelihood
+from rhs import flu_rhs
+from specs import FluSeasonSettings, build_flu_experiment_spec
+from state import apply_flu_escape_initial_state
 
 from dynode.runtime import DynodeExperiment, OdeSolverOptions
-
-from .data import make_posterior_predictive_data
-from .observations import compute_observations, generate_aux_output, likelihood
-from .rhs import flu_rhs
-from .specs import FluSeasonSettings, build_flu_experiment_spec
-from .state import apply_flu_escape_initial_state
 
 
 def build_experiment(

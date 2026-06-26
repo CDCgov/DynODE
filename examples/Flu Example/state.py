@@ -3,10 +3,9 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 import jax.numpy as jnp
+from rhs import wane_immunity
 
 from dynode.runtime.runtime_model import RuntimeModel
-
-from .rhs import wane_immunity
 
 
 def apply_flu_escape_initial_state(

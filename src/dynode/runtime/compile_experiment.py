@@ -28,21 +28,33 @@ def compile_experiment(
     shared_names = set(shared_layout.resolved_name_set)
 
     for instance in spec.instances:
-        model_options = options
-        runtime = compile_model(instance.model, options=model_options)
         instance_layout = compile_parameter_block(instance.parameters)
+        available_external = _available_instance_names(
+            shared_names=shared_names,
+            instance_layout=instance_layout,
+            static_context=instance.static_context,
+        )
         missing_external = sorted(
-            set(instance.model.external_parameter_names)
-            - (
-                shared_names
-                | instance_layout.resolved_name_set
-                | set(instance.static_context)
-            )
+            set(instance.model.external_parameter_names) - available_external
         )
         if missing_external:
             raise ExperimentCompileError(
                 f"Instance {instance.key!r} model requires unavailable external parameters: {missing_external}."
             )
+
+        model_options = CompileOptions(
+            run_spec_validation_hooks=options.run_spec_validation_hooks,
+            validate_runtime_layout=options.validate_runtime_layout,
+            validate_parameter_dependencies=options.validate_parameter_dependencies,
+            validate_data_dependencies=options.validate_data_dependencies,
+            validate_transmission_dependencies=options.validate_transmission_dependencies,
+            validate_initializer_dependencies=options.validate_initializer_dependencies,
+            validate_data_spec=options.validate_data_spec,
+            allow_prior_dependencies_on_deterministics=options.allow_prior_dependencies_on_deterministics,
+            metadata=options.metadata,
+            external_parameter_names=frozenset(available_external),
+        )
+        runtime = compile_model(instance.model, options=model_options)
         instances.append(
             ModelInstanceRuntime(
                 key=instance.key,
@@ -63,3 +75,21 @@ def compile_experiment(
         spec=spec,
         metadata=spec.metadata,
     )
+
+
+def _available_instance_names(
+    *,
+    shared_names: set[str],
+    instance_layout: RuntimeParameterLayout,
+    static_context: dict[str, Any],
+) -> set[str]:
+    """Return names available while compiling one model instance."""
+    available = set(shared_names)
+    available |= set(instance_layout.resolved_name_set)
+    available |= {str(name) for name in static_context}
+
+    parameter_context = static_context.get("parameter_context")
+    if isinstance(parameter_context, dict):
+        available |= {str(name) for name in parameter_context}
+
+    return available

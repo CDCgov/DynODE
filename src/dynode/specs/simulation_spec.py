@@ -6,9 +6,10 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
 
-from . import CompartmentSpec, InitializerSpec
 from .bin_spec import AgeBin, BinSpec
+from .compartment_spec import CompartmentSpec
 from .dimension_spec import DimensionSpec
+from .initializer_spec import InitializerSpec
 
 
 class _IntWithAttributes(int):

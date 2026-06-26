@@ -9,7 +9,8 @@ from pydantic import (
 )
 from typing_extensions import Self
 
-from . import InteractionSpec, StrainSpec
+from .interaction_spec import InteractionSpec
+from .strain_spec import StrainSpec
 
 
 class TransmissionSpec(BaseModel):

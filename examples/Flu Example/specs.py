@@ -39,18 +39,34 @@ from dynode.specs import (
     WaneBin,
 )
 
-from .constants import (
-    AGE_BIN_EDGES,
-    CONTACT_MATRIX_5,
-    DEFAULT_BETA_CHANGE_POINTS,
-    DEFAULT_DURATION_DAYS,
-    HOSPITALIZATION_VE_BY_YEAR,
-    STRAIN_NAMES,
-    US_POPULATION_BY_AGE_5,
-    ve_hospitalization_to_ve_infection,
-)
-from .data import load_initial_s_proportions
-from .functions import beta_modifier_step, vaccination_rate_hill
+try:
+    from .constants import (
+        AGE_BIN_EDGES,
+        CONTACT_MATRIX_5,
+        DEFAULT_BETA_CHANGE_POINTS,
+        DEFAULT_DURATION_DAYS,
+        HOSPITALIZATION_VE_BY_YEAR,
+        STRAIN_NAMES,
+        US_POPULATION_BY_AGE_5,
+        ve_hospitalization_to_ve_infection,
+    )
+    from .data import load_initial_s_proportions
+    from .functions import beta_modifier_step, vaccination_rate_hill
+except (
+    ImportError
+):  # Allows running files directly from this example directory.
+    from constants import (
+        AGE_BIN_EDGES,
+        CONTACT_MATRIX_5,
+        DEFAULT_BETA_CHANGE_POINTS,
+        DEFAULT_DURATION_DAYS,
+        HOSPITALIZATION_VE_BY_YEAR,
+        STRAIN_NAMES,
+        US_POPULATION_BY_AGE_5,
+        ve_hospitalization_to_ve_infection,
+    )
+    from data import load_initial_s_proportions
+    from functions import beta_modifier_step, vaccination_rate_hill
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,14 +221,20 @@ def build_flu_instance_spec(
             )
         ),
     )
+    # Expose static parameter_context both as a nested object used by
+    # DynodeExperiment and as top-level keys used by ExperimentSpec /
+    # compile_experiment dependency validation.
+    static_context = {
+        **static_parameter_context,
+        "settings": settings,
+        "parameter_context": static_parameter_context,
+    }
+
     return ModelInstanceSpec(
         key=str(settings.year),
         model=model,
         parameters=local_parameters,
-        static_context={
-            "settings": settings,
-            "parameter_context": static_parameter_context,
-        },
+        static_context=static_context,
         t0=0.0,
         t1=float(settings.duration_days),
         metadata={"year": str(settings.year)},

@@ -9,8 +9,8 @@ from typing_extensions import Self
 
 from dynode.typing import DynodeName
 
-from . import InteractionSpec
 from .bin_spec import AgeBin
+from .interaction_spec import InteractionSpec
 from .value_spec import (
     ConstantValueSpec,
     ParameterValue,

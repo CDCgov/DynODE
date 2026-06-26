@@ -7,11 +7,7 @@ import jax.numpy as jnp
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
-
-from dynode.runtime.ode_solver import solution_ys_as_state_dict
-from dynode.runtime.runtime_model import RuntimeModel
-
-from .constants import (
+from constants import (
     B_SHARE_WEIGHT,
     HOSP_LIKELIHOOD_WEIGHT,
     HOSP_NEGBIN_INF_FACTOR,
@@ -19,6 +15,9 @@ from .constants import (
     SUBTYPE_DIRMUL_INF_FACTOR,
     SUBTYPE_LIKELIHOOD_WEIGHT,
 )
+
+from dynode.runtime.ode_solver import solution_ys_as_state_dict
+from dynode.runtime.runtime_model import RuntimeModel
 
 B_SHARE_DIST = dist.Beta(1.0, 1.0)
 

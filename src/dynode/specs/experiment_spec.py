@@ -57,10 +57,9 @@ class ExperimentSpec(BaseModel):
             )
         shared_names = self.shared_parameters.resolved_parameter_names
         for instance in self.instances:
-            available = (
-                shared_names
-                | instance.parameters.resolved_parameter_names
-                | set(instance.static_context)
+            available = _available_instance_names(
+                shared_names=shared_names,
+                instance=instance,
             )
             model_required = set(instance.model.external_parameter_names)
             missing_model = sorted(model_required - available)
@@ -82,3 +81,26 @@ class ExperimentSpec(BaseModel):
                         f"Instance {instance.key!r} deterministic {deterministic.name!r} depends on unknown parameters {missing}."
                     )
         return self
+
+
+def _available_instance_names(
+    *,
+    shared_names: set[str],
+    instance: ModelInstanceSpec,
+) -> set[str]:
+    """Return names available to one experiment instance.
+
+    Includes shared parameters, instance-local parameters, top-level static
+    context keys, and keys nested under static_context["parameter_context"].
+    The nested parameter_context pattern is useful for static per-instance
+    values such as nu, ve_infection, and beta modifier arrays.
+    """
+    available = set(shared_names)
+    available |= set(instance.parameters.resolved_parameter_names)
+    available |= {str(name) for name in instance.static_context}
+
+    parameter_context = instance.static_context.get("parameter_context")
+    if isinstance(parameter_context, dict):
+        available |= {str(name) for name in parameter_context}
+
+    return available

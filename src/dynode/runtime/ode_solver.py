@@ -546,12 +546,43 @@ def _make_keyword_rhs_adapter(
         rhs_fn(t=t, y=y, params=params, runtime=runtime)
         rhs_fn(t, y, params=params, runtime=runtime)
         rhs_fn(t, y, *, params, runtime, data=None)
+
+    Important: do not catch broad exceptions around the RHS call. If the RHS
+    raises a real tracing/runtime error, catching it and retrying with a
+    different signature obscures the true root cause. Select the call style from
+    the function signature before invoking the RHS.
     """
     signature = inspect.signature(rhs_fn)
 
     accepts_kwargs = any(
         parameter.kind == inspect.Parameter.VAR_KEYWORD
         for parameter in signature.parameters.values()
+    )
+
+    def _can_pass_as_keyword(parameter_name: str) -> bool:
+        parameter = signature.parameters.get(parameter_name)
+        if parameter is None:
+            return False
+        return parameter.kind in {
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        }
+
+    positional_parameters = tuple(
+        parameter
+        for parameter in signature.parameters.values()
+        if parameter.kind
+        in {
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        }
+    )
+
+    pass_t_y_by_keyword = _can_pass_as_keyword("t") and _can_pass_as_keyword(
+        "y"
+    )
+    pass_t_y_positionally = (
+        not pass_t_y_by_keyword and len(positional_parameters) >= 2
     )
 
     def adapter(
@@ -575,20 +606,24 @@ def _make_keyword_rhs_adapter(
         }
 
         if accepts_kwargs:
-            return rhs_fn(**kwargs)
+            supported_kwargs = kwargs
+        else:
+            supported_kwargs = {
+                key: value
+                for key, value in kwargs.items()
+                if key in signature.parameters
+            }
 
-        supported_kwargs = {
-            key: value
-            for key, value in kwargs.items()
-            if key in signature.parameters
-        }
-
-        try:
+        if pass_t_y_by_keyword:
             return rhs_fn(**supported_kwargs)
-        except TypeError:
+
+        if pass_t_y_positionally:
+            supported_kwargs = dict(supported_kwargs)
             supported_kwargs.pop("t", None)
             supported_kwargs.pop("y", None)
             return rhs_fn(t, y, **supported_kwargs)
+
+        return rhs_fn(**supported_kwargs)
 
     return adapter
 

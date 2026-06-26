@@ -5,12 +5,11 @@ from datetime import date
 
 import jax
 import jax.numpy as jnp
+from data import create_empty_observations, dict_to_json
+from experiment import build_experiment
+from functions import load_vaccination_model_hill
 from numpyro.infer import Predictive
-
-from .data import create_empty_observations, dict_to_json
-from .experiment import build_experiment
-from .functions import load_vaccination_model_hill
-from .specs import FluSeasonSettings
+from specs import FluSeasonSettings
 
 jax.config.update("jax_enable_x64", True)
 
