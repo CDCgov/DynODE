@@ -18,7 +18,7 @@ import dynode.config
 def sample_distributions(
     obj: Any, rng_key: Array | None = None, _prefix: str = ""
 ):
-    """Recurisvely scans data structures and samples numpyro.Distribution objects.
+    """Recursively scans data structures and samples numpyro.Distribution objects.
 
     Parameters
     ----------
@@ -33,7 +33,7 @@ def sample_distributions(
     Note
     ----
     Sampled distributions receive site names according to a set of rules
-    - Distributions within lists are appended with _i identifing the index,
+    - Distributions within lists are appended with _i identifying the index,
     N times for N dimensional arrays
     - Dictionaries and Pydnatic models are recursively searched with
     sites names prepending the key that parameter belongs to.
@@ -183,7 +183,7 @@ def sample_then_resolve(
     Returns
     ---------
     Any
-        COPY of the `parameters` object with all occurences of
+        COPY of the `parameters` object with all occurrences of
         `numpyro.Distribution` or `DeterministicParameter` objects replaced
         with samples / resolved values.
     """

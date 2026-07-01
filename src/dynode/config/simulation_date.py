@@ -6,7 +6,7 @@ from datetime import date
 
 
 def get_dynode_init_date_flag() -> datetime.date | None:
-    """Get the dynode initialization date from the envionment variable.
+    """Get the dynode initialization date from the environment variable.
 
     Returns
     -------

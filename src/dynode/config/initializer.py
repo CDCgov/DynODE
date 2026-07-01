@@ -10,7 +10,7 @@ from dynode.typing import CompartmentState
 # TODO, do we really need this to be a class, and does the SimulationConfig need a reference to it
 # how does this play when we are "sampling" initial state from a posterior particle in a previous fit
 class Initializer(BaseModel):
-    """Initalize compartment state of an ODE model."""
+    """Initialize compartment state of an ODE model."""
 
     description: str = Field(
         description="""Description of the initializer, its data streams and/or

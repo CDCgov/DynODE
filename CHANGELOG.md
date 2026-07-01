@@ -117,8 +117,8 @@ no suffix when releases and the staging branch is pulled into the release branch
 
 ## [2025.05.29.1a] - `SubSaveAt` support for `odes.simulate()`
 ### Changed
-- Changed `odes.simulate()` added `sub_save_indicies` and `save_step` optional parameters that are passed to `build_saveat` function.
-- Added `odes.build_saveat()` to determine (`sub_save_indicies is not None`) if `SubSaveAt` object should be used when building the `SaveAt` object. `build_saveat()` can also optionally increment the time steps `SaveAt` saves states via the `save_step` argument.
+- Changed `odes.simulate()` added `sub_save_indices` and `save_step` optional parameters that are passed to `build_saveat` function.
+- Added `odes.build_saveat()` to determine (`sub_save_indices is not None`) if `SubSaveAt` object should be used when building the `SaveAt` object. `build_saveat()` can also optionally increment the time steps `SaveAt` saves states via the `save_step` argument.
 
 ## [2025.05.22.1a] - Dynode Module Reorg
 ### Meta Changes
@@ -127,7 +127,7 @@ no suffix when releases and the staging branch is pulled into the release branch
 ### Changed
 - Reorganized `Dynode` into 5 major modules `config`,`infer`,`simulation`,`typing`, and `utils`.
     - Reorganized some files within `model_configuration` depending on functionality, split across `config` and `infer` modules.
-- Removed and transfered all disease specific code out to a currently private repository named `DynODE-Models`, keeping `Dynode` as a repo for the framework only.
+- Removed and transferred all disease specific code out to a currently private repository named `DynODE-Models`, keeping `Dynode` as a repo for the framework only.
     - This includes many files within `src/dynode` such as `mechanistic_inferer.py` and `mechanistic_runner.py`
     - This includes much of the testing infrastructure built around the outdated classes, thus `tests/*` has either been moved or removed.
 - Split up much of `src/dynode/utils.py` into separate files depending on functionality, some going to `DynODE-Models`
@@ -140,7 +140,7 @@ no suffix when releases and the staging branch is pulled into the release branch
 ## [2025.05.02.1a] - Fixing `scale_initial_infections`
 ### Changed
 - Realized our version number still said 2024, whoops!
-- Updated SimulationDate, rather than behaving like an integer by overloading its `__sub__` and `__add__` methods. We now programatically scan all `SimulationConfig` objects for instances of `SimulationDate` and replace the instance with the integer representation. This prevents future bugs like the one with deepcopying objects or numpyro initialization strategies failing to work on distributions using `SimulationDate`.
+- Updated SimulationDate, rather than behaving like an integer by overloading its `__sub__` and `__add__` methods. We now programmatically scan all `SimulationConfig` objects for instances of `SimulationDate` and replace the instance with the integer representation. This prevents future bugs like the one with deepcopying objects or numpyro initialization strategies failing to work on distributions using `SimulationDate`.
 
 
 ## [2024.04.23.1a] - Fixing `scale_initial_infections`
@@ -156,10 +156,10 @@ no suffix when releases and the staging branch is pulled into the release branch
 ## [2024.04.11.1a] - Dynode Evolution Inference Processes
 ### Added
 - Added the `InferenceProcess` class as well as two concrete instances of `InferenceProcess` named `MCMCProcess` and `SVIProcess` within `dynode.model_configuration.inference.py`. These classes provide functionality for fitting to observed data using MCMC or SVI. Both also can easily retrieve their posterior samples, and convert themselves to arviz `InferenceData` objects for visualization.
-- Added `dynode.sample`, a module containing helper functions to recurssively search for and sample `numpyro.distributions.Distribution` objects, as well as search and resolve `dynode.typing.DeterministicParameter` objects. Both necessary steps for inference.
+- Added `dynode.sample`, a module containing helper functions to recursively search for and sample `numpyro.distributions.Distribution` objects, as well as search and resolve `dynode.typing.DeterministicParameter` objects. Both necessary steps for inference.
 - Some more descriptive error text on `dynode.typing.SamplePlaceholderError`
 - The `dynode.typing.ObservedData` type hint.
-- Two simple SIR pre-packaged configs within `src.dynode.model_configration.pre_packaged`, one with static strain R0 and infectious_period, another with priors to infer.
+- Two simple SIR pre-packaged configs within `src.dynode.model_configuration.pre_packaged`, one with static strain R0 and infectious_period, another with priors to infer.
 
 ### Changed
 - Modified `examples/sir.py` to showcase simulation of synthetic data, followed by refitting to it. Displaying the various usecases of both `MCMCProcess` and `SVIProcess`.
@@ -177,7 +177,7 @@ no suffix when releases and the staging branch is pulled into the release branch
 
 ### Changed
 - `Compartment`, `Dimension`, and `Bin` classes are no longer allowed to have
-names with spaces or begining with a number as this breaks enum functionality.
+names with spaces or beginning with a number as this breaks enum functionality.
 Also requiring names to be all alphanumeric or underscore.
 
 ## [2024.04.08.1a] - Adding `SimulationDate` object
@@ -185,7 +185,7 @@ Also requiring names to be all alphanumeric or underscore.
 - Added a new `SimulationDate` helper object to allow users to specify datetime-like
 objects in place of integers when specifying behaviors like prior distributions over
 date ranges (E.g. introduction date of a strain centered around some date).
-- Added a new enviornment variable `DYNODE_INITIALIZATION_DATE({pid})` so all parts
+- Added a new environment variable `DYNODE_INITIALIZATION_DATE({pid})` so all parts
 of the program can read in the model's start date regardless of where they
 are in the code.
 
