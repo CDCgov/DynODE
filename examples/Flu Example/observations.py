@@ -16,8 +16,8 @@ from constants import (
     SUBTYPE_LIKELIHOOD_WEIGHT,
 )
 
-from dynode.runtime.ode_solver import solution_ys_as_state_dict
-from dynode.runtime.runtime_model import RuntimeModel
+from dynode.runtime.execution import solution_ys_as_state_dict
+from dynode.runtime.layout import RuntimeModel
 
 B_SHARE_DIST = dist.Beta(1.0, 1.0)
 

@@ -1,21 +1,7 @@
 """A module for inference processes in Dynode."""
 
-from .inference import (
-    InferenceProcess,
-    MCMCProcess,
-    NumpyroModel,
-    PosteriorSamples,
-    PredictiveSamples,
-    SVIProcess,
-    split_key,
-)
+from .inference_process import InferenceProcess
+from .mcmc_process import MCMCProcess
+from .svi_process import SVIProcess
 
-__all__ = [
-    "NumpyroModel",
-    "PosteriorSamples",
-    "PredictiveSamples",
-    "InferenceProcess",
-    "MCMCProcess",
-    "SVIProcess",
-    "split_key",
-]
+__all__ = ["InferenceProcess", "MCMCProcess", "SVIProcess"]

@@ -8,7 +8,7 @@ import jax.numpy as jnp
 from constants import CONTACT_MATRIX_5, STRAIN_NAMES
 from functions import external_i, seasonality_coswave
 
-from dynode.runtime.runtime_model import RuntimeModel
+from dynode.runtime.layout import RuntimeModel
 
 
 def flu_rhs(

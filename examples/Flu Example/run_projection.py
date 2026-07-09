@@ -42,7 +42,9 @@ def main():
         )
     }
     experiment = build_experiment(settings)
-    posterior_samples = json.load(open("/output/flu/posterior_samples.json"))
+    posterior_samples = json.load(
+        open("/output/flu/flu_experiment_refactor/posterior_samples.json")
+    )
     posterior_samples = {
         k: jnp.asarray(v) for k, v in posterior_samples.items()
     }
@@ -56,7 +58,10 @@ def main():
         experiment.make_numpyro_model(return_outputs=False), posterior_samples
     )
     preds = predictive(jax.random.PRNGKey(1234), data=data)
-    dict_to_json(preds, f"/output/flu/scenario_{scenario}_output.json")
+    dict_to_json(
+        preds,
+        f"/output/flu/flu_experiment_refactor/scenario_{scenario}_output.json",
+    )
 
 
 if __name__ == "__main__":

@@ -8,35 +8,43 @@ from typing import Any, Callable
 import jax.numpy as jnp
 import numpy as np
 
-from dynode.specs import (
+from dynode.experiment import (
+    ExperimentSpec,
+    ModelInstanceSpec,
+)
+from dynode.parameters import (
     AffineTransformSpec,
+    BetaSpec,
+    ConstantValueSpec,
+    DeterministicSpec,
+    HalfNormalSpec,
+    ParameterBlockSpec,
+    ParamRef,
+    PriorSpec,
+    TransformedDistributionSpec,
+    TruncatedNormalSpec,
+)
+from dynode.solver import (
+    PIDControllerSpec,
+    SaveAtSpec,
+    SolverSpec,
+    Tsit5Spec,
+)
+from dynode.structure import (
     AgeBin,
     AgeDimensionSpec,
-    BetaSpec,
     BinSpec,
     CompartmentInitialConditionSpec,
     CompartmentSpec,
-    ConstantValueSpec,
-    DeterministicSpec,
     DimensionSpec,
-    ExperimentSpec,
-    HalfNormalSpec,
     InitializerSpec,
-    InteractionSpec,
-    ModelInstanceSpec,
     ModelSpec,
-    ParameterBlockSpec,
-    ParamRef,
-    PIDControllerSpec,
-    PriorSpec,
-    SaveAtSpec,
-    SolverSpec,
-    StrainSpec,
-    TransformedDistributionSpec,
-    TransmissionSpec,
-    TruncatedNormalSpec,
-    Tsit5Spec,
     WaneBin,
+)
+from dynode.transmission import (
+    InteractionSpec,
+    StrainSpec,
+    TransmissionSpec,
 )
 
 try:

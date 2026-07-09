@@ -5,7 +5,7 @@ from typing import Any, Mapping
 import jax.numpy as jnp
 from rhs import wane_immunity
 
-from dynode.runtime.runtime_model import RuntimeModel
+from dynode.runtime.layout import RuntimeModel
 
 
 def apply_flu_escape_initial_state(

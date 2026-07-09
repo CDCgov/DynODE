@@ -10,7 +10,8 @@ from rhs import flu_rhs
 from specs import FluSeasonSettings, build_flu_experiment_spec
 from state import apply_flu_escape_initial_state
 
-from dynode.runtime import DynodeExperiment, OdeSolverOptions
+from dynode.runtime.execution import OdeSolverOptions
+from dynode.runtime.models import DynodeExperiment
 
 
 def build_experiment(
