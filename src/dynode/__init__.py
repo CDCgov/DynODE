@@ -2,11 +2,13 @@
 
 __all__ = [
     "data",
+    "distributions",
     "experiment",
     "parameters",
     "solver",
     "structure",
     "transmission",
+    "value",
     "runtime",
     "infer",
 ]

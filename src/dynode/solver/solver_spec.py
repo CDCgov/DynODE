@@ -1,268 +1,18 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import Annotated, Any, Literal
+from typing import Any
 
 import diffrax as dfx
 import jax.numpy as jnp
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    NonNegativeFloat,
-    PositiveFloat,
-    PositiveInt,
-    model_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt, model_validator
 from typing_extensions import Self
 
-
-class SolverMethodSpec(BaseModel, ABC):
-    """
-    Declarative Diffrax solver-method spec.
-
-    This is intentionally serializable. Do not store raw Diffrax solver
-    objects directly in model configs.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        arbitrary_types_allowed=True,
-    )
-
-    type: str
-
-    @abstractmethod
-    def to_diffrax(self) -> dfx.AbstractSolver:
-        raise NotImplementedError
-
-
-class Tsit5Spec(SolverMethodSpec):
-    type: Literal["tsit5"] = "tsit5"
-
-    def to_diffrax(self) -> dfx.AbstractSolver:
-        return dfx.Tsit5()
-
-
-class Dopri5Spec(SolverMethodSpec):
-    type: Literal["dopri5"] = "dopri5"
-
-    def to_diffrax(self) -> dfx.AbstractSolver:
-        return dfx.Dopri5()
-
-
-class Dopri8Spec(SolverMethodSpec):
-    type: Literal["dopri8"] = "dopri8"
-
-    def to_diffrax(self) -> dfx.AbstractSolver:
-        return dfx.Dopri8()
-
-
-class Bosh3Spec(SolverMethodSpec):
-    type: Literal["bosh3"] = "bosh3"
-
-    def to_diffrax(self) -> dfx.AbstractSolver:
-        return dfx.Bosh3()
-
-
-class EulerSpec(SolverMethodSpec):
-    type: Literal["euler"] = "euler"
-
-    def to_diffrax(self) -> dfx.AbstractSolver:
-        return dfx.Euler()
-
-
-class HeunSpec(SolverMethodSpec):
-    type: Literal["heun"] = "heun"
-
-    def to_diffrax(self) -> dfx.AbstractSolver:
-        return dfx.Heun()
-
-
-class Kvaerno3Spec(SolverMethodSpec):
-    """
-    Implicit solver useful for some stiff problems.
-    """
-
-    type: Literal["kvaerno3"] = "kvaerno3"
-
-    def to_diffrax(self) -> dfx.AbstractSolver:
-        return dfx.Kvaerno3()
-
-
-class Kvaerno4Spec(SolverMethodSpec):
-    type: Literal["kvaerno4"] = "kvaerno4"
-
-    def to_diffrax(self) -> dfx.AbstractSolver:
-        return dfx.Kvaerno4()
-
-
-class Kvaerno5Spec(SolverMethodSpec):
-    type: Literal["kvaerno5"] = "kvaerno5"
-
-    def to_diffrax(self) -> dfx.AbstractSolver:
-        return dfx.Kvaerno5()
-
-
-SolverMethod = Annotated[
-    Tsit5Spec
-    | Dopri5Spec
-    | Dopri8Spec
-    | Bosh3Spec
-    | EulerSpec
-    | HeunSpec
-    | Kvaerno3Spec
-    | Kvaerno4Spec
-    | Kvaerno5Spec,
-    Field(discriminator="type"),
-]
-
-
-class StepSizeControllerSpec(BaseModel, ABC):
-    """
-    Declarative Diffrax step-size-controller spec.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        arbitrary_types_allowed=True,
-    )
-
-    type: str
-
-    @abstractmethod
-    def to_diffrax(self) -> dfx.AbstractStepSizeController:
-        raise NotImplementedError
-
-    @property
-    def is_adaptive(self) -> bool:
-        return False
-
-
-class ConstantStepSizeSpec(StepSizeControllerSpec):
-    """
-    Fixed step-size controller.
-
-    The actual fixed step size is supplied as SolverSpec.dt0.
-    """
-
-    type: Literal["constant"] = "constant"
-
-    def to_diffrax(self) -> dfx.AbstractStepSizeController:
-        return dfx.ConstantStepSize()
-
-
-class PIDControllerSpec(StepSizeControllerSpec):
-    """
-    Adaptive step-size controller.
-
-    Diffrax uses rtol and atol to control local error. Optional PID coefficients
-    are exposed for advanced tuning.
-    """
-
-    type: Literal["pid"] = "pid"
-
-    rtol: PositiveFloat = Field(
-        default=1e-5,
-        description="Relative tolerance for adaptive stepping.",
-    )
-    atol: PositiveFloat = Field(
-        default=1e-6,
-        description="Absolute tolerance for adaptive stepping.",
-    )
-    pcoeff: NonNegativeFloat = Field(
-        default=0.0,
-        description="Proportional coefficient for PID control.",
-    )
-    icoeff: NonNegativeFloat = Field(
-        default=1.0,
-        description="Integral coefficient for PID control.",
-    )
-    dcoeff: NonNegativeFloat = Field(
-        default=0.0,
-        description="Derivative coefficient for PID control.",
-    )
-    safety: PositiveFloat = Field(
-        default=0.9,
-        description="Safety factor for adaptive step-size changes.",
-    )
-
-    @property
-    def is_adaptive(self) -> bool:
-        return True
-
-    def to_diffrax(self) -> dfx.AbstractStepSizeController:
-        return dfx.PIDController(
-            rtol=self.rtol,
-            atol=self.atol,
-            pcoeff=self.pcoeff,
-            icoeff=self.icoeff,
-            dcoeff=self.dcoeff,
-            safety=self.safety,
-        )
-
-
-StepSizeController = Annotated[
-    ConstantStepSizeSpec | PIDControllerSpec,
-    Field(discriminator="type"),
-]
-
-
-class SaveAtSpec(BaseModel):
-    """
-    Declarative Diffrax SaveAt spec.
-
-    This controls what solution values Diffrax saves.
-    """
-
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        arbitrary_types_allowed=True,
-    )
-
-    t0: bool = Field(
-        default=False,
-        description="Save the initial state.",
-    )
-    t1: bool = Field(
-        default=True,
-        description="Save the final state.",
-    )
-    ts: tuple[float, ...] | None = Field(
-        default=None,
-        description="Specific times at which to save the solution.",
-    )
-    dense: bool = Field(
-        default=False,
-        description="Whether to save dense output.",
-    )
-    steps: bool | PositiveInt = Field(
-        default=False,
-        description="Save every nth solver step if an integer is provided.",
-    )
-
-    @model_validator(mode="after")
-    def validate_saveat(self) -> Self:
-        if self.ts is not None:
-            if len(self.ts) == 0:
-                raise ValueError("save_at.ts cannot be empty.")
-
-            if any(b <= a for a, b in zip(self.ts, self.ts[1:])):
-                raise ValueError("save_at.ts must be strictly increasing.")
-
-        return self
-
-    def to_diffrax(self) -> dfx.SaveAt:
-        return dfx.SaveAt(
-            t0=self.t0,
-            t1=self.t1,
-            ts=None if self.ts is None else jnp.asarray(self.ts),
-            dense=self.dense,
-            steps=self.steps,
-        )
+from .controllers.constant import ConstantStepSizeSpec
+from .controllers.pid import PIDControllerSpec
+from .controllers.unions import StepSizeController
+from .methods.tsit5 import Tsit5Spec
+from .methods.unions import SolverMethod
+from .save_at import SaveAtSpec
 
 
 class SolverSpec(BaseModel):
@@ -336,9 +86,11 @@ class SolverSpec(BaseModel):
         description="Whether Diffrax should raise on solver failure.",
     )
 
-    # Backward-compatible naming for your old SolverParams field.
     @property
     def discontinuity_points(self) -> tuple[float, ...]:
+        """
+        Backward-compatible naming for the old SolverParams field.
+        """
         return self.jump_ts
 
     @model_validator(mode="after")

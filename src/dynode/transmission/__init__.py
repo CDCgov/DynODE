@@ -1,5 +1,11 @@
-from .interaction_spec import InteractionSpec
-from .strain_spec import StrainSpec
-from .transmission_spec import TransmissionSpec
+from .interactions import InteractionSpec
+from .model import TransmissionSpec
+from .strains import DoseCount, Probability, StrainSpec
 
-__all__ = ["InteractionSpec", "StrainSpec", "TransmissionSpec"]
+__all__ = [
+    "DoseCount",
+    "InteractionSpec",
+    "Probability",
+    "StrainSpec",
+    "TransmissionSpec",
+]

@@ -1,17 +1,17 @@
-from .runtime_model import (
-    RuntimeCompartment,
-    RuntimeDimension,
-    RuntimeModel,
-    RuntimeParameterLayout,
-    RuntimeTransmission,
-    StateLayout,
-)
+from .aliases import ArrayLike
+from .compartment import RuntimeCompartment
+from .dimension import RuntimeDimension
+from .parameter_layout import RuntimeParameterLayout
+from .runtime_model import RuntimeModel
+from .state_layout import StateLayout
+from .transmission import RuntimeTransmission
 
 __all__ = [
-    "RuntimeCompartment",
+    "ArrayLike",
     "RuntimeDimension",
-    "RuntimeModel",
+    "RuntimeCompartment",
+    "StateLayout",
     "RuntimeParameterLayout",
     "RuntimeTransmission",
-    "StateLayout",
+    "RuntimeModel",
 ]

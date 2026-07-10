@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, Callable
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from pydantic import (
     AliasChoices,
@@ -13,119 +13,33 @@ from pydantic import (
 )
 from typing_extensions import Self
 
-from dynode.runtime.compile.compile_model import CompileOptions, compile_model
+from dynode.runtime.compile.compile_model import compile_model
+from dynode.runtime.compile.options import CompileOptions
 from dynode.runtime.layout.runtime_model import RuntimeModel
-
-# Adjust this import path if your ModelSpec lives somewhere else.
 from dynode.structure.model_spec import ModelSpec
 
-
-def _default_parameter_sampler(
-    *,
-    runtime: RuntimeModel,
-    data: Any | None = None,
-) -> Mapping[str, Any]:
-    """
-    Default bridge to parameter_sampling.py.
-
-    Imported lazily so dynode_model.py can be imported before all runtime
-    modules are fully implemented.
-    """
-    from .parameter_sampling import sample_parameters
-
-    return sample_parameters(
-        runtime=runtime,
-        data=data,
-    )
-
-
-def _default_initial_state_builder(
-    *,
-    runtime: RuntimeModel,
-    params: Mapping[str, Any],
-    data: Any | None = None,
-    flat: bool = True,
-) -> Any:
-    """
-    Default bridge to state_builder.py.
-    """
-    from .state_builder import build_initial_state
-
-    return build_initial_state(
-        runtime=runtime,
-        params=params,
-        data=data,
-        flat=flat,
-    )
-
-
-def _default_ode_solver(
-    *,
-    runtime: RuntimeModel,
-    rhs_fn: Callable[..., Any],
-    y0: Any,
-    params: Mapping[str, Any],
-    data: Any | None = None,
-) -> Any:
-    """
-    Default bridge to ode_solver.py.
-    """
-    from .ode_solver import solve_ode
-
-    return solve_ode(
-        runtime=runtime,
-        rhs_fn=rhs_fn,
-        y0=y0,
-        params=params,
-        data=data,
-    )
+from .callable_validation import require_callable
+from .model_defaults import (
+    default_initial_state_builder,
+    default_ode_solver,
+    default_parameter_sampler,
+)
+from .model_runner import (
+    build_model_initial_state,
+    observe_model_solution,
+    run_single_model_trace,
+    sample_model_parameters,
+    solve_model_ode,
+)
 
 
 class DynodeModel(BaseModel):
     """
     Executable wrapper around a declarative ModelSpec.
 
-    DynodeModel is the orchestration layer. It connects:
-
-        ModelSpec
-            ↓
-        compile_model(...)
-            ↓
-        RuntimeModel
-            ↓
-        sample_parameters(...)
-            ↓
-        build_initial_state(...)
-            ↓
-        solve_ode(...)
-            ↓
-        observe_fn(...)
-
-    This class should not itself contain epidemiological model equations,
-    NumPyro priors, Diffrax solver implementation details, or state-layout
-    compilation logic. Those belong in the injected functions/modules.
-
-    Expected function signatures
-    ----------------------------
-    rhs_fn:
-        Called by ode_solver.py. Typically compatible with Diffrax:
-
-            rhs_fn(t, y, args)
-
-        where args will usually contain params, runtime, and data.
-
-    observe_fn:
-        Called after the ODE solve:
-
-            observe_fn(
-                solution=solution,
-                params=params,
-                data=data,
-                runtime=runtime,
-            )
-
-        This function is where NumPyro likelihood statements should usually
-        live.
+    DynodeModel is the single-model orchestration layer. It connects model
+    compilation, parameter sampling, initial-state construction, ODE solving,
+    and observation/likelihood evaluation without owning those implementations.
     """
 
     model_config = ConfigDict(
@@ -184,19 +98,19 @@ class DynodeModel(BaseModel):
     )
 
     parameter_sampler: Callable[..., Mapping[str, Any]] = Field(
-        default=_default_parameter_sampler,
+        default=default_parameter_sampler,
         exclude=True,
         description="Function that samples priors and resolves deterministic parameters.",
     )
 
     initial_state_builder: Callable[..., Any] = Field(
-        default=_default_initial_state_builder,
+        default=default_initial_state_builder,
         exclude=True,
         description="Function that builds the initial ODE state.",
     )
 
     ode_solver: Callable[..., Any] = Field(
-        default=_default_ode_solver,
+        default=default_ode_solver,
         exclude=True,
         description="Function that solves the ODE.",
     )
@@ -205,21 +119,11 @@ class DynodeModel(BaseModel):
 
     @model_validator(mode="after")
     def validate_model(self) -> Self:
-        if not callable(self.rhs_fn):
-            raise TypeError("rhs_fn must be callable.")
-
-        if not callable(self.observe_fn):
-            raise TypeError("observe_fn must be callable.")
-
-        if not callable(self.parameter_sampler):
-            raise TypeError("parameter_sampler must be callable.")
-
-        if not callable(self.initial_state_builder):
-            raise TypeError("initial_state_builder must be callable.")
-
-        if not callable(self.ode_solver):
-            raise TypeError("ode_solver must be callable.")
-
+        require_callable(self.rhs_fn, "rhs_fn")
+        require_callable(self.observe_fn, "observe_fn")
+        require_callable(self.parameter_sampler, "parameter_sampler")
+        require_callable(self.initial_state_builder, "initial_state_builder")
+        require_callable(self.ode_solver, "ode_solver")
         return self
 
     @property
@@ -237,26 +141,14 @@ class DynodeModel(BaseModel):
         """
         return self.rhs_fn
 
-    def compile(
-        self,
-        *,
-        force: bool = False,
-    ) -> RuntimeModel:
+    def compile(self, *, force: bool = False) -> RuntimeModel:
         """
         Compile the declarative ModelSpec into a RuntimeModel.
-
-        Parameters
-        ----------
-        force:
-            If True, rebuild the RuntimeModel even if a cached version exists.
         """
         if self.cache_runtime and self._runtime is not None and not force:
             return self._runtime
 
-        runtime = compile_model(
-            self.spec,
-            options=self.compile_options,
-        )
+        runtime = compile_model(self.spec, options=self.compile_options)
 
         if self.cache_runtime:
             self._runtime = runtime
@@ -266,9 +158,6 @@ class DynodeModel(BaseModel):
     def clear_runtime_cache(self) -> None:
         """
         Clear the cached RuntimeModel.
-
-        Useful if you mutate specs during development. In production, specs
-        should generally be frozen/immutable.
         """
         self._runtime = None
 
@@ -285,14 +174,9 @@ class DynodeModel(BaseModel):
         runtime: RuntimeModel | None = None,
         data: Any | None = None,
     ) -> Mapping[str, Any]:
-        """
-        Sample priors and resolve deterministic parameters.
-
-        This delegates to parameter_sampling.py by default.
-        """
         runtime = runtime or self.compile()
-
-        return self.parameter_sampler(
+        return sample_model_parameters(
+            parameter_sampler=self.parameter_sampler,
             runtime=runtime,
             data=data,
         )
@@ -305,21 +189,14 @@ class DynodeModel(BaseModel):
         data: Any | None = None,
         flat: bool | None = None,
     ) -> Any:
-        """
-        Build initial ODE state y0.
-
-        This delegates to state_builder.py by default.
-        """
         runtime = runtime or self.compile()
-
-        if flat is None:
-            flat = self.initial_state_flat
-
-        return self.initial_state_builder(
+        final_flat = self.initial_state_flat if flat is None else flat
+        return build_model_initial_state(
+            initial_state_builder=self.initial_state_builder,
             runtime=runtime,
             params=params,
             data=data,
-            flat=flat,
+            flat=final_flat,
         )
 
     def solve(
@@ -330,14 +207,9 @@ class DynodeModel(BaseModel):
         params: Mapping[str, Any],
         data: Any | None = None,
     ) -> Any:
-        """
-        Solve the ODE.
-
-        This delegates to ode_solver.py by default.
-        """
         runtime = runtime or self.compile()
-
-        return self.ode_solver(
+        return solve_model_ode(
+            ode_solver=self.ode_solver,
             runtime=runtime,
             rhs_fn=self.rhs_fn,
             y0=y0,
@@ -353,18 +225,13 @@ class DynodeModel(BaseModel):
         params: Mapping[str, Any],
         data: Any | None = None,
     ) -> Any:
-        """
-        Apply the observation model / likelihood.
-
-        observe_fn should usually contain NumPyro likelihood statements.
-        """
         runtime = runtime or self.compile()
-
-        return self.observe_fn(
+        return observe_model_solution(
+            observe_fn=self.observe_fn,
+            runtime=runtime,
             solution=solution,
             params=params,
             data=data,
-            runtime=runtime,
         )
 
     def run_once(
@@ -374,54 +241,21 @@ class DynodeModel(BaseModel):
         runtime: RuntimeModel | None = None,
         return_outputs: bool | None = None,
     ) -> Any:
-        """
-        Execute one model trace.
-
-        Inside NumPyro, this method should be called from the generated
-        numpyro_model function. It samples parameters, builds y0, solves the
-        ODE, and applies observe_fn.
-        """
         runtime = runtime or self.compile()
-
-        params = self.sample_parameters(
+        final_return_outputs = (
+            self.return_outputs if return_outputs is None else return_outputs
+        )
+        return run_single_model_trace(
             runtime=runtime,
+            rhs_fn=self.rhs_fn,
+            observe_fn=self.observe_fn,
+            parameter_sampler=self.parameter_sampler,
+            initial_state_builder=self.initial_state_builder,
+            ode_solver=self.ode_solver,
+            initial_state_flat=self.initial_state_flat,
+            return_outputs=final_return_outputs,
             data=data,
         )
-
-        y0 = self.build_initial_state(
-            runtime=runtime,
-            params=params,
-            data=data,
-            flat=self.initial_state_flat,
-        )
-
-        solution = self.solve(
-            runtime=runtime,
-            y0=y0,
-            params=params,
-            data=data,
-        )
-
-        observe_result = self.observe(
-            runtime=runtime,
-            solution=solution,
-            params=params,
-            data=data,
-        )
-
-        if return_outputs is None:
-            return_outputs = self.return_outputs
-
-        if return_outputs:
-            return {
-                "runtime": runtime,
-                "params": params,
-                "y0": y0,
-                "solution": solution,
-                "observe_result": observe_result,
-            }
-
-        return observe_result
 
     def make_numpyro_model(
         self,
@@ -431,33 +265,11 @@ class DynodeModel(BaseModel):
     ) -> Callable[..., Any]:
         """
         Build a NumPyro-compatible model function.
-
-        Returns
-        -------
-        Callable
-            A function suitable for NumPyro inference APIs.
-
-        Example
-        -------
-        numpyro_model = dynode_model.make_numpyro_model()
-
-        mcmc = numpyro.infer.MCMC(...)
-        mcmc.run(rng_key, data=observed_data)
-
-        Notes
-        -----
-        The returned function has signature:
-
-            numpyro_model(data=None)
-
-        You can pass any data object expected by your DataSpec, initializer,
-        deterministic expressions, or observe_fn.
         """
         compiled_runtime = self.compile() if compile_now else None
 
         def numpyro_model(data: Any | None = None) -> Any:
             runtime = compiled_runtime or self.compile()
-
             return self.run_once(
                 data=data,
                 runtime=runtime,
@@ -465,18 +277,11 @@ class DynodeModel(BaseModel):
             )
 
         numpyro_model.__name__ = f"{self.name}_numpyro_model"
-
         return numpyro_model
 
-    def __call__(
-        self,
-        data: Any | None = None,
-    ) -> Any:
+    def __call__(self, data: Any | None = None) -> Any:
         """
         Execute one model trace directly.
-
-        This is mostly a convenience for testing or for using DynodeModel itself
-        as a NumPyro model callable.
         """
         return self.run_once(data=data)
 
@@ -485,7 +290,6 @@ class DynodeModel(BaseModel):
         Return a lightweight summary useful for debugging and logging.
         """
         runtime = self.compile()
-
         return {
             "name": self.name,
             "version": self.version,

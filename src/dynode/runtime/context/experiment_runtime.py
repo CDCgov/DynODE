@@ -9,18 +9,7 @@ from dynode.runtime.layout.runtime_model import (
 )
 
 from .data_bundle import DataBundle
-
-
-@dataclass(frozen=True)
-class ModelInstanceRuntime:
-    key: str
-    runtime: RuntimeModel
-    parameter_layout: RuntimeParameterLayout
-    data_spec: Any | None = None
-    static_context: Mapping[str, Any] = field(default_factory=dict)
-    t0: float | None = None
-    t1: float | None = None
-    metadata: Mapping[str, Any] = field(default_factory=dict)
+from .model_instance_runtime import ModelInstanceRuntime
 
 
 @dataclass(frozen=True)

@@ -1,12 +1,15 @@
-from .bin_spec import (
+from .bins import (
     AgeBin,
     AnyBinSpec,
     BinSpec,
     DiscretizedPositiveIntBin,
+    Probability,
     WaneBin,
+    as_bin_spec,
+    coerce_bin_specs,
 )
-from .compartment_spec import CompartmentSpec
-from .dimension_spec import (
+from .compartments import CompartmentSpec
+from .dimensions import (
     AgeDimensionSpec,
     AnyDimensionSpec,
     DimensionSpec,
@@ -16,27 +19,30 @@ from .dimension_spec import (
     VaccinationDimensionSpec,
     WaneDimensionSpec,
 )
-from .initializer_spec import CompartmentInitialConditionSpec, InitializerSpec
-from .model_spec import ModelSpec
-from .simulation_spec import SimulationSpec
+from .initializer import CompartmentInitialConditionSpec, InitializerSpec
+from .model import ModelSpec
+from .simulation import SimulationSpec
 
 __all__ = [
     "AgeBin",
-    "AnyBinSpec",
-    "BinSpec",
-    "DiscretizedPositiveIntBin",
-    "WaneBin",
-    "CompartmentSpec",
     "AgeDimensionSpec",
+    "AnyBinSpec",
     "AnyDimensionSpec",
+    "BinSpec",
+    "CompartmentInitialConditionSpec",
+    "CompartmentSpec",
     "DimensionSpec",
+    "DiscretizedPositiveIntBin",
     "FullStratifiedImmuneHistoryDimension",
     "ImmuneHistoryDimension",
-    "LastStrainImmuneHistoryDimension",
-    "VaccinationDimensionSpec",
-    "WaneDimensionSpec",
-    "CompartmentInitialConditionSpec",
     "InitializerSpec",
+    "LastStrainImmuneHistoryDimension",
     "ModelSpec",
+    "Probability",
     "SimulationSpec",
+    "VaccinationDimensionSpec",
+    "WaneBin",
+    "WaneDimensionSpec",
+    "as_bin_spec",
+    "coerce_bin_specs",
 ]
