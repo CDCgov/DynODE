@@ -39,7 +39,9 @@ class DynodeExperiment(BaseModel):
     parameter_sampling_options: ParameterSamplingOptions = Field(
         default_factory=ParameterSamplingOptions
     )
-    ode_solver_options: OdeSolverOptions = Field(default_factory=OdeSolverOptions)
+    ode_solver_options: OdeSolverOptions = Field(
+        default_factory=OdeSolverOptions
+    )
     initial_state_flat: bool = True
     cache_runtime: bool = True
     return_outputs: bool = False

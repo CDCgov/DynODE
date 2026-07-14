@@ -4,9 +4,9 @@ from typing import Any, Literal
 
 from pydantic import Field, NonNegativeInt, model_validator
 
+from dynode.structure.bins.discretized import DiscretizedPositiveIntBin
 from dynode.typing import DynodeName
 
-from dynode.structure.bins.discretized import DiscretizedPositiveIntBin
 from .base import DimensionSpec
 
 

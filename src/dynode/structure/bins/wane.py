@@ -8,7 +8,6 @@ from typing_extensions import Self
 
 from .base import BinSpec
 
-
 Probability = Annotated[
     float,
     Field(ge=0.0, le=1.0),

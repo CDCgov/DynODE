@@ -6,9 +6,9 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 from typing_extensions import Self
 
+from dynode.structure.bins.base import BinSpec
 from dynode.typing import DynodeName
 
-from dynode.structure.bins.base import BinSpec
 from .base import DimensionSpec
 
 

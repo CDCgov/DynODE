@@ -68,9 +68,7 @@ def validate_model_references(model) -> None:
         model.parameters.deterministic_parameter_names
     ) | set(model.external_parameter_names)
 
-    references = list(
-        walk_references(model.transmission, path="transmission")
-    )
+    references = list(walk_references(model.transmission, path="transmission"))
     references += list(
         walk_references(
             model.simulation.initializer, path="simulation.initializer"

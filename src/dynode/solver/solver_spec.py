@@ -4,7 +4,14 @@ from typing import Any
 
 import diffrax as dfx
 import jax.numpy as jnp
-from pydantic import BaseModel, ConfigDict, Field, PositiveFloat, PositiveInt, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PositiveFloat,
+    PositiveInt,
+    model_validator,
+)
 from typing_extensions import Self
 
 from .controllers.constant import ConstantStepSizeSpec

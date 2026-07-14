@@ -6,9 +6,9 @@ from typing import Any, Literal
 from pydantic import Field, PositiveFloat, model_validator
 from typing_extensions import Self
 
+from dynode.structure.bins.wane import WaneBin
 from dynode.typing import DynodeName, UnitIntervalFloat
 
-from dynode.structure.bins.wane import WaneBin
 from .base import DimensionSpec
 
 

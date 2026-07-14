@@ -13,7 +13,6 @@ from .immune_history import (
 from .vaccination import VaccinationDimensionSpec
 from .wane import WaneDimensionSpec
 
-
 AnyDimensionSpec = Annotated[
     DimensionSpec
     | AgeDimensionSpec

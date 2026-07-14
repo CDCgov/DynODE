@@ -6,11 +6,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
 
 from dynode.structure.bins import AgeBin
+from dynode.transmission.interactions.spec import InteractionSpec
 from dynode.typing import DynodeName
 from dynode.value.coercion import coerce_value_fields
 from dynode.value.unions import ParameterValue
-
-from dynode.transmission.interactions.spec import InteractionSpec
 
 from .dependencies import (
     strain_data_dependencies,

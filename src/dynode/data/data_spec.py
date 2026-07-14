@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-import numpy as np
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -11,6 +10,10 @@ from pydantic import (
     model_validator,
 )
 from typing_extensions import Self
+
+from .data_field_spec import DataFieldSpec
+from .observed_series_spec import ObservedSeriesSpec
+from .time_series_spec import TimeSeriesSpec
 
 
 class DataSpec(BaseModel):

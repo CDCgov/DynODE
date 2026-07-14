@@ -12,7 +12,10 @@ from .layouts import (
 )
 from .metadata import compile_metadata
 from .options import CompileOptions
-from .spec_hooks import run_spec_validation_hooks, validate_required_model_shape
+from .spec_hooks import (
+    run_spec_validation_hooks,
+    validate_required_model_shape,
+)
 from .validators import validate_runtime_model
 
 

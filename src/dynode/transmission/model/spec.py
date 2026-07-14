@@ -16,14 +16,26 @@ from dynode.transmission.strains.spec import StrainSpec
 
 from .matrix import (
     interaction_matrix_dump as build_interaction_matrix_dump,
+)
+from .matrix import (
     interaction_matrix_named as build_interaction_matrix_named,
+)
+from .matrix import (
     interaction_matrix_spec as build_interaction_matrix_spec,
+)
+from .matrix import (
     interaction_value as get_interaction_value,
 )
 from .validation import (
     validate_interaction_targets as check_interaction_targets,
+)
+from .validation import (
     validate_introduction_ages_consistent as check_introduction_ages_consistent,
+)
+from .validation import (
     validate_optional_strain_fields_consistent as check_optional_strain_fields_consistent,
+)
+from .validation import (
     validate_unique_strain_names as check_unique_strain_names,
 )
 

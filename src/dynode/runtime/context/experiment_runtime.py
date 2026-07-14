@@ -3,10 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
-from dynode.runtime.layout.runtime_model import (
-    RuntimeModel,
-    RuntimeParameterLayout,
-)
+from dynode.runtime.layout.runtime_model import RuntimeParameterLayout
 
 from .data_bundle import DataBundle
 from .model_instance_runtime import ModelInstanceRuntime

@@ -6,11 +6,10 @@ from types import SimpleNamespace
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
 
-from dynode.typing import DynodeName
-
 from dynode.structure.bins.base import BinSpec
 from dynode.structure.dimensions.unions import AnyDimensionSpec
 from dynode.structure.indexing import IntWithAttributes
+from dynode.typing import DynodeName
 
 
 class CompartmentSpec(BaseModel):

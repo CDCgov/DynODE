@@ -14,9 +14,7 @@ def introduction_age_mask(
     if not strain.is_introduced or strain.introduction_ages is None:
         return [0 for _ in age_bins]
 
-    missing = [
-        age for age in strain.introduction_ages if age not in age_bins
-    ]
+    missing = [age for age in strain.introduction_ages if age not in age_bins]
 
     if missing:
         raise ValueError(
@@ -25,6 +23,5 @@ def introduction_age_mask(
         )
 
     return [
-        1 if age_bin in strain.introduction_ages else 0
-        for age_bin in age_bins
+        1 if age_bin in strain.introduction_ages else 0 for age_bin in age_bins
     ]

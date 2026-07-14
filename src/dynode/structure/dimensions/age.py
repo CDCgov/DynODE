@@ -4,9 +4,9 @@ from typing import Literal
 
 from pydantic import Field
 
+from dynode.structure.bins.age import AgeBin
 from dynode.typing import DynodeName
 
-from dynode.structure.bins.age import AgeBin
 from .base import DimensionSpec
 
 

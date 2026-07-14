@@ -9,7 +9,6 @@ from .base import BinSpec
 from .discretized import DiscretizedPositiveIntBin
 from .wane import WaneBin
 
-
 AnyBinSpec = Annotated[
     BinSpec | DiscretizedPositiveIntBin | AgeBin | WaneBin,
     Field(discriminator="type"),

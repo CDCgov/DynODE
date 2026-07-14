@@ -14,7 +14,6 @@ from .kvaerno4 import Kvaerno4Spec
 from .kvaerno5 import Kvaerno5Spec
 from .tsit5 import Tsit5Spec
 
-
 SolverMethod = Annotated[
     Tsit5Spec
     | Dopri5Spec

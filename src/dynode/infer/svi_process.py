@@ -6,8 +6,6 @@ from typing import Any
 import arviz as az
 from jax import Array
 from numpyro.infer import (
-    MCMC,
-    NUTS,
     SVI,
     Predictive,
     Trace_ELBO,

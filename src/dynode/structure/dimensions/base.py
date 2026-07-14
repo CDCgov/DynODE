@@ -11,12 +11,11 @@ from pydantic import (
     model_validator,
 )
 
-from dynode.typing import DynodeName
-
 from dynode.structure.bins.base import BinSpec
 from dynode.structure.bins.coercion import coerce_bin_specs
 from dynode.structure.bins.discretized import DiscretizedPositiveIntBin
 from dynode.structure.bins.unions import AnyBinSpec
+from dynode.typing import DynodeName
 
 
 class DimensionSpec(BaseModel):

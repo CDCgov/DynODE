@@ -126,9 +126,7 @@ def make_keyword_rhs_adapter(
         }
     )
 
-    pass_t_y_by_keyword = can_pass_as_keyword("t") and can_pass_as_keyword(
-        "y"
-    )
+    pass_t_y_by_keyword = can_pass_as_keyword("t") and can_pass_as_keyword("y")
     pass_t_y_positionally = (
         not pass_t_y_by_keyword and len(positional_parameters) >= 2
     )

@@ -7,7 +7,6 @@ from pydantic import Field
 from .constant import ConstantStepSizeSpec
 from .pid import PIDControllerSpec
 
-
 StepSizeController = Annotated[
     ConstantStepSizeSpec | PIDControllerSpec,
     Field(discriminator="type"),

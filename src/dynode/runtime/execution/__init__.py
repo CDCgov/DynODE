@@ -1,10 +1,10 @@
-from .diffeqsolve_kwargs import (
-    build_diffeqsolve_kwargs,
-    validate_extra_diffeqsolve_kwargs,
-)
 from .deterministic_resolution import (
     resolve_deterministic_parameter,
     resolve_deterministic_parameters,
+)
+from .diffeqsolve_kwargs import (
+    build_diffeqsolve_kwargs,
+    validate_extra_diffeqsolve_kwargs,
 )
 from .errors import (
     OdeSolverError,
