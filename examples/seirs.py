@@ -9,7 +9,6 @@ from datetime import date
 import chex
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-
 from dynode.config import (
     Bin,
     Compartment,
@@ -22,6 +21,7 @@ from dynode.config import (
     TransmissionParams,
 )
 from dynode.simulation import AbstractODEParams, simulate
+
 from dynode.typing import CompartmentState
 
 

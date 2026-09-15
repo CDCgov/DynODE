@@ -1,6 +1,6 @@
+import dynode.config as config
 import pytest
 
-import dynode.config as config
 from dynode.infer import resolve_deterministic
 
 

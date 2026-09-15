@@ -10,9 +10,9 @@ upon the seasonal function to adjust the transmission rate."""
 import chex
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from dynode.simulation import AbstractODEParams, simulate
 
 from dynode import SimulationConfig, Strain
-from dynode.simulation import AbstractODEParams, simulate
 from dynode.typing import CompartmentState
 
 from .seirs import get_config  # Import your existing config function

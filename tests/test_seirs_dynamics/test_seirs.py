@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import pytest
-
 from dynode.simulation import simulate
+
 from examples.seirs import get_config, get_seirs_odeparams, seirs_ode
 
 

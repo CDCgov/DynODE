@@ -1,9 +1,8 @@
 from datetime import date
 
+import dynode.config as config
 import pytest
 from pydantic import ValidationError
-
-import dynode.config as config
 
 
 @pytest.fixture

@@ -1,8 +1,7 @@
+import dynode.config as config
 import numpyro
 import pytest
 from numpyro.handlers import substitute
-
-import dynode.config as config
 
 
 def sample_placeholder():

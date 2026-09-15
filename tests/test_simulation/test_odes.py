@@ -1,10 +1,10 @@
 import chex
+import dynode.config as config
+import dynode.simulation as simulation
 import jax
 import jax.numpy as jnp
 import pytest
 
-import dynode.config as config
-import dynode.simulation as simulation
 from dynode.typing import CompartmentGradients, CompartmentState
 
 

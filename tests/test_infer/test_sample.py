@@ -1,12 +1,12 @@
 import numpy as np
 import numpyro.distributions as dist
 import pytest
+from dynode.config import DeterministicParameter
 from jax import Array
 from jax.random import PRNGKey
 from numpyro.handlers import trace
 from pydantic import BaseModel, ConfigDict
 
-from dynode.config import DeterministicParameter
 from dynode.infer import (
     resolve_deterministic,
     sample_distributions,

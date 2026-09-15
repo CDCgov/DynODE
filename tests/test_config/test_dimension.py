@@ -1,9 +1,8 @@
 import math
 
+import dynode.config as config
 import pytest
 from pydantic import ValidationError
-
-import dynode.config as config
 
 
 def test_valid_dimension():

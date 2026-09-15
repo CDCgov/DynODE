@@ -2,6 +2,7 @@ import os
 from dataclasses import dataclass
 from datetime import date
 
+import dynode.config as config
 import pytest
 from jax.random import PRNGKey
 from numpyro.distributions import (
@@ -9,8 +10,6 @@ from numpyro.distributions import (
     TruncatedNormal,
 )
 from pydantic import BaseModel, ValidationError
-
-import dynode.config as config
 
 
 @pytest.fixture(autouse=True)

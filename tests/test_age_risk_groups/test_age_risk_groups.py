@@ -1,8 +1,8 @@
 import jax.numpy as jnp
 import pytest
-
 from dynode.config import Dimension
 from dynode.config.bins import AgeBin, Bin
+
 from examples.sir_age_risk_stratified import (
     get_config,
     get_odeparams,

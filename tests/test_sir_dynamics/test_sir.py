@@ -1,8 +1,8 @@
 import jax.numpy as jnp
 import pytest
+from dynode.simulation import simulate
 from scipy.optimize import root_scalar
 
-from dynode.simulation import simulate
 from examples.sir import get_config, get_odeparams, sir_ode
 
 

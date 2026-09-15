@@ -9,13 +9,13 @@ import matplotlib.pyplot as plt
 import numpyro
 import numpyro.distributions as dist
 from diffrax import Solution
+from dynode.config import SimulationConfig
 from numpyro.infer import Predictive
 from numpyro.infer.svi import SVIRunResult
 from sir_age_stratified import get_config as get_static_config
 from sir_age_stratified import run_simulation
 
 from dynode import MCMCProcess, Strain, SVIProcess
-from dynode.config import SimulationConfig
 
 
 def model(

@@ -1,8 +1,7 @@
+import dynode.config as config
 import numpyro.distributions as dist
 import pytest
 from pydantic import ValidationError
-
-import dynode.config as config
 
 
 def test_strain():
