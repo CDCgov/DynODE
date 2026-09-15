@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import MutableMapping
 from typing import Any
 
+import jax.numpy as jnp
 import numpyro
 
 from dynode.runtime.layout.runtime_model import RuntimeParameterLayout
@@ -15,6 +16,54 @@ from .parameter_utils import (
     sample_site_name,
     validate_dependencies_available,
 )
+
+
+def record_parameter_debug(
+    *,
+    name: str,
+    value: Any,
+    prefix: str | None = None,
+) -> None:
+    """Record finite-value diagnostics for sampled or deterministic parameters."""
+    site_name = f"{prefix}_{name}" if prefix else name
+
+    if value is None:
+        return
+
+    try:
+        arr = jnp.asarray(value)
+    except Exception:
+        return
+
+    finite = jnp.isfinite(arr)
+
+    safe_arr = jnp.nan_to_num(
+        arr,
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0,
+    )
+
+    numpyro.deterministic(
+        f"debug_param_{site_name}_has_nan",
+        jnp.any(jnp.isnan(arr)),
+    )
+    numpyro.deterministic(
+        f"debug_param_{site_name}_has_inf",
+        jnp.any(jnp.isinf(arr)),
+    )
+    numpyro.deterministic(
+        f"debug_param_{site_name}_finite_frac",
+        jnp.mean(finite.astype(jnp.float32)),
+    )
+    numpyro.deterministic(
+        f"debug_param_{site_name}_min",
+        jnp.min(safe_arr),
+    )
+    numpyro.deterministic(
+        f"debug_param_{site_name}_max",
+        jnp.max(safe_arr),
+    )
 
 
 def sample_prior_parameters(
@@ -83,6 +132,12 @@ def sample_prior_parameter(
     value = numpyro.sample(
         site_name,
         distribution,
+    )
+
+    record_parameter_debug(
+        name=site_name,
+        value=value,
+        prefix=None,
     )
 
     context[prior_name] = value

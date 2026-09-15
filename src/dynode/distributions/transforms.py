@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
+import numpyro.distributions.constraints as constraints
+import numpyro.distributions.transforms as transforms
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from dynode.value.coercion import coerce_value_fields
@@ -24,6 +26,13 @@ class AffineTransformSpec(BaseModel):
         default_factory=lambda: ConstantValueSpec(value=1.0)
     )
 
+    domain: Literal[
+        "real",
+        "unit_interval",
+        "positive",
+        "nonnegative",
+    ] = "real"
+
     @model_validator(mode="before")
     @classmethod
     def coerce_values(cls, data: Any) -> Any:
@@ -35,9 +44,15 @@ class AffineTransformSpec(BaseModel):
     def to_numpyro(
         self, context: dict[str, Any] | None = None, data: Any | None = None
     ):
-        import numpyro.distributions.transforms as transforms
+        domain_map = {
+            "real": constraints.real,
+            "unit_interval": constraints.unit_interval,
+            "positive": constraints.positive,
+            "nonnegative": constraints.nonnegative,
+        }
 
         return transforms.AffineTransform(
             loc=self.loc.evaluate(context=context, data=data),
             scale=self.scale.evaluate(context=context, data=data),
+            domain=domain_map[self.domain],
         )

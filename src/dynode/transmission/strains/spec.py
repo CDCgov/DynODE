@@ -190,3 +190,10 @@ class StrainSpec(BaseModel):
 
     def _parameter_values(self) -> tuple[ParameterValue, ...]:
         return strain_parameter_values(self)
+
+
+StrainSpec.model_rebuild(
+    _types_namespace={
+        "ParameterValue": ParameterValue,
+    }
+)

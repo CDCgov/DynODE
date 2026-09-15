@@ -4,6 +4,8 @@ from typing import Annotated
 
 from pydantic import Field
 
+from dynode.value.unions import DistributionValue
+
 from .beta import BetaSpec
 from .exponential import ExponentialSpec
 from .gamma import GammaSpec
@@ -36,10 +38,24 @@ PriorDistributionSpec = Annotated[
     Field(discriminator="type"),
 ]
 
+_TYPES_NAMESPACE = {
+    "DistributionValue": DistributionValue,
+    "DistributionTransformSpec": DistributionTransformSpec,
+    "PriorDistributionSpec": PriorDistributionSpec,
+}
 
-TransformedDistributionSpec.model_rebuild(
-    _types_namespace={
-        "PriorDistributionSpec": PriorDistributionSpec,
-        "DistributionTransformSpec": DistributionTransformSpec,
-    }
-)
+
+for _model in (
+    NormalSpec,
+    LogNormalSpec,
+    GammaSpec,
+    ExponentialSpec,
+    BetaSpec,
+    HalfNormalSpec,
+    TruncatedNormalSpec,
+    UniformSpec,
+    RegisteredDistributionSpec,
+    AffineTransformSpec,
+    TransformedDistributionSpec,
+):
+    _model.model_rebuild(_types_namespace=_TYPES_NAMESPACE)

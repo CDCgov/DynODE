@@ -8,21 +8,21 @@ from typing import Any, Callable
 import jax.numpy as jnp
 import numpy as np
 
+from dynode.distributions import (
+    AffineTransformSpec,
+    BetaSpec,
+    HalfNormalSpec,
+    TransformedDistributionSpec,
+    TruncatedNormalSpec,
+)
 from dynode.experiment import (
     ExperimentSpec,
     ModelInstanceSpec,
 )
 from dynode.parameters import (
-    AffineTransformSpec,
-    BetaSpec,
-    ConstantValueSpec,
     DeterministicSpec,
-    HalfNormalSpec,
     ParameterBlockSpec,
-    ParamRef,
     PriorSpec,
-    TransformedDistributionSpec,
-    TruncatedNormalSpec,
 )
 from dynode.solver import (
     PIDControllerSpec,
@@ -45,6 +45,10 @@ from dynode.transmission import (
     InteractionSpec,
     StrainSpec,
     TransmissionSpec,
+)
+from dynode.value import (
+    ConstantValueSpec,
+    ParamRef,
 )
 
 try:
@@ -138,14 +142,22 @@ def build_shared_parameter_block() -> ParameterBlockSpec:
             name="strains_infectious_period",
             distribution=TransformedDistributionSpec(
                 base=BetaSpec(concentration1=4.0, concentration0=7.0),
-                transforms=(AffineTransformSpec(loc=1.5, scale=3.5),),
+                transforms=(
+                    AffineTransformSpec(
+                        loc=1.5, scale=3.5, domain="unit_interval"
+                    ),
+                ),
             ),
         ),
         PriorSpec(
             name="strains_r0_mu",
             distribution=TransformedDistributionSpec(
                 base=BetaSpec(concentration1=2.0, concentration0=5.0),
-                transforms=(AffineTransformSpec(loc=1.0, scale=7.0),),
+                transforms=(
+                    AffineTransformSpec(
+                        loc=1.0, scale=7.0, domain="unit_interval"
+                    ),
+                ),
             ),
         ),
         PriorSpec(
@@ -173,7 +185,11 @@ def build_shared_parameter_block() -> ParameterBlockSpec:
             name="seasonality_amplitude",
             distribution=TransformedDistributionSpec(
                 base=BetaSpec(concentration1=1.0, concentration0=1.0),
-                transforms=(AffineTransformSpec(loc=0.0, scale=0.2),),
+                transforms=(
+                    AffineTransformSpec(
+                        loc=0.0, scale=0.2, domain="unit_interval"
+                    ),
+                ),
             ),
         ),
         PriorSpec(

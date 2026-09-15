@@ -94,3 +94,10 @@ class PriorSpec(BaseModel):
         if self.event_dim:
             distribution = distribution.to_event(self.event_dim)
         return distribution
+
+
+PriorSpec.model_rebuild(
+    _types_namespace={
+        "PriorDistributionSpec": PriorDistributionSpec,
+    }
+)

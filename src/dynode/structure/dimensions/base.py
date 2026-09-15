@@ -247,3 +247,10 @@ class DimensionSpec(BaseModel):
                     f"Expected next min_value={expected_next_min}, but got "
                     f"{next_.min_value}. Gap found between {current} and {next_}."
                 )
+
+
+DimensionSpec.model_rebuild(
+    _types_namespace={
+        "AnyBinSpec": AnyBinSpec,
+    }
+)

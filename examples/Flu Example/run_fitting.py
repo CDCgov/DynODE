@@ -12,6 +12,7 @@ import numpy as np
 from data import dict_to_json, preprocess_observations
 from experiment import build_experiment, posterior_predictive
 from functions import beta_modifier_step_covid, load_vaccination_model_hill
+from jax.example_libraries.optimizers import exponential_decay
 from matplotlib.backends.backend_pdf import PdfPages
 from numpyro.optim import ClippedAdam
 from specs import EscapePriorConfig, FluSeasonSettings
@@ -115,13 +116,22 @@ def main():
     experiment = build_experiment(settings_by_year)
     numpyro_model = experiment.make_numpyro_model(return_outputs=False)
 
+    learning_rate_schedule = exponential_decay(
+        step_size=0.0001,
+        decay_steps=1000,
+        decay_rate=0.7,
+    )
+
     inferer_svi = SVIProcess(
         numpyro_model=numpyro_model,
-        num_iterations=1000,
+        num_iterations=3000,
         num_samples=1000,
-        optimizer=ClippedAdam(step_size=0.015, clip_norm=5.0),
+        optimizer=ClippedAdam(step_size=learning_rate_schedule, clip_norm=5.0),
+        guide_kwargs={
+            "init_scale": 0.03,
+        },
     )
-    inferer_svi.inference_prngkey = jax.random.PRNGKey(8811967)
+    inferer_svi.inference_prngkey = jax.random.PRNGKey(88119)
     inferer_svi.infer(data=data)
     samples = inferer_svi.get_samples()
     sample_summary = arviz.summary(samples)

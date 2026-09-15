@@ -263,3 +263,11 @@ class ParameterBlockSpec(BaseModel):
         if class_name == "DeterministicRef":
             return "deterministic"
         return None
+
+
+ParameterBlockSpec.model_rebuild(
+    _types_namespace={
+        "PriorSpec": PriorSpec,
+        "DeterministicSpec": DeterministicSpec,
+    }
+)

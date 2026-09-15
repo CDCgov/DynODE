@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpyro.distributions as dist
 
 from .base import DistributionSpec
-from .unions import DistributionTransformSpec, PriorDistributionSpec
+
+if TYPE_CHECKING:
+    from .unions import DistributionTransformSpec, PriorDistributionSpec
 
 
 class TransformedDistributionSpec(DistributionSpec):

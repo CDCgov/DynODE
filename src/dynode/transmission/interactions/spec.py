@@ -172,3 +172,10 @@ class InteractionSpec(BaseModel):
             context=context,
             data=data,
         )
+
+
+InteractionSpec.model_rebuild(
+    _types_namespace={
+        "InteractionValue": InteractionValue,
+    }
+)

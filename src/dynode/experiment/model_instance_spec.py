@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dynode.data.data_spec import DataSpec
 from dynode.parameters.parameter_spec import ParameterBlockSpec
-from dynode.structure.model_spec import ModelSpec
+from dynode.structure.model.model_spec import ModelSpec
 
 
 class ModelInstanceSpec(BaseModel):

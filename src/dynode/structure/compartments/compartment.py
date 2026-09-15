@@ -171,3 +171,10 @@ class CompartmentSpec(BaseModel):
             attrs[bin_name] = bin_idx
 
         return attrs
+
+
+CompartmentSpec.model_rebuild(
+    _types_namespace={
+        "AnyDimensionSpec": AnyDimensionSpec,
+    }
+)

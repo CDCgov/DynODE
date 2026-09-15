@@ -69,15 +69,19 @@ def compute_observations(
     )
 
     ihr_age_strain = ihr_age_strain_mult * ihr_strain[None, :]
+
     vaccine_eff_matrix = params.get(
         "vaccine_eff_matrix",
         jnp.asarray([[0.0, params["ve_infection"]]] * len(STRAIN_NAMES)),
     )
+
     ihr_mult_vaccine = 1 - 3 * vaccine_eff_matrix[0, 1]
     ihr_vacc_mult = jnp.asarray([1.0, ihr_mult_vaccine])
 
     incd = jnp.diff(c, axis=0)
+
     incd_age_vacc_strain = jnp.sum(incd, axis=(3, 4, 5))
+
     ihr_age_vacc_strain = (
         ihr_age_strain[:, None, :] * ihr_vacc_mult[None, :, None]
     )
@@ -96,13 +100,25 @@ def compute_observations(
     hosp_strain = jnp.sum(hosp_age_vacc_strain, axis=(1, 2))
 
     sim_hosps_weekly = jnp.asarray(
-        [jnp.bincount(bins, age_hosp, length=nbins) for age_hosp in hosp_age.T]
+        [
+            jnp.bincount(
+                bins,
+                age_hosp,
+                length=nbins,
+            )
+            for age_hosp in hosp_age.T
+        ]
     ).T
 
     incd_strain = jnp.sum(incd_age_vacc_strain, axis=(1, 2))
+
     sim_incd_strain_weekly = jnp.asarray(
         [
-            jnp.bincount(bins, strain_incd, length=nbins)
+            jnp.bincount(
+                bins,
+                strain_incd,
+                length=nbins,
+            )
             for strain_incd in incd_strain.T
         ]
     ).T
@@ -120,6 +136,21 @@ def compute_observations(
     )
 
 
+def _safe_positive(x, *, floor=1e-8, ceiling=1e8):
+    x = jnp.nan_to_num(x, nan=floor, posinf=ceiling, neginf=floor)
+    return jnp.clip(x, floor, ceiling)
+
+
+def _safe_nonnegative(x, *, ceiling=1e8):
+    x = jnp.nan_to_num(x, nan=0.0, posinf=ceiling, neginf=0.0)
+    return jnp.clip(x, 0.0, ceiling)
+
+
+def _safe_unit_interval(x, *, eps=1e-8):
+    x = jnp.nan_to_num(x, nan=eps, posinf=1.0 - eps, neginf=eps)
+    return jnp.clip(x, eps, 1.0 - eps)
+
+
 def likelihood(
     *,
     sim_hosps_weekly: Any,
@@ -133,44 +164,90 @@ def likelihood(
 ):
     """NumPyro likelihood for hospitalization and subtype observations."""
 
-    sim_hosps_weekly_sel = sim_hosps_weekly[obs_hosps_weeks - 1] + 0.01
-    negbin_concentration = sim_hosps_weekly_sel * HOSP_NEGBIN_INF_FACTOR
+    sim_hosps_weekly = _safe_nonnegative(sim_hosps_weekly)
+    sim_incd_strain_weekly = _safe_nonnegative(sim_incd_strain_weekly)
 
-    sim_subtype_prop = (
-        sim_incd_strain_weekly
-        / (jnp.sum(sim_incd_strain_weekly, axis=1, keepdims=True) + 0.01)
-        + 0.01
+    sim_hosps_weekly_sel = _safe_positive(
+        sim_hosps_weekly[obs_hosps_weeks - 1],
+        floor=1e-6,
     )
+
+    negbin_concentration = _safe_positive(
+        sim_hosps_weekly_sel * HOSP_NEGBIN_INF_FACTOR,
+        floor=1e-6,
+    )
+
+    hosp_dist = dist.NegativeBinomial2(
+        sim_hosps_weekly_sel,
+        negbin_concentration,
+    )
+
+    strain_total_weekly = jnp.sum(
+        sim_incd_strain_weekly,
+        axis=1,
+        keepdims=True,
+    )
+
+    sim_subtype_prop = sim_incd_strain_weekly / jnp.maximum(
+        strain_total_weekly,
+        1e-8,
+    )
+
+    n_strains = sim_incd_strain_weekly.shape[1]
+
+    sim_subtype_prop = jnp.nan_to_num(
+        sim_subtype_prop,
+        nan=1.0 / n_strains,
+        posinf=1.0,
+        neginf=0.0,
+    )
+
+    sim_subtype_prop = jnp.clip(sim_subtype_prop, 1e-8, 1.0)
+    sim_subtype_prop = sim_subtype_prop / jnp.sum(
+        sim_subtype_prop,
+        axis=1,
+        keepdims=True,
+    )
+
     sim_subtype_prop_sel = sim_subtype_prop[obs_subtype_weeks]
-    sim_subtype_conc_sel = (
+
+    sim_subtype_conc_sel = _safe_positive(
         sim_subtype_prop_sel
-        * obs_subtype_weekly_total[:, None]
-        * SUBTYPE_DIRMUL_INF_FACTOR
+        * jnp.maximum(obs_subtype_weekly_total[:, None], 1)
+        * SUBTYPE_DIRMUL_INF_FACTOR,
+        floor=1e-6,
+    )
+
+    subtype_dist = dist.DirichletMultinomial(
+        concentration=sim_subtype_conc_sel,
+        total_count=obs_subtype_weekly_total,
     )
 
     total_strain_incd = jnp.sum(sim_incd_strain_weekly, axis=0)
-    b_share = total_strain_incd[2] / (jnp.sum(total_strain_incd) + 0.01)
+    total_incd = jnp.sum(total_strain_incd)
+
+    b_share = total_strain_incd[2] / jnp.maximum(total_incd, 1e-8)
+    b_share = _safe_unit_interval(b_share)
+
+    b_share_log_prob = B_SHARE_DIST.log_prob(b_share)
 
     with numpyro.handlers.scale(scale=HOSP_LIKELIHOOD_WEIGHT):
         numpyro.sample(
             f"{year}_hospitalization",
-            dist.NegativeBinomial2(sim_hosps_weekly_sel, negbin_concentration),
+            hosp_dist,
             obs=obs_hosps_weekly,
         )
 
     with numpyro.handlers.scale(scale=SUBTYPE_LIKELIHOOD_WEIGHT):
         numpyro.sample(
             f"{year}_subtype_proportions",
-            dist.DirichletMultinomial(
-                concentration=sim_subtype_conc_sel,
-                total_count=obs_subtype_weekly_total,
-            ),
+            subtype_dist,
             obs=obs_subtype_weekly,
         )
 
     numpyro.factor(
         f"{year}_b_share_penalty",
-        B_SHARE_WEIGHT * B_SHARE_DIST.log_prob(b_share),
+        B_SHARE_WEIGHT * b_share_log_prob,
     )
 
     return sim_hosps_weekly_sel

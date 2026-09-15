@@ -10,7 +10,7 @@ from dynode.parameters.parameter_spec import ParameterBlockSpec
 from dynode.solver.solver_spec import SolverSpec
 from dynode.structure.bins.age import AgeBin
 from dynode.structure.simulation.simulation import SimulationSpec
-from dynode.transmission.transmission_spec import TransmissionSpec
+from dynode.transmission.model.spec import TransmissionSpec
 
 from .references import reference_kind, walk_references
 from .validation import (

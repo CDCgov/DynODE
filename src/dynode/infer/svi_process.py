@@ -4,6 +4,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 import arviz as az
+import numpy as np
 from jax import Array
 from numpyro.infer import (
     SVI,
@@ -11,7 +12,7 @@ from numpyro.infer import (
     Trace_ELBO,
     init_to_median,
 )
-from numpyro.infer.autoguide import AutoContinuous, AutoMultivariateNormal
+from numpyro.infer.autoguide import AutoGuide, AutoMultivariateNormal
 from numpyro.infer.svi import SVIRunResult
 from numpyro.optim import Adam, _NumPyroOptim
 from pydantic import Field, PositiveInt
@@ -32,7 +33,7 @@ class SVIProcess(InferenceProcess):
         description="Number of approximate posterior samples returned by get_samples()."
     )
 
-    guide_class: type[AutoContinuous] = AutoMultivariateNormal
+    guide_class: type[AutoGuide] = AutoMultivariateNormal
     guide_init_strategy: Callable[..., Any] = init_to_median
 
     optimizer: _NumPyroOptim = Field(
@@ -48,10 +49,24 @@ class SVIProcess(InferenceProcess):
 
     def infer(self, **model_kwargs: Any) -> SVI:
         """Run SVI and store the fitted inferer/result."""
+
+        print("Guide class:", self.guide_class)
+        print("Guide kwargs:", self.guide_kwargs)
+        print("Inference key:", self.inference_prngkey)
         guide = self.guide_class(
             self.numpyro_model,
             init_loc_fn=self.guide_init_strategy,
             **self.guide_kwargs,
+        )
+
+        print("Constructed guide:", guide)
+        print(
+            "Guide init scale:",
+            getattr(
+                guide,
+                "init_scale",
+                getattr(guide, "_init_scale", "not exposed"),
+            ),
         )
 
         inferer = SVI(
@@ -67,6 +82,17 @@ class SVIProcess(InferenceProcess):
             progress_bar=self.progress_bar,
             **model_kwargs,
         )
+
+        losses = np.asarray(result.losses, dtype=float)
+
+        print("Num losses:", len(losses))
+        print("Finite losses:", np.isfinite(losses).sum())
+        print("NaN losses:", np.isnan(losses).sum())
+        print("Inf losses:", np.isinf(losses).sum())
+
+        bad_idx = np.where(~np.isfinite(losses))[0]
+        print("First bad loss index:", bad_idx[0] if len(bad_idx) else None)
+        print("Last 20 losses:", losses[-20:])
 
         self._inference_complete = True
         self._inferer = inferer

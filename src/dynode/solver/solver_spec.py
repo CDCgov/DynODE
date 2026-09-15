@@ -200,3 +200,11 @@ class SolverSpec(BaseModel):
             "max_steps": self.max_steps,
             "throw": self.throw,
         }
+
+
+SolverSpec.model_rebuild(
+    _types_namespace={
+        "SolverMethod": SolverMethod,
+        "StepSizeController": StepSizeController,
+    }
+)

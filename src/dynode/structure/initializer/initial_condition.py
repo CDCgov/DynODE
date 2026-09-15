@@ -77,3 +77,10 @@ class CompartmentInitialConditionSpec(BaseModel):
             context=context,
             data=data,
         )
+
+
+CompartmentInitialConditionSpec.model_rebuild(
+    _types_namespace={
+        "InitializerValue": InitializerValue,
+    }
+)

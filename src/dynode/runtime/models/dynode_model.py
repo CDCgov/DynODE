@@ -16,7 +16,7 @@ from typing_extensions import Self
 from dynode.runtime.compile.compile_model import compile_model
 from dynode.runtime.compile.options import CompileOptions
 from dynode.runtime.layout.runtime_model import RuntimeModel
-from dynode.structure.model_spec import ModelSpec
+from dynode.structure.model.model_spec import ModelSpec
 
 from .callable_validation import require_callable
 from .model_defaults import (

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing_extensions import Self
 
-if TYPE_CHECKING:
-    from dynode.value.unions import DeterministicExpression
+from dynode.value.unions import DeterministicExpression
 
 
 class DeterministicSpec(BaseModel):
@@ -61,3 +60,10 @@ class DeterministicSpec(BaseModel):
         data: Any | None = None,
     ) -> Any:
         return self.evaluate(context=context, data=data)
+
+
+DeterministicSpec.model_rebuild(
+    _types_namespace={
+        "DeterministicExpression": DeterministicExpression,
+    }
+)
