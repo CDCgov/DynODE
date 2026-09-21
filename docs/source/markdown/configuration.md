@@ -230,6 +230,7 @@ from dynode.config import (
 import jax.numpy as jnp
 from datetime import date
 
+
 # --- SIR Initializer with age stratification ---
 class SIRInitializer(Initializer):
     """Initializer for SIR model, setting initial conditions for compartments."""
@@ -262,9 +263,7 @@ class SIRInitializer(Initializer):
 
 
 # --- SIRConfig for bin definitions and strain specification---
-dimension = Dimension(
-    name="age", bins=[Bin(name="young"), Bin(name="old")]
-)
+dimension = Dimension(name="age", bins=[Bin(name="young"), Bin(name="old")])
 s = Compartment(name="s", dimensions=[dimension])
 i = Compartment(name="i", dimensions=[dimension])
 r = Compartment(name="r", dimensions=[dimension])
