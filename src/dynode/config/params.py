@@ -62,7 +62,7 @@ class SolverParams(BaseModel):
     discontinuity_points: list[float] = Field(
         default_factory=lambda: [],
         description="""Points in the ode's solve that a discontinuity occurs,
-        meaning the higher order gradiants are not smooth. Float values
+        meaning the higher order gradients are not smooth. Float values
         represent the simulation day, or days since init date of the model.""",
     )
 

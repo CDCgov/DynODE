@@ -54,6 +54,7 @@ logs*
 !tests/*.json
 !pyproject.toml
 !ruff.toml
+!_typos.toml
 
 #####
 # Python

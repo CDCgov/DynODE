@@ -21,7 +21,7 @@
 
 This repository is for the design and implementation of the DynODE framework for disease Scenario forecasting, built by the Scenarios team within CFA-Predict.
 
-Currently, we aim to use this code to forecast different disease tranmission scenarios with a compartmental mechanistic ODE model. We aim to provide enough flexibility for the code users to explore a variety of scenarios, but also making certain design decisions that allow for fast computation and fitting as well as code readability.
+Currently, we aim to use this code to forecast different disease transmission scenarios with a compartmental mechanistic ODE model. We aim to provide enough flexibility for the code users to explore a variety of scenarios, but also making certain design decisions that allow for fast computation and fitting as well as code readability.
 
 This framework has already been used to create:
 
@@ -29,7 +29,7 @@ This framework has already been used to create:
 
 What this framework is not:
 
-A fully dynamic suite of compartment models that are easily interchangable or modified.
+A fully dynamic suite of compartment models that are easily interchangeable or modified.
 
 ## Quick Start
 
@@ -37,7 +37,7 @@ To get a taste of what this framework is capable of start at `examples/example_s
 `example_sir_config.py` contains the following:
 - `SIRInitializer`: describes how the initial conditions of the model, in this case with hardcoded values, but often with real world data informing compartment initial conditions.
 - `SIRConfig`: describes the compartment structure of the model, the 3 compartments, Susceptible, Infectious, and recovered, as well as their dimensions, young and old in this case.
-- `SIRInferedConfig`: a copy of `SIRConfig` but with undefined strain transmissibility, meant to be infered based on observed data.
+- `SIRInferredConfig`: a copy of `SIRConfig` but with undefined strain transmissibility, meant to be inferred based on observed data.
 
 After understanding the compartments and initial values of the model, go to `examples/sir.py` to see a simple scenario in which we:
 - Define some Ordinary Differential Equations (ODEs) that dictate movement between compartments.

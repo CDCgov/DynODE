@@ -26,7 +26,7 @@ from ..typing import CompartmentState, ODE_Eqns
 class AbstractODEParams:
     """The internal representation containing parameters passed to the ODEs.
 
-    Because ODEs work with vectors/matricies/tensors as opposed to objects,
+    Because ODEs work with vectors/matrices/tensors as opposed to objects,
     this internal state flattens the list of strains into the tensors of information
     separate from the `Strain` class entirely.
     """

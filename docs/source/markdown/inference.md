@@ -96,7 +96,7 @@ Implements inference using Stochastic Variational Inference ([SVI](https://num.p
 
 ## Inference Gotchas and Tips
 - For information on exactly what to put inside of `numpyro_model`, please refer to the library backend documentation, section on [NumPyro](#numpyro). As numpyro [sites](https://num.pyro.ai/en/stable/primitives.html#module-numpyro.primitives) are the primary mechanism for the solver/optimizer of each inference process to update and sample parameters.
-- in the event that your sampler/optimzer
+- in the event that your sampler/optimizer
 
 ---
 
