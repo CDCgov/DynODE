@@ -47,34 +47,35 @@ from dynode.logging import log
 parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers(title="subcommands", dest="subcommand")
 
-log_parser = subparsers.add_parser('log', help="Subcommands for logging")
+log_parser = subparsers.add_parser("log", help="Subcommands for logging")
 log_parser.add_argument(
-    '-l',
-    '--level',
-    default='info',
-    choices=['debug', 'info', 'warning', 'error', 'critical'],
-    help="set the logging level the default if info"
+    "-l",
+    "--level",
+    default="info",
+    choices=["debug", "info", "warning", "error", "critical"],
+    help="set the logging level the default if info",
 )
 log_parser.add_argument(
-    '-o',
-    '--output',
-    default='file',
-    choices=['file', 'console', 'both'],
-    help="print logs to console, file, or both the default is file"
+    "-o",
+    "--output",
+    default="file",
+    choices=["file", "console", "both"],
+    help="print logs to console, file, or both the default is file",
 )
 
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    if args.subcommand == 'log':
+    if args.subcommand == "log":
         log.use_logging(level=args.level, output=args.output)
 ```
 
 Notice the function above use_logging located in log.py initializes a global logger called "dynode".
 ```python
 from dynode.logging import log
-if args.subcommand == 'log':
-        log.use_logging(level=args.level, output=args.output)
+
+if args.subcommand == "log":
+    log.use_logging(level=args.level, output=args.output)
 ```
 ### log subparser cli command
 --help command will display a list of commands and their options
@@ -119,7 +120,7 @@ Note: Your function can take arguments or not and it can return a value or not. 
 ```python
 @log_decorator
 def some_function():
-    '''function code'''
+    """function code"""
     return value
 ```
 ### Inline Logging
