@@ -44,7 +44,6 @@ def execution_timer(_func=None):
             A log is created for using all the after execution information. If any exceptions occur during execution we log and raise.
             Finally returning any value that was returned from the function.
             """
-
             """ Grabbing file and function name from stack then overriding those values in the CustomLogFormatter """
             py_file_caller = getframeinfo(stack()[1][0])
             extra_args = {
