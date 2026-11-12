@@ -10,6 +10,7 @@ from .datetime_utils import (
     sim_day_to_date,
     sim_day_to_epiweek,
 )
+from .execution_timer import execution_timer
 from .log_decorator import log_decorator
 from .splines import base_equation, conditional_knots, evaluate_cubic_spline
 from .utils import (
@@ -32,6 +33,7 @@ logger = logging.getLogger("dynode")
 __all__ = [
     "log",
     "log_decorator",
+    "execution_timer",
     "CustomLogFormatter",
     "logger",
     "sim_day_to_date",

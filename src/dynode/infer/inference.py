@@ -24,6 +24,7 @@ from typing_extensions import Callable
 
 import dynode.config
 import dynode.typing
+from dynode.utils import execution_timer
 
 
 class InferenceProcess(BaseModel):
@@ -266,6 +267,7 @@ class SVIProcess(InferenceProcess):
         https://num.pyro.ai/en/stable/autoguide.html""",
     )
 
+    @execution_timer
     def infer(self, **kwargs) -> SVI:
         """Fit the numpyro_model to data using SVI.
 
