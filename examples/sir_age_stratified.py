@@ -14,6 +14,7 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from diffrax import Solution
+
 from dynode.config import (
     Bin,
     Compartment,
@@ -25,9 +26,8 @@ from dynode.config import (
     Strain,
     TransmissionParams,
 )
-from dynode.simulation import AbstractODEParams, simulate
-
 from dynode.infer import sample_then_resolve
+from dynode.simulation import AbstractODEParams, simulate
 from dynode.typing import CompartmentGradients, CompartmentState
 
 

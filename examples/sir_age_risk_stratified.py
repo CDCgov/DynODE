@@ -4,6 +4,8 @@ import chex
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from pydantic import ConfigDict, Field
+
 from dynode.config import (
     Compartment,
     Dimension,
@@ -15,10 +17,8 @@ from dynode.config import (
     TransmissionParams,
 )
 from dynode.config.bins import AgeBin, Bin
-from dynode.simulation import AbstractODEParams, simulate
-from pydantic import ConfigDict, Field
-
 from dynode.infer import sample_then_resolve
+from dynode.simulation import AbstractODEParams, simulate
 from dynode.typing import CompartmentGradients, CompartmentState
 
 
